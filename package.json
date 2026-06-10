@@ -5,6 +5,8 @@
   "main": "index.js",
   "scripts": {
     "android": "expo run:android",
+    "android:release": "cd android && .\\gradlew.bat assembleRelease",
+    "android:apk": "cd android && .\\gradlew.bat assembleRelease",
     "ios": "expo run:ios",
     "lint": "eslint .",
     "start": "expo start --dev-client",

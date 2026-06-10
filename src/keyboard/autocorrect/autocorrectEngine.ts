@@ -195,14 +195,42 @@ function toConfidence(
   return Math.min(Math.max(confidence, 0), 0.98);
 }
 
-function collectCandidates(typed: string): Array<{
+function sharedPrefixLength(a: string, b: string): number {
+  const limit = Math.min(a.length, b.length);
+  let count = 0;
+  for (let i = 0; i < limit; i++) {
+    if (a[i] !== b[i]) {
+      break;
+    }
+    count += 1;
+  }
+  return count;
+}
+
+function isLikelyTypoMatch(typed: string, candidate: string, edits: number): boolean {
+  if (edits === 0) {
+    return true;
+  }
+  if (edits === 1) {
+    return true;
+  }
+  return (
+    typed.length >= 3 &&
+    sharedPrefixLength(typed, candidate) >= Math.min(2, typed.length - 1)
+  );
+}
+
+function collectCandidates(
+  typed: string,
+  editBudget = maxEditDistance(typed.length),
+): Array<{
   word: string;
   edits: number;
   learnedUses: number;
   staticRank: number;
 }> {
   const learned = getLearnedCounts();
-  const maxEdits = maxEditDistance(typed.length);
+  const maxEdits = editBudget;
   const lengthMin = Math.max(1, typed.length - maxEdits);
   const lengthMax = typed.length + maxEdits;
   const results: Array<{
@@ -251,6 +279,76 @@ function collectCandidates(typed: string): Array<{
   return results;
 }
 
+export type SimilarWordSuggestion = {
+  word: string;
+  edits: number;
+};
+
+/** Looser matching for the suggestion bar while typing (not used for auto-replace on space). */
+export function getSimilarWordSuggestions(
+  typedWord: string,
+  limit = 3,
+  exclude: ReadonlySet<string> = new Set(),
+): SimilarWordSuggestion[] {
+  const typed = typedWord.trim().toLowerCase();
+  if (typed.length < 2 || !/^[a-z]+$/.test(typed)) {
+    return [];
+  }
+
+  const editBudget = typed.length <= 4 ? 2 : typed.length <= 7 ? 2 : 2;
+  const candidates = collectCandidates(typed, editBudget).filter(candidate => {
+    if (exclude.has(candidate.word) || isLikelyNameTrap(typed, candidate.word)) {
+      return false;
+    }
+    return isLikelyTypoMatch(typed, candidate.word, candidate.edits);
+  });
+
+  candidates.sort((left, right) => {
+    const leftScore = scoreCandidate(
+      typed,
+      left.word,
+      left.edits,
+      left.learnedUses,
+      left.staticRank,
+    );
+    const rightScore = scoreCandidate(
+      typed,
+      right.word,
+      right.edits,
+      right.learnedUses,
+      right.staticRank,
+    );
+    return leftScore - rightScore;
+  });
+
+  return candidates.slice(0, limit).map(candidate => ({
+    word: candidate.word,
+    edits: candidate.edits,
+  }));
+}
+
+export function getTypoSuggestionPreview(typedWord: string): string | null {
+  const typed = typedWord.trim();
+  if (typed.length < 2 || !/^[a-zA-Z]+$/.test(typed)) {
+    return null;
+  }
+  if (hasIntentionalCasing(typed) || isProbablyProperNoun(typed)) {
+    return null;
+  }
+
+  const lower = typed.toLowerCase();
+  if (isProtectedWord(lower, getLearnedCounts().get(lower) ?? 0)) {
+    return null;
+  }
+
+  const [best] = getSimilarWordSuggestions(lower, 1, new Set([lower]));
+  if (!best || best.word.startsWith(lower)) {
+    return null;
+  }
+
+  return applyCaseToWord(best.word, typed);
+}
+
 export function getAutocorrectCandidate(
   typedWord: string,
 ): AutocorrectCandidate | null {
@@ -273,7 +371,7 @@ export function getAutocorrectCandidate(
     return null;
   }
 
-  const candidates = collectCandidates(lower);
+  const candidates = collectCandidates(lower, maxEditDistance(lower.length));
   if (candidates.length === 0) {
     return null;
   }

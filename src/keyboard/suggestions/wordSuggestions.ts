@@ -1,4 +1,5 @@
 import englishWords from '../gesture/data/englishWords.json';
+import {getSimilarWordSuggestions} from '../autocorrect/autocorrectEngine';
 import {getLearnedCounts} from './learnedDictionary';
 
 const WORDS = englishWords as string[];
@@ -7,6 +8,7 @@ const STATIC_RANK = new Map<string, number>(
 );
 const LEARNED_SCORE_BOOST = 12;
 const STATIC_SCAN_LIMIT = 40;
+const FUZZY_EDIT_WEIGHT = 650;
 
 export function extractCurrentWord(text: string): string {
   const match = text.match(/[a-zA-Z]+$/);
@@ -26,23 +28,39 @@ export function applyCaseToWord(word: string, prefix: string): string {
   return word;
 }
 
-function scoreCandidate(word: string, learned: ReadonlyMap<string, number>): number {
+function scorePrefixCandidate(
+  prefix: string,
+  word: string,
+  learned: ReadonlyMap<string, number>,
+): number {
   const staticRank = STATIC_RANK.get(word) ?? 50_000;
   const learnedUses = learned.get(word) ?? 0;
-  return staticRank - learnedUses * LEARNED_SCORE_BOOST;
+  const extraLengthPenalty = Math.max(0, word.length - prefix.length) * 4;
+  return staticRank + extraLengthPenalty - learnedUses * LEARNED_SCORE_BOOST;
 }
 
-export function getWordSuggestions(prefix: string, limit = 3): string[] {
-  if (!prefix || prefix.length < 1) {
-    return [];
-  }
+function scoreFuzzyCandidate(
+  prefix: string,
+  word: string,
+  edits: number,
+  learned: ReadonlyMap<string, number>,
+): number {
+  const staticRank = STATIC_RANK.get(word) ?? 50_000;
+  const learnedUses = learned.get(word) ?? 0;
+  const sharedStemBonus =
+    word.slice(0, 2) === prefix.slice(0, 2) ? 500 : 0;
+  return (
+    edits * FUZZY_EDIT_WEIGHT +
+    staticRank -
+    learnedUses * LEARNED_SCORE_BOOST -
+    sharedStemBonus
+  );
+}
 
-  const lower = prefix.toLowerCase();
-  if (!/^[a-z]+$/.test(lower)) {
-    return [];
-  }
-
-  const learned = getLearnedCounts();
+function getPrefixMatches(
+  lower: string,
+  learned: ReadonlyMap<string, number>,
+): string[] {
   const candidates = new Set<string>();
 
   let scanned = 0;
@@ -65,7 +83,53 @@ export function getWordSuggestions(prefix: string, limit = 3): string[] {
     }
   }
 
-  return Array.from(candidates)
-    .sort((a, b) => scoreCandidate(a, learned) - scoreCandidate(b, learned))
-    .slice(0, limit);
+  return Array.from(candidates).sort(
+    (a, b) => scorePrefixCandidate(lower, a, learned) - scorePrefixCandidate(lower, b, learned),
+  );
+}
+
+export function getWordSuggestions(prefix: string, limit = 3): string[] {
+  if (!prefix || prefix.length < 1) {
+    return [];
+  }
+
+  const lower = prefix.toLowerCase();
+  if (!/^[a-z]+$/.test(lower)) {
+    return [];
+  }
+
+  const learned = getLearnedCounts();
+  const prefixMatches = getPrefixMatches(lower, learned);
+  const taken = new Set<string>([lower, ...prefixMatches]);
+  const fuzzyMatches = getSimilarWordSuggestions(lower, limit, taken);
+
+  type RankedSuggestion = {
+    word: string;
+    score: number;
+  };
+
+  const ranked: RankedSuggestion[] = [
+    ...prefixMatches.map(word => ({
+      word,
+      score: scorePrefixCandidate(lower, word, learned),
+    })),
+    ...fuzzyMatches.map(match => ({
+      word: match.word,
+      score: scoreFuzzyCandidate(lower, match.word, match.edits, learned),
+    })),
+  ];
+
+  const seen = new Set<string>();
+  const merged: string[] = [];
+  ranked
+    .sort((left, right) => left.score - right.score)
+    .forEach(entry => {
+      if (seen.has(entry.word) || merged.length >= limit) {
+        return;
+      }
+      seen.add(entry.word);
+      merged.push(entry.word);
+    });
+
+  return merged;
 }

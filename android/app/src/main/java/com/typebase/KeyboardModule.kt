@@ -158,13 +158,15 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
 
   @ReactMethod
   fun deleteBackward() {
-    val connection = KeyboardInputBridge.getInputConnection() ?: return
-    val selected = connection.getSelectedText(0)
-    if (selected != null && selected.isNotEmpty()) {
-      connection.commitText("", 1)
-      return
+    UiThreadUtil.runOnUiThread {
+      val connection = KeyboardInputBridge.getInputConnection() ?: return@runOnUiThread
+      val selected = connection.getSelectedText(0)
+      if (selected != null && selected.isNotEmpty()) {
+        connection.commitText("", 1)
+        return@runOnUiThread
+      }
+      connection.deleteSurroundingText(1, 0)
     }
-    connection.deleteSurroundingText(1, 0)
   }
 
   @ReactMethod
@@ -323,75 +325,79 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
 
   @ReactMethod
   fun deleteWordBackward(promise: Promise) {
-    try {
-      val connection = KeyboardInputBridge.getInputConnection()
-      if (connection == null) {
-        promise.resolve(false)
-        return
+    UiThreadUtil.runOnUiThread {
+      try {
+        val connection = KeyboardInputBridge.getInputConnection()
+        if (connection == null) {
+          promise.resolve(false)
+          return@runOnUiThread
+        }
+        val before = connection.getTextBeforeCursor(1000, 0)?.toString().orEmpty()
+        if (before.isEmpty()) {
+          promise.resolve(false)
+          return@runOnUiThread
+        }
+        var end = before.length
+        while (end > 0 && before[end - 1].isWhitespace()) {
+          end--
+        }
+        var start = end
+        while (start > 0 && !before[start - 1].isWhitespace()) {
+          start--
+        }
+        val deleteCount = before.length - start
+        if (deleteCount > 0) {
+          connection.deleteSurroundingText(deleteCount, 0)
+        }
+        promise.resolve(deleteCount > 0)
+      } catch (error: Exception) {
+        promise.reject("DELETE_WORD_BACKWARD_FAILED", error)
       }
-      val before = connection.getTextBeforeCursor(1000, 0)?.toString().orEmpty()
-      if (before.isEmpty()) {
-        promise.resolve(false)
-        return
-      }
-      var end = before.length
-      while (end > 0 && before[end - 1].isWhitespace()) {
-        end--
-      }
-      var start = end
-      while (start > 0 && !before[start - 1].isWhitespace()) {
-        start--
-      }
-      val deleteCount = before.length - start
-      if (deleteCount > 0) {
-        connection.deleteSurroundingText(deleteCount, 0)
-      }
-      promise.resolve(deleteCount > 0)
-    } catch (error: Exception) {
-      promise.reject("DELETE_WORD_BACKWARD_FAILED", error)
     }
   }
 
   @ReactMethod
   fun deleteSentenceBackward(promise: Promise) {
-    try {
-      val connection = KeyboardInputBridge.getInputConnection()
-      if (connection == null) {
-        promise.resolve(false)
-        return
-      }
-      val before = connection.getTextBeforeCursor(4000, 0)?.toString().orEmpty()
-      if (before.isEmpty()) {
-        promise.resolve(false)
-        return
-      }
-      var end = before.length
-      while (end > 0 && before[end - 1].isWhitespace()) {
-        end--
-      }
-      var boundary = end
-      var index = end - 1
-      while (index >= 0) {
-        val char = before[index]
-        if (char == '.' || char == '!' || char == '?' || char == '\n') {
-          boundary = index + 1
-          while (boundary < end && before[boundary].isWhitespace()) {
-            boundary++
-          }
-          break
+    UiThreadUtil.runOnUiThread {
+      try {
+        val connection = KeyboardInputBridge.getInputConnection()
+        if (connection == null) {
+          promise.resolve(false)
+          return@runOnUiThread
         }
-        index--
+        val before = connection.getTextBeforeCursor(4000, 0)?.toString().orEmpty()
+        if (before.isEmpty()) {
+          promise.resolve(false)
+          return@runOnUiThread
+        }
+        var end = before.length
+        while (end > 0 && before[end - 1].isWhitespace()) {
+          end--
+        }
+        var boundary = end
+        var index = end - 1
+        while (index >= 0) {
+          val char = before[index]
+          if (char == '.' || char == '!' || char == '?' || char == '\n') {
+            boundary = index + 1
+            while (boundary < end && before[boundary].isWhitespace()) {
+              boundary++
+            }
+            break
+          }
+          index--
+        }
+        if (boundary == end) {
+          boundary = 0
+        }
+        val deleteCount = before.length - boundary
+        if (deleteCount > 0) {
+          connection.deleteSurroundingText(deleteCount, 0)
+        }
+        promise.resolve(deleteCount > 0)
+      } catch (error: Exception) {
+        promise.reject("DELETE_SENTENCE_BACKWARD_FAILED", error)
       }
-      if (boundary == end) {
-        boundary = 0
-      }
-      val deleteCount = before.length - boundary
-      if (deleteCount > 0) {
-        connection.deleteSurroundingText(deleteCount, 0)
-      }
-      promise.resolve(deleteCount > 0)
-    } catch (error: Exception) {
-      promise.reject("DELETE_SENTENCE_BACKWARD_FAILED", error)
     }
   }
 
@@ -479,7 +485,7 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     private const val LEARNED_PHRASES_KEY = "learned_phrases"
     private const val COMMA_LAUNCHER_ARMED_KEY = "comma_launcher_armed"
     private const val DEFAULT_GESTURE_SETTINGS =
-        """{"swipeTyping":true,"spaceCursorSwipe":true,"backspaceWordSwipe":true,"backspaceSentenceHold":true,"commaLauncher":true,"trackpadMode":true,"launcherAppPackage":"com.typebase"}"""
+        """{"swipeTyping":true,"spaceCursorSwipe":true,"backspaceWordSwipe":true,"backspaceSentenceHold":false,"commaLauncher":true,"trackpadMode":true,"launcherAppPackage":"com.typebase"}"""
     private const val DEFAULT_AUTOCORRECT_SETTINGS =
         """{"enabled":true,"autoApplyOnSpace":false}"""
   }

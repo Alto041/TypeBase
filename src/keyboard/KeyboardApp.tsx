@@ -1,5 +1,10 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {ActivityIndicator, StyleSheet, View} from 'react-native';
+import {
+  ActivityIndicator,
+  InteractionManager,
+  StyleSheet,
+  View,
+} from 'react-native';
 import {useFonts} from 'expo-font';
 import {KeyboardRow} from './components/Key';
 import {SuggestionBar} from './components/SuggestionBar';
@@ -46,6 +51,7 @@ import {
 import {
   getAutocorrectCandidate,
   getAutocorrectPreview,
+  getTypoSuggestionPreview,
   shouldAutoApply,
 } from './autocorrect/autocorrectEngine';
 import {
@@ -386,7 +392,8 @@ function KeyboardBody() {
 
     let preview: string | null = null;
     if (getAutocorrectSettings().enabled && prefix.length >= 2) {
-      preview = getAutocorrectPreview(prefix);
+      preview =
+        getAutocorrectPreview(prefix) ?? getTypoSuggestionPreview(prefix);
     }
 
     const phraseSuggestions = getPhraseSuggestions(context, 2);
@@ -494,20 +501,23 @@ function KeyboardBody() {
   );
 
   useEffect(() => {
-    Promise.all([
-      ensureEssentialsLoaded(),
-      ensureClipboardLoaded(),
-      ensureLearnedDictionaryLoaded(),
-      ensureLearnedPhrasesLoaded(),
-      ensureAutocorrectLoaded(),
-      reloadGesturesFromStorage(),
-    ]).finally(() => {
-      reloadEssentials();
-      void reloadClipboard();
-      void reloadGestures();
-      void reloadAutocorrect();
-      refreshSuggestions();
+    const interaction = InteractionManager.runAfterInteractions(() => {
+      Promise.all([
+        ensureEssentialsLoaded(),
+        ensureClipboardLoaded(),
+        ensureLearnedDictionaryLoaded(),
+        ensureLearnedPhrasesLoaded(),
+        ensureAutocorrectLoaded(),
+        reloadGesturesFromStorage(),
+      ]).finally(() => {
+        reloadEssentials();
+        void reloadClipboard();
+        void reloadGestures();
+        void reloadAutocorrect();
+        refreshSuggestions();
+      });
     });
+    return () => interaction.cancel();
   }, [
     refreshSuggestions,
     reloadAutocorrect,
@@ -802,6 +812,9 @@ function KeyboardBody() {
           });
         });
       },
+      onBackspaceRelease: () => {
+        scheduleRefreshSuggestions();
+      },
       swipeTyping: gestureSettings.swipeTyping,
       commaLauncher: gestureSettings.commaLauncher,
       commaLauncherActive,
@@ -823,6 +836,7 @@ function KeyboardBody() {
     keyGesturesActive,
     launcherAppPackage,
     refreshSuggestions,
+    scheduleRefreshSuggestions,
   ]);
 
   const handleGestureToggle = useCallback(
@@ -1054,12 +1068,23 @@ function KeyboardBody() {
   );
 }
 
+const FONT_LOAD_TIMEOUT_MS = 2500;
+
 export default function KeyboardApp() {
   const [fontsLoaded] = useFonts({
     Geist: require('../../assets/Geist-VariableFont_wght.ttf'),
   });
+  const [fontTimedOut, setFontTimedOut] = useState(false);
 
-  if (!fontsLoaded) {
+  useEffect(() => {
+    if (fontsLoaded) {
+      return;
+    }
+    const timer = setTimeout(() => setFontTimedOut(true), FONT_LOAD_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [fontsLoaded]);
+
+  if (!fontsLoaded && !fontTimedOut) {
     return (
       <View style={[styles.container, styles.loading]}>
         <ActivityIndicator color={keyboardTheme.label} />

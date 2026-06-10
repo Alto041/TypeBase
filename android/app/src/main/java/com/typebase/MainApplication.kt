@@ -33,6 +33,8 @@ class MainApplication : Application(), ReactApplication {
         }
     loadReactNative(this)
     ApplicationLifecycleDispatcher.onApplicationCreate(this)
+    // Preload the React runtime so the IME keyboard can render without opening MainActivity.
+    reactHost.start()
   }
 
   override fun onConfigurationChanged(newConfig: Configuration) {

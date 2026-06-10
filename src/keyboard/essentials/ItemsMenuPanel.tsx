@@ -7,6 +7,7 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
+import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import ArrowIcon from '../../../assets/plugins/arrow.svg';
 import ClipboardIcon from '../../../assets/plugins/clipboard.svg';
 import EssentialsIcon from '../../../assets/plugins/essentials.svg';
@@ -17,6 +18,7 @@ import {
   PLUGIN_CARD_COLOR,
   PLUGIN_INNER_RADIUS,
   PLUGIN_OUTER_RADIUS,
+  PLUGIN_PANEL_HEIGHT,
   PluginScrollView,
   pluginPanelStyles,
 } from '../components/pluginPanelLayout';
@@ -105,6 +107,8 @@ const PLUGINS = [
   {id: 'calculator', title: 'Calculator', Icon: CalculatorIcon},
 ] as const;
 
+const PLUGIN_FADE_HEIGHT = Math.round(PLUGIN_PANEL_HEIGHT * 0.52);
+
 export function ItemsMenuPanel({
   onSelectEssentials,
   onSelectClipboard,
@@ -133,6 +137,36 @@ export function ItemsMenuPanel({
           />
         ))}
       </PluginScrollView>
+      <View style={styles.fade} pointerEvents="none">
+        <Svg width="100%" height="100%" preserveAspectRatio="none">
+          <Defs>
+            <LinearGradient id="pluginSmoke" x1="0" y1="1" x2="0" y2="0">
+              <Stop
+                offset="0"
+                stopColor={keyboardTheme.container}
+                stopOpacity="1"
+              />
+              <Stop
+                offset="0.5"
+                stopColor={keyboardTheme.container}
+                stopOpacity="0.4"
+              />
+              <Stop
+                offset="1"
+                stopColor={keyboardTheme.container}
+                stopOpacity="0"
+              />
+            </LinearGradient>
+          </Defs>
+          <Rect
+            x="0"
+            y="0"
+            width="100%"
+            height="100%"
+            fill="url(#pluginSmoke)"
+          />
+        </Svg>
+      </View>
     </View>
   );
 }
@@ -161,5 +195,12 @@ const styles = StyleSheet.create({
   },
   tileSpacer: {
     flex: 1,
+  },
+  fade: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: PLUGIN_FADE_HEIGHT,
   },
 });

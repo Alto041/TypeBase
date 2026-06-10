@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useMemo, useRef} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
   PanResponder,
   PixelRatio,
@@ -19,15 +19,20 @@ import {useKeyLayoutContext} from '../gesture/KeyLayoutContext';
 import {
   gestureSwipeActiveRef,
   shouldBlockSwipeTypingKeyInput,
+  shouldDeferSwipeTypingLetterTap,
+  swipeTypingSessionRef,
 } from '../gesture/gestureState';
 import {triggerKeyHaptic} from '../haptics';
+import {keyboardBridge} from '../keyboardBridge';
 import type {KeyDefinition} from '../layouts/qwerty';
 import {keyboardTheme} from '../theme';
 
 const KEY_BORDER_RADIUS = 6;
 const ENTER_BORDER_RADIUS = keyboardTheme.keyHeight / 2;
 const KEY_PRESS_SCALE = 0.96;
-const BACKSPACE_HOLD_DELAY_MS = 400;
+const BACKSPACE_HOLD_DELAY_MS = 280;
+const BACKSPACE_SENTENCE_ESCALATE_MS = 700;
+const BACKSPACE_SWIPE_ACTIVATE_PX = 10;
 const COMMA_HOLD_DELAY_MS = 400;
 const BACKSPACE_INITIAL_INTERVAL_MS = 75;
 const BACKSPACE_MIN_INTERVAL_MS = 25;
@@ -36,6 +41,10 @@ const CURSOR_STEP_PX = 10;
 const SPACE_SWIPE_THRESHOLD_PX = 8;
 const BACKSPACE_WORD_SWIPE_PX = 24;
 
+function dp(value: number): number {
+  return value * PixelRatio.get();
+}
+
 export type KeyGesturesConfig = {
   spaceCursorSwipe: boolean;
   backspaceWordSwipe: boolean;
@@ -43,6 +52,7 @@ export type KeyGesturesConfig = {
   onCursorMove: (offset: number) => void;
   onDeleteWord: () => void;
   onDeleteSentence: () => void;
+  onBackspaceRelease?: () => void;
   commaLauncher: boolean;
   commaLauncherActive: boolean;
   onCommaLongPress: () => void;
@@ -80,6 +90,13 @@ export function Key({
   const spaceSwipingRef = useRef(false);
   const spaceDidSwipeRef = useRef(false);
   const backspaceDidSwipeRef = useRef(false);
+  const backspaceHoldStartedAtRef = useRef(0);
+  const backspaceTouchActiveRef = useRef(false);
+  const letterTouchPendingRef = useRef(false);
+  const keyGesturesRef = useRef(keyGestures);
+  const [isBackspaceHeld, setIsBackspaceHeld] = useState(false);
+
+  keyGesturesRef.current = keyGestures;
   const commaHoldDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const commaDidHoldRef = useRef(false);
   const commaSuppressLaunchRef = useRef(false);
@@ -197,14 +214,21 @@ export function Key({
 
   const scheduleBackspaceRepeat = useCallback(() => {
     clearBackspaceRepeat();
+    backspaceHoldStartedAtRef.current = Date.now();
 
     const tick = () => {
-      if (keyGestures?.backspaceSentenceHold) {
-        keyGestures.onDeleteSentence();
+      const gestures = keyGesturesRef.current;
+      const heldFor = Date.now() - backspaceHoldStartedAtRef.current;
+      if (
+        gestures?.backspaceSentenceHold &&
+        heldFor >= BACKSPACE_SENTENCE_ESCALATE_MS
+      ) {
+        gestures.onDeleteSentence();
         backspaceRepeatRef.current = setTimeout(tick, 180);
         return;
       }
-      onPress(keyDef);
+
+      keyboardBridge.deleteBackward();
       backspaceIntervalRef.current = Math.max(
         BACKSPACE_MIN_INTERVAL_MS,
         backspaceIntervalRef.current - BACKSPACE_ACCEL_STEP_MS,
@@ -216,27 +240,27 @@ export function Key({
       backspaceHoldDelayRef.current = null;
       tick();
     }, BACKSPACE_HOLD_DELAY_MS);
-  }, [clearBackspaceRepeat, keyDef, keyGestures, onPress]);
+  }, [clearBackspaceRepeat]);
 
   useEffect(() => {
     const timer = setTimeout(measureKey, 0);
-    return () => {
-      clearTimeout(timer);
-      clearBackspaceRepeat();
-      clearCommaHold();
-      layoutContext?.unregisterKey(keyDef.id);
-    };
+    return () => clearTimeout(timer);
   }, [
-    keyDef.id,
-    layoutContext,
     measureKey,
+    keyDef.id,
     layoutContext?.areaBounds.pageX,
     layoutContext?.areaBounds.pageY,
     layoutContext?.areaBounds.width,
     layoutContext?.areaBounds.height,
-    clearBackspaceRepeat,
-    clearCommaHold,
   ]);
+
+  useEffect(() => {
+    return () => {
+      clearBackspaceRepeat();
+      clearCommaHold();
+      layoutContext?.unregisterKey(keyDef.id);
+    };
+  }, [clearBackspaceRepeat, clearCommaHold, keyDef.id, layoutContext]);
 
   const isCommaGesture =
     keyDef.id === 'comma' && keyGestures?.commaLauncher;
@@ -282,8 +306,8 @@ export function Key({
       if (shouldBlockSwipeTypingKeyInput()) {
         return;
       }
+      letterTouchPendingRef.current = true;
       triggerKeyHaptic();
-      onPress(keyDef);
       return;
     }
     if (gestureSwipeActiveRef.current) {
@@ -291,16 +315,45 @@ export function Key({
     }
     triggerKeyHaptic();
     onPress(keyDef);
-    if (isBackspace) {
-      scheduleBackspaceRepeat();
+  }, [isSwipeTypingLetter, keyDef, onPress]);
+
+  const finishBackspaceHold = useCallback(() => {
+    if (!backspaceTouchActiveRef.current) {
+      return;
     }
-  }, [isBackspace, isSwipeTypingLetter, keyDef, onPress, scheduleBackspaceRepeat]);
+    backspaceTouchActiveRef.current = false;
+    setIsBackspaceHeld(false);
+    clearBackspaceRepeat();
+    keyGesturesRef.current?.onBackspaceRelease?.();
+  }, [clearBackspaceRepeat]);
+
+  const handleBackspaceTouchStart = useCallback(() => {
+    if (gestureSwipeActiveRef.current || backspaceTouchActiveRef.current) {
+      return;
+    }
+    backspaceTouchActiveRef.current = true;
+    setIsBackspaceHeld(true);
+    triggerKeyHaptic();
+    keyboardBridge.deleteBackward();
+    scheduleBackspaceRepeat();
+  }, [scheduleBackspaceRepeat]);
 
   const handlePressOut = useCallback(() => {
-    if (isBackspace) {
-      clearBackspaceRepeat();
+    if (isSwipeTypingLetter) {
+      if (
+        letterTouchPendingRef.current &&
+        !shouldDeferSwipeTypingLetterTap() &&
+        !swipeTypingSessionRef.isSwiping
+      ) {
+        onPress(keyDef);
+      }
+      letterTouchPendingRef.current = false;
+      return;
     }
-  }, [clearBackspaceRepeat, isBackspace]);
+    if (isBackspace) {
+      finishBackspaceHold();
+    }
+  }, [finishBackspaceHold, isBackspace, isSwipeTypingLetter, keyDef, onPress]);
 
   const isSpaceGesture =
     keyDef.type === 'space' && keyGestures?.spaceCursorSwipe;
@@ -425,44 +478,62 @@ export function Key({
     [isSpaceGesture, keyGestures],
   );
 
+  const backspaceWordSwipePx = dp(BACKSPACE_WORD_SWIPE_PX);
+
   const backspacePanResponder = useMemo(
     () =>
       PanResponder.create({
-        onStartShouldSetPanResponder: () => false,
+        onStartShouldSetPanResponder: () => isBackspace,
         onMoveShouldSetPanResponder: (_, gesture) =>
-          Boolean(isBackspaceGesture) &&
-          gesture.dx < -SPACE_SWIPE_THRESHOLD_PX &&
+          isBackspace &&
+          Math.abs(gesture.dx) > dp(BACKSPACE_SWIPE_ACTIVATE_PX) &&
           Math.abs(gesture.dx) > Math.abs(gesture.dy),
         onPanResponderGrant: () => {
           backspaceDidSwipeRef.current = false;
-          clearBackspaceRepeat();
+          handleBackspaceTouchStart();
         },
         onPanResponderMove: (_, gesture) => {
-          if (gesture.dx < -SPACE_SWIPE_THRESHOLD_PX) {
+          if (!isBackspaceGesture) {
+            return;
+          }
+          if (gesture.dx < -dp(BACKSPACE_SWIPE_ACTIVATE_PX)) {
+            if (!backspaceDidSwipeRef.current) {
+              clearBackspaceRepeat();
+            }
             backspaceDidSwipeRef.current = true;
           }
         },
         onPanResponderRelease: (_, gesture) => {
           if (
+            isBackspaceGesture &&
             backspaceDidSwipeRef.current &&
-            (gesture.dx < -BACKSPACE_WORD_SWIPE_PX || gesture.vx < -0.4)
+            (gesture.dx < -backspaceWordSwipePx || gesture.vx < -0.4)
           ) {
             triggerKeyHaptic();
-            keyGestures?.onDeleteWord();
+            keyGesturesRef.current?.onDeleteWord();
           }
           backspaceDidSwipeRef.current = false;
+          finishBackspaceHold();
         },
         onPanResponderTerminate: () => {
           backspaceDidSwipeRef.current = false;
+          finishBackspaceHold();
         },
       }),
-    [clearBackspaceRepeat, isBackspaceGesture, keyGestures],
+    [
+      clearBackspaceRepeat,
+      finishBackspaceHold,
+      handleBackspaceTouchStart,
+      isBackspace,
+      isBackspaceGesture,
+      backspaceWordSwipePx,
+    ],
   );
 
-  const gestureHandlers = isSpaceGesture
-    ? spacePanResponder.panHandlers
-    : isBackspaceGesture
-      ? backspacePanResponder.panHandlers
+  const gestureHandlers = isBackspace
+    ? backspacePanResponder.panHandlers
+    : isSpaceGesture
+      ? spacePanResponder.panHandlers
       : undefined;
 
   return (
@@ -471,42 +542,54 @@ export function Key({
       style={style}
       onLayout={measureKey}
       {...gestureHandlers}>
-      <Pressable
-        onPress={
-          showCommaLauncher
-            ? handleCommaLauncherPress
-            : isSpaceGesture
-              ? handleSpacePress
-              : undefined
-        }
-        onPressIn={
-          isCommaGesture
-            ? handleCommaPressIn
-            : isSpaceGesture
-              ? undefined
-              : handlePressIn
-        }
-        onPressOut={
-          isCommaGesture
-            ? handleCommaPressOut
-            : isSpaceGesture
-              ? undefined
-              : handlePressOut
-        }
-        style={({pressed}) => [
-          styles.key,
-          {borderRadius},
-          showCommaLauncher && styles.commaLauncherKey,
-          isShift && styles.shiftKey,
-          isSpecial && styles.specialKey,
-          keyDef.type === 'space' && styles.spaceKey,
-          isShift && isShiftOn && !isCapsLocked && styles.shiftKeyActive,
-          isShift && isCapsLocked && styles.shiftKeyLocked,
-          (isEnterAction || isEnterBackspace) && styles.enterKey,
-          pressed && !isShift && !showCommaLauncher && styles.keyPressedBounce,
-        ]}>
-        {keyContent}
-      </Pressable>
+      {isBackspace ? (
+        <View
+          style={[
+            styles.key,
+            {borderRadius},
+            (isEnterAction || isEnterBackspace) && styles.enterKey,
+            isBackspaceHeld && styles.keyPressedBounce,
+          ]}>
+          {keyContent}
+        </View>
+      ) : (
+        <Pressable
+          onPress={
+            showCommaLauncher
+              ? handleCommaLauncherPress
+              : isSpaceGesture
+                ? handleSpacePress
+                : undefined
+          }
+          onPressIn={
+            isCommaGesture
+              ? handleCommaPressIn
+              : isSpaceGesture
+                ? undefined
+                : handlePressIn
+          }
+          onPressOut={
+            isCommaGesture
+              ? handleCommaPressOut
+              : isSpaceGesture
+                ? undefined
+                : handlePressOut
+          }
+          style={({pressed}) => [
+            styles.key,
+            {borderRadius},
+            showCommaLauncher && styles.commaLauncherKey,
+            isShift && styles.shiftKey,
+            isSpecial && styles.specialKey,
+            keyDef.type === 'space' && styles.spaceKey,
+            isShift && isShiftOn && !isCapsLocked && styles.shiftKeyActive,
+            isShift && isCapsLocked && styles.shiftKeyLocked,
+            (isEnterAction || isEnterBackspace) && styles.enterKey,
+            pressed && !isShift && !showCommaLauncher && styles.keyPressedBounce,
+          ]}>
+          {keyContent}
+        </Pressable>
+      )}
     </View>
   );
 }

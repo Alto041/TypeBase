@@ -40,7 +40,8 @@ export const GESTURE_FEATURES: GestureFeature[] = [
   {
     key: 'backspaceSentenceHold',
     title: 'Hold backspace',
-    description: 'Hold backspace to delete whole sentences.',
+    description:
+      'After a long hold, backspace deletes whole sentences instead of single letters.',
   },
   {
     key: 'commaLauncher',
@@ -58,7 +59,7 @@ export const DEFAULT_GESTURE_SETTINGS: GestureSettings = {
   swipeTyping: true,
   spaceCursorSwipe: true,
   backspaceWordSwipe: true,
-  backspaceSentenceHold: true,
+  backspaceSentenceHold: false,
   commaLauncher: true,
   trackpadMode: true,
 };

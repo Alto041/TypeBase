@@ -16,7 +16,10 @@ import {
   gestureSwipeActiveRef,
   swipeTypingSessionRef,
 } from './gestureState';
-import {useKeyLayoutContext} from './KeyLayoutContext';
+import {
+  useKeyLayoutContext,
+  type KeyLayoutContextValue,
+} from './KeyLayoutContext';
 import {measureKeysArea} from './measureKeysArea';
 import {SwipeTrail} from './SwipeTrail';
 import type {Point, TrailPoint} from './types';
@@ -50,6 +53,36 @@ const SwipeTypingContext = createContext<SwipeTypingContextValue | null>(null);
 
 function dp(value: number): number {
   return value * PixelRatio.get();
+}
+
+function touchIsOnLetterKey(
+  pageX: number,
+  pageY: number,
+  layoutContext: KeyLayoutContextValue | null,
+): boolean {
+  if (!layoutContext) {
+    return false;
+  }
+
+  const origin = layoutContext.areaOriginRef.current;
+  const localX = pageX - origin.pageX;
+  const localY = pageY - origin.pageY;
+
+  for (const layout of layoutContext.getLayouts()) {
+    if (!layout.letter) {
+      continue;
+    }
+    if (
+      localX >= layout.x &&
+      localX <= layout.x + layout.width &&
+      localY >= layout.y &&
+      localY <= layout.y + layout.height
+    ) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function decimateTrailPoints(
@@ -286,8 +319,16 @@ export function SwipeTypingProvider({
       if (!enabled) {
         return;
       }
-      layoutContext?.refreshAreaBounds();
       const {pageX, pageY} = event.nativeEvent;
+      if (!touchIsOnLetterKey(pageX, pageY, layoutContext)) {
+        sessionRef.current = null;
+        swipeTypingSessionRef.touchActive = false;
+        swipeTypingSessionRef.isSwiping = false;
+        swipeTypingSessionRef.blockKeyPress = false;
+        return;
+      }
+
+      layoutContext?.refreshAreaBounds();
       sessionRef.current = {
         rawStartX: pageX,
         rawStartY: pageY,
@@ -349,7 +390,11 @@ export function SwipeTypingProvider({
       if (!enabled) {
         return;
       }
-      const wasSwiping = sessionRef.current?.isSwiping ?? false;
+      const session = sessionRef.current;
+      if (!session) {
+        return;
+      }
+      const wasSwiping = session.isSwiping;
       const {pageX, pageY} = event.nativeEvent;
       finishSwipe(wasSwiping, pageX, pageY);
     },
