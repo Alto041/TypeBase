@@ -11,11 +11,13 @@ import ArrowIcon from '../../../assets/plugins/arrow.svg';
 import ClipboardIcon from '../../../assets/plugins/clipboard.svg';
 import EssentialsIcon from '../../../assets/plugins/essentials.svg';
 import CalculatorIcon from '../../../assets/plugins/calculator.svg';
+import AutocorrectIcon from '../../../assets/plugins/autocorrect.svg';
 import GesturesIcon from '../../../assets/gesture.svg';
 import {
   PLUGIN_CARD_COLOR,
   PLUGIN_INNER_RADIUS,
   PLUGIN_OUTER_RADIUS,
+  PluginScrollView,
   pluginPanelStyles,
 } from '../components/pluginPanelLayout';
 import {triggerKeyHaptic} from '../haptics';
@@ -25,6 +27,7 @@ type ItemsMenuPanelProps = {
   onSelectEssentials: () => void;
   onSelectClipboard: () => void;
   onSelectGestures: () => void;
+  onSelectAutocorrect: () => void;
   onSelectCalculator: () => void;
 };
 
@@ -38,7 +41,7 @@ type PluginTileProps = {
 function PluginTile({title, Icon, tileStyle, onPress}: PluginTileProps) {
   return (
     <Pressable
-      onPressIn={() => {
+      onPress={() => {
         triggerKeyHaptic();
         onPress();
       }}
@@ -97,6 +100,7 @@ function getTileStyle(index: number, total: number): ViewStyle {
 const PLUGINS = [
   {id: 'essentials', title: 'Essentials', Icon: EssentialsIcon},
   {id: 'clipboard', title: 'Clipboard', Icon: ClipboardIcon},
+  {id: 'autocorrect', title: 'Autocorrect', Icon: AutocorrectIcon},
   {id: 'gestures', title: 'Gestures', Icon: GesturesIcon},
   {id: 'calculator', title: 'Calculator', Icon: CalculatorIcon},
 ] as const;
@@ -105,18 +109,20 @@ export function ItemsMenuPanel({
   onSelectEssentials,
   onSelectClipboard,
   onSelectGestures,
+  onSelectAutocorrect,
   onSelectCalculator,
 }: ItemsMenuPanelProps) {
   const handlers = {
     essentials: onSelectEssentials,
     clipboard: onSelectClipboard,
+    autocorrect: onSelectAutocorrect,
     gestures: onSelectGestures,
     calculator: onSelectCalculator,
   };
 
   return (
     <View style={[pluginPanelStyles.container, styles.container]}>
-      <View style={[pluginPanelStyles.listContent, styles.list]}>
+      <PluginScrollView>
         {PLUGINS.map((plugin, index) => (
           <PluginTile
             key={plugin.id}
@@ -126,7 +132,7 @@ export function ItemsMenuPanel({
             onPress={handlers[plugin.id]}
           />
         ))}
-      </View>
+      </PluginScrollView>
     </View>
   );
 }
@@ -134,9 +140,6 @@ export function ItemsMenuPanel({
 const styles = StyleSheet.create({
   container: {
     justifyContent: 'flex-start',
-  },
-  list: {
-    flex: 0,
   },
   tile: {
     flexDirection: 'row',

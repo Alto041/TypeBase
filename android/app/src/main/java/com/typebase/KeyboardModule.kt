@@ -213,6 +213,74 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   }
 
   @ReactMethod
+  fun getAutocorrectSettings(promise: Promise) {
+    try {
+      val raw =
+          learnedWordsPrefs().getString(AUTOCORRECT_SETTINGS_KEY, DEFAULT_AUTOCORRECT_SETTINGS)
+              ?: DEFAULT_AUTOCORRECT_SETTINGS
+      promise.resolve(raw)
+    } catch (error: Exception) {
+      promise.reject("GET_AUTOCORRECT_SETTINGS_FAILED", error)
+    }
+  }
+
+  @ReactMethod
+  fun setAutocorrectSettings(json: String, promise: Promise) {
+    try {
+      val saved =
+          learnedWordsPrefs().edit().putString(AUTOCORRECT_SETTINGS_KEY, json).commit()
+      promise.resolve(saved)
+    } catch (error: Exception) {
+      promise.reject("SET_AUTOCORRECT_SETTINGS_FAILED", error)
+    }
+  }
+
+  private fun readLearnedPhrases(): JSONObject {
+    val raw = learnedWordsPrefs().getString(LEARNED_PHRASES_KEY, "{}") ?: "{}"
+    return JSONObject(raw)
+  }
+
+  private fun writeLearnedPhrases(json: JSONObject) {
+    learnedWordsPrefs().edit().putString(LEARNED_PHRASES_KEY, json.toString()).apply()
+  }
+
+  @ReactMethod
+  fun getLearnedPhraseCounts(promise: Promise) {
+    try {
+      val json = readLearnedPhrases()
+      val map: WritableMap = Arguments.createMap()
+      val keys = json.keys()
+      while (keys.hasNext()) {
+        val key = keys.next()
+        map.putInt(key, json.optInt(key, 0))
+      }
+      promise.resolve(map)
+    } catch (error: Exception) {
+      promise.reject("GET_LEARNED_PHRASE_COUNTS_FAILED", error)
+    }
+  }
+
+  @ReactMethod
+  fun recordLearnedPhrase(phrase: String, promise: Promise) {
+    try {
+      val normalized = phrase.trim().lowercase().replace(Regex("\\s+"), " ")
+      val words = normalized.split(" ")
+      if (words.size < 2 || words.size > 4 || !normalized.matches(Regex("[a-z ]+"))) {
+        promise.resolve(0)
+        return
+      }
+
+      val json = readLearnedPhrases()
+      val nextCount = json.optInt(normalized, 0) + 1
+      json.put(normalized, nextCount)
+      writeLearnedPhrases(json)
+      promise.resolve(nextCount)
+    } catch (error: Exception) {
+      promise.reject("RECORD_LEARNED_PHRASE_FAILED", error)
+    }
+  }
+
+  @ReactMethod
   fun getCommaLauncherArmed(promise: Promise) {
     try {
       promise.resolve(learnedWordsPrefs().getBoolean(COMMA_LAUNCHER_ARMED_KEY, false))
@@ -407,8 +475,12 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     private const val ESSENTIALS_KEY = "essentials"
     private const val CLIPBOARD_HISTORY_KEY = "clipboard_history"
     private const val GESTURE_SETTINGS_KEY = "gesture_settings"
+    private const val AUTOCORRECT_SETTINGS_KEY = "autocorrect_settings"
+    private const val LEARNED_PHRASES_KEY = "learned_phrases"
     private const val COMMA_LAUNCHER_ARMED_KEY = "comma_launcher_armed"
     private const val DEFAULT_GESTURE_SETTINGS =
         """{"swipeTyping":true,"spaceCursorSwipe":true,"backspaceWordSwipe":true,"backspaceSentenceHold":true,"commaLauncher":true,"trackpadMode":true,"launcherAppPackage":"com.typebase"}"""
+    private const val DEFAULT_AUTOCORRECT_SETTINGS =
+        """{"enabled":true,"autoApplyOnSpace":false}"""
   }
 }

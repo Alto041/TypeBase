@@ -1,8 +1,9 @@
 import React from 'react';
-import {ScrollView, Text, View, type ViewStyle} from 'react-native';
+import {Text, View, type ViewStyle} from 'react-native';
 import {
   PLUGIN_INNER_RADIUS,
   PLUGIN_OUTER_RADIUS,
+  PluginScrollView,
   pluginPanelStyles,
 } from '../components/pluginPanelLayout';
 import {EssentialsSwipeRow} from './EssentialsSwipeRow';
@@ -60,11 +61,7 @@ export function EssentialsListPanel({
 }: EssentialsListPanelProps) {
   return (
     <View style={pluginPanelStyles.container}>
-      <ScrollView
-        style={pluginPanelStyles.list}
-        contentContainerStyle={pluginPanelStyles.listContent}
-        keyboardShouldPersistTaps="always"
-        showsVerticalScrollIndicator={false}>
+      <PluginScrollView>
         {essentials.length === 0 ? (
           <View style={pluginPanelStyles.emptyState}>
             <Text style={pluginPanelStyles.emptyTitle}>No essentials yet</Text>
@@ -83,7 +80,7 @@ export function EssentialsListPanel({
             />
           ))
         )}
-      </ScrollView>
+      </PluginScrollView>
     </View>
   );
 }

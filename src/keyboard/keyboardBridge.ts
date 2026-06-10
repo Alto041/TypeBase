@@ -19,6 +19,10 @@ type KeyboardModuleType = {
   setKeyboardHeight: (heightDp: number) => void;
   getGestureSettings: () => Promise<string>;
   setGestureSettings: (json: string) => Promise<boolean>;
+  getAutocorrectSettings: () => Promise<string>;
+  setAutocorrectSettings: (json: string) => Promise<boolean>;
+  getLearnedPhraseCounts: () => Promise<Record<string, number>>;
+  recordLearnedPhrase: (phrase: string) => Promise<number>;
   moveCursor: (offset: number) => Promise<boolean>;
   deleteWordBackward: () => Promise<boolean>;
   deleteSentenceBackward: () => Promise<boolean>;
@@ -130,6 +134,30 @@ export const keyboardBridge: KeyboardModuleType = {
       return KeyboardModule.setGestureSettings(json) as Promise<boolean>;
     }
     return Promise.resolve(false);
+  },
+  getAutocorrectSettings: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.getAutocorrectSettings) {
+      return KeyboardModule.getAutocorrectSettings() as Promise<string>;
+    }
+    return Promise.resolve('{"enabled":true,"autoApplyOnSpace":false}');
+  },
+  setAutocorrectSettings: (json: string) => {
+    if (Platform.OS === 'android' && KeyboardModule?.setAutocorrectSettings) {
+      return KeyboardModule.setAutocorrectSettings(json) as Promise<boolean>;
+    }
+    return Promise.resolve(false);
+  },
+  getLearnedPhraseCounts: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.getLearnedPhraseCounts) {
+      return KeyboardModule.getLearnedPhraseCounts() as Promise<Record<string, number>>;
+    }
+    return Promise.resolve({});
+  },
+  recordLearnedPhrase: (phrase: string) => {
+    if (Platform.OS === 'android' && KeyboardModule?.recordLearnedPhrase) {
+      return KeyboardModule.recordLearnedPhrase(phrase) as Promise<number>;
+    }
+    return Promise.resolve(0);
   },
   moveCursor: (offset: number) => {
     if (Platform.OS === 'android' && KeyboardModule?.moveCursor) {

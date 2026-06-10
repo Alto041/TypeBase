@@ -13,6 +13,7 @@ import {
   PLUGIN_CARD_COLOR,
   PLUGIN_INNER_RADIUS,
   PLUGIN_OUTER_RADIUS,
+  PluginScrollView,
   pluginPanelStyles,
 } from '../components/pluginPanelLayout';
 import {triggerKeyHaptic} from '../haptics';
@@ -36,7 +37,7 @@ type FeatureToggleProps = {
 function FeatureToggle({enabled, onToggle}: FeatureToggleProps) {
   return (
     <Pressable
-      onPressIn={() => {
+      onPress={() => {
         triggerKeyHaptic();
         onToggle();
       }}
@@ -176,12 +177,7 @@ export function GesturesPanel({
 
   return (
     <View style={pluginPanelStyles.container}>
-      <ScrollView
-        style={pluginPanelStyles.list}
-        contentContainerStyle={pluginPanelStyles.listContent}
-        keyboardShouldPersistTaps="always"
-        nestedScrollEnabled
-        showsVerticalScrollIndicator={false}>
+      <PluginScrollView>
         {GESTURE_FEATURES.map((feature, index) => (
           <View
             key={feature.key}
@@ -208,7 +204,7 @@ export function GesturesPanel({
             <ArrowIcon width={9} height={16} />
           </Pressable>
         ) : null}
-      </ScrollView>
+      </PluginScrollView>
     </View>
   );
 }

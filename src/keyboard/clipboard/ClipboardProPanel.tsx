@@ -1,8 +1,9 @@
 import React from 'react';
-import {ScrollView, Text, View, type ViewStyle} from 'react-native';
+import {Text, View, type ViewStyle} from 'react-native';
 import {
   PLUGIN_INNER_RADIUS,
   PLUGIN_OUTER_RADIUS,
+  PluginScrollView,
   pluginPanelStyles,
 } from '../components/pluginPanelLayout';
 import {ClipboardSwipeRow} from './ClipboardSwipeRow';
@@ -62,11 +63,7 @@ export function ClipboardProPanel({
 }: ClipboardProPanelProps) {
   return (
     <View style={pluginPanelStyles.container}>
-      <ScrollView
-        style={pluginPanelStyles.list}
-        contentContainerStyle={pluginPanelStyles.listContent}
-        keyboardShouldPersistTaps="always"
-        showsVerticalScrollIndicator={false}>
+      <PluginScrollView>
         {items.length === 0 ? (
           <View style={pluginPanelStyles.emptyState}>
             <Text style={pluginPanelStyles.emptyTitle}>No clipboard history</Text>
@@ -86,7 +83,7 @@ export function ClipboardProPanel({
             />
           ))
         )}
-      </ScrollView>
+      </PluginScrollView>
     </View>
   );
 }

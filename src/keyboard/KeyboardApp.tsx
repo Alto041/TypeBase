@@ -33,11 +33,30 @@ import {
 import type {Essential, KeyboardMode} from './essentials/types';
 import type {KeyGesturesConfig} from './components/Key';
 import {GestureTypingLayer} from './gesture/GestureTypingLayer';
-import {
-  SwipeTypingKeysHost,
-  useSwipeTypingContext,
-} from './gesture/SwipeTypingContext';
+import {SwipeTypingKeysHost} from './gesture/SwipeTypingContext';
 import {KeyLayoutProvider} from './gesture/KeyLayoutContext';
+import {AutocorrectPanel} from './autocorrect/AutocorrectPanel';
+import {
+  ensureAutocorrectLoaded,
+  getAutocorrectSettings,
+  reloadAutocorrectFromStorage,
+  setAutoApplyOnSpace,
+  setAutocorrectEnabled,
+} from './autocorrect/autocorrectStore';
+import {
+  getAutocorrectCandidate,
+  getAutocorrectPreview,
+  shouldAutoApply,
+} from './autocorrect/autocorrectEngine';
+import {
+  ensureLearnedPhrasesLoaded,
+  extractTrailingWords,
+  getPhraseCorrection,
+  getPhraseSuggestions,
+  learnPhrasesFromContext,
+  recordLearnedPhrase,
+} from './autocorrect/learnedPhrases';
+import type {AutocorrectSettings} from './autocorrect/types';
 import {GesturesPanel} from './gestures/GesturesPanel';
 import {
   getCommaLauncherArmed,
@@ -67,6 +86,7 @@ import {keyboardTheme} from './theme';
 import {useVoiceInput} from './voice/useVoiceInput';
 
 const DOUBLE_TAP_MS = 350;
+const SUGGESTION_REFRESH_DEBOUNCE_MS = 45;
 
 type LetterKeyboardRowsProps = {
   rows: KeyDefinition[][];
@@ -89,18 +109,6 @@ function LetterKeyboardRows({
   onKeyPress,
   keyGestures,
 }: LetterKeyboardRowsProps) {
-  const swipeCtx = useSwipeTypingContext();
-  const mergedGestures = useMemo(
-    () =>
-      keyGestures
-        ? {
-            ...keyGestures,
-            letterKeysDisabled: swipeCtx?.letterKeysDisabled ?? false,
-          }
-        : undefined,
-    [keyGestures, swipeCtx?.letterKeysDisabled],
-  );
-
   return (
     <SwipeTypingKeysHost>
       {rows.map((row, index) => (
@@ -111,7 +119,7 @@ function LetterKeyboardRows({
           isShiftOn={layout === 'letters' && shiftOn}
           isCapsLocked={capsLocked}
           onKeyPress={onKeyPress}
-          keyGestures={mergedGestures}
+          keyGestures={keyGestures}
           rowStyle={index === 1 ? styles.indentedRow : undefined}
         />
       ))}
@@ -125,6 +133,9 @@ function KeyboardBody() {
   const [shiftOn, setShiftOn] = useState(false);
   const [capsLocked, setCapsLocked] = useState(false);
   const lastShiftTapRef = useRef(0);
+  const suggestionRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [essentialSuggestions, setEssentialSuggestions] = useState<Essential[]>(
     [],
@@ -138,6 +149,11 @@ function KeyboardBody() {
   const [emojiCategory, setEmojiCategory] = useState<EmojiCategoryId>('mood');
   const [gestureSettings, setGestureSettings] = useState<GestureSettings>(
     getGestureSettings(),
+  );
+  const [autocorrectSettings, setAutocorrectSettings] =
+    useState<AutocorrectSettings>(getAutocorrectSettings());
+  const [autocorrectPreview, setAutocorrectPreview] = useState<string | null>(
+    null,
   );
   const [launcherAppPackage, setLauncherAppPackageState] = useState(
     getLauncherAppPackage(),
@@ -214,6 +230,19 @@ function KeyboardBody() {
       setLaunchableAppsLoading(false);
     }
   }, []);
+
+  const reloadAutocorrect = useCallback(async () => {
+    await reloadAutocorrectFromStorage();
+    await ensureLearnedPhrasesLoaded();
+    setAutocorrectSettings(getAutocorrectSettings());
+  }, []);
+
+  const openAutocorrect = useCallback(() => {
+    setMode({type: 'autocorrect'});
+    setLayout('letters');
+    resetCase();
+    void reloadAutocorrect();
+  }, [reloadAutocorrect, resetCase]);
 
   const openGestures = useCallback(() => {
     setMode({type: 'gestures'});
@@ -324,20 +353,13 @@ function KeyboardBody() {
     void handleSaveEssential();
   }, [formKeyword, handleSaveEssential, mode]);
 
-  const learnCurrentWord = useCallback(async () => {
-    const context = await keyboardBridge.getTextBeforeCursor(64);
-    const word = extractCurrentWord(context);
-    if (word) {
-      recordLearnedWord(word);
-    }
-  }, []);
-
   const refreshSuggestions = useCallback(async () => {
     if (layout !== 'letters' || isFormMode || isClipboardMode || isEmojiMode) {
       setSuggestions([]);
       setEssentialSuggestions([]);
       setEssentialTriggerLength(0);
       setCurrentPrefix('');
+      setAutocorrectPreview(null);
       return;
     }
 
@@ -351,30 +373,148 @@ function KeyboardBody() {
       );
       setSuggestions([]);
       setCurrentPrefix('');
+      setAutocorrectPreview(null);
       return;
     }
 
     await ensureLearnedDictionaryLoaded();
+    await ensureLearnedPhrasesLoaded();
+    await ensureAutocorrectLoaded();
+
     const prefix = extractCurrentWord(context);
     setCurrentPrefix(prefix);
-    setSuggestions(getWordSuggestions(prefix, 3));
+
+    let preview: string | null = null;
+    if (getAutocorrectSettings().enabled && prefix.length >= 2) {
+      preview = getAutocorrectPreview(prefix);
+    }
+
+    const phraseSuggestions = getPhraseSuggestions(context, 2);
+    let wordSuggestions = getWordSuggestions(prefix, 3);
+    if (preview) {
+      wordSuggestions = wordSuggestions.filter(
+        word => word.toLowerCase() !== preview!.toLowerCase(),
+      );
+    }
+
+    setAutocorrectPreview(preview);
+    setSuggestions([...phraseSuggestions, ...wordSuggestions].slice(0, 3));
     setEssentialSuggestions([]);
     setEssentialTriggerLength(0);
   }, [isClipboardMode, isEmojiMode, isFormMode, layout]);
+
+  const scheduleRefreshSuggestions = useCallback(() => {
+    if (suggestionRefreshTimerRef.current) {
+      clearTimeout(suggestionRefreshTimerRef.current);
+    }
+    suggestionRefreshTimerRef.current = setTimeout(() => {
+      suggestionRefreshTimerRef.current = null;
+      void refreshSuggestions();
+    }, SUGGESTION_REFRESH_DEBOUNCE_MS);
+  }, [refreshSuggestions]);
+
+  useEffect(() => {
+    return () => {
+      if (suggestionRefreshTimerRef.current) {
+        clearTimeout(suggestionRefreshTimerRef.current);
+      }
+    };
+  }, []);
+
+  const commitTypedWordBoundary = useCallback(
+    async (insertBoundary: () => void) => {
+      const context = await keyboardBridge.getTextBeforeCursor(96);
+      const expansion = resolveEssentialExpansion(context);
+      if (expansion) {
+        keyboardBridge.replaceWordPrefix(
+          expansion.triggerLength,
+          expansion.value,
+        );
+        insertBoundary();
+        requestAnimationFrame(() => {
+          void refreshSuggestions();
+        });
+        return;
+      }
+
+      await ensureLearnedDictionaryLoaded();
+      await ensureLearnedPhrasesLoaded();
+      await ensureAutocorrectLoaded();
+
+      const typedWord = extractCurrentWord(context);
+      const autocorrectOn = getAutocorrectSettings().enabled;
+
+      if (autocorrectOn && typedWord.length >= 2) {
+        const phraseFix = getPhraseCorrection(context, typedWord);
+        if (phraseFix) {
+          keyboardBridge.replaceWordPrefix(
+            phraseFix.replaceLength,
+            phraseFix.phrase,
+          );
+          recordLearnedPhrase(phraseFix.phrase);
+          for (const part of phraseFix.phrase.split(' ')) {
+            recordLearnedWord(part);
+          }
+          learnPhrasesFromContext(
+            context.slice(0, context.length - phraseFix.replaceLength) +
+              phraseFix.phrase,
+          );
+          insertBoundary();
+          requestAnimationFrame(() => {
+            void refreshSuggestions();
+          });
+          return;
+        }
+
+        const candidate = getAutocorrectCandidate(typedWord);
+        if (shouldAutoApply(candidate, typedWord)) {
+          keyboardBridge.replaceWordPrefix(typedWord.length, candidate!.correction);
+          recordLearnedWord(candidate!.correction);
+          learnPhrasesFromContext(
+            context.slice(0, -typedWord.length) + candidate!.correction,
+          );
+          insertBoundary();
+          requestAnimationFrame(() => {
+            void refreshSuggestions();
+          });
+          return;
+        }
+      }
+
+      if (typedWord) {
+        recordLearnedWord(typedWord);
+      }
+      learnPhrasesFromContext(context);
+      insertBoundary();
+      requestAnimationFrame(() => {
+        void refreshSuggestions();
+      });
+    },
+    [refreshSuggestions],
+  );
 
   useEffect(() => {
     Promise.all([
       ensureEssentialsLoaded(),
       ensureClipboardLoaded(),
       ensureLearnedDictionaryLoaded(),
+      ensureLearnedPhrasesLoaded(),
+      ensureAutocorrectLoaded(),
       reloadGesturesFromStorage(),
     ]).finally(() => {
       reloadEssentials();
       void reloadClipboard();
       void reloadGestures();
+      void reloadAutocorrect();
       refreshSuggestions();
     });
-  }, [refreshSuggestions, reloadClipboard, reloadEssentials, reloadGestures]);
+  }, [
+    refreshSuggestions,
+    reloadAutocorrect,
+    reloadClipboard,
+    reloadEssentials,
+    reloadGestures,
+  ]);
 
   useEffect(() => {
     keyboardBridge.setKeyboardHeight(keyboardTheme.keyboardHeightDp);
@@ -445,18 +585,30 @@ function KeyboardBody() {
 
   const handleSuggestionSelect = useCallback(
     (word: string) => {
-      recordLearnedWord(word);
-      if (!currentPrefix) {
-        keyboardBridge.insertText(word);
-      } else {
-        keyboardBridge.replaceWordPrefix(currentPrefix.length, word);
-      }
-      keyboardBridge.insertText(' ');
-      if (shiftOn && !capsLocked) {
-        setShiftOn(false);
-      }
-      requestAnimationFrame(() => {
-        refreshSuggestions();
+      void keyboardBridge.getTextBeforeCursor(96).then(context => {
+        if (word.includes(' ')) {
+          const trailing = extractTrailingWords(context, 4);
+          const replaceLength = trailing.join(' ').length;
+          keyboardBridge.replaceWordPrefix(replaceLength, word);
+          recordLearnedPhrase(word);
+          for (const part of word.split(' ')) {
+            recordLearnedWord(part);
+          }
+        } else {
+          recordLearnedWord(word);
+          if (!currentPrefix) {
+            keyboardBridge.insertText(word);
+          } else {
+            keyboardBridge.replaceWordPrefix(currentPrefix.length, word);
+          }
+        }
+        keyboardBridge.insertText(' ');
+        if (shiftOn && !capsLocked) {
+          setShiftOn(false);
+        }
+        requestAnimationFrame(() => {
+          void refreshSuggestions();
+        });
       });
     },
     [capsLocked, currentPrefix, refreshSuggestions, shiftOn],
@@ -523,38 +675,16 @@ function KeyboardBody() {
       switch (keyDef.type) {
         case 'backspace':
           keyboardBridge.deleteBackward();
-          requestAnimationFrame(() => {
-            refreshSuggestions();
-          });
+          scheduleRefreshSuggestions();
           return;
         case 'space':
-          keyboardBridge.getTextBeforeCursor(96).then(context => {
-            const expansion = resolveEssentialExpansion(context);
-            if (expansion) {
-              keyboardBridge.replaceWordPrefix(
-                expansion.triggerLength,
-                expansion.value,
-              );
-              keyboardBridge.insertText(' ');
-              requestAnimationFrame(() => {
-                refreshSuggestions();
-              });
-              return;
-            }
-            learnCurrentWord().finally(() => {
-              keyboardBridge.insertText(' ');
-              requestAnimationFrame(() => {
-                refreshSuggestions();
-              });
-            });
+          void commitTypedWordBoundary(() => {
+            keyboardBridge.insertText(' ');
           });
           return;
         case 'enter':
-          learnCurrentWord().finally(() => {
+          void commitTypedWordBoundary(() => {
             keyboardBridge.insertNewline();
-            requestAnimationFrame(() => {
-              refreshSuggestions();
-            });
           });
           return;
         case 'shift':
@@ -582,9 +712,7 @@ function KeyboardBody() {
             if (shiftOn && !capsLocked) {
               setShiftOn(false);
             }
-            requestAnimationFrame(() => {
-              refreshSuggestions();
-            });
+            scheduleRefreshSuggestions();
           }
       }
     },
@@ -592,14 +720,14 @@ function KeyboardBody() {
       appendToFormField,
       backspaceFormField,
       capsLocked,
+      commitTypedWordBoundary,
       handleFormConfirm,
       handleShiftPress,
       isUppercase,
       layout,
-      learnCurrentWord,
       mode,
-      refreshSuggestions,
       resetCase,
+      scheduleRefreshSuggestions,
       shiftOn,
     ],
   );
@@ -628,6 +756,7 @@ function KeyboardBody() {
     mode.type === 'essentials-list' ||
     mode.type === 'clipboard' ||
     mode.type === 'gestures' ||
+    mode.type === 'autocorrect' ||
     mode.type === 'calculator';
 
   const handleCalculatorInsert = useCallback((value: string) => {
@@ -705,6 +834,25 @@ function KeyboardBody() {
     [reloadGestures],
   );
 
+  const handleAutocorrectToggle = useCallback(
+    (enabled: boolean) => {
+      void setAutocorrectEnabled(enabled).then(() => {
+        void reloadAutocorrect();
+        void refreshSuggestions();
+      });
+    },
+    [reloadAutocorrect, refreshSuggestions],
+  );
+
+  const handleAutoApplyToggle = useCallback(
+    (autoApplyOnSpace: boolean) => {
+      void setAutoApplyOnSpace(autoApplyOnSpace).then(() => {
+        void reloadAutocorrect();
+      });
+    },
+    [reloadAutocorrect],
+  );
+
   const formCanConfirm =
     isFormMode &&
     (mode.focusField === 'keyword'
@@ -720,6 +868,7 @@ function KeyboardBody() {
             mode.type === 'items-menu' ||
             mode.type === 'essentials-list' ||
             mode.type === 'gestures' ||
+            mode.type === 'autocorrect' ||
             mode.type === 'calculator'
           }
           trackpadEnabled={
@@ -733,6 +882,7 @@ function KeyboardBody() {
         <SuggestionBar
           suggestions={suggestions}
           prefix={currentPrefix}
+          autocorrectPreview={autocorrectPreview}
           onSelect={handleSuggestionSelect}
           essentialSuggestions={essentialSuggestions.map(item => ({
             keyword: item.keyword,
@@ -770,9 +920,11 @@ function KeyboardBody() {
                   ? 'Essentials'
                   : mode.type === 'gestures'
                     ? 'Gestures'
-                    : mode.type === 'calculator'
-                      ? 'Calculator'
-                      : undefined
+                    : mode.type === 'autocorrect'
+                      ? 'Autocorrect'
+                      : mode.type === 'calculator'
+                        ? 'Calculator'
+                        : undefined
           }
           trailingAction={
             isEssentialsListMode
@@ -811,6 +963,9 @@ function KeyboardBody() {
               onSelectGestures={() => {
                 void openGestures();
               }}
+              onSelectAutocorrect={() => {
+                openAutocorrect();
+              }}
               onSelectCalculator={() => {
                 openCalculator();
               }}
@@ -848,6 +1003,14 @@ function KeyboardBody() {
               appsLoading={launchableAppsLoading}
               onToggle={handleGestureToggle}
               onSelectLauncherApp={handleSelectLauncherApp}
+            />
+          ) : null}
+
+          {mode.type === 'autocorrect' ? (
+            <AutocorrectPanel
+              settings={autocorrectSettings}
+              onToggleEnabled={handleAutocorrectToggle}
+              onToggleAutoApply={handleAutoApplyToggle}
             />
           ) : null}
 

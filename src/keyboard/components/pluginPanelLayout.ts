@@ -1,4 +1,5 @@
-import {StyleSheet} from 'react-native';
+import React from 'react';
+import {ScrollView, StyleSheet} from 'react-native';
 import {keyboardTheme} from '../theme';
 
 /** Height of the 4 QWERTY rows — plugin panels must not extend below this. */
@@ -42,3 +43,21 @@ export const pluginPanelStyles = StyleSheet.create({
     lineHeight: 18,
   },
 });
+
+type PluginScrollViewProps = {
+  children: React.ReactNode;
+};
+
+export function PluginScrollView({children}: PluginScrollViewProps) {
+  return React.createElement(
+    ScrollView,
+    {
+      style: pluginPanelStyles.list,
+      contentContainerStyle: pluginPanelStyles.listContent,
+      keyboardShouldPersistTaps: 'always' as const,
+      nestedScrollEnabled: true,
+      showsVerticalScrollIndicator: false,
+    },
+    children,
+  );
+}

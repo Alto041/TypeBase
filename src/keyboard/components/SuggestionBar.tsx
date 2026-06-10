@@ -28,6 +28,7 @@ type EssentialsFormBarState = {
 type SuggestionBarProps = {
   suggestions: string[];
   prefix: string;
+  autocorrectPreview?: string | null;
   onSelect: (word: string) => void;
   essentialSuggestions?: EssentialSuggestion[];
   onEssentialSelect?: (item: EssentialSuggestion) => void;
@@ -50,6 +51,7 @@ type SuggestionBarProps = {
 export function SuggestionBar({
   suggestions,
   prefix,
+  autocorrectPreview = null,
   onSelect,
   essentialSuggestions = [],
   onEssentialSelect,
@@ -72,7 +74,10 @@ export function SuggestionBar({
   const isFormMode = Boolean(essentialsForm);
   const showPartial = !isFormMode && isListening && partialTranscript.length > 0;
   const hasEssentials = !isFormMode && essentialSuggestions.length > 0;
+  const hasAutocorrect =
+    !isFormMode && Boolean(autocorrectPreview) && prefix.length > 0;
   const hasSuggestions = !isFormMode && suggestions.length > 0;
+  const showWordSuggestions = hasAutocorrect || hasSuggestions;
   const toolbarIconMuted = keyboardTheme.suggestionDivider;
   const toolbarIconActive = keyboardTheme.label;
   const toolbarIconSize = 20;
@@ -162,13 +167,33 @@ export function SuggestionBar({
               </Fragment>
             ))}
           </View>
-        ) : hasSuggestions ? (
+        ) : showWordSuggestions ? (
           <View style={styles.row}>
+            {hasAutocorrect && autocorrectPreview ? (
+              <Pressable
+                onPressIn={() => {
+                  triggerKeyHaptic();
+                  onSelect(autocorrectPreview);
+                }}
+                style={({pressed}) => [
+                  styles.suggestion,
+                  styles.autocorrectSuggestion,
+                  pressed && styles.suggestionPressed,
+                ]}>
+                <Text style={styles.suggestionText} numberOfLines={1}>
+                  {autocorrectPreview}
+                </Text>
+              </Pressable>
+            ) : null}
             {suggestions.map((word, index) => {
-              const display = applyCaseToWord(word, prefix);
+              const display = word.includes(' ')
+                ? word
+                : applyCaseToWord(word, prefix);
               return (
                 <Fragment key={word}>
-                  {index > 0 ? <View style={styles.divider} /> : null}
+                  {index > 0 || hasAutocorrect ? (
+                    <View style={styles.divider} />
+                  ) : null}
                   <Pressable
                     onPressIn={() => {
                       triggerKeyHaptic();
@@ -383,6 +408,9 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontFamily: keyboardTheme.fontFamily,
     fontWeight: '500',
+  },
+  autocorrectSuggestion: {
+    paddingHorizontal: 4,
   },
   essentialKeyword: {
     color: keyboardTheme.essentialsAccent,

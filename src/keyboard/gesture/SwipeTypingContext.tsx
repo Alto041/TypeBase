@@ -21,7 +21,8 @@ import {measureKeysArea} from './measureKeysArea';
 import {SwipeTrail} from './SwipeTrail';
 import type {Point, TrailPoint} from './types';
 
-const SWIPE_DEADZONE_DP = 6;
+/** Finger movement below this is treated as a tap, not a swipe. */
+const SWIPE_TAP_SLOP_DP = 13;
 const SWIPE_MIN_STEP_DP = 1.5;
 const SWIPE_MAX_POINTS = 240;
 
@@ -35,7 +36,6 @@ type SwipeSession = {
 
 type SwipeTypingContextValue = {
   enabled: boolean;
-  letterKeysDisabled: boolean;
   trailPoints: TrailPoint[];
   trailFading: boolean;
   trailWidth: number;
@@ -97,7 +97,7 @@ function releaseSwipeKeyBlock(onReleased?: () => void) {
     swipeTypingSessionRef.touchActive = false;
     swipeTypingSessionRef.isSwiping = false;
     onReleased?.();
-  }, 90);
+  }, 45);
 }
 
 type SwipeTypingProviderProps = {
@@ -121,7 +121,6 @@ export function SwipeTypingProvider({
   const trailSizeRef = useRef({width: 0, height: 0});
   const [trailPoints, setTrailPoints] = useState<TrailPoint[]>([]);
   const [trailFading, setTrailFading] = useState(false);
-  const [letterKeysDisabled, setLetterKeysDisabled] = useState(false);
 
   const clearTrail = useCallback(() => {
     setTrailPoints([]);
@@ -226,7 +225,7 @@ export function SwipeTypingProvider({
 
         if (
           localPoints.length < 2 ||
-          pathDistance(localPoints) < dp(SWIPE_DEADZONE_DP)
+          pathDistance(localPoints) < dp(SWIPE_TAP_SLOP_DP)
         ) {
           releaseSwipeKeyBlock();
           return;
@@ -237,9 +236,7 @@ export function SwipeTypingProvider({
           triggerKeyHaptic();
           onWordCommitted(word);
         }
-        releaseSwipeKeyBlock(() => {
-          setLetterKeysDisabled(false);
-        });
+        releaseSwipeKeyBlock();
       };
 
       void ensureLearnedDictionaryLoaded().then(() => {
@@ -276,7 +273,6 @@ export function SwipeTypingProvider({
       swipeTypingSessionRef.touchActive = false;
       swipeTypingSessionRef.isSwiping = false;
       swipeTypingSessionRef.blockKeyPress = false;
-      setLetterKeysDisabled(false);
       sessionRef.current = null;
       pagePointsRef.current = [];
       localPointsRef.current = [];
@@ -327,14 +323,13 @@ export function SwipeTypingProvider({
       if (!session.isSwiping) {
         const dx = touch.pageX - session.rawStartX;
         const dy = touch.pageY - session.rawStartY;
-        if (Math.hypot(dx, dy) < dp(SWIPE_DEADZONE_DP)) {
+        if (Math.hypot(dx, dy) < dp(SWIPE_TAP_SLOP_DP)) {
           return;
         }
         session.isSwiping = true;
         swipeTypingSessionRef.isSwiping = true;
         swipeTypingSessionRef.blockKeyPress = true;
         gestureSwipeActiveRef.current = true;
-        setLetterKeysDisabled(true);
         syncTrailBounds(() => {
           localPointsRef.current = [];
           pagePointsRef.current = [];
@@ -368,7 +363,6 @@ export function SwipeTypingProvider({
   const value = useMemo(
     () => ({
       enabled,
-      letterKeysDisabled,
       trailPoints,
       trailFading,
       trailWidth,
@@ -380,7 +374,6 @@ export function SwipeTypingProvider({
     }),
     [
       enabled,
-      letterKeysDisabled,
       onTrailFadeComplete,
       onTouchEndCapture,
       onTouchMoveCapture,

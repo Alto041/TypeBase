@@ -49,7 +49,6 @@ export type KeyGesturesConfig = {
   onCommaLauncherPress: () => void;
   onCommaLauncherDisarm: () => void;
   swipeTyping: boolean;
-  letterKeysDisabled?: boolean;
 };
 
 type KeyProps = {
@@ -279,7 +278,15 @@ export function Key({
   const borderRadius = isEnterKey ? ENTER_BORDER_RADIUS : KEY_BORDER_RADIUS;
 
   const handlePressIn = useCallback(() => {
-    if (gestureSwipeActiveRef.current || isSwipeTypingLetter) {
+    if (isSwipeTypingLetter) {
+      if (shouldBlockSwipeTypingKeyInput()) {
+        return;
+      }
+      triggerKeyHaptic();
+      onPress(keyDef);
+      return;
+    }
+    if (gestureSwipeActiveRef.current) {
       return;
     }
     triggerKeyHaptic();
@@ -288,14 +295,6 @@ export function Key({
       scheduleBackspaceRepeat();
     }
   }, [isBackspace, isSwipeTypingLetter, keyDef, onPress, scheduleBackspaceRepeat]);
-
-  const handleSwipeTypingPress = useCallback(() => {
-    if (shouldBlockSwipeTypingKeyInput()) {
-      return;
-    }
-    triggerKeyHaptic();
-    onPress(keyDef);
-  }, [keyDef, onPress]);
 
   const handlePressOut = useCallback(() => {
     if (isBackspace) {
@@ -473,20 +472,17 @@ export function Key({
       onLayout={measureKey}
       {...gestureHandlers}>
       <Pressable
-        disabled={Boolean(isSwipeTypingLetter && keyGestures?.letterKeysDisabled)}
         onPress={
           showCommaLauncher
             ? handleCommaLauncherPress
-            : isSwipeTypingLetter
-              ? handleSwipeTypingPress
-              : isSpaceGesture
-                ? handleSpacePress
-                : undefined
+            : isSpaceGesture
+              ? handleSpacePress
+              : undefined
         }
         onPressIn={
           isCommaGesture
             ? handleCommaPressIn
-            : isSpaceGesture || isSwipeTypingLetter
+            : isSpaceGesture
               ? undefined
               : handlePressIn
         }
