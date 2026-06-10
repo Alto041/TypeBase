@@ -1,0 +1,21 @@
+export const keyboardTheme = {
+  container: '#1F1F1F',
+  keyboardHeightDp: 300,
+  suggestionBarHeight: 44,
+  essentialsPanelHeight: 136,
+  essentialsAccent: '#FFC700',
+  keyHeight: 44,
+  keyRowMargin: 7,
+  /** Matches the vertical space of the top 3 QWERTY rows above the bottom row. */
+  emojiPanelHeight: 44 * 3 + 7 * 3,
+  emojiPanelGap: 12,
+  key: '#353535',
+  keyPressed: '#454545',
+  enter: '#D71921',
+  enterPressed: '#B8141C',
+  label: '#FFFFFF',
+  spaceLabel: '#AEAEB2',
+  fontFamily: 'Geist',
+  swipeTrail: '#FFD60A',
+  suggestionDivider: '#828282',
+} as const;

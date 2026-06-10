@@ -1,0 +1,178 @@
+import {NativeModules, Platform} from 'react-native';
+
+type KeyboardModuleType = {
+  insertText: (text: string) => void;
+  deleteBackward: () => void;
+  getTextBeforeCursor: (length: number) => Promise<string>;
+  getLearnedWordCounts: () => Promise<Record<string, number>>;
+  getEssentials: () => Promise<string>;
+  setEssentials: (json: string) => Promise<boolean>;
+  getClipboardText: () => Promise<string>;
+  getClipboardHistory: () => Promise<string>;
+  setClipboardHistory: (json: string) => Promise<boolean>;
+  recordLearnedWord: (word: string) => Promise<number>;
+  replaceWordPrefix: (prefixLength: number, word: string) => void;
+  insertNewline: () => void;
+  dismissKeyboard: () => void;
+  openInputMethodSettings: () => void;
+  performKeyHaptic: () => void;
+  setKeyboardHeight: (heightDp: number) => void;
+  getGestureSettings: () => Promise<string>;
+  setGestureSettings: (json: string) => Promise<boolean>;
+  moveCursor: (offset: number) => Promise<boolean>;
+  deleteWordBackward: () => Promise<boolean>;
+  deleteSentenceBackward: () => Promise<boolean>;
+  getLaunchableApps: () => Promise<Array<{packageName: string; label: string}>>;
+  launchApp: (packageName: string) => Promise<boolean>;
+  getCommaLauncherArmed: () => Promise<boolean>;
+  setCommaLauncherArmed: (armed: boolean) => Promise<boolean>;
+};
+
+const {KeyboardModule} = NativeModules;
+
+export const keyboardBridge: KeyboardModuleType = {
+  insertText: (text: string) => {
+    if (Platform.OS === 'android' && KeyboardModule?.insertText) {
+      KeyboardModule.insertText(text);
+    }
+  },
+  deleteBackward: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.deleteBackward) {
+      KeyboardModule.deleteBackward();
+    }
+  },
+  getTextBeforeCursor: (length: number) => {
+    if (Platform.OS === 'android' && KeyboardModule?.getTextBeforeCursor) {
+      return KeyboardModule.getTextBeforeCursor(length);
+    }
+    return Promise.resolve('');
+  },
+  getLearnedWordCounts: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.getLearnedWordCounts) {
+      return KeyboardModule.getLearnedWordCounts() as Promise<Record<string, number>>;
+    }
+    return Promise.resolve({});
+  },
+  getEssentials: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.getEssentials) {
+      return KeyboardModule.getEssentials() as Promise<string>;
+    }
+    return Promise.resolve('[]');
+  },
+  setEssentials: (json: string) => {
+    if (Platform.OS === 'android' && KeyboardModule?.setEssentials) {
+      return KeyboardModule.setEssentials(json) as Promise<boolean>;
+    }
+    return Promise.resolve(false);
+  },
+  getClipboardText: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.getClipboardText) {
+      return KeyboardModule.getClipboardText() as Promise<string>;
+    }
+    return Promise.resolve('');
+  },
+  getClipboardHistory: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.getClipboardHistory) {
+      return KeyboardModule.getClipboardHistory() as Promise<string>;
+    }
+    return Promise.resolve('[]');
+  },
+  setClipboardHistory: (json: string) => {
+    if (Platform.OS === 'android' && KeyboardModule?.setClipboardHistory) {
+      return KeyboardModule.setClipboardHistory(json) as Promise<boolean>;
+    }
+    return Promise.resolve(false);
+  },
+  recordLearnedWord: (word: string) => {
+    if (Platform.OS === 'android' && KeyboardModule?.recordLearnedWord) {
+      return KeyboardModule.recordLearnedWord(word) as Promise<number>;
+    }
+    return Promise.resolve(0);
+  },
+  replaceWordPrefix: (prefixLength: number, word: string) => {
+    if (Platform.OS === 'android' && KeyboardModule?.replaceWordPrefix) {
+      KeyboardModule.replaceWordPrefix(prefixLength, word);
+    }
+  },
+  insertNewline: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.insertNewline) {
+      KeyboardModule.insertNewline();
+    }
+  },
+  dismissKeyboard: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.dismissKeyboard) {
+      KeyboardModule.dismissKeyboard();
+    }
+  },
+  openInputMethodSettings: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.openInputMethodSettings) {
+      KeyboardModule.openInputMethodSettings();
+    }
+  },
+  performKeyHaptic: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.performKeyHaptic) {
+      KeyboardModule.performKeyHaptic();
+    }
+  },
+  setKeyboardHeight: (heightDp: number) => {
+    if (Platform.OS === 'android' && KeyboardModule?.setKeyboardHeight) {
+      KeyboardModule.setKeyboardHeight(heightDp);
+    }
+  },
+  getGestureSettings: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.getGestureSettings) {
+      return KeyboardModule.getGestureSettings() as Promise<string>;
+    }
+    return Promise.resolve('{}');
+  },
+  setGestureSettings: (json: string) => {
+    if (Platform.OS === 'android' && KeyboardModule?.setGestureSettings) {
+      return KeyboardModule.setGestureSettings(json) as Promise<boolean>;
+    }
+    return Promise.resolve(false);
+  },
+  moveCursor: (offset: number) => {
+    if (Platform.OS === 'android' && KeyboardModule?.moveCursor) {
+      return KeyboardModule.moveCursor(offset) as Promise<boolean>;
+    }
+    return Promise.resolve(false);
+  },
+  deleteWordBackward: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.deleteWordBackward) {
+      return KeyboardModule.deleteWordBackward() as Promise<boolean>;
+    }
+    return Promise.resolve(false);
+  },
+  deleteSentenceBackward: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.deleteSentenceBackward) {
+      return KeyboardModule.deleteSentenceBackward() as Promise<boolean>;
+    }
+    return Promise.resolve(false);
+  },
+  getLaunchableApps: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.getLaunchableApps) {
+      return KeyboardModule.getLaunchableApps() as Promise<
+        Array<{packageName: string; label: string}>
+      >;
+    }
+    return Promise.resolve([]);
+  },
+  launchApp: (packageName: string) => {
+    if (Platform.OS === 'android' && KeyboardModule?.launchApp) {
+      return KeyboardModule.launchApp(packageName) as Promise<boolean>;
+    }
+    return Promise.resolve(false);
+  },
+  getCommaLauncherArmed: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.getCommaLauncherArmed) {
+      return KeyboardModule.getCommaLauncherArmed() as Promise<boolean>;
+    }
+    return Promise.resolve(false);
+  },
+  setCommaLauncherArmed: (armed: boolean) => {
+    if (Platform.OS === 'android' && KeyboardModule?.setCommaLauncherArmed) {
+      return KeyboardModule.setCommaLauncherArmed(armed) as Promise<boolean>;
+    }
+    return Promise.resolve(false);
+  },
+};

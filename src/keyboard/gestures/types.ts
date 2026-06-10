@@ -1,0 +1,64 @@
+export type GestureSettingKey =
+  | 'swipeTyping'
+  | 'spaceCursorSwipe'
+  | 'backspaceWordSwipe'
+  | 'backspaceSentenceHold'
+  | 'commaLauncher'
+  | 'trackpadMode';
+
+export type GestureSettings = Record<GestureSettingKey, boolean>;
+
+export type GestureFeature = {
+  key: GestureSettingKey;
+  title: string;
+  description: string;
+};
+
+export type LaunchableApp = {
+  packageName: string;
+  label: string;
+};
+
+export const DEFAULT_LAUNCHER_APP_PACKAGE = 'com.typebase';
+
+export const GESTURE_FEATURES: GestureFeature[] = [
+  {
+    key: 'swipeTyping',
+    title: 'Swipe typing',
+    description: 'Glide across letters to type words.',
+  },
+  {
+    key: 'spaceCursorSwipe',
+    title: 'Spacebar cursor',
+    description: 'Swipe on the spacebar to move the cursor left or right.',
+  },
+  {
+    key: 'backspaceWordSwipe',
+    title: 'Swipe backspace',
+    description: 'Swipe left on backspace to delete the previous word.',
+  },
+  {
+    key: 'backspaceSentenceHold',
+    title: 'Hold backspace',
+    description: 'Hold backspace to delete whole sentences.',
+  },
+  {
+    key: 'commaLauncher',
+    title: 'Comma launcher',
+    description: 'Hold , to arm the launcher key, then tap the rocket to open an app.',
+  },
+  {
+    key: 'trackpadMode',
+    title: 'Trackpad mode',
+    description: 'Drag anywhere on the keyboard to move the cursor.',
+  },
+];
+
+export const DEFAULT_GESTURE_SETTINGS: GestureSettings = {
+  swipeTyping: true,
+  spaceCursorSwipe: true,
+  backspaceWordSwipe: true,
+  backspaceSentenceHold: true,
+  commaLauncher: true,
+  trackpadMode: true,
+};
