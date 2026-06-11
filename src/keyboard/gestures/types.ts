@@ -45,8 +45,8 @@ export const GESTURE_FEATURES: GestureFeature[] = [
   },
   {
     key: 'commaLauncher',
-    title: 'Comma launcher',
-    description: 'Hold , to arm the launcher key, then tap the rocket to open an app.',
+    title: 'Period launcher',
+    description: 'Hold . to arm the launcher key, then tap the rocket to open an app.',
   },
   {
     key: 'trackpadMode',

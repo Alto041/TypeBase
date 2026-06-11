@@ -8,6 +8,7 @@ import React, {
 } from 'react';
 import {PixelRatio, View, type GestureResponderEvent} from 'react-native';
 import {triggerKeyHaptic} from '../haptics';
+import {keyboardBridge} from '../keyboardBridge';
 import {clampPoint, decimatePoints, distance} from './coordinates';
 import {decodeSwipeGesture} from './gestureDecoder';
 import {ensureLearnedDictionaryLoaded} from '../suggestions/learnedDictionary';
@@ -25,7 +26,7 @@ import {SwipeTrail} from './SwipeTrail';
 import type {Point, TrailPoint} from './types';
 
 /** Finger movement below this is treated as a tap, not a swipe. */
-const SWIPE_TAP_SLOP_DP = 13;
+const SWIPE_TAP_SLOP_DP = 10;
 const SWIPE_MIN_STEP_DP = 1.5;
 const SWIPE_MAX_POINTS = 240;
 
@@ -306,6 +307,7 @@ export function SwipeTypingProvider({
       swipeTypingSessionRef.touchActive = false;
       swipeTypingSessionRef.isSwiping = false;
       swipeTypingSessionRef.blockKeyPress = false;
+      swipeTypingSessionRef.tapCommitted = false;
       sessionRef.current = null;
       pagePointsRef.current = [];
       localPointsRef.current = [];
@@ -325,6 +327,7 @@ export function SwipeTypingProvider({
         swipeTypingSessionRef.touchActive = false;
         swipeTypingSessionRef.isSwiping = false;
         swipeTypingSessionRef.blockKeyPress = false;
+        swipeTypingSessionRef.tapCommitted = false;
         return;
       }
 
@@ -341,6 +344,7 @@ export function SwipeTypingProvider({
       swipeTypingSessionRef.touchActive = true;
       swipeTypingSessionRef.isSwiping = false;
       swipeTypingSessionRef.blockKeyPress = false;
+      swipeTypingSessionRef.tapCommitted = false;
       gestureSwipeActiveRef.current = false;
     },
     [clearTrail, enabled, layoutContext, syncTrailBounds],
@@ -370,6 +374,10 @@ export function SwipeTypingProvider({
         session.isSwiping = true;
         swipeTypingSessionRef.isSwiping = true;
         swipeTypingSessionRef.blockKeyPress = true;
+        if (swipeTypingSessionRef.tapCommitted) {
+          keyboardBridge.deleteBackward();
+          swipeTypingSessionRef.tapCommitted = false;
+        }
         gestureSwipeActiveRef.current = true;
         syncTrailBounds(() => {
           localPointsRef.current = [];

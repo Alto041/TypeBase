@@ -1,4 +1,5 @@
 import {NativeModules, Platform} from 'react-native';
+import type {ClipboardContent} from './clipboard/types';
 
 type KeyboardModuleType = {
   insertText: (text: string) => void;
@@ -8,6 +9,9 @@ type KeyboardModuleType = {
   getEssentials: () => Promise<string>;
   setEssentials: (json: string) => Promise<boolean>;
   getClipboardText: () => Promise<string>;
+  getClipboardContent: () => Promise<ClipboardContent>;
+  insertClipboardImage: (imagePath: string) => Promise<boolean>;
+  deleteClipboardImageFile: (imagePath: string) => Promise<boolean>;
   getClipboardHistory: () => Promise<string>;
   setClipboardHistory: (json: string) => Promise<boolean>;
   recordLearnedWord: (word: string) => Promise<number>;
@@ -74,6 +78,33 @@ export const keyboardBridge: KeyboardModuleType = {
       return KeyboardModule.getClipboardText() as Promise<string>;
     }
     return Promise.resolve('');
+  },
+  getClipboardContent: async () => {
+    if (Platform.OS === 'android' && KeyboardModule?.getClipboardContent) {
+      const raw = (await KeyboardModule.getClipboardContent()) as string;
+      try {
+        return JSON.parse(raw) as ClipboardContent;
+      } catch {
+        return {kind: 'none'};
+      }
+    }
+    if (Platform.OS === 'android' && KeyboardModule?.getClipboardText) {
+      const text = ((await KeyboardModule.getClipboardText()) as string).trim();
+      return text ? {kind: 'text', text} : {kind: 'none'};
+    }
+    return {kind: 'none'};
+  },
+  insertClipboardImage: (imagePath: string) => {
+    if (Platform.OS === 'android' && KeyboardModule?.insertClipboardImage) {
+      return KeyboardModule.insertClipboardImage(imagePath) as Promise<boolean>;
+    }
+    return Promise.resolve(false);
+  },
+  deleteClipboardImageFile: (imagePath: string) => {
+    if (Platform.OS === 'android' && KeyboardModule?.deleteClipboardImageFile) {
+      return KeyboardModule.deleteClipboardImageFile(imagePath) as Promise<boolean>;
+    }
+    return Promise.resolve(false);
   },
   getClipboardHistory: () => {
     if (Platform.OS === 'android' && KeyboardModule?.getClipboardHistory) {

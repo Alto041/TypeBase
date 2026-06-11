@@ -59,9 +59,9 @@ export function EmojiBottomRow({
 const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
-    gap: 6,
-    marginBottom: 7,
-    paddingHorizontal: 4,
+    gap: keyboardTheme.keyGap,
+    marginBottom: keyboardTheme.keyRowMargin,
+    paddingHorizontal: keyboardTheme.keyRowPaddingHorizontal,
     alignItems: 'center',
   },
   sideKey: {

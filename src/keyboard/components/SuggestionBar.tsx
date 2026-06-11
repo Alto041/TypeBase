@@ -6,6 +6,7 @@ import BackIcon from '../../../assets/back.svg';
 import CheckIcon from '../../../assets/check.svg';
 import EmojiIcon from '../../../assets/emoji.svg';
 import ItemsIcon from '../../../assets/items.svg';
+import TranslateIcon from '../../../assets/plugins/translate.svg';
 import {VoiceEqualizerIcon} from './VoiceEqualizerIcon';
 import {triggerKeyHaptic} from '../haptics';
 import {applyCaseToWord} from '../suggestions/wordSuggestions';
@@ -37,11 +38,15 @@ type SuggestionBarProps = {
   isListening?: boolean;
   partialTranscript?: string;
   onItemsPress?: () => void;
+  onTranslatePress?: () => void;
   onEmojiPress?: () => void;
   onVoicePress?: () => void;
   itemsSelected?: boolean;
+  translateSelected?: boolean;
   emojiSelected?: boolean;
   centerTitle?: string;
+  /** Show back chevron instead of the plugins icon (panels + essentials form). */
+  leadingBack?: boolean;
   trailingAction?: {
     onPress: () => void;
     icon?: 'add' | 'insert';
@@ -60,11 +65,14 @@ export function SuggestionBar({
   isListening = false,
   partialTranscript = '',
   onItemsPress,
+  onTranslatePress,
   onEmojiPress,
   onVoicePress,
   itemsSelected = false,
+  translateSelected = false,
   emojiSelected = false,
   centerTitle,
+  leadingBack = false,
   trailingAction,
 }: SuggestionBarProps) {
   if (!visible) {
@@ -72,6 +80,7 @@ export function SuggestionBar({
   }
 
   const isFormMode = Boolean(essentialsForm);
+  const showLeadingBack = isFormMode || leadingBack;
   const showPartial = !isFormMode && isListening && partialTranscript.length > 0;
   const hasEssentials = !isFormMode && essentialSuggestions.length > 0;
   const hasAutocorrect =
@@ -82,35 +91,59 @@ export function SuggestionBar({
   const toolbarIconActive = keyboardTheme.label;
   const toolbarIconSize = 20;
   const itemsIconColor = itemsSelected ? toolbarIconActive : toolbarIconMuted;
+  const translateIconColor = translateSelected
+    ? toolbarIconActive
+    : toolbarIconMuted;
   const emojiIconColor = emojiSelected ? toolbarIconActive : toolbarIconMuted;
   const voiceIconColor = isListening ? toolbarIconActive : toolbarIconMuted;
 
   return (
     <View style={styles.container}>
-      <Pressable
-        onPressIn={() => {
-          triggerKeyHaptic();
-          if (isFormMode) {
-            essentialsForm?.onBack();
-          } else {
-            onItemsPress?.();
-          }
-        }}
-        style={({pressed}) => [
-          styles.toolbarButton,
-          pressed && styles.toolbarButtonPressed,
-        ]}
-        hitSlop={6}>
-        {isFormMode ? (
-          <BackIcon width={22} height={14} />
-        ) : (
-          <ItemsIcon
-            width={toolbarIconSize}
-            height={toolbarIconSize}
-            color={itemsIconColor}
-          />
-        )}
-      </Pressable>
+      <View style={styles.toolbarLeading}>
+        <Pressable
+          onPressIn={() => {
+            triggerKeyHaptic();
+            if (isFormMode) {
+              essentialsForm?.onBack();
+            } else {
+              onItemsPress?.();
+            }
+          }}
+          style={({pressed}) => [
+            styles.toolbarButton,
+            pressed && styles.toolbarButtonPressed,
+          ]}
+          hitSlop={6}>
+          {showLeadingBack ? (
+            <BackIcon width={22} height={14} />
+          ) : (
+            <ItemsIcon
+              width={toolbarIconSize}
+              height={toolbarIconSize}
+              color={itemsIconColor}
+            />
+          )}
+        </Pressable>
+
+        {!isFormMode ? (
+          <Pressable
+            onPressIn={() => {
+              triggerKeyHaptic();
+              onTranslatePress?.();
+            }}
+            style={({pressed}) => [
+              styles.toolbarButton,
+              pressed && styles.toolbarButtonPressed,
+            ]}
+            hitSlop={6}>
+            <TranslateIcon
+              width={toolbarIconSize}
+              height={toolbarIconSize}
+              color={translateIconColor}
+            />
+          </Pressable>
+        ) : null}
+      </View>
 
       <View style={styles.center}>
         {isFormMode && essentialsForm ? (
@@ -304,9 +337,14 @@ export function SuggestionBar({
 const styles = StyleSheet.create({
   container: {
     minHeight: keyboardTheme.suggestionBarHeight,
+    flexShrink: 0,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 4,
+  },
+  toolbarLeading: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   toolbarTrailing: {
     flexDirection: 'row',

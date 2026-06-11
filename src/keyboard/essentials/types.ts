@@ -17,4 +17,6 @@ export type KeyboardMode =
   | {type: 'clipboard'}
   | {type: 'gestures'}
   | {type: 'autocorrect'}
-  | {type: 'calculator'};
+  | {type: 'calculator'}
+  | {type: 'translate'}
+  | {type: 'rewrite'};

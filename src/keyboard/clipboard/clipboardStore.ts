@@ -25,6 +25,51 @@ async function persist(): Promise<void> {
   await keyboardBridge.setClipboardHistory(JSON.stringify(list));
 }
 
+function normalizeLoadedItem(
+  item: Partial<ClipboardItem> & {text?: string},
+): ClipboardItem | null {
+  if (!item?.id) {
+    return null;
+  }
+
+  const kind = item.kind ?? (item.imageUri ? 'image' : 'text');
+  if (kind === 'image') {
+    if (!item.imageUri) {
+      return null;
+    }
+    return {
+      id: item.id,
+      kind: 'image',
+      imageUri: item.imageUri,
+      imageHash: item.imageHash,
+      mimeType: item.mimeType,
+      createdAt: item.createdAt ?? Date.now(),
+      pinned: item.pinned ?? false,
+    };
+  }
+
+  if (!item.text) {
+    return null;
+  }
+
+  return {
+    id: item.id,
+    kind: 'text',
+    text: item.text,
+    createdAt: item.createdAt ?? Date.now(),
+    pinned: item.pinned ?? false,
+  };
+}
+
+async function deleteImageFileIfUnused(imageUri: string): Promise<void> {
+  const stillReferenced = Array.from(items.values()).some(
+    item => item.kind === 'image' && item.imageUri === imageUri,
+  );
+  if (!stillReferenced) {
+    await keyboardBridge.deleteClipboardImageFile(imageUri);
+  }
+}
+
 function trimUnpinnedOverflow(): void {
   let sorted = sortItems(Array.from(items.values()));
   while (sorted.length > MAX_HISTORY) {
@@ -33,6 +78,9 @@ function trimUnpinnedOverflow(): void {
       break;
     }
     items.delete(removable.id);
+    if (removable.kind === 'image' && removable.imageUri) {
+      void deleteImageFileIfUnused(removable.imageUri);
+    }
     sorted = sortItems(Array.from(items.values()));
   }
 }
@@ -51,13 +99,9 @@ export async function ensureClipboardLoaded(): Promise<void> {
       >;
       if (Array.isArray(parsed)) {
         for (const item of parsed) {
-          if (item?.id && item?.text) {
-            items.set(item.id, {
-              id: item.id,
-              text: item.text,
-              createdAt: item.createdAt ?? Date.now(),
-              pinned: item.pinned ?? false,
-            });
+          const normalized = normalizeLoadedItem(item);
+          if (normalized) {
+            items.set(normalized.id, normalized);
           }
         }
       }
@@ -74,16 +118,21 @@ export function getClipboardItems(): ClipboardItem[] {
 }
 
 export async function captureSystemClipboard(): Promise<ClipboardItem | null> {
-  const text = (await keyboardBridge.getClipboardText()).trim();
-  if (!text) {
-    return null;
+  const content = await keyboardBridge.getClipboardContent();
+  if (content.kind === 'text') {
+    return addClipboardText(content.text);
   }
-  return addClipboardItem(text);
+  if (content.kind === 'image') {
+    return addClipboardImage(content.imagePath, content.imageHash, content.mimeType);
+  }
+  return null;
 }
 
-export async function addClipboardItem(text: string): Promise<ClipboardItem> {
+export async function addClipboardText(text: string): Promise<ClipboardItem> {
   const trimmed = text.trim();
-  const existing = getClipboardItems().find(item => item.text === trimmed);
+  const existing = getClipboardItems().find(
+    item => item.kind === 'text' && item.text === trimmed,
+  );
   if (existing) {
     const updated: ClipboardItem = {...existing, createdAt: Date.now()};
     items.set(existing.id, updated);
@@ -93,6 +142,7 @@ export async function addClipboardItem(text: string): Promise<ClipboardItem> {
 
   const item: ClipboardItem = {
     id: createId(),
+    kind: 'text',
     text: trimmed,
     createdAt: Date.now(),
     pinned: false,
@@ -103,8 +153,43 @@ export async function addClipboardItem(text: string): Promise<ClipboardItem> {
   return item;
 }
 
+export async function addClipboardImage(
+  imageUri: string,
+  imageHash: string,
+  mimeType?: string,
+): Promise<ClipboardItem> {
+  const existing = getClipboardItems().find(
+    item => item.kind === 'image' && item.imageHash === imageHash,
+  );
+  if (existing) {
+    const updated: ClipboardItem = {...existing, createdAt: Date.now()};
+    items.set(existing.id, updated);
+    await persist();
+    return updated;
+  }
+
+  const item: ClipboardItem = {
+    id: createId(),
+    kind: 'image',
+    imageUri,
+    imageHash,
+    mimeType,
+    createdAt: Date.now(),
+    pinned: false,
+  };
+  items.set(item.id, item);
+  trimUnpinnedOverflow();
+  await persist();
+  return item;
+}
+
 export async function deleteClipboardItem(itemId: string): Promise<void> {
+  const item = items.get(itemId);
+  const imageUri = item?.kind === 'image' ? item.imageUri : undefined;
   items.delete(itemId);
+  if (imageUri) {
+    await deleteImageFileIfUnused(imageUri);
+  }
   await persist();
 }
 

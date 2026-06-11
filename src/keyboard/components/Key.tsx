@@ -15,11 +15,11 @@ import EnterIcon from '../../../assets/enter.svg';
 import NumbersIcon from '../../../assets/123.svg';
 import SymbolsIcon from '../../../assets/symbols.svg';
 import RocketLaunchIcon from '../../../assets/rocket_launch.svg';
+import ArtificialIcon from '../../../assets/Artificial.svg';
 import {useKeyLayoutContext} from '../gesture/KeyLayoutContext';
 import {
   gestureSwipeActiveRef,
   shouldBlockSwipeTypingKeyInput,
-  shouldDeferSwipeTypingLetterTap,
   swipeTypingSessionRef,
 } from '../gesture/gestureState';
 import {triggerKeyHaptic} from '../haptics';
@@ -34,12 +34,15 @@ const BACKSPACE_HOLD_DELAY_MS = 280;
 const BACKSPACE_SENTENCE_ESCALATE_MS = 700;
 const BACKSPACE_SWIPE_ACTIVATE_PX = 10;
 const COMMA_HOLD_DELAY_MS = 400;
+const PERIOD_HOLD_DELAY_MS = 400;
 const BACKSPACE_INITIAL_INTERVAL_MS = 75;
 const BACKSPACE_MIN_INTERVAL_MS = 25;
 const BACKSPACE_ACCEL_STEP_MS = 10;
 const CURSOR_STEP_PX = 10;
 const SPACE_SWIPE_THRESHOLD_PX = 8;
 const BACKSPACE_WORD_SWIPE_PX = 24;
+const KEY_PRESS_RETENTION = {top: 18, left: 10, bottom: 18, right: 10};
+const KEY_HIT_SLOP = {top: 3, left: 2, bottom: 3, right: 2};
 
 function dp(value: number): number {
   return value * PixelRatio.get();
@@ -58,6 +61,11 @@ export type KeyGesturesConfig = {
   onCommaLongPress: () => void;
   onCommaLauncherPress: () => void;
   onCommaLauncherDisarm: () => void;
+  periodRewrite: boolean;
+  periodRewriteActive: boolean;
+  onPeriodLongPress: () => void;
+  onPeriodRewritePress: () => void;
+  onPeriodRewriteDisarm: () => void;
   swipeTyping: boolean;
 };
 
@@ -92,14 +100,16 @@ export function Key({
   const backspaceDidSwipeRef = useRef(false);
   const backspaceHoldStartedAtRef = useRef(0);
   const backspaceTouchActiveRef = useRef(false);
-  const letterTouchPendingRef = useRef(false);
   const keyGesturesRef = useRef(keyGestures);
   const [isBackspaceHeld, setIsBackspaceHeld] = useState(false);
 
   keyGesturesRef.current = keyGestures;
-  const commaHoldDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const commaDidHoldRef = useRef(false);
-  const commaSuppressLaunchRef = useRef(false);
+  const launcherHoldDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const launcherDidHoldRef = useRef(false);
+  const launcherSuppressPressRef = useRef(false);
+  const rewriteHoldDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rewriteDidHoldRef = useRef(false);
+  const rewriteSuppressPressRef = useRef(false);
 
   const isSpecial =
     keyDef.type &&
@@ -193,10 +203,17 @@ export function Key({
     }
   }, [keyDef, layoutContext]);
 
-  const clearCommaHold = useCallback(() => {
-    if (commaHoldDelayRef.current) {
-      clearTimeout(commaHoldDelayRef.current);
-      commaHoldDelayRef.current = null;
+  const clearLauncherHold = useCallback(() => {
+    if (launcherHoldDelayRef.current) {
+      clearTimeout(launcherHoldDelayRef.current);
+      launcherHoldDelayRef.current = null;
+    }
+  }, []);
+
+  const clearRewriteHold = useCallback(() => {
+    if (rewriteHoldDelayRef.current) {
+      clearTimeout(rewriteHoldDelayRef.current);
+      rewriteHoldDelayRef.current = null;
     }
   }, []);
 
@@ -257,15 +274,21 @@ export function Key({
   useEffect(() => {
     return () => {
       clearBackspaceRepeat();
-      clearCommaHold();
+      clearLauncherHold();
+      clearRewriteHold();
       layoutContext?.unregisterKey(keyDef.id);
     };
-  }, [clearBackspaceRepeat, clearCommaHold, keyDef.id, layoutContext]);
+  }, [clearBackspaceRepeat, clearLauncherHold, clearRewriteHold, keyDef.id, layoutContext]);
 
-  const isCommaGesture =
-    keyDef.id === 'comma' && keyGestures?.commaLauncher;
-  const showCommaLauncher = Boolean(
-    isCommaGesture && keyGestures?.commaLauncherActive,
+  const isLauncherGesture =
+    keyDef.id === 'period' && keyGestures?.commaLauncher;
+  const showLauncher = Boolean(
+    isLauncherGesture && keyGestures?.commaLauncherActive,
+  );
+  const isRewriteGesture =
+    keyDef.id === 'comma' && keyGestures?.periodRewrite;
+  const showRewrite = Boolean(
+    isRewriteGesture && keyGestures?.periodRewriteActive,
   );
 
   const keyContent = isEnterBackspace ? (
@@ -286,8 +309,10 @@ export function Key({
     </View>
   ) : isBackspace ? (
     <BackspaceIcon width={24} height={16} />
-  ) : showCommaLauncher ? (
+  ) : showLauncher ? (
     <RocketLaunchIcon width={20} height={20} />
+  ) : showRewrite ? (
+    <ArtificialIcon width={18} height={17} />
   ) : (
     <Text
       style={[
@@ -306,15 +331,13 @@ export function Key({
       if (shouldBlockSwipeTypingKeyInput()) {
         return;
       }
-      letterTouchPendingRef.current = true;
+      onPress(keyDef);
+      swipeTypingSessionRef.tapCommitted = true;
       triggerKeyHaptic();
       return;
     }
-    if (gestureSwipeActiveRef.current) {
-      return;
-    }
-    triggerKeyHaptic();
     onPress(keyDef);
+    triggerKeyHaptic();
   }, [isSwipeTypingLetter, keyDef, onPress]);
 
   const finishBackspaceHold = useCallback(() => {
@@ -340,82 +363,126 @@ export function Key({
 
   const handlePressOut = useCallback(() => {
     if (isSwipeTypingLetter) {
-      if (
-        letterTouchPendingRef.current &&
-        !shouldDeferSwipeTypingLetterTap() &&
-        !swipeTypingSessionRef.isSwiping
-      ) {
-        onPress(keyDef);
-      }
-      letterTouchPendingRef.current = false;
       return;
     }
     if (isBackspace) {
       finishBackspaceHold();
     }
-  }, [finishBackspaceHold, isBackspace, isSwipeTypingLetter, keyDef, onPress]);
+  }, [finishBackspaceHold, isBackspace, isSwipeTypingLetter]);
 
   const isSpaceGesture =
     keyDef.type === 'space' && keyGestures?.spaceCursorSwipe;
   const isBackspaceGesture =
     isBackspace && keyGestures?.backspaceWordSwipe;
-  const handleCommaPressIn = useCallback(() => {
-    if (gestureSwipeActiveRef.current) {
-      return;
-    }
-    clearCommaHold();
-    commaDidHoldRef.current = false;
+  const handleLauncherPressIn = useCallback(() => {
+    clearLauncherHold();
+    launcherDidHoldRef.current = false;
 
-    if (showCommaLauncher) {
-      commaSuppressLaunchRef.current = false;
-      commaHoldDelayRef.current = setTimeout(() => {
-        commaHoldDelayRef.current = null;
-        commaDidHoldRef.current = true;
-        commaSuppressLaunchRef.current = true;
+    if (showLauncher) {
+      launcherSuppressPressRef.current = false;
+      launcherHoldDelayRef.current = setTimeout(() => {
+        launcherHoldDelayRef.current = null;
+        launcherDidHoldRef.current = true;
+        launcherSuppressPressRef.current = true;
         triggerKeyHaptic();
         keyGestures?.onCommaLauncherDisarm();
       }, COMMA_HOLD_DELAY_MS);
       return;
     }
 
-    commaHoldDelayRef.current = setTimeout(() => {
-      commaHoldDelayRef.current = null;
-      commaDidHoldRef.current = true;
-      commaSuppressLaunchRef.current = true;
+    launcherHoldDelayRef.current = setTimeout(() => {
+      launcherHoldDelayRef.current = null;
+      launcherDidHoldRef.current = true;
+      launcherSuppressPressRef.current = true;
       triggerKeyHaptic();
       keyGestures?.onCommaLongPress();
     }, COMMA_HOLD_DELAY_MS);
-  }, [clearCommaHold, keyGestures, showCommaLauncher]);
+  }, [clearLauncherHold, keyGestures, showLauncher]);
 
-  const handleCommaPressOut = useCallback(() => {
-    if (showCommaLauncher) {
-      if (commaHoldDelayRef.current) {
-        clearCommaHold();
+  const handleLauncherPressOut = useCallback(() => {
+    if (showLauncher) {
+      if (launcherHoldDelayRef.current) {
+        clearLauncherHold();
       }
-      commaDidHoldRef.current = false;
+      launcherDidHoldRef.current = false;
       return;
     }
-    if (commaHoldDelayRef.current) {
-      clearCommaHold();
-      if (!commaDidHoldRef.current) {
+    if (launcherHoldDelayRef.current) {
+      clearLauncherHold();
+      if (!launcherDidHoldRef.current) {
         triggerKeyHaptic();
         onPress(keyDef);
       }
     }
-    commaDidHoldRef.current = false;
-  }, [clearCommaHold, keyDef, onPress, showCommaLauncher]);
+    launcherDidHoldRef.current = false;
+  }, [clearLauncherHold, keyDef, onPress, showLauncher]);
 
-  const handleCommaLauncherPress = useCallback(() => {
-    if (!showCommaLauncher) {
+  const handleLauncherPress = useCallback(() => {
+    if (!showLauncher) {
       return;
     }
-    if (commaSuppressLaunchRef.current) {
-      commaSuppressLaunchRef.current = false;
+    if (launcherSuppressPressRef.current) {
+      launcherSuppressPressRef.current = false;
       return;
     }
     triggerKeyHaptic();
     keyGestures?.onCommaLauncherPress();
-  }, [keyGestures, showCommaLauncher]);
+  }, [keyGestures, showLauncher]);
+
+  const handleRewritePressIn = useCallback(() => {
+    clearRewriteHold();
+    rewriteDidHoldRef.current = false;
+
+    if (showRewrite) {
+      rewriteSuppressPressRef.current = false;
+      rewriteHoldDelayRef.current = setTimeout(() => {
+        rewriteHoldDelayRef.current = null;
+        rewriteDidHoldRef.current = true;
+        rewriteSuppressPressRef.current = true;
+        triggerKeyHaptic();
+        keyGestures?.onPeriodRewriteDisarm();
+      }, PERIOD_HOLD_DELAY_MS);
+      return;
+    }
+
+    rewriteHoldDelayRef.current = setTimeout(() => {
+      rewriteHoldDelayRef.current = null;
+      rewriteDidHoldRef.current = true;
+      rewriteSuppressPressRef.current = true;
+      triggerKeyHaptic();
+      keyGestures?.onPeriodLongPress();
+    }, PERIOD_HOLD_DELAY_MS);
+  }, [clearRewriteHold, keyGestures, showRewrite]);
+
+  const handleRewritePressOut = useCallback(() => {
+    if (showRewrite) {
+      if (rewriteHoldDelayRef.current) {
+        clearRewriteHold();
+      }
+      rewriteDidHoldRef.current = false;
+      return;
+    }
+    if (rewriteHoldDelayRef.current) {
+      clearRewriteHold();
+      if (!rewriteDidHoldRef.current) {
+        triggerKeyHaptic();
+        onPress(keyDef);
+      }
+    }
+    rewriteDidHoldRef.current = false;
+  }, [clearRewriteHold, keyDef, onPress, showRewrite]);
+
+  const handleRewritePress = useCallback(() => {
+    if (!showRewrite) {
+      return;
+    }
+    if (rewriteSuppressPressRef.current) {
+      rewriteSuppressPressRef.current = false;
+      return;
+    }
+    triggerKeyHaptic();
+    keyGestures?.onPeriodRewritePress();
+  }, [keyGestures, showRewrite]);
 
   const handleSpacePress = useCallback(() => {
     if (
@@ -554,38 +621,51 @@ export function Key({
         </View>
       ) : (
         <Pressable
+          pressRetentionOffset={KEY_PRESS_RETENTION}
+          hitSlop={isTextKey ? KEY_HIT_SLOP : undefined}
           onPress={
-            showCommaLauncher
-              ? handleCommaLauncherPress
-              : isSpaceGesture
-                ? handleSpacePress
-                : undefined
+            showLauncher
+              ? handleLauncherPress
+              : showRewrite
+                ? handleRewritePress
+                : isSpaceGesture
+                  ? handleSpacePress
+                  : undefined
           }
           onPressIn={
-            isCommaGesture
-              ? handleCommaPressIn
-              : isSpaceGesture
-                ? undefined
-                : handlePressIn
+            isLauncherGesture
+              ? handleLauncherPressIn
+              : isRewriteGesture
+                ? handleRewritePressIn
+                : isSpaceGesture
+                  ? undefined
+                  : handlePressIn
           }
           onPressOut={
-            isCommaGesture
-              ? handleCommaPressOut
-              : isSpaceGesture
-                ? undefined
-                : handlePressOut
+            isLauncherGesture
+              ? handleLauncherPressOut
+              : isRewriteGesture
+                ? handleRewritePressOut
+                : isSpaceGesture
+                  ? undefined
+                  : handlePressOut
           }
           style={({pressed}) => [
             styles.key,
             {borderRadius},
-            showCommaLauncher && styles.commaLauncherKey,
+            showLauncher && styles.launcherKey,
+            showRewrite && styles.rewriteKey,
             isShift && styles.shiftKey,
             isSpecial && styles.specialKey,
             keyDef.type === 'space' && styles.spaceKey,
             isShift && isShiftOn && !isCapsLocked && styles.shiftKeyActive,
             isShift && isCapsLocked && styles.shiftKeyLocked,
             (isEnterAction || isEnterBackspace) && styles.enterKey,
-            pressed && !isShift && !showCommaLauncher && styles.keyPressedBounce,
+            pressed &&
+              !isShift &&
+              !showLauncher &&
+              !showRewrite &&
+              styles.keyPressedBounce,
           ]}>
           {keyContent}
         </Pressable>
@@ -638,20 +718,23 @@ export function KeyboardRow({
 const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
-    gap: 6,
-    marginBottom: 7,
-    paddingHorizontal: 4,
+    gap: keyboardTheme.keyGap,
+    marginBottom: keyboardTheme.keyRowMargin,
+    paddingHorizontal: keyboardTheme.keyRowPaddingHorizontal,
   },
   key: {
     minHeight: keyboardTheme.keyHeight,
     backgroundColor: keyboardTheme.key,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 4,
+    paddingHorizontal: 5,
     overflow: 'hidden',
   },
-  commaLauncherKey: {
+  launcherKey: {
     backgroundColor: '#474747',
+  },
+  rewriteKey: {
+    backgroundColor: keyboardTheme.essentialsAccent,
   },
   shiftKey: {
     overflow: 'visible',
@@ -684,7 +767,7 @@ const styles = StyleSheet.create({
   },
   keyLabel: {
     color: keyboardTheme.label,
-    fontSize: 20,
+    fontSize: 22,
     fontFamily: keyboardTheme.fontFamily,
     fontWeight: '500',
   },

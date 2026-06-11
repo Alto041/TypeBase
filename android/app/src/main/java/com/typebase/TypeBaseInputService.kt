@@ -192,8 +192,8 @@ class TypeBaseInputService : InputMethodService() {
 
   companion object {
     const val KEYBOARD_COMPONENT_NAME = "TypeBaseKeyboard"
-    const val DEFAULT_KEYBOARD_HEIGHT_DP = 300
-    private const val MIN_KEYBOARD_HEIGHT_DP = 280
+    const val DEFAULT_KEYBOARD_HEIGHT_DP = 340
+    private const val MIN_KEYBOARD_HEIGHT_DP = 320
     private const val MAX_SURFACE_MOUNT_ATTEMPTS = 120
   }
 }

@@ -2,6 +2,7 @@ import React, {useMemo, useRef, useState} from 'react';
 import {
   Animated,
   Easing,
+  Image,
   PanResponder,
   Pressable,
   StyleSheet,
@@ -21,6 +22,11 @@ const CARD_COLOR = '#353535';
 const PIN_ICON_COLOR = '#828282';
 const PIN_ICON_SIZE = 16;
 const ACTION_WIDTH = 72;
+const IMAGE_THUMB_SIZE = 48;
+
+function toImageUri(path: string): string {
+  return path.startsWith('file://') ? path : `file://${path}`;
+}
 
 type ClipboardSwipeRowProps = {
   item: ClipboardItem;
@@ -182,9 +188,22 @@ export function ClipboardSwipeRow({
                 styles.cardBody,
                 pressed && !isDeleting && styles.cardPressed,
               ]}>
-              <Text style={styles.cardText} numberOfLines={3}>
-                {item.text}
-              </Text>
+              {item.kind === 'image' && item.imageUri ? (
+                <View style={styles.imageRow}>
+                  <Image
+                    source={{uri: toImageUri(item.imageUri)}}
+                    style={styles.imageThumb}
+                    resizeMode="cover"
+                  />
+                  <Text style={styles.imageLabel} numberOfLines={1}>
+                    Image
+                  </Text>
+                </View>
+              ) : (
+                <Text style={styles.cardText} numberOfLines={3}>
+                  {item.text}
+                </Text>
+              )}
             </Pressable>
             <Animated.View style={[styles.pinSlot, {opacity: pinOpacity}]}>
               <Pressable
@@ -252,6 +271,24 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: keyboardTheme.fontFamily,
     lineHeight: 20,
+  },
+  imageRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  imageThumb: {
+    width: IMAGE_THUMB_SIZE,
+    height: IMAGE_THUMB_SIZE,
+    borderRadius: 8,
+    backgroundColor: keyboardTheme.keyPressed,
+  },
+  imageLabel: {
+    flex: 1,
+    color: keyboardTheme.spaceLabel,
+    fontSize: 14,
+    fontFamily: keyboardTheme.fontFamily,
+    fontWeight: '600',
   },
   pinSlot: {
     paddingRight: 10,

@@ -4,6 +4,8 @@ import {gestureSwipeActiveRef} from './gestureState';
 import {SwipeTypingProvider} from './SwipeTypingContext';
 
 const CURSOR_STEP_PX = 12;
+/** Ignore small finger jitter so taps on keys are not stolen for trackpad mode. */
+const TRACKPAD_ACTIVATION_SLOP_DP = 22;
 
 function dp(value: number): number {
   return value * PixelRatio.get();
@@ -37,15 +39,21 @@ export function GestureTypingLayer({
         onMoveShouldSetPanResponder: (_event, gestureState) =>
           trackpadEnabled &&
           !enabled &&
-          Math.hypot(gestureState.dx, gestureState.dy) >= dp(8),
+          Math.hypot(gestureState.dx, gestureState.dy) >= dp(TRACKPAD_ACTIVATION_SLOP_DP),
+        onPanResponderTerminationRequest: () => true,
         onPanResponderGrant: () => {
           cursorAccumRef.current = 0;
           trackpadDxRef.current = 0;
-          gestureSwipeActiveRef.current = true;
         },
         onPanResponderMove: (_event, gestureState) => {
           if (!trackpadEnabled || !onCursorStep) {
             return;
+          }
+          if (
+            Math.hypot(gestureState.dx, gestureState.dy) >=
+            dp(TRACKPAD_ACTIVATION_SLOP_DP)
+          ) {
+            gestureSwipeActiveRef.current = true;
           }
           const delta = gestureState.dx - trackpadDxRef.current;
           trackpadDxRef.current = gestureState.dx;

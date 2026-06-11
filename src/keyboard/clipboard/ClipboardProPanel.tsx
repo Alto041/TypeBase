@@ -68,7 +68,7 @@ export function ClipboardProPanel({
           <View style={pluginPanelStyles.emptyState}>
             <Text style={pluginPanelStyles.emptyTitle}>No clipboard history</Text>
             <Text style={pluginPanelStyles.emptyHint}>
-              Copy text in any app and it will appear here.
+              Copy text or images in any app and they will appear here.
             </Text>
           </View>
         ) : (

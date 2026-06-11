@@ -1,13 +1,21 @@
 package com.typebase
 
+import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.view.HapticFeedbackConstants
 import android.view.KeyEvent
+import android.view.inputmethod.InputConnection
+import android.view.inputmethod.InputContentInfo
+import androidx.core.content.FileProvider
+import java.io.File
+import java.io.FileOutputStream
+import java.security.MessageDigest
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
@@ -88,6 +96,93 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
       promise.resolve(text)
     } catch (error: Exception) {
       promise.reject("GET_CLIPBOARD_FAILED", error)
+    }
+  }
+
+  @ReactMethod
+  fun getClipboardContent(promise: Promise) {
+    try {
+      val manager =
+          reactApplicationContext.getSystemService(Context.CLIPBOARD_SERVICE) as
+              ClipboardManager
+      val clip = manager.primaryClip
+      if (clip == null || clip.itemCount == 0) {
+        promise.resolve("""{"kind":"none"}""")
+        return
+      }
+
+      val item = clip.getItemAt(0)
+      val uri = item.uri
+      if (uri != null) {
+        val mimeType =
+            reactApplicationContext.contentResolver.getType(uri)
+                ?: clip.description?.getMimeType(0)
+                ?: "image/*"
+        if (mimeType.startsWith("image/")) {
+          val saved = saveClipboardImage(uri, mimeType)
+          if (saved != null) {
+            promise.resolve(saved)
+            return
+          }
+        }
+      }
+
+      val text = item.coerceToText(reactApplicationContext)?.toString()?.trim().orEmpty()
+      if (text.isNotEmpty()) {
+        promise.resolve("""{"kind":"text","text":${JSONObject.quote(text)}}""")
+        return
+      }
+
+      promise.resolve("""{"kind":"none"}""")
+    } catch (error: Exception) {
+      promise.reject("GET_CLIPBOARD_CONTENT_FAILED", error)
+    }
+  }
+
+  @ReactMethod
+  fun insertClipboardImage(imagePath: String, promise: Promise) {
+    try {
+      if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N_MR1) {
+        promise.resolve(false)
+        return
+      }
+
+      val file = File(imagePath)
+      if (!file.exists()) {
+        promise.resolve(false)
+        return
+      }
+
+      val mimeType = guessImageMimeType(file)
+      val authority = "${reactApplicationContext.packageName}.clipboard"
+      val contentUri = FileProvider.getUriForFile(reactApplicationContext, authority, file)
+      val connection = KeyboardInputBridge.getInputConnection()
+      if (connection == null) {
+        promise.resolve(false)
+        return
+      }
+
+      val description = ClipDescription("clipboard image", arrayOf(mimeType))
+      val inputContentInfo = InputContentInfo(contentUri, description, null)
+      val committed =
+          connection.commitContent(
+              inputContentInfo,
+              InputConnection.INPUT_CONTENT_GRANT_READ_URI_PERMISSION,
+              null,
+          )
+      promise.resolve(committed)
+    } catch (error: Exception) {
+      promise.reject("INSERT_CLIPBOARD_IMAGE_FAILED", error)
+    }
+  }
+
+  @ReactMethod
+  fun deleteClipboardImageFile(imagePath: String, promise: Promise) {
+    try {
+      val file = File(imagePath)
+      promise.resolve(!file.exists() || file.delete())
+    } catch (error: Exception) {
+      promise.reject("DELETE_CLIPBOARD_IMAGE_FAILED", error)
     }
   }
 
@@ -461,18 +556,63 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
               ?: reactApplicationContext.currentActivity?.window?.decorView
               ?: return@runOnUiThread
 
-      val feedbackConstant =
-          if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            HapticFeedbackConstants.CONFIRM
-          } else {
-            HapticFeedbackConstants.KEYBOARD_TAP
-          }
-
       view.performHapticFeedback(
-          feedbackConstant,
+          HapticFeedbackConstants.KEYBOARD_TAP,
           HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING,
       )
     }
+  }
+
+  private fun clipboardImagesDir(): File {
+    val dir = File(reactApplicationContext.filesDir, "clipboard_images")
+    if (!dir.exists()) {
+      dir.mkdirs()
+    }
+    return dir
+  }
+
+  private fun extensionForMimeType(mimeType: String): String {
+    return when (mimeType.lowercase()) {
+      "image/jpeg", "image/jpg" -> "jpg"
+      "image/png" -> "png"
+      "image/webp" -> "webp"
+      "image/gif" -> "gif"
+      else -> "img"
+    }
+  }
+
+  private fun guessImageMimeType(file: File): String {
+    return when (file.extension.lowercase()) {
+      "jpg", "jpeg" -> "image/jpeg"
+      "png" -> "image/png"
+      "webp" -> "image/webp"
+      "gif" -> "image/gif"
+      else -> "image/*"
+    }
+  }
+
+  private fun sha256Hex(bytes: ByteArray): String {
+    val digest = MessageDigest.getInstance("SHA-256").digest(bytes)
+    return digest.joinToString("") { byte -> "%02x".format(byte) }
+  }
+
+  private fun saveClipboardImage(uri: Uri, mimeType: String): String? {
+    val resolver = reactApplicationContext.contentResolver
+    val bytes =
+        resolver.openInputStream(uri)?.use { stream -> stream.readBytes() }
+            ?: return null
+    if (bytes.isEmpty()) {
+      return null
+    }
+
+    val hash = sha256Hex(bytes)
+    val extension = extensionForMimeType(mimeType)
+    val file = File(clipboardImagesDir(), "$hash.$extension")
+    if (!file.exists()) {
+      FileOutputStream(file).use { output -> output.write(bytes) }
+    }
+
+    return """{"kind":"image","imagePath":${JSONObject.quote(file.absolutePath)},"imageHash":${JSONObject.quote(hash)},"mimeType":${JSONObject.quote(mimeType)}}"""
   }
 
   companion object {

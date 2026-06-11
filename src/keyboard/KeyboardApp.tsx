@@ -64,6 +64,12 @@ import {
 } from './autocorrect/learnedPhrases';
 import type {AutocorrectSettings} from './autocorrect/types';
 import {GesturesPanel} from './gestures/GesturesPanel';
+import {TranslatePanel} from './translate/TranslatePanel';
+import {RewritePanel} from './rewrite/RewritePanel';
+import {
+  endsWithRewriteCommand,
+  REWRITE_COMMAND,
+} from './rewrite/rewriteTrigger';
 import {
   getCommaLauncherArmed,
   getGestureSettings,
@@ -92,7 +98,7 @@ import {keyboardTheme} from './theme';
 import {useVoiceInput} from './voice/useVoiceInput';
 
 const DOUBLE_TAP_MS = 350;
-const SUGGESTION_REFRESH_DEBOUNCE_MS = 45;
+const SUGGESTION_REFRESH_DEBOUNCE_MS = 90;
 
 type LetterKeyboardRowsProps = {
   rows: KeyDefinition[][];
@@ -167,6 +173,7 @@ function KeyboardBody() {
   const [launchableApps, setLaunchableApps] = useState<LaunchableApp[]>([]);
   const [launchableAppsLoading, setLaunchableAppsLoading] = useState(false);
   const [commaLauncherActive, setCommaLauncherActive] = useState(false);
+  const [periodRewriteActive, setPeriodRewriteActive] = useState(false);
   const [calculatorDisplay, setCalculatorDisplay] = useState('0');
   const {isListening, partialTranscript, toggleListening} = useVoiceInput();
 
@@ -176,6 +183,8 @@ function KeyboardBody() {
   const isEssentialsListMode = mode.type === 'essentials-list';
   const isGesturesMode = mode.type === 'gestures';
   const isCalculatorMode = mode.type === 'calculator';
+  const isTranslateMode = mode.type === 'translate';
+  const isRewriteMode = mode.type === 'rewrite';
   const isEmojiMode = mode.type === 'emoji';
   const gestureEnabled =
     gestureSettings.swipeTyping &&
@@ -265,6 +274,50 @@ function KeyboardBody() {
     resetCase();
   }, [resetCase]);
 
+  const openRewritePanel = useCallback(async () => {
+    if (isListening) {
+      await toggleListening();
+    }
+    if (mode.type !== 'typing' && mode.type !== 'emoji') {
+      closeItemsFlow();
+    }
+    setMode({type: 'rewrite'});
+    setLayout('letters');
+    resetCase();
+  }, [closeItemsFlow, isListening, mode.type, resetCase, toggleListening]);
+
+  const closeRewritePanel = useCallback(() => {
+    setMode({type: 'typing'});
+    setLayout('letters');
+    resetCase();
+  }, [resetCase]);
+
+  const toggleRewritePanel = useCallback(async () => {
+    if (mode.type === 'rewrite') {
+      closeRewritePanel();
+      return;
+    }
+    await openRewritePanel();
+  }, [closeRewritePanel, mode.type, openRewritePanel]);
+
+  const toggleTranslatePanel = useCallback(async () => {
+    if (mode.type === 'translate') {
+      setMode({type: 'typing'});
+      setLayout('letters');
+      resetCase();
+      return;
+    }
+    if (isListening) {
+      await toggleListening();
+    }
+    if (mode.type !== 'typing' && mode.type !== 'emoji') {
+      closeItemsFlow();
+    }
+    setMode({type: 'translate'});
+    setLayout('letters');
+    resetCase();
+  }, [closeItemsFlow, isListening, mode.type, resetCase, toggleListening]);
+
   const handleSelectLauncherApp = useCallback(
     (packageName: string) => {
       void setLauncherAppPackage(packageName).then(() => {
@@ -300,12 +353,22 @@ function KeyboardBody() {
   }, [isListening, mode.type, resetCase, toggleListening]);
 
   const toggleItemsMenu = useCallback(() => {
+    if (mode.type === 'translate') {
+      setMode({type: 'typing'});
+      setLayout('letters');
+      resetCase();
+      return;
+    }
+    if (mode.type === 'rewrite') {
+      closeRewritePanel();
+      return;
+    }
     if (mode.type === 'typing' || mode.type === 'emoji') {
       openItemsMenu();
       return;
     }
     closeItemsFlow();
-  }, [closeItemsFlow, mode.type, openItemsMenu]);
+  }, [closeItemsFlow, closeRewritePanel, mode.type, openItemsMenu, resetCase]);
 
   const openEssentialsForm = useCallback(
     (essential?: Essential) => {
@@ -360,7 +423,14 @@ function KeyboardBody() {
   }, [formKeyword, handleSaveEssential, mode]);
 
   const refreshSuggestions = useCallback(async () => {
-    if (layout !== 'letters' || isFormMode || isClipboardMode || isEmojiMode) {
+    if (
+      layout !== 'letters' ||
+      isFormMode ||
+      isClipboardMode ||
+      isEmojiMode ||
+      isRewriteMode ||
+      isTranslateMode
+    ) {
       setSuggestions([]);
       setEssentialSuggestions([]);
       setEssentialTriggerLength(0);
@@ -408,7 +478,14 @@ function KeyboardBody() {
     setSuggestions([...phraseSuggestions, ...wordSuggestions].slice(0, 3));
     setEssentialSuggestions([]);
     setEssentialTriggerLength(0);
-  }, [isClipboardMode, isEmojiMode, isFormMode, layout]);
+  }, [
+    isClipboardMode,
+    isEmojiMode,
+    isFormMode,
+    isRewriteMode,
+    isTranslateMode,
+    layout,
+  ]);
 
   const scheduleRefreshSuggestions = useCallback(() => {
     if (suggestionRefreshTimerRef.current) {
@@ -431,6 +508,11 @@ function KeyboardBody() {
   const commitTypedWordBoundary = useCallback(
     async (insertBoundary: () => void) => {
       const context = await keyboardBridge.getTextBeforeCursor(96);
+      if (endsWithRewriteCommand(context)) {
+        keyboardBridge.replaceWordPrefix(REWRITE_COMMAND.length, '');
+        await openRewritePanel();
+        return;
+      }
       const expansion = resolveEssentialExpansion(context);
       if (expansion) {
         keyboardBridge.replaceWordPrefix(
@@ -497,7 +579,7 @@ function KeyboardBody() {
         void refreshSuggestions();
       });
     },
-    [refreshSuggestions],
+    [openRewritePanel, refreshSuggestions],
   );
 
   useEffect(() => {
@@ -787,6 +869,19 @@ function KeyboardBody() {
     }
   }, [gestureSettings.commaLauncher]);
 
+  useEffect(() => {
+    const preserveArmedKeys =
+      mode.type === 'rewrite' ||
+      mode.type === 'translate' ||
+      mode.type === 'emoji';
+    if (mode.type === 'typing' || preserveArmedKeys) {
+      return;
+    }
+    setPeriodRewriteActive(false);
+    setCommaLauncherActive(false);
+    void setCommaLauncherArmed(false);
+  }, [mode.type]);
+
   const keyGestures = useMemo<KeyGesturesConfig | undefined>(() => {
     if (!keyGesturesActive) {
       return undefined;
@@ -829,12 +924,25 @@ function KeyboardBody() {
         setCommaLauncherActive(false);
         void setCommaLauncherArmed(false);
       },
+      periodRewrite: true,
+      periodRewriteActive,
+      onPeriodLongPress: () => {
+        setPeriodRewriteActive(true);
+      },
+      onPeriodRewritePress: () => {
+        void openRewritePanel();
+      },
+      onPeriodRewriteDisarm: () => {
+        setPeriodRewriteActive(false);
+      },
     };
   }, [
     commaLauncherActive,
     gestureSettings,
     keyGesturesActive,
     launcherAppPackage,
+    openRewritePanel,
+    periodRewriteActive,
     refreshSuggestions,
     scheduleRefreshSuggestions,
   ]);
@@ -883,7 +991,9 @@ function KeyboardBody() {
             mode.type === 'essentials-list' ||
             mode.type === 'gestures' ||
             mode.type === 'autocorrect' ||
-            mode.type === 'calculator'
+            mode.type === 'calculator' ||
+            mode.type === 'translate' ||
+            mode.type === 'rewrite'
           }
           trackpadEnabled={
             typingGesturesActive && gestureSettings.trackpadMode
@@ -919,6 +1029,11 @@ function KeyboardBody() {
           isListening={isListening}
           partialTranscript={partialTranscript}
           onItemsPress={toggleItemsMenu}
+          leadingBack={isFormMode || isTranslateMode || isRewriteMode}
+          onTranslatePress={() => {
+            void toggleTranslatePanel();
+          }}
+          translateSelected={isTranslateMode}
           onEmojiPress={() => {
             void toggleEmojiPanel();
           }}
@@ -938,7 +1053,11 @@ function KeyboardBody() {
                       ? 'Autocorrect'
                       : mode.type === 'calculator'
                         ? 'Calculator'
-                        : undefined
+                        : mode.type === 'translate'
+                          ? 'Translate'
+                          : mode.type === 'rewrite'
+                            ? 'Rewrite'
+                            : undefined
           }
           trailingAction={
             isEssentialsListMode
@@ -986,6 +1105,12 @@ function KeyboardBody() {
             />
           ) : null}
 
+          {mode.type === 'translate' ? (
+            <TranslatePanel />
+          ) : null}
+
+          {mode.type === 'rewrite' ? <RewritePanel /> : null}
+
           {mode.type === 'calculator' ? (
             <CalculatorPanel
               onInsert={handleCalculatorInsert}
@@ -997,7 +1122,15 @@ function KeyboardBody() {
             <ClipboardProPanel
               items={clipboardItems}
               onSelect={item => {
-                keyboardBridge.insertText(item.text);
+                if (item.kind === 'image' && item.imageUri) {
+                  void keyboardBridge
+                    .insertClipboardImage(item.imageUri)
+                    .then(() => closeItemsFlow());
+                  return;
+                }
+                if (item.text) {
+                  keyboardBridge.insertText(item.text);
+                }
                 closeItemsFlow();
               }}
               onDelete={item => {
@@ -1099,8 +1232,6 @@ export default function KeyboardApp() {
   );
 }
 
-const IME_STRIP_CLEARANCE = 46;
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -1111,8 +1242,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   keysPadding: {
-    paddingTop: 4,
-    paddingBottom: IME_STRIP_CLEARANCE,
+    paddingTop: keyboardTheme.keysPaddingTop,
+    paddingBottom: keyboardTheme.imeStripClearance,
   },
   keysPanel: {
     flex: 1,
@@ -1122,6 +1253,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   indentedRow: {
-    paddingHorizontal: 18,
+    paddingHorizontal: 14,
   },
 });

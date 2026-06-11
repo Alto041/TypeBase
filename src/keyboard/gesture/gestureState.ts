@@ -5,6 +5,8 @@ export const swipeTypingSessionRef = {
   touchActive: false,
   isSwiping: false,
   blockKeyPress: false,
+  /** Set when a letter was inserted on press-in and should be undone if a swipe starts. */
+  tapCommitted: false,
 };
 
 export function shouldBlockSwipeTypingKeyInput(): boolean {
@@ -17,9 +19,5 @@ export function shouldBlockSwipeTypingKeyInput(): boolean {
 
 /** True when a completed swipe should not also register as a letter tap. */
 export function shouldDeferSwipeTypingLetterTap(): boolean {
-  return (
-    swipeTypingSessionRef.blockKeyPress ||
-    swipeTypingSessionRef.isSwiping ||
-    gestureSwipeActiveRef.current
-  );
+  return swipeTypingSessionRef.blockKeyPress || swipeTypingSessionRef.isSwiping;
 }
