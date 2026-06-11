@@ -19,6 +19,10 @@
       android:theme="@style/AppTheme"
       android:usesCleartextTraffic="${usesCleartextTraffic}"
       android:supportsRtl="true">
+      <!-- expo-dev-client: auto-connect to Metro (with adb reverse / LAN) instead of stalling on the launcher -->
+      <meta-data android:name="DEV_CLIENT_DEFAULT_LAUNCHER_URL" android:value="http://127.0.0.1:8081" />
+      <meta-data android:name="EXDevMenuShowsAtLaunch" android:value="false" />
+      <meta-data android:name="EXDevMenuIsOnboardingFinished" android:value="true" />
       <activity
         android:name=".MainActivity"
         android:label="@string/app_name"
@@ -29,6 +33,18 @@
         <intent-filter>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
+        </intent-filter>
+        <intent-filter>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.DEFAULT" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="exp+typebase" />
+        </intent-filter>
+        <intent-filter>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.DEFAULT" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="typebase" />
         </intent-filter>
       </activity>
 

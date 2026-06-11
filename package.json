@@ -9,7 +9,7 @@
     "android:apk": "cd android && .\\gradlew.bat assembleRelease",
     "ios": "expo run:ios",
     "lint": "eslint .",
-    "start": "expo start --dev-client",
+    "start": "expo start --dev-client --localhost",
     "test": "jest"
   },
   "dependencies": {

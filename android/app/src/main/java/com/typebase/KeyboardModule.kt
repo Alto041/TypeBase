@@ -23,12 +23,38 @@ import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.UiThreadUtil
 import com.facebook.react.bridge.WritableMap
+import com.facebook.react.modules.core.DeviceEventManagerModule
 import org.json.JSONObject
 
 class KeyboardModule(reactContext: ReactApplicationContext) :
     ReactContextBaseJavaModule(reactContext) {
 
+  private var removePrefersNumpadListener: (() -> Unit)? = null
+
   override fun getName(): String = "KeyboardModule"
+
+  override fun initialize() {
+    super.initialize()
+    removePrefersNumpadListener =
+        KeyboardInputBridge.addPrefersNumpadListener { prefers ->
+          if (reactApplicationContext.hasActiveReactInstance()) {
+            reactApplicationContext
+                .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                .emit("keyboardPrefersNumpad", prefers)
+          }
+        }
+  }
+
+  override fun invalidate() {
+    removePrefersNumpadListener?.invoke()
+    removePrefersNumpadListener = null
+    super.invalidate()
+  }
+
+  @ReactMethod
+  fun getPrefersNumpad(promise: Promise) {
+    promise.resolve(KeyboardInputBridge.prefersNumpad())
+  }
 
   private fun learnedWordsPrefs() =
       reactApplicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -253,15 +279,13 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
 
   @ReactMethod
   fun deleteBackward() {
-    UiThreadUtil.runOnUiThread {
-      val connection = KeyboardInputBridge.getInputConnection() ?: return@runOnUiThread
-      val selected = connection.getSelectedText(0)
-      if (selected != null && selected.isNotEmpty()) {
-        connection.commitText("", 1)
-        return@runOnUiThread
-      }
-      connection.deleteSurroundingText(1, 0)
+    val connection = KeyboardInputBridge.getInputConnection() ?: return
+    val selected = connection.getSelectedText(0)
+    if (selected != null && selected.isNotEmpty()) {
+      connection.commitText("", 1)
+      return
     }
+    connection.deleteSurroundingText(1, 0)
   }
 
   @ReactMethod

@@ -1,6 +1,7 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
   ActivityIndicator,
+  DeviceEventEmitter,
   InteractionManager,
   StyleSheet,
   View,
@@ -132,7 +133,14 @@ function LetterKeyboardRows({
           isCapsLocked={capsLocked}
           onKeyPress={onKeyPress}
           keyGestures={keyGestures}
-          rowStyle={index === 1 ? styles.indentedRow : undefined}
+          keyHeight={
+            layout === 'numpad' ? keyboardTheme.numpadKeyHeight : undefined
+          }
+          variant={layout === 'numpad' ? 'numpad' : undefined}
+          rowStyle={[
+            layout === 'numpad' ? styles.numpadRow : undefined,
+            layout === 'letters' && index === 1 ? styles.indentedRow : undefined,
+          ]}
         />
       ))}
     </SwipeTypingKeysHost>
@@ -145,9 +153,11 @@ function KeyboardBody() {
   const [shiftOn, setShiftOn] = useState(false);
   const [capsLocked, setCapsLocked] = useState(false);
   const lastShiftTapRef = useRef(0);
+  const userChoseLettersRef = useRef(false);
   const suggestionRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
+  const [prefersNumpad, setPrefersNumpad] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [essentialSuggestions, setEssentialSuggestions] = useState<Essential[]>(
     [],
@@ -192,6 +202,31 @@ function KeyboardBody() {
     mode.type === 'typing';
 
   const rows = useMemo(() => LAYOUTS[layout], [layout]);
+
+  useEffect(() => {
+    void keyboardBridge.getPrefersNumpad().then(setPrefersNumpad);
+    const subscription = DeviceEventEmitter.addListener(
+      'keyboardPrefersNumpad',
+      (prefers: boolean) => {
+        userChoseLettersRef.current = false;
+        setPrefersNumpad(prefers);
+      },
+    );
+    return () => subscription.remove();
+  }, []);
+
+  useEffect(() => {
+    if (mode.type !== 'typing') {
+      return;
+    }
+    if (prefersNumpad && !userChoseLettersRef.current) {
+      setLayout('numpad');
+      return;
+    }
+    if (!prefersNumpad && layout === 'numpad') {
+      setLayout('letters');
+    }
+  }, [layout, mode.type, prefersNumpad]);
 
   const reloadEssentials = useCallback(() => {
     setEssentials(getEssentialsList());
@@ -609,8 +644,12 @@ function KeyboardBody() {
   ]);
 
   useEffect(() => {
-    keyboardBridge.setKeyboardHeight(keyboardTheme.keyboardHeightDp);
-  }, []);
+    const height =
+      layout === 'numpad'
+        ? keyboardTheme.numpadKeyboardHeightDp
+        : keyboardTheme.keyboardHeightDp;
+    keyboardBridge.setKeyboardHeight(height);
+  }, [layout]);
 
   const appendToFormField = useCallback(
     (text: string) => {
@@ -782,9 +821,22 @@ function KeyboardBody() {
         case 'shift':
           handleShiftPress();
           return;
+        case 'letters':
+          userChoseLettersRef.current = true;
+          setLayout('letters');
+          resetCase();
+          return;
+        case 'numpad-back':
+          keyboardBridge.deleteBackward();
+          scheduleRefreshSuggestions();
+          return;
         case 'numbers':
           if (layout === 'letters') {
             setLayout('numbers');
+            resetCase();
+          } else if (layout === 'numpad') {
+            userChoseLettersRef.current = true;
+            setLayout('letters');
             resetCase();
           } else {
             setLayout('letters');
@@ -887,7 +939,8 @@ function KeyboardBody() {
       return undefined;
     }
     return {
-      spaceCursorSwipe: gestureSettings.spaceCursorSwipe,
+      spaceCursorSwipe:
+        layout === 'letters' && gestureSettings.spaceCursorSwipe,
       backspaceWordSwipe: gestureSettings.backspaceWordSwipe,
       backspaceSentenceHold: gestureSettings.backspaceSentenceHold,
       onCursorMove: offset => {
@@ -940,6 +993,7 @@ function KeyboardBody() {
     commaLauncherActive,
     gestureSettings,
     keyGesturesActive,
+    layout,
     launcherAppPackage,
     openRewritePanel,
     periodRewriteActive,
@@ -981,11 +1035,16 @@ function KeyboardBody() {
       ? isValidEssentialKeyword(formKeyword)
       : isValidEssentialKeyword(formKeyword) && formValue.trim().length > 0);
 
+  const isNumpadLayout = layout === 'numpad';
+
   return (
-    <View style={styles.container}>
+    <View
+      style={[styles.container, isNumpadLayout && styles.containerCompact]}>
       <GestureTypingLayer
           enabled={gestureEnabled}
+          compact={isNumpadLayout}
           alignTop={
+            isNumpadLayout ||
             mode.type === 'clipboard' ||
             mode.type === 'items-menu' ||
             mode.type === 'essentials-list' ||
@@ -1025,7 +1084,7 @@ function KeyboardBody() {
                 }
               : undefined
           }
-          visible={layout === 'letters'}
+          visible={layout === 'letters' || layout === 'numpad'}
           isListening={isListening}
           partialTranscript={partialTranscript}
           onItemsPress={toggleItemsMenu}
@@ -1074,6 +1133,7 @@ function KeyboardBody() {
         <View
           style={[
             styles.keysPadding,
+            layout === 'numpad' && styles.numpadKeysPadding,
             !showKeys && styles.keysPanel,
             !showKeys ? styles.keysPanelClip : null,
           ]}>
@@ -1254,5 +1314,14 @@ const styles = StyleSheet.create({
   },
   indentedRow: {
     paddingHorizontal: 14,
+  },
+  numpadKeysPadding: {
+    paddingTop: keyboardTheme.numpadKeysPaddingTop,
+  },
+  containerCompact: {
+    justifyContent: 'flex-start',
+  },
+  numpadRow: {
+    marginBottom: keyboardTheme.keyGap,
   },
 });

@@ -1,4 +1,4 @@
-import React, {useEffect} from 'react';
+import React, {useEffect, useState} from 'react';
 import {
   Linking,
   PermissionsAndroid,
@@ -15,6 +15,8 @@ import {SafeAreaProvider, SafeAreaView} from 'react-native-safe-area-context';
 import {keyboardBridge} from './src/keyboard/keyboardBridge';
 
 function SetupScreen() {
+  const [pin, setPin] = useState('');
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
@@ -52,6 +54,31 @@ function SetupScreen() {
             placeholderTextColor="#64748B"
             multiline
           />
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>PIN pad test</Text>
+          <Text style={styles.hint}>
+            Numeric fields should open the 4×4 number pad automatically. Tap ABC
+            on the keyboard to switch back to letters.
+          </Text>
+          <TextInput
+            style={styles.pinInput}
+            placeholder="Enter PIN"
+            placeholderTextColor="#64748B"
+            value={pin}
+            onChangeText={setPin}
+            keyboardType="number-pad"
+            secureTextEntry
+            maxLength={6}
+            autoComplete="off"
+            textContentType="oneTimeCode"
+          />
+          <Text style={styles.pinStatus}>
+            {pin.length === 0
+              ? '0 / 6 digits'
+              : `${pin.length} / 6 digits entered`}
+          </Text>
         </View>
 
         <Pressable
@@ -164,6 +191,24 @@ const styles = StyleSheet.create({
     padding: 14,
     textAlignVertical: 'top',
     fontSize: 16,
+  },
+  pinInput: {
+    minHeight: 52,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#334155',
+    backgroundColor: '#0B1220',
+    color: '#F8FAFC',
+    paddingHorizontal: 16,
+    fontSize: 24,
+    letterSpacing: 8,
+    textAlign: 'center',
+    fontVariant: ['tabular-nums'],
+  },
+  pinStatus: {
+    color: '#64748B',
+    fontSize: 13,
+    textAlign: 'center',
   },
   linkButton: {
     alignItems: 'center',

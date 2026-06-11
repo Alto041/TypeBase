@@ -14,6 +14,8 @@ function dp(value: number): number {
 type GestureTypingLayerProps = {
   enabled: boolean;
   alignTop?: boolean;
+  /** Shrink-wrap content instead of filling the IME window (dial pad). */
+  compact?: boolean;
   isUppercase: boolean;
   onWordCommitted: (word: string) => void;
   trackpadEnabled?: boolean;
@@ -24,6 +26,7 @@ type GestureTypingLayerProps = {
 export function GestureTypingLayer({
   enabled,
   alignTop = false,
+  compact = false,
   isUppercase,
   onWordCommitted,
   trackpadEnabled = false,
@@ -84,7 +87,11 @@ export function GestureTypingLayer({
       isUppercase={isUppercase}
       onWordCommitted={onWordCommitted}>
       <View
-        style={[styles.spacer, alignTop && styles.spacerTop]}
+        style={
+          compact
+            ? styles.compact
+            : [styles.spacer, alignTop && styles.spacerTop]
+        }
         {...(!enabled && trackpadEnabled
           ? trackpadPanResponder.panHandlers
           : undefined)}>
@@ -100,6 +107,11 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   spacerTop: {
+    justifyContent: 'flex-start',
+  },
+  compact: {
+    flexGrow: 0,
+    flexShrink: 0,
     justifyContent: 'flex-start',
   },
 });

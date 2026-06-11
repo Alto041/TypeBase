@@ -10,6 +10,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import ShiftArrowIcon from '../../../assets/arrow_forward_ios.svg';
+import BackKeyIcon from '../../../assets/back-key.svg';
 import BackspaceIcon from '../../../assets/keyboard_backspace.svg';
 import EnterIcon from '../../../assets/enter.svg';
 import NumbersIcon from '../../../assets/123.svg';
@@ -28,7 +29,6 @@ import type {KeyDefinition} from '../layouts/qwerty';
 import {keyboardTheme} from '../theme';
 
 const KEY_BORDER_RADIUS = 6;
-const ENTER_BORDER_RADIUS = keyboardTheme.keyHeight / 2;
 const KEY_PRESS_SCALE = 0.96;
 const BACKSPACE_HOLD_DELAY_MS = 280;
 const BACKSPACE_SENTENCE_ESCALATE_MS = 700;
@@ -69,6 +69,8 @@ export type KeyGesturesConfig = {
   swipeTyping: boolean;
 };
 
+type KeyVariant = 'numpad';
+
 type KeyProps = {
   keyDef: KeyDefinition;
   isUppercase: boolean;
@@ -76,6 +78,8 @@ type KeyProps = {
   isCapsLocked: boolean;
   onPress: (keyDef: KeyDefinition) => void;
   keyGestures?: KeyGesturesConfig;
+  keyHeight?: number;
+  variant?: KeyVariant;
   style?: StyleProp<ViewStyle>;
 };
 
@@ -86,6 +90,8 @@ export function Key({
   isCapsLocked,
   onPress,
   keyGestures,
+  keyHeight = keyboardTheme.keyHeight,
+  variant,
   style,
 }: KeyProps) {
   const layoutContext = useKeyLayoutContext();
@@ -126,8 +132,14 @@ export function Key({
     keyDef.type === 'enter' || keyDef.type === 'essentials-save';
   const isEnterBackspace = keyDef.type === 'enter-backspace';
   const isShift = keyDef.type === 'shift';
+  const isNumpadBack = keyDef.type === 'numpad-back';
+  const isNumpadActionKey =
+    variant === 'numpad' &&
+    (isNumpadBack || keyDef.type === 'space' || keyDef.type === 'letters');
   const isBackspace =
-    keyDef.type === 'backspace' || keyDef.type === 'enter-backspace';
+    keyDef.type === 'backspace' ||
+    keyDef.type === 'enter-backspace' ||
+    isNumpadBack;
   const isNumbersIcon = keyDef.id === 'numbers';
   const isSymbolsIcon = keyDef.type === 'symbols';
   const isLetterKey = Boolean(
@@ -307,6 +319,8 @@ export function Key({
       ]}>
       <ShiftArrowIcon width={16} height={12} />
     </View>
+  ) : isNumpadBack ? (
+    <BackKeyIcon width={22} height={22} />
   ) : isBackspace ? (
     <BackspaceIcon width={24} height={16} />
   ) : showLauncher ? (
@@ -324,7 +338,7 @@ export function Key({
     </Text>
   );
 
-  const borderRadius = isEnterKey ? ENTER_BORDER_RADIUS : KEY_BORDER_RADIUS;
+  const borderRadius = isEnterKey ? keyHeight / 2 : KEY_BORDER_RADIUS;
 
   const handlePressIn = useCallback(() => {
     if (isSwipeTypingLetter) {
@@ -613,7 +627,8 @@ export function Key({
         <View
           style={[
             styles.key,
-            {borderRadius},
+            {borderRadius, minHeight: keyHeight},
+            isNumpadActionKey && styles.numpadActionKey,
             (isEnterAction || isEnterBackspace) && styles.enterKey,
             isBackspaceHeld && styles.keyPressedBounce,
           ]}>
@@ -652,12 +667,13 @@ export function Key({
           }
           style={({pressed}) => [
             styles.key,
-            {borderRadius},
+            {borderRadius, minHeight: keyHeight},
             showLauncher && styles.launcherKey,
             showRewrite && styles.rewriteKey,
             isShift && styles.shiftKey,
             isSpecial && styles.specialKey,
             keyDef.type === 'space' && styles.spaceKey,
+            isNumpadActionKey && styles.numpadActionKey,
             isShift && isShiftOn && !isCapsLocked && styles.shiftKeyActive,
             isShift && isCapsLocked && styles.shiftKeyLocked,
             (isEnterAction || isEnterBackspace) && styles.enterKey,
@@ -681,6 +697,8 @@ type KeyboardRowProps = {
   isCapsLocked: boolean;
   onKeyPress: (keyDef: KeyDefinition) => void;
   keyGestures?: KeyGesturesConfig;
+  keyHeight?: number;
+  variant?: KeyVariant;
   rowStyle?: StyleProp<ViewStyle>;
 };
 
@@ -691,6 +709,8 @@ export function KeyboardRow({
   isCapsLocked,
   onKeyPress,
   keyGestures,
+  keyHeight,
+  variant,
   rowStyle,
 }: KeyboardRowProps) {
   return (
@@ -707,7 +727,9 @@ export function KeyboardRow({
             isCapsLocked={isCapsLocked}
             onPress={onKeyPress}
             keyGestures={keyGestures}
-            style={{flex: keyDef.flex ?? 1}}
+            keyHeight={keyHeight}
+            variant={variant}
+            style={{flex: keyDef.flex ?? 1, minWidth: 0}}
           />
         ),
       )}
@@ -721,6 +743,7 @@ const styles = StyleSheet.create({
     gap: keyboardTheme.keyGap,
     marginBottom: keyboardTheme.keyRowMargin,
     paddingHorizontal: keyboardTheme.keyRowPaddingHorizontal,
+    alignItems: 'stretch',
   },
   key: {
     minHeight: keyboardTheme.keyHeight,
@@ -732,6 +755,9 @@ const styles = StyleSheet.create({
   },
   launcherKey: {
     backgroundColor: '#474747',
+  },
+  numpadActionKey: {
+    backgroundColor: keyboardTheme.numpadActionKey,
   },
   rewriteKey: {
     backgroundColor: keyboardTheme.essentialsAccent,

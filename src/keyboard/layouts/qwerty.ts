@@ -9,6 +9,8 @@ export type KeyType =
   | 'essentials-back'
   | 'essentials-save'
   | 'enter-backspace'
+  | 'numpad-back'
+  | 'letters'
   | 'spacer';
 
 export type KeyDefinition = {
@@ -152,11 +154,40 @@ export const SYMBOL_ROWS: KeyDefinition[][] = [
   ],
 ];
 
-export type KeyboardLayout = 'letters' | 'numbers' | 'symbols';
+/** Phone-style numeric pad — 4 equal columns, 4 rows. */
+export const NUMPAD_ROWS: KeyDefinition[][] = [
+  [
+    {id: '1', label: '1', value: '1'},
+    {id: '2', label: '2', value: '2'},
+    {id: '3', label: '3', value: '3'},
+    {id: 'numpad-back', label: '', type: 'numpad-back'},
+  ],
+  [
+    {id: '4', label: '4', value: '4'},
+    {id: '5', label: '5', value: '5'},
+    {id: '6', label: '6', value: '6'},
+    {id: 'space', label: 'space', type: 'space'},
+  ],
+  [
+    {id: '7', label: '7', value: '7'},
+    {id: '8', label: '8', value: '8'},
+    {id: '9', label: '9', value: '9'},
+    {id: 'enter', label: '', type: 'enter'},
+  ],
+  [
+    {id: 'numpad-gap-left', label: '', type: 'spacer'},
+    {id: '0', label: '0', value: '0'},
+    {id: 'numpad-gap-right', label: '', type: 'spacer'},
+    {id: 'abc', label: 'ABC', type: 'letters'},
+  ],
+];
+
+export type KeyboardLayout = 'letters' | 'numbers' | 'symbols' | 'numpad';
 
 export const LAYOUTS: Record<KeyboardLayout, KeyDefinition[][]> = {
   letters: QWERTY_ROWS,
   numbers: NUMBER_ROWS,
   symbols: SYMBOL_ROWS,
+  numpad: NUMPAD_ROWS,
 };
 

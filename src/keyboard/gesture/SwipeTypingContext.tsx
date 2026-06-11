@@ -267,6 +267,10 @@ export function SwipeTypingProvider({
 
         const word = decodeSwipeGesture(localPoints, layouts, isUppercase);
         if (word && isValidSwipeCommit(word)) {
+          if (swipeTypingSessionRef.tapCommitted) {
+            keyboardBridge.deleteBackward();
+            swipeTypingSessionRef.tapCommitted = false;
+          }
           triggerKeyHaptic();
           onWordCommitted(word);
         }

@@ -50,8 +50,14 @@ class TypeBaseInputService : InputMethodService() {
     return frame
   }
 
+  override fun onStartInput(attribute: EditorInfo?, restarting: Boolean) {
+    super.onStartInput(attribute, restarting)
+    KeyboardInputBridge.setPrefersNumpad(KeyboardInputBridge.shouldPreferNumpad(attribute))
+  }
+
   override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
     super.onStartInputView(info, restarting)
+    KeyboardInputBridge.setPrefersNumpad(KeyboardInputBridge.shouldPreferNumpad(info))
     resumeReactForKeyboard()
     container?.let { mountKeyboardSurface(it) }
   }
@@ -193,7 +199,7 @@ class TypeBaseInputService : InputMethodService() {
   companion object {
     const val KEYBOARD_COMPONENT_NAME = "TypeBaseKeyboard"
     const val DEFAULT_KEYBOARD_HEIGHT_DP = 340
-    private const val MIN_KEYBOARD_HEIGHT_DP = 320
+    private const val MIN_KEYBOARD_HEIGHT_DP = 280
     private const val MAX_SURFACE_MOUNT_ATTEMPTS = 120
   }
 }

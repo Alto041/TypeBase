@@ -8,6 +8,7 @@ type KeyboardModuleType = {
   getLearnedWordCounts: () => Promise<Record<string, number>>;
   getEssentials: () => Promise<string>;
   setEssentials: (json: string) => Promise<boolean>;
+  getPrefersNumpad: () => Promise<boolean>;
   getClipboardText: () => Promise<string>;
   getClipboardContent: () => Promise<ClipboardContent>;
   insertClipboardImage: (imagePath: string) => Promise<boolean>;
@@ -70,6 +71,12 @@ export const keyboardBridge: KeyboardModuleType = {
   setEssentials: (json: string) => {
     if (Platform.OS === 'android' && KeyboardModule?.setEssentials) {
       return KeyboardModule.setEssentials(json) as Promise<boolean>;
+    }
+    return Promise.resolve(false);
+  },
+  getPrefersNumpad: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.getPrefersNumpad) {
+      return KeyboardModule.getPrefersNumpad() as Promise<boolean>;
     }
     return Promise.resolve(false);
   },

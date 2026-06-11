@@ -6,6 +6,9 @@ const KEYBOARD_HEIGHT_BUFFER = 6;
 
 const KEY_HEIGHT = 52;
 const KEY_ROW_MARGIN = 10;
+const KEY_GAP = 4;
+const NUMPAD_KEY_HEIGHT = 46;
+const NUMPAD_KEYS_PADDING_TOP = 2;
 
 export const keyboardTheme = {
   container: '#1F1F1F',
@@ -16,7 +19,10 @@ export const keyboardTheme = {
   essentialsAccent: '#FFC700',
   keyHeight: KEY_HEIGHT,
   keyRowMargin: KEY_ROW_MARGIN,
-  keyGap: 4,
+  keyGap: KEY_GAP,
+  numpadKeyHeight: NUMPAD_KEY_HEIGHT,
+  numpadKeysPaddingTop: NUMPAD_KEYS_PADDING_TOP,
+  numpadActionKey: '#474747',
   keyRowPaddingHorizontal: 2,
   /** Matches the vertical space of the top 3 QWERTY rows above the bottom row. */
   emojiPanelHeight: KEY_HEIGHT * 3 + KEY_ROW_MARGIN * 3,
@@ -32,6 +38,13 @@ export const keyboardTheme = {
     KEY_ROW_COUNT * KEY_ROW_MARGIN +
     IME_STRIP_CLEARANCE +
     KEYBOARD_HEIGHT_BUFFER,
+  /** Native IME height for dial pad — content only, no extra shell padding. */
+  numpadKeyboardHeightDp:
+    48 +
+    NUMPAD_KEYS_PADDING_TOP +
+    4 * NUMPAD_KEY_HEIGHT +
+    4 * KEY_GAP +
+    IME_STRIP_CLEARANCE,
   key: '#353535',
   keyPressed: '#454545',
   enter: '#D71921',
