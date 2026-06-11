@@ -21,7 +21,7 @@ import {useKeyLayoutContext} from '../gesture/KeyLayoutContext';
 import {
   gestureSwipeActiveRef,
   shouldBlockSwipeTypingKeyInput,
-  swipeTypingSessionRef,
+  shouldDeferSwipeTypingLetterTap,
 } from '../gesture/gestureState';
 import {triggerKeyHaptic} from '../haptics';
 import {keyboardBridge} from '../keyboardBridge';
@@ -345,8 +345,6 @@ export function Key({
       if (shouldBlockSwipeTypingKeyInput()) {
         return;
       }
-      onPress(keyDef);
-      swipeTypingSessionRef.tapCommitted = true;
       triggerKeyHaptic();
       return;
     }
@@ -377,12 +375,15 @@ export function Key({
 
   const handlePressOut = useCallback(() => {
     if (isSwipeTypingLetter) {
+      if (!shouldDeferSwipeTypingLetterTap()) {
+        onPress(keyDef);
+      }
       return;
     }
     if (isBackspace) {
       finishBackspaceHold();
     }
-  }, [finishBackspaceHold, isBackspace, isSwipeTypingLetter]);
+  }, [finishBackspaceHold, isBackspace, isSwipeTypingLetter, keyDef, onPress]);
 
   const isSpaceGesture =
     keyDef.type === 'space' && keyGestures?.spaceCursorSwipe;

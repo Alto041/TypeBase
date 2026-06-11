@@ -1,6 +1,3 @@
-// TODO: move to env / secure storage before shipping
-export const GEMINI_API_KEY = 'AIzaSyCYu8XvfSB5o6sbd8f0H6K5VvNQPQV0IyQ';
-
 /** Cheapest generally-available Gemini model for translation. */
 export const GEMINI_MODEL = 'gemini-2.5-flash-lite';
 

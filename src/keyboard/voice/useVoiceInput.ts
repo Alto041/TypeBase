@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useRef, useState} from 'react';
 import {keyboardBridge} from '../keyboardBridge';
-import {SPEECHMATICS_API_KEY} from './speechmaticsConfig';
+import {requireSpeechmaticsApiKey} from '../settings/apiKeysStore';
 import {SpeechmaticsVoiceService} from './speechmaticsService';
 import {
   rollingPreviewText,
@@ -87,7 +87,8 @@ export function useVoiceInput() {
     });
 
     try {
-      await service.start(SPEECHMATICS_API_KEY);
+      const apiKey = await requireSpeechmaticsApiKey();
+      await service.start(apiKey);
       unsubscribeRef.current = voiceRecorder.subscribe(base64 => {
         service.sendAudioBase64(base64);
       });

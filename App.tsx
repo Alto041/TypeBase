@@ -12,7 +12,89 @@ import {
   View,
 } from 'react-native';
 import {SafeAreaProvider, SafeAreaView} from 'react-native-safe-area-context';
+import {
+  ensureApiKeysLoaded,
+  getApiKeys,
+  setApiKeys,
+} from './src/keyboard/settings/apiKeysStore';
 import {keyboardBridge} from './src/keyboard/keyboardBridge';
+
+function ApiKeysCard() {
+  const [geminiApiKey, setGeminiApiKey] = useState('');
+  const [speechmaticsApiKey, setSpeechmaticsApiKey] = useState('');
+  const [savedMessage, setSavedMessage] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    void ensureApiKeysLoaded().then(() => {
+      const keys = getApiKeys();
+      setGeminiApiKey(keys.geminiApiKey);
+      setSpeechmaticsApiKey(keys.speechmaticsApiKey);
+      setLoading(false);
+    });
+  }, []);
+
+  const handleSave = async () => {
+    await setApiKeys({geminiApiKey, speechmaticsApiKey});
+    setSavedMessage('API keys saved on this device.');
+    setTimeout(() => setSavedMessage(null), 2500);
+  };
+
+  return (
+    <View style={styles.card}>
+      <Text style={styles.cardTitle}>API keys</Text>
+      <Text style={styles.hint}>
+        Translate, Rewrite, and voice typing use your own Google Gemini and
+        Speechmatics keys. Keys are stored locally on this device.
+      </Text>
+
+      <Text style={styles.fieldLabel}>Google Gemini API key</Text>
+      <Text style={styles.fieldHint}>
+        Used for Translate and Rewrite. Get one at aistudio.google.com/apikey
+      </Text>
+      <TextInput
+        style={styles.secretInput}
+        placeholder="AIza..."
+        placeholderTextColor="#64748B"
+        value={geminiApiKey}
+        onChangeText={setGeminiApiKey}
+        autoCapitalize="none"
+        autoCorrect={false}
+        secureTextEntry
+        editable={!loading}
+      />
+
+      <Text style={styles.fieldLabel}>Speechmatics API key</Text>
+      <Text style={styles.fieldHint}>
+        Used for voice typing. Get one at portal.speechmatics.com
+      </Text>
+      <TextInput
+        style={styles.secretInput}
+        placeholder="Your Speechmatics key"
+        placeholderTextColor="#64748B"
+        value={speechmaticsApiKey}
+        onChangeText={setSpeechmaticsApiKey}
+        autoCapitalize="none"
+        autoCorrect={false}
+        secureTextEntry
+        editable={!loading}
+      />
+
+      <Pressable
+        style={styles.primaryButton}
+        onPress={() => {
+          void handleSave();
+        }}
+        disabled={loading}>
+        <Text style={styles.primaryButtonText}>Save API keys</Text>
+      </Pressable>
+
+      {savedMessage ? (
+        <Text style={styles.savedMessage}>{savedMessage}</Text>
+      ) : null}
+    </View>
+  );
+}
 
 function SetupScreen() {
   const [pin, setPin] = useState('');
@@ -41,6 +123,8 @@ function SetupScreen() {
             <Text style={styles.primaryButtonText}>Open Keyboard Settings</Text>
           </Pressable>
         </View>
+
+        <ApiKeysCard />
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Try it here</Text>
@@ -168,6 +252,32 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
     fontSize: 14,
     lineHeight: 20,
+  },
+  fieldLabel: {
+    color: '#E2E8F0',
+    fontSize: 14,
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  fieldHint: {
+    color: '#64748B',
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  secretInput: {
+    minHeight: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#334155',
+    backgroundColor: '#0B1220',
+    color: '#F8FAFC',
+    paddingHorizontal: 14,
+    fontSize: 15,
+  },
+  savedMessage: {
+    color: '#4ADE80',
+    fontSize: 13,
+    textAlign: 'center',
   },
   primaryButton: {
     marginTop: 8,

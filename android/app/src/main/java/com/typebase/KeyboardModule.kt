@@ -356,6 +356,27 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     }
   }
 
+  @ReactMethod
+  fun getApiKeys(promise: Promise) {
+    try {
+      val raw =
+          learnedWordsPrefs().getString(API_KEYS_KEY, DEFAULT_API_KEYS) ?: DEFAULT_API_KEYS
+      promise.resolve(raw)
+    } catch (error: Exception) {
+      promise.reject("GET_API_KEYS_FAILED", error)
+    }
+  }
+
+  @ReactMethod
+  fun setApiKeys(json: String, promise: Promise) {
+    try {
+      val saved = learnedWordsPrefs().edit().putString(API_KEYS_KEY, json).commit()
+      promise.resolve(saved)
+    } catch (error: Exception) {
+      promise.reject("SET_API_KEYS_FAILED", error)
+    }
+  }
+
   private fun readLearnedPhrases(): JSONObject {
     val raw = learnedWordsPrefs().getString(LEARNED_PHRASES_KEY, "{}") ?: "{}"
     return JSONObject(raw)
@@ -648,6 +669,9 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     private const val AUTOCORRECT_SETTINGS_KEY = "autocorrect_settings"
     private const val LEARNED_PHRASES_KEY = "learned_phrases"
     private const val COMMA_LAUNCHER_ARMED_KEY = "comma_launcher_armed"
+    private const val API_KEYS_KEY = "api_keys"
+    private const val DEFAULT_API_KEYS =
+        """{"geminiApiKey":"","speechmaticsApiKey":""}"""
     private const val DEFAULT_GESTURE_SETTINGS =
         """{"swipeTyping":true,"spaceCursorSwipe":true,"backspaceWordSwipe":true,"backspaceSentenceHold":false,"commaLauncher":true,"trackpadMode":true,"launcherAppPackage":"com.typebase"}"""
     private const val DEFAULT_AUTOCORRECT_SETTINGS =

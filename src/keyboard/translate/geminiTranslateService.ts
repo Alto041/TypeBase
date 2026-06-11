@@ -1,4 +1,5 @@
-import {GEMINI_API_KEY, GEMINI_API_URL} from './geminiConfig';
+import {requireGeminiApiKey} from '../settings/apiKeysStore';
+import {GEMINI_API_URL} from './geminiConfig';
 
 export type TranslateResult = {
   detectedLanguage: string;
@@ -79,7 +80,8 @@ export async function translateText(
     };
   }
 
-  const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
+  const apiKey = await requireGeminiApiKey();
+  const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

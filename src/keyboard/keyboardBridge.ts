@@ -26,6 +26,8 @@ type KeyboardModuleType = {
   setGestureSettings: (json: string) => Promise<boolean>;
   getAutocorrectSettings: () => Promise<string>;
   setAutocorrectSettings: (json: string) => Promise<boolean>;
+  getApiKeys: () => Promise<string>;
+  setApiKeys: (json: string) => Promise<boolean>;
   getLearnedPhraseCounts: () => Promise<Record<string, number>>;
   recordLearnedPhrase: (phrase: string) => Promise<number>;
   moveCursor: (offset: number) => Promise<boolean>;
@@ -182,6 +184,18 @@ export const keyboardBridge: KeyboardModuleType = {
   setAutocorrectSettings: (json: string) => {
     if (Platform.OS === 'android' && KeyboardModule?.setAutocorrectSettings) {
       return KeyboardModule.setAutocorrectSettings(json) as Promise<boolean>;
+    }
+    return Promise.resolve(false);
+  },
+  getApiKeys: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.getApiKeys) {
+      return KeyboardModule.getApiKeys() as Promise<string>;
+    }
+    return Promise.resolve('{"geminiApiKey":"","speechmaticsApiKey":""}');
+  },
+  setApiKeys: (json: string) => {
+    if (Platform.OS === 'android' && KeyboardModule?.setApiKeys) {
+      return KeyboardModule.setApiKeys(json) as Promise<boolean>;
     }
     return Promise.resolve(false);
   },

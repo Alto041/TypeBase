@@ -95,6 +95,7 @@ import {
   extractCurrentWord,
   getWordSuggestions,
 } from './suggestions/wordSuggestions';
+import {ensureApiKeysLoaded} from './settings/apiKeysStore';
 import {keyboardTheme} from './theme';
 import {useVoiceInput} from './voice/useVoiceInput';
 
@@ -625,6 +626,7 @@ function KeyboardBody() {
         ensureLearnedDictionaryLoaded(),
         ensureLearnedPhrasesLoaded(),
         ensureAutocorrectLoaded(),
+        ensureApiKeysLoaded(),
         reloadGesturesFromStorage(),
       ]).finally(() => {
         reloadEssentials();
