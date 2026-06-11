@@ -7,6 +7,7 @@ import {
   ScrollView,
   StatusBar,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   View,
@@ -18,6 +19,12 @@ import {
   setApiKeys,
 } from './src/keyboard/settings/apiKeysStore';
 import {keyboardBridge} from './src/keyboard/keyboardBridge';
+import {
+  ensureThemeLoaded,
+  getKeyboardColorScheme,
+  setKeyboardColorScheme,
+} from './src/keyboard/settings/themeStore';
+import type {KeyboardColorScheme} from './src/keyboard/theme';
 
 function ApiKeysCard() {
   const [geminiApiKey, setGeminiApiKey] = useState('');
@@ -96,6 +103,43 @@ function ApiKeysCard() {
   );
 }
 
+function KeyboardThemeCard() {
+  const [isDark, setIsDark] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    void ensureThemeLoaded().then(() => {
+      setIsDark(getKeyboardColorScheme() === 'dark');
+      setLoading(false);
+    });
+  }, []);
+
+  const handleToggle = (enabled: boolean) => {
+    setIsDark(enabled);
+    void setKeyboardColorScheme(enabled ? 'dark' : 'light');
+  };
+
+  return (
+    <View style={styles.card}>
+      <View style={styles.themeToggleRow}>
+        <View style={styles.themeToggleText}>
+          <Text style={styles.cardTitle}>Dark keyboard</Text>
+          <Text style={styles.hint}>
+            Switch the TypeBase keyboard between light and dark.
+          </Text>
+        </View>
+        <Switch
+          value={isDark}
+          onValueChange={handleToggle}
+          disabled={loading}
+          trackColor={{false: '#334155', true: '#2563EB'}}
+          thumbColor="#F8FAFC"
+        />
+      </View>
+    </View>
+  );
+}
+
 function SetupScreen() {
   const [pin, setPin] = useState('');
 
@@ -125,6 +169,8 @@ function SetupScreen() {
         </View>
 
         <ApiKeysCard />
+
+        <KeyboardThemeCard />
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Try it here</Text>
@@ -327,5 +373,14 @@ const styles = StyleSheet.create({
   linkText: {
     color: '#64748B',
     fontSize: 13,
+  },
+  themeToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  themeToggleText: {
+    flex: 1,
+    gap: 4,
   },
 });

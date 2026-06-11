@@ -1,15 +1,15 @@
 import React from 'react';
 import {Pressable, StyleSheet, Text, View} from 'react-native';
 import {
-  PLUGIN_CARD_COLOR,
   PLUGIN_INNER_RADIUS,
   PLUGIN_OUTER_RADIUS,
   PluginScrollView,
-  pluginPanelStyles,
+  usePluginPanelStyles,
 } from '../components/pluginPanelLayout';
+import {useThemedStyles} from '../KeyboardThemeContext';
 import {triggerKeyHaptic} from '../haptics';
 import {getLearnedCounts} from '../suggestions/learnedDictionary';
-import {keyboardTheme} from '../theme';
+import type {KeyboardTheme} from '../theme';
 import {AUTOCORRECT_REMEMBERS, type AutocorrectSettings} from './types';
 import {getLearnedPhraseCounts} from './learnedPhrases';
 
@@ -19,12 +19,16 @@ type AutocorrectPanelProps = {
   onToggleAutoApply: (autoApplyOnSpace: boolean) => void;
 };
 
+const TOGGLE_ON_COLOR = '#2CC642';
+
 type FeatureToggleProps = {
   enabled: boolean;
   onToggle: () => void;
 };
 
 function FeatureToggle({enabled, onToggle}: FeatureToggleProps) {
+  const styles = useThemedStyles(createAutocorrectStyles);
+
   return (
     <Pressable
       onPress={() => {
@@ -50,6 +54,8 @@ function SettingRow({
   onToggle: () => void;
   style?: object;
 }) {
+  const styles = useThemedStyles(createAutocorrectStyles);
+
   return (
     <View style={[styles.settingRow, style]}>
       <View style={styles.settingText}>
@@ -66,11 +72,13 @@ export function AutocorrectPanel({
   onToggleEnabled,
   onToggleAutoApply,
 }: AutocorrectPanelProps) {
+  const panelStyles = usePluginPanelStyles();
+  const styles = useThemedStyles(createAutocorrectStyles);
   const learnedWordCount = getLearnedCounts().size;
   const learnedPhraseCount = getLearnedPhraseCounts().size;
 
   return (
-    <View style={pluginPanelStyles.container}>
+    <View style={panelStyles.container}>
       <PluginScrollView>
         <View style={[styles.card, styles.cardTop]}>
           <SettingRow
@@ -108,94 +116,94 @@ export function AutocorrectPanel({
   );
 }
 
-const TOGGLE_ON_COLOR = '#2CC642';
-
-const styles = StyleSheet.create({
-  card: {
-    backgroundColor: PLUGIN_CARD_COLOR,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  cardTop: {
-    borderTopLeftRadius: PLUGIN_OUTER_RADIUS,
-    borderTopRightRadius: PLUGIN_OUTER_RADIUS,
-    borderBottomLeftRadius: PLUGIN_INNER_RADIUS,
-    borderBottomRightRadius: PLUGIN_INNER_RADIUS,
-  },
-  cardMiddle: {
-    borderRadius: PLUGIN_INNER_RADIUS,
-  },
-  cardBottom: {
-    borderTopLeftRadius: PLUGIN_INNER_RADIUS,
-    borderTopRightRadius: PLUGIN_INNER_RADIUS,
-    borderBottomLeftRadius: PLUGIN_OUTER_RADIUS,
-    borderBottomRightRadius: PLUGIN_OUTER_RADIUS,
-    gap: 6,
-  },
-  settingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  settingText: {
-    flex: 1,
-    gap: 2,
-  },
-  settingTitle: {
-    color: keyboardTheme.label,
-    fontSize: 15,
-    fontFamily: keyboardTheme.fontFamily,
-    fontWeight: '600',
-  },
-  settingHint: {
-    color: keyboardTheme.spaceLabel,
-    fontSize: 12,
-    fontFamily: keyboardTheme.fontFamily,
-    lineHeight: 16,
-  },
-  sectionTitle: {
-    color: keyboardTheme.label,
-    fontSize: 14,
-    fontFamily: keyboardTheme.fontFamily,
-    fontWeight: '600',
-  },
-  bullet: {
-    color: keyboardTheme.spaceLabel,
-    fontSize: 13,
-    fontFamily: keyboardTheme.fontFamily,
-    lineHeight: 18,
-    paddingLeft: 2,
-  },
-  statsDivider: {
-    height: 1,
-    backgroundColor: keyboardTheme.keyPressed,
-    marginTop: 4,
-  },
-  statsText: {
-    color: keyboardTheme.spaceLabel,
-    fontSize: 12,
-    fontFamily: keyboardTheme.fontFamily,
-    fontWeight: '600',
-  },
-  toggleTrack: {
-    width: 44,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: keyboardTheme.keyPressed,
-    padding: 2,
-    justifyContent: 'center',
-  },
-  toggleTrackOn: {
-    backgroundColor: TOGGLE_ON_COLOR,
-  },
-  toggleThumb: {
-    width: 22,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: keyboardTheme.label,
-    transform: [{translateX: 0}],
-  },
-  toggleThumbOn: {
-    transform: [{translateX: 18}],
-  },
-});
+function createAutocorrectStyles(theme: KeyboardTheme) {
+  return StyleSheet.create({
+    card: {
+      backgroundColor: theme.pluginCard,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+    },
+    cardTop: {
+      borderTopLeftRadius: PLUGIN_OUTER_RADIUS,
+      borderTopRightRadius: PLUGIN_OUTER_RADIUS,
+      borderBottomLeftRadius: PLUGIN_INNER_RADIUS,
+      borderBottomRightRadius: PLUGIN_INNER_RADIUS,
+    },
+    cardMiddle: {
+      borderRadius: PLUGIN_INNER_RADIUS,
+    },
+    cardBottom: {
+      borderTopLeftRadius: PLUGIN_INNER_RADIUS,
+      borderTopRightRadius: PLUGIN_INNER_RADIUS,
+      borderBottomLeftRadius: PLUGIN_OUTER_RADIUS,
+      borderBottomRightRadius: PLUGIN_OUTER_RADIUS,
+      gap: 6,
+    },
+    settingRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+    settingText: {
+      flex: 1,
+      gap: 2,
+    },
+    settingTitle: {
+      color: theme.label,
+      fontSize: 15,
+      fontFamily: theme.fontFamily,
+      fontWeight: '600',
+    },
+    settingHint: {
+      color: theme.spaceLabel,
+      fontSize: 12,
+      fontFamily: theme.fontFamily,
+      lineHeight: 16,
+    },
+    sectionTitle: {
+      color: theme.label,
+      fontSize: 14,
+      fontFamily: theme.fontFamily,
+      fontWeight: '600',
+    },
+    bullet: {
+      color: theme.spaceLabel,
+      fontSize: 13,
+      fontFamily: theme.fontFamily,
+      lineHeight: 18,
+      paddingLeft: 2,
+    },
+    statsDivider: {
+      height: 1,
+      backgroundColor: theme.borderSubtle,
+      marginTop: 4,
+    },
+    statsText: {
+      color: theme.spaceLabel,
+      fontSize: 12,
+      fontFamily: theme.fontFamily,
+      fontWeight: '600',
+    },
+    toggleTrack: {
+      width: 44,
+      height: 20,
+      borderRadius: 10,
+      backgroundColor: theme.modifierKey,
+      padding: 2,
+      justifyContent: 'center',
+    },
+    toggleTrackOn: {
+      backgroundColor: TOGGLE_ON_COLOR,
+    },
+    toggleThumb: {
+      width: 22,
+      height: 16,
+      borderRadius: 8,
+      backgroundColor: theme.label,
+      transform: [{translateX: 0}],
+    },
+    toggleThumbOn: {
+      transform: [{translateX: 18}],
+    },
+  });
+}

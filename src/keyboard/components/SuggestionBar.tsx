@@ -1,16 +1,20 @@
 import React, {Fragment} from 'react';
-import {Pressable, StyleSheet, Text, View} from 'react-native';
+import {Image, Pressable, StyleSheet, Text, View} from 'react-native';
 import AddIcon from '../../../assets/add.svg';
 import InsertIcon from '../../../assets/insert.svg';
 import BackIcon from '../../../assets/back.svg';
 import CheckIcon from '../../../assets/check.svg';
 import EmojiIcon from '../../../assets/emoji.svg';
 import ItemsIcon from '../../../assets/items.svg';
+import ClipboardIcon from '../../../assets/plugins/clipboard.svg';
 import TranslateIcon from '../../../assets/plugins/translate.svg';
 import {VoiceEqualizerIcon} from './VoiceEqualizerIcon';
+import {clipboardPastePreviewText} from '../clipboard/clipboardPasteSuggestion';
+import type {ClipboardPasteSuggestion} from '../clipboard/clipboardPasteSuggestion';
 import {triggerKeyHaptic} from '../haptics';
+import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
 import {applyCaseToWord} from '../suggestions/wordSuggestions';
-import {keyboardTheme} from '../theme';
+import type {KeyboardTheme} from '../theme';
 
 export type EssentialSuggestion = {
   keyword: string;
@@ -45,6 +49,8 @@ type SuggestionBarProps = {
   translateSelected?: boolean;
   emojiSelected?: boolean;
   centerTitle?: string;
+  clipboardPasteSuggestion?: ClipboardPasteSuggestion | null;
+  onClipboardPasteSelect?: () => void;
   /** Show back chevron instead of the plugins icon (panels + essentials form). */
   leadingBack?: boolean;
   trailingAction?: {
@@ -72,9 +78,14 @@ export function SuggestionBar({
   translateSelected = false,
   emojiSelected = false,
   centerTitle,
+  clipboardPasteSuggestion = null,
+  onClipboardPasteSelect,
   leadingBack = false,
   trailingAction,
 }: SuggestionBarProps) {
+  const theme = useKeyboardTheme();
+  const styles = useThemedStyles(createSuggestionBarStyles);
+
   if (!visible) {
     return null;
   }
@@ -87,8 +98,14 @@ export function SuggestionBar({
     !isFormMode && Boolean(autocorrectPreview) && prefix.length > 0;
   const hasSuggestions = !isFormMode && suggestions.length > 0;
   const showWordSuggestions = hasAutocorrect || hasSuggestions;
-  const toolbarIconMuted = keyboardTheme.suggestionDivider;
-  const toolbarIconActive = keyboardTheme.label;
+  const hasClipboardPaste =
+    !isFormMode &&
+    !centerTitle &&
+    Boolean(clipboardPasteSuggestion) &&
+    !hasEssentials &&
+    !showPartial;
+  const toolbarIconMuted = theme.icon;
+  const toolbarIconActive = theme.icon;
   const toolbarIconSize = 20;
   const itemsIconColor = itemsSelected ? toolbarIconActive : toolbarIconMuted;
   const translateIconColor = translateSelected
@@ -115,7 +132,7 @@ export function SuggestionBar({
           ]}
           hitSlop={6}>
           {showLeadingBack ? (
-            <BackIcon width={22} height={14} />
+            <BackIcon width={22} height={14} color={theme.icon} />
           ) : (
             <ItemsIcon
               width={toolbarIconSize}
@@ -175,6 +192,38 @@ export function SuggestionBar({
             <Text style={styles.partialText} numberOfLines={1}>
               {partialTranscript}
             </Text>
+          </View>
+        ) : hasClipboardPaste && clipboardPasteSuggestion ? (
+          <View style={styles.clipboardPasteContainer}>
+            <Pressable
+              onPressIn={() => {
+                triggerKeyHaptic();
+                onClipboardPasteSelect?.();
+              }}
+              style={({pressed}) => [
+                styles.clipboardPastePill,
+                pressed && styles.clipboardPastePillPressed,
+              ]}>
+              <ClipboardIcon
+                width={16}
+                height={16}
+                color={theme.icon}
+              />
+              {clipboardPasteSuggestion.kind === 'image' &&
+              clipboardPasteSuggestion.imageUri ? (
+                <Image
+                  source={{uri: clipboardPasteSuggestion.imageUri}}
+                  style={styles.clipboardPasteImage}
+                  resizeMode="cover"
+                />
+              ) : (
+                <Text style={styles.clipboardPasteText} numberOfLines={1}>
+                  {clipboardPastePreviewText(
+                    clipboardPasteSuggestion.text ?? '',
+                  )}
+                </Text>
+              )}
+            </Pressable>
           </View>
         ) : hasEssentials ? (
           <View style={styles.row}>
@@ -262,7 +311,7 @@ export function SuggestionBar({
             pressed && essentialsForm.canConfirm && styles.toolbarButtonPressed,
           ]}
           hitSlop={6}>
-          <CheckIcon width={24} height={24} />
+          <CheckIcon width={24} height={24} color={theme.icon} />
         </Pressable>
       ) : trailingAction ? (
         <Pressable
@@ -285,7 +334,7 @@ export function SuggestionBar({
             <AddIcon
               width={toolbarIconSize}
               height={toolbarIconSize}
-              color={keyboardTheme.essentialsAccent}
+              color={theme.icon}
             />
           )}
         </Pressable>
@@ -334,9 +383,10 @@ export function SuggestionBar({
   );
 }
 
-const styles = StyleSheet.create({
+function createSuggestionBarStyles(theme: KeyboardTheme) {
+  return StyleSheet.create({
   container: {
-    minHeight: keyboardTheme.suggestionBarHeight,
+    minHeight: theme.suggestionBarHeight,
     flexShrink: 0,
     flexDirection: 'row',
     alignItems: 'center',
@@ -366,7 +416,7 @@ const styles = StyleSheet.create({
   center: {
     flex: 1,
     justifyContent: 'center',
-    minHeight: keyboardTheme.suggestionBarHeight,
+    minHeight: theme.suggestionBarHeight,
   },
   centerTitleOverlay: {
     ...StyleSheet.absoluteFill,
@@ -374,9 +424,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   centerTitle: {
-    color: keyboardTheme.spaceLabel,
+    color: theme.spaceLabel,
     fontSize: 12,
-    fontFamily: keyboardTheme.fontFamily,
+    fontFamily: theme.fontFamily,
     fontWeight: '600',
     letterSpacing: 0.8,
     textAlign: 'center',
@@ -388,9 +438,9 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   formLabel: {
-    color: keyboardTheme.spaceLabel,
+    color: theme.spaceLabel,
     fontSize: 10,
-    fontFamily: keyboardTheme.fontFamily,
+    fontFamily: theme.fontFamily,
     fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 0.6,
@@ -401,33 +451,33 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   formPrefix: {
-    color: keyboardTheme.essentialsAccent,
+    color: theme.essentialsAccent,
     fontSize: 16,
-    fontFamily: keyboardTheme.fontFamily,
+    fontFamily: theme.fontFamily,
     fontWeight: '600',
   },
   formText: {
     flexShrink: 1,
-    color: keyboardTheme.label,
+    color: theme.label,
     fontSize: 16,
-    fontFamily: keyboardTheme.fontFamily,
+    fontFamily: theme.fontFamily,
     fontWeight: '500',
   },
   formPlaceholder: {
-    color: keyboardTheme.spaceLabel,
+    color: theme.spaceLabel,
     fontWeight: '400',
   },
   cursor: {
     width: 2,
     height: 18,
-    backgroundColor: keyboardTheme.essentialsAccent,
+    backgroundColor: theme.essentialsAccent,
     borderRadius: 1,
   },
   row: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: keyboardTheme.suggestionBarHeight,
+    minHeight: theme.suggestionBarHeight,
   },
   suggestion: {
     flex: 1,
@@ -439,27 +489,27 @@ const styles = StyleSheet.create({
     gap: 1,
   },
   suggestionPressed: {
-    backgroundColor: keyboardTheme.keyPressed,
+    backgroundColor: theme.letterKeyPressed,
   },
   suggestionText: {
-    color: keyboardTheme.label,
+    color: theme.label,
     fontSize: 17,
-    fontFamily: keyboardTheme.fontFamily,
+    fontFamily: theme.fontFamily,
     fontWeight: '500',
   },
   autocorrectSuggestion: {
     paddingHorizontal: 4,
   },
   essentialKeyword: {
-    color: keyboardTheme.essentialsAccent,
+    color: theme.essentialsAccent,
     fontSize: 14,
-    fontFamily: keyboardTheme.fontFamily,
+    fontFamily: theme.fontFamily,
     fontWeight: '600',
   },
   essentialValue: {
-    color: keyboardTheme.spaceLabel,
+    color: theme.spaceLabel,
     fontSize: 12,
-    fontFamily: keyboardTheme.fontFamily,
+    fontFamily: theme.fontFamily,
   },
   partialContainer: {
     flex: 1,
@@ -468,16 +518,51 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   partialText: {
-    color: keyboardTheme.spaceLabel,
+    color: theme.spaceLabel,
     fontSize: 17,
-    fontFamily: keyboardTheme.fontFamily,
+    fontFamily: theme.fontFamily,
     fontWeight: '500',
     textAlign: 'right',
   },
   divider: {
     width: 1,
     height: 22,
-    backgroundColor: keyboardTheme.suggestionDivider,
+    backgroundColor: theme.suggestionDivider,
     borderRadius: 999,
   },
-});
+  clipboardPasteContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: theme.suggestionBarHeight,
+    paddingHorizontal: 4,
+  },
+  clipboardPastePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingLeft: 12,
+    paddingRight: 14,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: theme.letterKey,
+    maxWidth: '88%',
+  },
+  clipboardPastePillPressed: {
+    backgroundColor: theme.letterKeyPressed,
+  },
+  clipboardPasteText: {
+    flexShrink: 1,
+    color: theme.label,
+    fontSize: 15,
+    fontFamily: theme.fontFamily,
+    fontWeight: '500',
+  },
+  clipboardPasteImage: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: theme.modifierKey,
+  },
+  });
+}

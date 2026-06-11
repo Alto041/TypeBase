@@ -3140,3 +3140,187 @@
 {"_e":"metro:bundling:progress","_t":1781180774950,"id":"1","progress":0.9978177857020271,"total":916,"current":915}
 {"_e":"metro:bundling:progress","_t":1781180775570,"id":"1","progress":0.999,"total":916,"current":916}
 {"_e":"metro:bundling:done","_t":1781180775672,"id":"1","total":916,"ms":2696.8997}
+{"_e":"root:init","_t":1781195455112,"format":"v0-jsonl","version":"56.1.14"}
+{"_e":"devserver:start","_t":1781195455177,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../..\\..\\app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1781195456200,"serverRoot":"../..\\..","projectRoot":"../..\\..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"metro:instantiate","_t":1781195484073,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"metro:bundling:started","_t":1781195490485,"id":"1","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781195490486,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781195490491,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781195490592,"id":"1","progress":0.005012138773592294,"total":113,"current":8}
+{"_e":"metro:bundling:progress","_t":1781195490693,"id":"1","progress":0.02259814601221752,"total":153,"current":23}
+{"_e":"metro:bundling:progress","_t":1781195490794,"id":"1","progress":0.11210538903061223,"total":224,"current":75}
+{"_e":"metro:bundling:progress","_t":1781195490894,"id":"1","progress":0.2938990191737444,"total":273,"current":148}
+{"_e":"metro:bundling:progress","_t":1781195490995,"id":"1","progress":0.37051039697542537,"total":345,"current":210}
+{"_e":"metro:bundling:progress","_t":1781195491097,"id":"1","progress":0.400898967197798,"total":398,"current":252}
+{"_e":"metro:bundling:progress","_t":1781195491198,"id":"1","progress":0.4304784914313794,"total":442,"current":290}
+{"_e":"metro:bundling:progress","_t":1781195491297,"id":"1","progress":0.6816653131840971,"total":476,"current":393}
+{"_e":"metro:bundling:progress","_t":1781195491424,"id":"1","progress":0.8438345051379124,"total":516,"current":474}
+{"_e":"metro:bundling:progress","_t":1781195491525,"id":"1","progress":0.8438345051379124,"total":546,"current":496}
+{"_e":"metro:bundling:progress","_t":1781195491625,"id":"1","progress":0.892151684203093,"total":595,"current":562}
+{"_e":"metro:bundling:progress","_t":1781195491725,"id":"1","progress":0.8944174028003125,"total":645,"current":610}
+{"_e":"metro:bundling:progress","_t":1781195491843,"id":"1","progress":0.8985762495632127,"total":653,"current":619}
+{"_e":"metro:bundling:progress","_t":1781195491904,"id":"1","progress":0.9014819105600491,"total":653,"current":620}
+{"_e":"metro:bundling:progress","_t":1781195492013,"id":"1","progress":0.9165246539792389,"total":680,"current":651}
+{"_e":"metro:bundling:progress","_t":1781195492123,"id":"1","progress":0.9193425605536333,"total":680,"current":652}
+{"_e":"metro:bundling:progress","_t":1781195492237,"id":"1","progress":0.9971651325386047,"total":705,"current":704}
+{"_e":"metro:bundling:progress","_t":1781195492681,"id":"1","progress":0.999,"total":705,"current":705}
+{"_e":"metro:bundling:progress","_t":1781195492781,"id":"1","progress":0.999,"total":794,"current":762}
+{"_e":"metro:bundling:progress","_t":1781195492881,"id":"1","progress":0.999,"total":901,"current":885}
+{"_e":"metro:bundling:progress","_t":1781195492988,"id":"1","progress":0.999,"total":916,"current":916}
+{"_e":"metro:bundling:done","_t":1781195493127,"id":"1","total":916,"ms":2641.5754}
+{"_e":"metro:client_log","_t":1781195494162,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1781195511550,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":11,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781195512007,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"metro:client_log","_t":1781195601015,"level":"error","data":["[Error: Uncaught (in promise, id: 0): \"java.lang.IllegalStateException: Tried to use permissions API while not attached to an Activity.\"]"]}
+{"_e":"root:init","_t":1781195998499,"format":"v0-jsonl","version":"56.1.14"}
+{"_e":"devserver:start","_t":1781195998554,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../..\\..\\app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1781195999373,"serverRoot":"../..\\..","projectRoot":"../..\\..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"metro:instantiate","_t":1781196028764,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"metro:bundling:started","_t":1781196034839,"id":"1","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781196034840,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781196034845,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781196034945,"id":"1","progress":0.009646045918367346,"total":112,"current":11}
+{"_e":"metro:bundling:progress","_t":1781196035045,"id":"1","progress":0.04938271604938271,"total":162,"current":36}
+{"_e":"metro:bundling:progress","_t":1781196035145,"id":"1","progress":0.137441998810232,"total":205,"current":76}
+{"_e":"metro:bundling:progress","_t":1781196035245,"id":"1","progress":0.19830322265625,"total":256,"current":114}
+{"_e":"metro:bundling:progress","_t":1781196035345,"id":"1","progress":0.25159999591707577,"total":313,"current":157}
+{"_e":"metro:bundling:progress","_t":1781196035448,"id":"1","progress":0.32011772853185594,"total":380,"current":215}
+{"_e":"metro:bundling:progress","_t":1781196035549,"id":"1","progress":0.37845858035571217,"total":395,"current":243}
+{"_e":"metro:bundling:progress","_t":1781196035662,"id":"1","progress":0.42978769020711904,"total":421,"current":276}
+{"_e":"metro:bundling:progress","_t":1781196035820,"id":"1","progress":0.42978769020711904,"total":422,"current":276}
+{"_e":"metro:bundling:progress","_t":1781196035919,"id":"1","progress":0.5368769776380896,"total":434,"current":318}
+{"_e":"metro:bundling:progress","_t":1781196036040,"id":"1","progress":0.688026592797784,"total":475,"current":394}
+{"_e":"metro:bundling:progress","_t":1781196036140,"id":"1","progress":0.794039800019606,"total":505,"current":450}
+{"_e":"metro:bundling:progress","_t":1781196036240,"id":"1","progress":0.8338016726047613,"total":518,"current":473}
+{"_e":"metro:bundling:progress","_t":1781196036340,"id":"1","progress":0.8338016726047613,"total":546,"current":497}
+{"_e":"metro:bundling:progress","_t":1781196036440,"id":"1","progress":0.9304277845237722,"total":593,"current":572}
+{"_e":"metro:bundling:progress","_t":1781196036541,"id":"1","progress":0.9304277845237722,"total":666,"current":634}
+{"_e":"metro:bundling:progress","_t":1781196036645,"id":"1","progress":0.9516774494073805,"total":695,"current":678}
+{"_e":"metro:bundling:progress","_t":1781196036746,"id":"1","progress":0.9971651325386047,"total":705,"current":704}
+{"_e":"metro:bundling:progress","_t":1781196037355,"id":"1","progress":0.999,"total":705,"current":705}
+{"_e":"metro:bundling:progress","_t":1781196037458,"id":"1","progress":0.999,"total":784,"current":736}
+{"_e":"metro:bundling:progress","_t":1781196037558,"id":"1","progress":0.999,"total":886,"current":792}
+{"_e":"metro:bundling:progress","_t":1781196037657,"id":"1","progress":0.999,"total":914,"current":889}
+{"_e":"metro:bundling:progress","_t":1781196037765,"id":"1","progress":0.999,"total":918,"current":917}
+{"_e":"metro:bundling:progress","_t":1781196038854,"id":"1","progress":0.999,"total":918,"current":918}
+{"_e":"metro:bundling:done","_t":1781196039001,"id":"1","total":918,"ms":4161.7463}
+{"_e":"metro:client_log","_t":1781196040366,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1781196079825,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":11,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781196080016,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"metro:client_log","_t":1781196304467,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":21,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781196311139,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":31,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781196319696,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":41,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781196324035,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":51,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781196505877,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":61,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781196579753,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":71,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781196628099,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":81,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:bundling:started","_t":1781196872317,"id":"2","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781196872317,"id":"2","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1781196872386,"id":"2","total":1,"ms":68.9366}
+{"_e":"metro:client_log","_t":1781196874264,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1781196874264,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":81,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781196874370,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"metro:client_log","_t":1781197290061,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":91,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781197294478,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":101,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781197341619,"level":"error","data":["[ReferenceError: Property 'MODIFIER_KEY_FLEX' doesn't exist]"]}
+{"_e":"metro:client_log","_t":1781197342118,"level":"error","data":["[ReferenceError: Property 'BOTTOM_ROW_MODE_FLEX' doesn't exist]"]}
+{"_e":"metro:client_log","_t":1781197342900,"level":"error","data":["[ReferenceError: Property 'BOTTOM_ROW_ENTER_FLEX' doesn't exist]"]}
+{"_e":"metro:bundling:started","_t":1781197688648,"id":"6","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781197688648,"id":"6","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1781197688725,"id":"6","total":1,"ms":76.8582}
+{"_e":"metro:client_log","_t":1781197690528,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1781197690528,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":101,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781197690684,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"metro:bundling:started","_t":1781198252289,"id":"7","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781198252290,"id":"7","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781198252291,"id":"7","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781198252399,"id":"7","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781198252529,"id":"7","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781198252633,"id":"7","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781198252783,"id":"7","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781198252891,"id":"7","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781198253037,"id":"7","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781198253074,"id":"7","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781198253187,"id":"7","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781198254509,"id":"7","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1781198254694,"id":"7","total":1,"ms":2404.782}
+{"_e":"metro:client_log","_t":1781198256446,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1781198259546,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":121,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781198259707,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"metro:client_log","_t":1781198377784,"level":"error","data":["[ReferenceError: Property 'keyboardColorScheme' doesn't exist]"]}
+{"_e":"metro:bundling:started","_t":1781198390089,"id":"a","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781198390090,"id":"a","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1781198390269,"id":"a","total":1,"ms":179.1381}
+{"_e":"metro:client_log","_t":1781198392401,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1781198392401,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":121,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781198392581,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"metro:bundling:started","_t":1781198392848,"id":"b","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781198392849,"id":"b","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1781198393009,"id":"b","total":1,"ms":160.9249}
+{"_e":"metro:client_log","_t":1781198394532,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1781198394532,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":121,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781198394729,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"metro:client_log","_t":1781198423196,"level":"error","data":["[ReferenceError: Property 'keyboardTheme' doesn't exist]"]}
+{"_e":"metro:client_log","_t":1781198424253,"level":"error","data":["[ReferenceError: Property 'keyboardTheme' doesn't exist]"]}
+{"_e":"metro:client_log","_t":1781198424829,"level":"error","data":["[ReferenceError: Property 'keyboardTheme' doesn't exist]"]}
+{"_e":"metro:client_log","_t":1781198426118,"level":"error","data":["[ReferenceError: Property 'keyboardTheme' doesn't exist]"]}
+{"_e":"metro:client_log","_t":1781198427075,"level":"error","data":["[ReferenceError: Property 'keyboardTheme' doesn't exist]"]}
+{"_e":"metro:client_log","_t":1781198431521,"level":"error","data":["[Error: useKeyboardTheme must be used within KeyboardThemeProvider]"]}
+{"_e":"metro:client_log","_t":1781198440984,"level":"error","data":["[ReferenceError: Property 'keyboardTheme' doesn't exist]"]}
+{"_e":"metro:client_log","_t":1781198442030,"level":"error","data":["[ReferenceError: Property 'keyboardTheme' doesn't exist]"]}
+{"_e":"metro:client_log","_t":1781198442689,"level":"error","data":["[ReferenceError: Property 'keyboardTheme' doesn't exist]"]}
+{"_e":"metro:client_log","_t":1781198443788,"level":"error","data":["[ReferenceError: Property 'keyboardTheme' doesn't exist]"]}
+{"_e":"metro:client_log","_t":1781198444952,"level":"error","data":["[ReferenceError: Property 'keyboardTheme' doesn't exist]"]}
+{"_e":"metro:client_log","_t":1781198445957,"level":"error","data":["[ReferenceError: Property 'keyboardTheme' doesn't exist]"]}
+{"_e":"metro:client_log","_t":1781198446867,"level":"error","data":["[ReferenceError: Property 'keyboardTheme' doesn't exist]"]}
+{"_e":"metro:bundling:failed","_t":1781198447711,"id":null,"message":"SyntaxError: D:\\Type-base\\TypeBase\\src\\keyboard\\components\\SuggestionBar.tsx: Unexpected token (568:0)\n\n  566 |   },\n  567 | });\n> 568 |\n      | ^","importStack":null,"filename":"src\\keyboard\\components\\SuggestionBar.tsx","targetModuleName":null,"originModulePath":null}
+{"_e":"metro:bundling:failed","_t":1781198447947,"id":null,"message":"SyntaxError: D:\\Type-base\\TypeBase\\src\\keyboard\\components\\SuggestionBar.tsx: Unexpected token (568:0)\n\n  566 |   },\n  567 | });\n> 568 |\n      | ^","importStack":null,"filename":"src\\keyboard\\components\\SuggestionBar.tsx","targetModuleName":null,"originModulePath":null}
+{"_e":"metro:bundling:failed","_t":1781198448711,"id":null,"message":"SyntaxError: D:\\Type-base\\TypeBase\\src\\keyboard\\components\\SuggestionBar.tsx: Unexpected token (568:0)\n\n  566 |   },\n  567 | });\n> 568 |\n      | ^","importStack":null,"filename":"src\\keyboard\\components\\SuggestionBar.tsx","targetModuleName":null,"originModulePath":null}
+{"_e":"metro:bundling:failed","_t":1781198449801,"id":null,"message":"SyntaxError: D:\\Type-base\\TypeBase\\src\\keyboard\\components\\SuggestionBar.tsx: Unexpected token (568:0)\n\n  566 |   },\n  567 | });\n> 568 |\n      | ^","importStack":null,"filename":"src\\keyboard\\components\\SuggestionBar.tsx","targetModuleName":null,"originModulePath":null}
+{"_e":"metro:client_log","_t":1781198458126,"level":"error","data":["[Error: useKeyboardTheme must be used within KeyboardThemeProvider]"]}
+{"_e":"metro:client_log","_t":1781198467619,"level":"error","data":["[ReferenceError: Property 'keyboardTheme' doesn't exist]"]}
+{"_e":"metro:client_log","_t":1781198469798,"level":"error","data":["[ReferenceError: Property 'keyboardTheme' doesn't exist]"]}
+{"_e":"metro:client_log","_t":1781198471268,"level":"error","data":["[ReferenceError: Property 'keyboardTheme' doesn't exist]"]}
+{"_e":"metro:client_log","_t":1781198472292,"level":"error","data":["[ReferenceError: Property 'keyboardTheme' doesn't exist]"]}
+{"_e":"metro:client_log","_t":1781198534262,"level":"error","data":["[ReferenceError: Property 'PLUGIN_CARD_COLOR' doesn't exist]"]}
+{"_e":"metro:client_log","_t":1781198535056,"level":"error","data":["[ReferenceError: Property 'PLUGIN_CARD_COLOR' doesn't exist]"]}
+{"_e":"metro:client_log","_t":1781198588918,"level":"error","data":["[ReferenceError: Property 'PLUGIN_CARD_COLOR' doesn't exist]"]}
+{"_e":"metro:client_log","_t":1781198589532,"level":"error","data":["[ReferenceError: Property 'PLUGIN_CARD_COLOR' doesn't exist]"]}
+{"_e":"metro:client_log","_t":1781198590844,"level":"error","data":["[ReferenceError: Property 'PLUGIN_CARD_COLOR' doesn't exist]"]}
+{"_e":"metro:client_log","_t":1781198591882,"level":"error","data":["[ReferenceError: Property 'PLUGIN_CARD_COLOR' doesn't exist]"]}
+{"_e":"metro:client_log","_t":1781198592335,"level":"error","data":["[ReferenceError: Property 'PLUGIN_CARD_COLOR' doesn't exist]"]}
+{"_e":"metro:client_log","_t":1781198593506,"level":"error","data":["[ReferenceError: Property 'PLUGIN_CARD_COLOR' doesn't exist]"]}
+{"_e":"metro:client_log","_t":1781198594173,"level":"error","data":["[ReferenceError: Property 'PLUGIN_CARD_COLOR' doesn't exist]"]}
+{"_e":"metro:client_log","_t":1781198608516,"level":"error","data":["[ReferenceError: Property 'PLUGIN_CARD_COLOR' doesn't exist]"]}
+{"_e":"metro:client_log","_t":1781198608548,"level":"error","data":["[ReferenceError: Property 'PLUGIN_CARD_COLOR' doesn't exist]"]}
+{"_e":"metro:client_log","_t":1781198609506,"level":"error","data":["[ReferenceError: Property 'PLUGIN_CARD_COLOR' doesn't exist]"]}
+{"_e":"metro:client_log","_t":1781198611430,"level":"error","data":["[ReferenceError: Property 'PLUGIN_CARD_COLOR' doesn't exist]"]}
+{"_e":"metro:client_log","_t":1781198633469,"level":"error","data":["[ReferenceError: Property 'PLUGIN_CARD_COLOR' doesn't exist]"]}
+{"_e":"metro:client_log","_t":1781198634746,"level":"error","data":["[ReferenceError: Property 'PLUGIN_CARD_COLOR' doesn't exist]"]}
+{"_e":"metro:client_log","_t":1781198635215,"level":"error","data":["[ReferenceError: Property 'PLUGIN_CARD_COLOR' doesn't exist]"]}
+{"_e":"metro:client_log","_t":1781198636017,"level":"error","data":["[ReferenceError: Property 'PLUGIN_CARD_COLOR' doesn't exist]"]}
+{"_e":"metro:client_log","_t":1781198650758,"level":"error","data":["[ReferenceError: Property 'keyboardTheme' doesn't exist]"]}
+{"_e":"metro:client_log","_t":1781198651551,"level":"error","data":["[ReferenceError: Property 'keyboardTheme' doesn't exist]"]}
+{"_e":"metro:client_log","_t":1781198652364,"level":"error","data":["[ReferenceError: Property 'keyboardTheme' doesn't exist]"]}
+{"_e":"metro:client_log","_t":1781198661609,"level":"error","data":["[ReferenceError: Property 'keyboardTheme' doesn't exist]"]}
+{"_e":"metro:client_log","_t":1781198662630,"level":"error","data":["[ReferenceError: Property 'keyboardTheme' doesn't exist]"]}
+{"_e":"metro:client_log","_t":1781198667561,"level":"error","data":["[ReferenceError: Property 'keyboardTheme' doesn't exist]"]}
+{"_e":"metro:client_log","_t":1781198668668,"level":"error","data":["[ReferenceError: Property 'keyboardTheme' doesn't exist]"]}
+{"_e":"metro:client_log","_t":1781198669509,"level":"error","data":["[ReferenceError: Property 'keyboardTheme' doesn't exist]"]}
+{"_e":"metro:client_log","_t":1781198678434,"level":"error","data":["[ReferenceError: Property 'keyboardTheme' doesn't exist]"]}
+{"_e":"metro:client_log","_t":1781198679314,"level":"error","data":["[ReferenceError: Property 'emojiScrollHeight' doesn't exist]"]}
+{"_e":"metro:client_log","_t":1781198680073,"level":"error","data":["[ReferenceError: Property 'emojiScrollHeight' doesn't exist]"]}
+{"_e":"metro:client_log","_t":1781198680962,"level":"error","data":["[ReferenceError: Property 'emojiScrollHeight' doesn't exist]"]}
+{"_e":"metro:client_log","_t":1781198682964,"level":"error","data":["[ReferenceError: Property 'keyboardTheme' doesn't exist]"]}
+{"_e":"metro:client_log","_t":1781198682994,"level":"error","data":["[ReferenceError: Property 'emojiScrollHeight' doesn't exist]"]}
+{"_e":"metro:client_log","_t":1781198683553,"level":"error","data":["[ReferenceError: Property 'emojiScrollHeight' doesn't exist]"]}
+{"_e":"metro:client_log","_t":1781198686572,"level":"error","data":["[ReferenceError: Property 'keyboardTheme' doesn't exist]"]}
+{"_e":"metro:client_log","_t":1781198687704,"level":"error","data":["[ReferenceError: Property 'keyboardTheme' doesn't exist]"]}
+{"_e":"metro:client_log","_t":1781198771608,"level":"error","data":["[ReferenceError: Property 'styles' doesn't exist]"]}
+{"_e":"metro:bundling:started","_t":1781198776994,"id":"1x","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781198776994,"id":"1x","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1781198777108,"id":"1x","total":1,"ms":114.7102}
+{"_e":"metro:client_log","_t":1781198779136,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1781198779136,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":121,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781198779136,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}

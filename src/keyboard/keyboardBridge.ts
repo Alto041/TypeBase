@@ -37,6 +37,8 @@ type KeyboardModuleType = {
   launchApp: (packageName: string) => Promise<boolean>;
   getCommaLauncherArmed: () => Promise<boolean>;
   setCommaLauncherArmed: (armed: boolean) => Promise<boolean>;
+  getKeyboardColorScheme: () => Promise<string>;
+  setKeyboardColorScheme: (scheme: string) => Promise<boolean>;
 };
 
 const {KeyboardModule} = NativeModules;
@@ -252,6 +254,18 @@ export const keyboardBridge: KeyboardModuleType = {
   setCommaLauncherArmed: (armed: boolean) => {
     if (Platform.OS === 'android' && KeyboardModule?.setCommaLauncherArmed) {
       return KeyboardModule.setCommaLauncherArmed(armed) as Promise<boolean>;
+    }
+    return Promise.resolve(false);
+  },
+  getKeyboardColorScheme: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.getKeyboardColorScheme) {
+      return KeyboardModule.getKeyboardColorScheme() as Promise<string>;
+    }
+    return Promise.resolve('light');
+  },
+  setKeyboardColorScheme: (scheme: string) => {
+    if (Platform.OS === 'android' && KeyboardModule?.setKeyboardColorScheme) {
+      return KeyboardModule.setKeyboardColorScheme(scheme) as Promise<boolean>;
     }
     return Promise.resolve(false);
   },

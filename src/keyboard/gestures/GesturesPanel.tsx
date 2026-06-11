@@ -10,14 +10,14 @@ import {
 } from 'react-native';
 import ArrowIcon from '../../../assets/plugins/arrow.svg';
 import {
-  PLUGIN_CARD_COLOR,
   PLUGIN_INNER_RADIUS,
   PLUGIN_OUTER_RADIUS,
   PluginScrollView,
-  pluginPanelStyles,
+  usePluginPanelStyles,
 } from '../components/pluginPanelLayout';
+import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
 import {triggerKeyHaptic} from '../haptics';
-import {keyboardTheme} from '../theme';
+import type {KeyboardTheme} from '../theme';
 import {GESTURE_FEATURES, type GestureSettings, type LaunchableApp} from './types';
 
 type GesturesPanelProps = {
@@ -35,6 +35,8 @@ type FeatureToggleProps = {
 };
 
 function FeatureToggle({enabled, onToggle}: FeatureToggleProps) {
+  const styles = useThemedStyles(createGesturesStyles);
+
   return (
     <Pressable
       onPress={() => {
@@ -94,6 +96,9 @@ export function GesturesPanel({
   onToggle,
   onSelectLauncherApp,
 }: GesturesPanelProps) {
+  const theme = useKeyboardTheme();
+  const panelStyles = usePluginPanelStyles();
+  const styles = useThemedStyles(createGesturesStyles);
   const [showAppPicker, setShowAppPicker] = useState(false);
   const listDraggingRef = useRef(false);
 
@@ -123,7 +128,7 @@ export function GesturesPanel({
 
   if (showAppPicker) {
     return (
-      <View style={pluginPanelStyles.container}>
+      <View style={panelStyles.container}>
         <Pressable
           onPress={() => {
             triggerKeyHaptic();
@@ -133,8 +138,8 @@ export function GesturesPanel({
           <Text style={styles.pickerBackLabel}>← Gestures</Text>
         </Pressable>
         <ScrollView
-          style={pluginPanelStyles.list}
-          contentContainerStyle={pluginPanelStyles.listContent}
+          style={panelStyles.list}
+          contentContainerStyle={panelStyles.listContent}
           keyboardShouldPersistTaps="always"
           nestedScrollEnabled
           showsVerticalScrollIndicator={false}
@@ -143,7 +148,7 @@ export function GesturesPanel({
           onMomentumScrollEnd={clearListScroll}>
           {appsLoading ? (
             <View style={styles.loadingRow}>
-              <ActivityIndicator color={keyboardTheme.label} size="small" />
+              <ActivityIndicator color={theme.label} size="small" />
             </View>
           ) : launchableApps.length === 0 ? (
             <Text style={styles.emptyAppsText}>No launchable apps found.</Text>
@@ -176,7 +181,7 @@ export function GesturesPanel({
   }
 
   return (
-    <View style={pluginPanelStyles.container}>
+    <View style={panelStyles.container}>
       <PluginScrollView>
         {GESTURE_FEATURES.map((feature, index) => (
           <View
@@ -201,7 +206,7 @@ export function GesturesPanel({
             <Text style={styles.launcherValue} numberOfLines={1}>
               {appsLoading ? '…' : selectedAppLabel}
             </Text>
-            <ArrowIcon width={9} height={16} />
+            <ArrowIcon width={9} height={16} color={theme.iconMuted} />
           </Pressable>
         ) : null}
       </PluginScrollView>
@@ -211,92 +216,94 @@ export function GesturesPanel({
 
 const TOGGLE_ON_COLOR = '#2CC642';
 
-const styles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: PLUGIN_CARD_COLOR,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 10,
-    minHeight: 44,
-  },
-  rowTitle: {
-    flex: 1,
-    color: keyboardTheme.label,
-    fontSize: 16,
-    fontFamily: keyboardTheme.fontFamily,
-    fontWeight: '600',
-  },
-  launcherRow: {
-    borderRadius: PLUGIN_OUTER_RADIUS,
-    marginTop: 2,
-  },
-  launcherTitle: {
-    color: keyboardTheme.label,
-    fontSize: 16,
-    fontFamily: keyboardTheme.fontFamily,
-    fontWeight: '600',
-  },
-  launcherValue: {
-    flex: 1,
-    color: keyboardTheme.spaceLabel,
-    fontSize: 14,
-    fontFamily: keyboardTheme.fontFamily,
-    textAlign: 'right',
-  },
-  pickerBackRow: {
-    paddingHorizontal: 16,
-    paddingTop: 6,
-    paddingBottom: 4,
-  },
-  pickerBackLabel: {
-    color: keyboardTheme.spaceLabel,
-    fontSize: 14,
-    fontFamily: keyboardTheme.fontFamily,
-    fontWeight: '600',
-  },
-  appRowSelected: {
-    backgroundColor: '#474747',
-  },
-  appRowLabelSelected: {
-    fontWeight: '600',
-  },
-  selectedMark: {
-    color: TOGGLE_ON_COLOR,
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  loadingRow: {
-    paddingVertical: 16,
-    alignItems: 'center',
-  },
-  emptyAppsText: {
-    color: keyboardTheme.spaceLabel,
-    fontSize: 14,
-    fontFamily: keyboardTheme.fontFamily,
-    paddingHorizontal: 4,
-    paddingVertical: 8,
-  },
-  toggleTrack: {
-    width: 44,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: keyboardTheme.keyPressed,
-    padding: 2,
-    justifyContent: 'center',
-  },
-  toggleTrackOn: {
-    backgroundColor: TOGGLE_ON_COLOR,
-  },
-  toggleThumb: {
-    width: 22,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: keyboardTheme.label,
-    transform: [{translateX: 0}],
-  },
-  toggleThumbOn: {
-    transform: [{translateX: 18}],
-  },
-});
+function createGesturesStyles(theme: KeyboardTheme) {
+  return StyleSheet.create({
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: theme.pluginCard,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      gap: 10,
+      minHeight: 44,
+    },
+    rowTitle: {
+      flex: 1,
+      color: theme.label,
+      fontSize: 16,
+      fontFamily: theme.fontFamily,
+      fontWeight: '600',
+    },
+    launcherRow: {
+      borderRadius: PLUGIN_OUTER_RADIUS,
+      marginTop: 2,
+    },
+    launcherTitle: {
+      color: theme.label,
+      fontSize: 16,
+      fontFamily: theme.fontFamily,
+      fontWeight: '600',
+    },
+    launcherValue: {
+      flex: 1,
+      color: theme.spaceLabel,
+      fontSize: 14,
+      fontFamily: theme.fontFamily,
+      textAlign: 'right',
+    },
+    pickerBackRow: {
+      paddingHorizontal: 16,
+      paddingTop: 6,
+      paddingBottom: 4,
+    },
+    pickerBackLabel: {
+      color: theme.spaceLabel,
+      fontSize: 14,
+      fontFamily: theme.fontFamily,
+      fontWeight: '600',
+    },
+    appRowSelected: {
+      backgroundColor: theme.pluginCardSecondary,
+    },
+    appRowLabelSelected: {
+      fontWeight: '600',
+    },
+    selectedMark: {
+      color: TOGGLE_ON_COLOR,
+      fontSize: 16,
+      fontWeight: '700',
+    },
+    loadingRow: {
+      paddingVertical: 16,
+      alignItems: 'center',
+    },
+    emptyAppsText: {
+      color: theme.spaceLabel,
+      fontSize: 14,
+      fontFamily: theme.fontFamily,
+      paddingHorizontal: 4,
+      paddingVertical: 8,
+    },
+    toggleTrack: {
+      width: 44,
+      height: 20,
+      borderRadius: 10,
+      backgroundColor: theme.modifierKeyPressed,
+      padding: 2,
+      justifyContent: 'center',
+    },
+    toggleTrackOn: {
+      backgroundColor: TOGGLE_ON_COLOR,
+    },
+    toggleThumb: {
+      width: 22,
+      height: 16,
+      borderRadius: 8,
+      backgroundColor: theme.label,
+      transform: [{translateX: 0}],
+    },
+    toggleThumbOn: {
+      transform: [{translateX: 18}],
+    },
+  });
+}

@@ -66,6 +66,7 @@ class TypeBaseInputService : InputMethodService() {
     super.onWindowShown()
     resumeReactForKeyboard()
     container?.let { mountKeyboardSurface(it) }
+    KeyboardInputBridge.notifyKeyboardShown()
   }
 
   override fun onFinishInputView(finishingInput: Boolean) {
@@ -76,6 +77,7 @@ class TypeBaseInputService : InputMethodService() {
   override fun onWindowHidden() {
     super.onWindowHidden()
     pauseReactForKeyboardIfNeeded()
+    KeyboardInputBridge.notifyKeyboardHidden()
   }
 
   private fun preloadKeyboardRuntime() {

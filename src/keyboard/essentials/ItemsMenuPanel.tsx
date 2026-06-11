@@ -15,15 +15,15 @@ import CalculatorIcon from '../../../assets/plugins/calculator.svg';
 import AutocorrectIcon from '../../../assets/plugins/autocorrect.svg';
 import GesturesIcon from '../../../assets/gesture.svg';
 import {
-  PLUGIN_CARD_COLOR,
   PLUGIN_INNER_RADIUS,
   PLUGIN_OUTER_RADIUS,
   PLUGIN_PANEL_HEIGHT,
   PluginScrollView,
-  pluginPanelStyles,
+  usePluginPanelStyles,
 } from '../components/pluginPanelLayout';
 import {triggerKeyHaptic} from '../haptics';
-import {keyboardTheme} from '../theme';
+import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
+import type {KeyboardTheme} from '../theme';
 
 type ItemsMenuPanelProps = {
   onSelectEssentials: () => void;
@@ -35,12 +35,15 @@ type ItemsMenuPanelProps = {
 
 type PluginTileProps = {
   title: string;
-  Icon: FC<{width?: number; height?: number}>;
+  Icon: FC<{width?: number; height?: number; color?: string}>;
   tileStyle?: StyleProp<ViewStyle>;
   onPress: () => void;
 };
 
 function PluginTile({title, Icon, tileStyle, onPress}: PluginTileProps) {
+  const theme = useKeyboardTheme();
+  const styles = useThemedStyles(createItemsMenuStyles);
+
   return (
     <Pressable
       onPress={() => {
@@ -52,10 +55,10 @@ function PluginTile({title, Icon, tileStyle, onPress}: PluginTileProps) {
         tileStyle,
         pressed && styles.tilePressed,
       ]}>
-      <Icon width={22} height={22} />
+      <Icon width={22} height={22} color={theme.icon} />
       <Text style={styles.tileTitle}>{title}</Text>
       <View style={styles.tileSpacer} />
-      <ArrowIcon width={9} height={16} />
+      <ArrowIcon width={9} height={16} color={theme.iconMuted} />
     </Pressable>
   );
 }
@@ -116,6 +119,9 @@ export function ItemsMenuPanel({
   onSelectAutocorrect,
   onSelectCalculator,
 }: ItemsMenuPanelProps) {
+  const theme = useKeyboardTheme();
+  const panelStyles = usePluginPanelStyles();
+  const styles = useThemedStyles(createItemsMenuStyles);
   const handlers = {
     essentials: onSelectEssentials,
     clipboard: onSelectClipboard,
@@ -125,7 +131,7 @@ export function ItemsMenuPanel({
   };
 
   return (
-    <View style={[pluginPanelStyles.container, styles.container]}>
+    <View style={[panelStyles.container, styles.container]}>
       <PluginScrollView>
         {PLUGINS.map((plugin, index) => (
           <PluginTile
@@ -141,21 +147,13 @@ export function ItemsMenuPanel({
         <Svg width="100%" height="100%" preserveAspectRatio="none">
           <Defs>
             <LinearGradient id="pluginSmoke" x1="0" y1="1" x2="0" y2="0">
-              <Stop
-                offset="0"
-                stopColor={keyboardTheme.container}
-                stopOpacity="1"
-              />
+              <Stop offset="0" stopColor={theme.container} stopOpacity="1" />
               <Stop
                 offset="0.5"
-                stopColor={keyboardTheme.container}
+                stopColor={theme.container}
                 stopOpacity="0.4"
               />
-              <Stop
-                offset="1"
-                stopColor={keyboardTheme.container}
-                stopOpacity="0"
-              />
+              <Stop offset="1" stopColor={theme.container} stopOpacity="0" />
             </LinearGradient>
           </Defs>
           <Rect
@@ -171,36 +169,38 @@ export function ItemsMenuPanel({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    justifyContent: 'flex-start',
-  },
-  tile: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: PLUGIN_CARD_COLOR,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 10,
-    minHeight: 44,
-  },
-  tilePressed: {
-    backgroundColor: keyboardTheme.keyPressed,
-  },
-  tileTitle: {
-    color: keyboardTheme.label,
-    fontSize: 16,
-    fontFamily: keyboardTheme.fontFamily,
-    fontWeight: '600',
-  },
-  tileSpacer: {
-    flex: 1,
-  },
-  fade: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: PLUGIN_FADE_HEIGHT,
-  },
-});
+function createItemsMenuStyles(theme: KeyboardTheme) {
+  return StyleSheet.create({
+    container: {
+      justifyContent: 'flex-start',
+    },
+    tile: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: theme.pluginCard,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      gap: 10,
+      minHeight: 44,
+    },
+    tilePressed: {
+      backgroundColor: theme.letterKeyPressed,
+    },
+    tileTitle: {
+      color: theme.label,
+      fontSize: 16,
+      fontFamily: theme.fontFamily,
+      fontWeight: '600',
+    },
+    tileSpacer: {
+      flex: 1,
+    },
+    fade: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      bottom: 0,
+      height: PLUGIN_FADE_HEIGHT,
+    },
+  });
+}

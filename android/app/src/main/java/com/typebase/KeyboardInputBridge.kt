@@ -12,6 +12,7 @@ object KeyboardInputBridge {
   private var numpadPreferred: Boolean = false
 
   private val prefersNumpadListeners = CopyOnWriteArrayList<(Boolean) -> Unit>()
+  private val keyboardVisibilityListeners = CopyOnWriteArrayList<(Boolean) -> Unit>()
 
   fun prefersNumpad(): Boolean = numpadPreferred
 
@@ -36,6 +37,19 @@ object KeyboardInputBridge {
   fun addPrefersNumpadListener(listener: (Boolean) -> Unit): () -> Unit {
     prefersNumpadListeners.add(listener)
     return { prefersNumpadListeners.remove(listener) }
+  }
+
+  fun notifyKeyboardShown() {
+    keyboardVisibilityListeners.forEach { listener -> listener(true) }
+  }
+
+  fun notifyKeyboardHidden() {
+    keyboardVisibilityListeners.forEach { listener -> listener(false) }
+  }
+
+  fun addKeyboardVisibilityListener(listener: (Boolean) -> Unit): () -> Unit {
+    keyboardVisibilityListeners.add(listener)
+    return { keyboardVisibilityListeners.remove(listener) }
   }
 
   fun shouldPreferNumpad(info: EditorInfo?): Boolean {

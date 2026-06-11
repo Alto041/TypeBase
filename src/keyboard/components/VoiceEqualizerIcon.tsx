@@ -1,7 +1,7 @@
 import React, {useEffect, useRef} from 'react';
 import {Animated, Easing, StyleSheet, View} from 'react-native';
 import GraphicEqIcon from '../../../assets/graphic_eq.svg';
-import {keyboardTheme} from '../theme';
+import {useKeyboardTheme} from '../KeyboardThemeContext';
 
 const BAR_WIDTH = 2.4;
 const BAR_GAP = 2;
@@ -26,8 +26,10 @@ type VoiceEqualizerIconProps = {
 export function VoiceEqualizerIcon({
   active,
   size = 22,
-  color = keyboardTheme.suggestionDivider,
+  color: colorProp,
 }: VoiceEqualizerIconProps) {
+  const theme = useKeyboardTheme();
+  const color = colorProp ?? theme.icon;
   const anims = useRef(BARS.map(bar => new Animated.Value(bar.min))).current;
 
   useEffect(() => {

@@ -11,11 +11,11 @@ import {
   type ViewStyle,
 } from 'react-native';
 import DeleteIcon from '../../../assets/delete.svg';
+import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
 import {triggerKeyHaptic} from '../haptics';
-import {keyboardTheme} from '../theme';
+import type {KeyboardTheme} from '../theme';
 import type {Essential} from './types';
 
-const CARD_COLOR = '#353535';
 const ACTION_WIDTH = 72;
 
 type EssentialsSwipeRowProps = {
@@ -31,6 +31,8 @@ export function EssentialsSwipeRow({
   onSelect,
   onDelete,
 }: EssentialsSwipeRowProps) {
+  const theme = useKeyboardTheme();
+  const styles = useThemedStyles(createEssentialsSwipeStyles);
   const translateX = useRef(new Animated.Value(0)).current;
   const opacity = useRef(new Animated.Value(1)).current;
   const rowHeight = useRef(new Animated.Value(0)).current;
@@ -174,7 +176,7 @@ export function EssentialsSwipeRow({
             </Text>
           </Pressable>
           <View style={styles.deleteAction}>
-            <DeleteIcon width={24} height={24} />
+            <DeleteIcon width={24} height={24} color={theme.iconOnEnter} />
           </View>
         </Animated.View>
       ) : null}
@@ -182,41 +184,43 @@ export function EssentialsSwipeRow({
   );
 }
 
-const styles = StyleSheet.create({
-  rowOuter: {
-    overflow: 'hidden',
-  },
-  slidingRow: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
-  },
-  card: {
-    backgroundColor: CARD_COLOR,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    minHeight: 44,
-    justifyContent: 'center',
-    gap: 2,
-  },
-  cardPressed: {
-    backgroundColor: keyboardTheme.keyPressed,
-  },
-  keyword: {
-    color: keyboardTheme.label,
-    fontSize: 15,
-    fontFamily: keyboardTheme.fontFamily,
-    fontWeight: '600',
-  },
-  value: {
-    color: keyboardTheme.spaceLabel,
-    fontSize: 13,
-    fontFamily: keyboardTheme.fontFamily,
-    lineHeight: 18,
-  },
-  deleteAction: {
-    width: ACTION_WIDTH,
-    backgroundColor: keyboardTheme.enter,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
+function createEssentialsSwipeStyles(theme: KeyboardTheme) {
+  return StyleSheet.create({
+    rowOuter: {
+      overflow: 'hidden',
+    },
+    slidingRow: {
+      flexDirection: 'row',
+      alignItems: 'stretch',
+    },
+    card: {
+      backgroundColor: theme.pluginCard,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      minHeight: 44,
+      justifyContent: 'center',
+      gap: 2,
+    },
+    cardPressed: {
+      backgroundColor: theme.letterKeyPressed,
+    },
+    keyword: {
+      color: theme.label,
+      fontSize: 15,
+      fontFamily: theme.fontFamily,
+      fontWeight: '600',
+    },
+    value: {
+      color: theme.spaceLabel,
+      fontSize: 13,
+      fontFamily: theme.fontFamily,
+      lineHeight: 18,
+    },
+    deleteAction: {
+      width: ACTION_WIDTH,
+      backgroundColor: theme.enter,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+  });
+}

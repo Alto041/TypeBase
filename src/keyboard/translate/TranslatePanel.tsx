@@ -9,13 +9,13 @@ import {
 } from 'react-native';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import {
-  PLUGIN_CARD_COLOR,
   PLUGIN_PANEL_HEIGHT,
-  pluginPanelStyles,
+  usePluginPanelStyles,
 } from '../components/pluginPanelLayout';
+import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
 import {triggerKeyHaptic} from '../haptics';
 import {keyboardBridge} from '../keyboardBridge';
-import {keyboardTheme} from '../theme';
+import type {KeyboardTheme} from '../theme';
 import {translateText} from './geminiTranslateService';
 import {
   DEFAULT_TARGET_LANGUAGE,
@@ -147,9 +147,12 @@ export function TranslatePanel({onResultChange}: TranslatePanelProps) {
   }, [translation]);
 
   const hasResult = Boolean(translation);
+  const theme = useKeyboardTheme();
+  const panelStyles = usePluginPanelStyles();
+  const styles = useThemedStyles(createTranslateStyles);
 
   return (
-    <View style={pluginPanelStyles.container}>
+    <View style={panelStyles.container}>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
@@ -204,7 +207,7 @@ export function TranslatePanel({onResultChange}: TranslatePanelProps) {
               </Text>
             )}
             {loading ? (
-              <ActivityIndicator color={keyboardTheme.label} size="small" />
+              <ActivityIndicator color={theme.label} size="small" />
             ) : (
               <Text style={styles.refreshHint}>↻</Text>
             )}
@@ -258,17 +261,17 @@ export function TranslatePanel({onResultChange}: TranslatePanelProps) {
             <LinearGradient id="translateSmoke" x1="0" y1="1" x2="0" y2="0">
               <Stop
                 offset="0"
-                stopColor={keyboardTheme.container}
+                stopColor={theme.container}
                 stopOpacity="1"
               />
               <Stop
                 offset="0.5"
-                stopColor={keyboardTheme.container}
+                stopColor={theme.container}
                 stopOpacity="0.4"
               />
               <Stop
                 offset="1"
-                stopColor={keyboardTheme.container}
+                stopColor={theme.container}
                 stopOpacity="0"
               />
             </LinearGradient>
@@ -286,141 +289,143 @@ export function TranslatePanel({onResultChange}: TranslatePanelProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  scroll: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: 12,
-    paddingTop: 6,
-    paddingBottom: FADE_HEIGHT + 12,
-    gap: 8,
-  },
-  languageRowContent: {
-    gap: 6,
-    paddingRight: 4,
-  },
-  languageChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    backgroundColor: PLUGIN_CARD_COLOR,
-  },
-  languageChipSelected: {
-    backgroundColor: keyboardTheme.label,
-  },
-  languageChipText: {
-    color: keyboardTheme.spaceLabel,
-    fontSize: 13,
-    fontFamily: keyboardTheme.fontFamily,
-    fontWeight: '600',
-  },
-  languageChipTextSelected: {
-    color: '#1F1F1F',
-  },
-  sourceCard: {
-    minHeight: 44,
-    borderRadius: 10,
-    backgroundColor: PLUGIN_CARD_COLOR,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    justifyContent: 'center',
-  },
-  sourceRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  sourceText: {
-    flex: 1,
-    color: keyboardTheme.spaceLabel,
-    fontSize: 14,
-    fontFamily: keyboardTheme.fontFamily,
-    lineHeight: 19,
-  },
-  refreshHint: {
-    color: keyboardTheme.spaceLabel,
-    fontSize: 16,
-    fontFamily: keyboardTheme.fontFamily,
-    fontWeight: '600',
-  },
-  resultCard: {
-    borderRadius: 10,
-    backgroundColor: PLUGIN_CARD_COLOR,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 6,
-  },
-  resultHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
-  },
-  detectedHint: {
-    flex: 1,
-    color: keyboardTheme.spaceLabel,
-    fontSize: 11,
-    fontFamily: keyboardTheme.fontFamily,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-  },
-  resultActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  actionPrimary: {
-    color: keyboardTheme.label,
-    fontSize: 13,
-    fontFamily: keyboardTheme.fontFamily,
-    fontWeight: '600',
-  },
-  actionSecondary: {
-    color: keyboardTheme.spaceLabel,
-    fontSize: 13,
-    fontFamily: keyboardTheme.fontFamily,
-    fontWeight: '500',
-  },
-  actionSep: {
-    color: keyboardTheme.suggestionDivider,
-    fontSize: 13,
-    lineHeight: 13,
-  },
-  actionPressed: {
-    opacity: 0.65,
-  },
-  actionDisabled: {
-    opacity: 0.35,
-  },
-  resultText: {
-    color: keyboardTheme.label,
-    fontSize: 16,
-    fontFamily: keyboardTheme.fontFamily,
-    fontWeight: '600',
-    lineHeight: 22,
-  },
-  placeholder: {
-    color: keyboardTheme.spaceLabel,
-    fontSize: 13,
-    fontFamily: keyboardTheme.fontFamily,
-    lineHeight: 18,
-  },
-  errorText: {
-    color: '#FF8A8A',
-    fontSize: 13,
-    fontFamily: keyboardTheme.fontFamily,
-    lineHeight: 18,
-  },
-  pressed: {
-    opacity: 0.85,
-  },
-  fade: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: FADE_HEIGHT,
-  },
-});
+function createTranslateStyles(theme: KeyboardTheme) {
+  return StyleSheet.create({
+    scroll: {
+      flex: 1,
+    },
+    scrollContent: {
+      paddingHorizontal: 12,
+      paddingTop: 6,
+      paddingBottom: FADE_HEIGHT + 12,
+      gap: 8,
+    },
+    languageRowContent: {
+      gap: 6,
+      paddingRight: 4,
+    },
+    languageChip: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 16,
+      backgroundColor: theme.pluginCard,
+    },
+    languageChipSelected: {
+      backgroundColor: theme.chipSelectedBackground,
+    },
+    languageChipText: {
+      color: theme.spaceLabel,
+      fontSize: 13,
+      fontFamily: theme.fontFamily,
+      fontWeight: '600',
+    },
+    languageChipTextSelected: {
+      color: theme.chipSelectedText,
+    },
+    sourceCard: {
+      minHeight: 44,
+      borderRadius: 10,
+      backgroundColor: theme.pluginCard,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      justifyContent: 'center',
+    },
+    sourceRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    sourceText: {
+      flex: 1,
+      color: theme.spaceLabel,
+      fontSize: 14,
+      fontFamily: theme.fontFamily,
+      lineHeight: 19,
+    },
+    refreshHint: {
+      color: theme.spaceLabel,
+      fontSize: 16,
+      fontFamily: theme.fontFamily,
+      fontWeight: '600',
+    },
+    resultCard: {
+      borderRadius: 10,
+      backgroundColor: theme.pluginCard,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      gap: 6,
+    },
+    resultHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 8,
+    },
+    detectedHint: {
+      flex: 1,
+      color: theme.spaceLabel,
+      fontSize: 11,
+      fontFamily: theme.fontFamily,
+      fontWeight: '600',
+      textTransform: 'uppercase',
+      letterSpacing: 0.4,
+    },
+    resultActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    actionPrimary: {
+      color: theme.label,
+      fontSize: 13,
+      fontFamily: theme.fontFamily,
+      fontWeight: '600',
+    },
+    actionSecondary: {
+      color: theme.spaceLabel,
+      fontSize: 13,
+      fontFamily: theme.fontFamily,
+      fontWeight: '500',
+    },
+    actionSep: {
+      color: theme.suggestionDivider,
+      fontSize: 13,
+      lineHeight: 13,
+    },
+    actionPressed: {
+      opacity: 0.65,
+    },
+    actionDisabled: {
+      opacity: 0.35,
+    },
+    resultText: {
+      color: theme.label,
+      fontSize: 16,
+      fontFamily: theme.fontFamily,
+      fontWeight: '600',
+      lineHeight: 22,
+    },
+    placeholder: {
+      color: theme.spaceLabel,
+      fontSize: 13,
+      fontFamily: theme.fontFamily,
+      lineHeight: 18,
+    },
+    errorText: {
+      color: '#FF8A8A',
+      fontSize: 13,
+      fontFamily: theme.fontFamily,
+      lineHeight: 18,
+    },
+    pressed: {
+      opacity: 0.85,
+    },
+    fade: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      bottom: 0,
+      height: FADE_HEIGHT,
+    },
+  });
+}

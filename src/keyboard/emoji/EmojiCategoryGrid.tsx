@@ -8,8 +8,9 @@ import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from 'react-native';
+import {useThemedStyles} from '../KeyboardThemeContext';
 import {triggerKeyHaptic} from '../haptics';
-import {keyboardTheme} from '../theme';
+import type {KeyboardTheme} from '../theme';
 import {
   EMOJI_COLUMNS,
   type EmojiCategoryId,
@@ -24,16 +25,13 @@ type EmojiCategoryGridProps = {
   onSelect: (emoji: string) => void;
 };
 
-const emojiScrollHeight =
-  keyboardTheme.emojiPanelHeight - keyboardTheme.emojiPanelGap;
-const EMOJI_ROW_HEIGHT = Math.floor(emojiScrollHeight / 4);
-
 export function EmojiCategoryGrid({
   category,
   width,
   selectionLockedRef,
   onSelect,
 }: EmojiCategoryGridProps) {
+  const styles = useThemedStyles(createEmojiCategoryGridStyles);
   const isVerticalScrollingRef = useRef(false);
   const rows = useMemo(
     () => chunkEmojis(getEmojisForCategory(category), EMOJI_COLUMNS),
@@ -105,32 +103,37 @@ export function EmojiCategoryGrid({
   );
 }
 
-const styles = StyleSheet.create({
-  scroll: {
-    height: emojiScrollHeight,
-  },
-  content: {
-    paddingHorizontal: 6,
-    paddingTop: 2,
-    gap: 2,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    height: EMOJI_ROW_HEIGHT,
-  },
-  cell: {
-    flex: 1,
-    height: EMOJI_ROW_HEIGHT,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 6,
-  },
-  cellPressed: {
-    backgroundColor: keyboardTheme.keyPressed,
-  },
-  emoji: {
-    fontSize: 22,
-    lineHeight: EMOJI_ROW_HEIGHT,
-  },
-});
+function createEmojiCategoryGridStyles(theme: KeyboardTheme) {
+  const emojiScrollHeight = theme.emojiPanelHeight - theme.emojiPanelGap;
+  const emojiRowHeight = Math.floor(emojiScrollHeight / 4);
+
+  return StyleSheet.create({
+    scroll: {
+      height: emojiScrollHeight,
+    },
+    content: {
+      paddingHorizontal: 6,
+      paddingTop: 2,
+      gap: 2,
+    },
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      height: emojiRowHeight,
+    },
+    cell: {
+      flex: 1,
+      height: emojiRowHeight,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 6,
+    },
+    cellPressed: {
+      backgroundColor: theme.letterKeyPressed,
+    },
+    emoji: {
+      fontSize: 22,
+      lineHeight: emojiRowHeight,
+    },
+  });
+}

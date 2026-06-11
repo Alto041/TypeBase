@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
   NativeScrollEvent,
   NativeSyntheticEvent,
@@ -7,7 +7,8 @@ import {
   View,
 } from 'react-native';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
-import {keyboardTheme} from '../theme';
+import {useKeyboardTheme} from '../KeyboardThemeContext';
+import type {KeyboardTheme} from '../theme';
 import {EmojiCategoryGrid} from './EmojiCategoryGrid';
 import {EMOJI_CATEGORIES, type EmojiCategoryId} from './emojis';
 
@@ -17,15 +18,18 @@ type EmojiPanelProps = {
   onSelect: (emoji: string) => void;
 };
 
-const emojiScrollHeight =
-  keyboardTheme.emojiPanelHeight - keyboardTheme.emojiPanelGap;
-const EMOJI_FADE_HEIGHT = Math.round(emojiScrollHeight * 0.52);
-
 export function EmojiPanel({
   category,
   onCategoryChange,
   onSelect,
 }: EmojiPanelProps) {
+  const theme = useKeyboardTheme();
+  const emojiScrollHeight = theme.emojiPanelHeight - theme.emojiPanelGap;
+  const emojiFadeHeight = Math.round(emojiScrollHeight * 0.52);
+  const styles = useMemo(
+    () => createEmojiPanelStyles(theme, emojiScrollHeight, emojiFadeHeight),
+    [theme, emojiScrollHeight, emojiFadeHeight],
+  );
   const pagerRef = useRef<ScrollView>(null);
   const [panelWidth, setPanelWidth] = useState(0);
   const isDraggingPager = useRef(false);
@@ -128,17 +132,17 @@ export function EmojiPanel({
             <LinearGradient id="emojiSmoke" x1="0" y1="1" x2="0" y2="0">
               <Stop
                 offset="0"
-                stopColor={keyboardTheme.container}
+                stopColor={theme.container}
                 stopOpacity="1"
               />
               <Stop
                 offset="0.5"
-                stopColor={keyboardTheme.container}
+                stopColor={theme.container}
                 stopOpacity="0.4"
               />
               <Stop
                 offset="1"
-                stopColor={keyboardTheme.container}
+                stopColor={theme.container}
                 stopOpacity="0"
               />
             </LinearGradient>
@@ -156,23 +160,29 @@ export function EmojiPanel({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    height: emojiScrollHeight,
-    marginBottom: keyboardTheme.emojiPanelGap,
-    overflow: 'hidden',
-  },
-  pager: {
-    flex: 1,
-  },
-  pagerContent: {
-    alignItems: 'flex-start',
-  },
-  fade: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: EMOJI_FADE_HEIGHT,
-  },
-});
+function createEmojiPanelStyles(
+  theme: KeyboardTheme,
+  emojiScrollHeight: number,
+  emojiFadeHeight: number,
+) {
+  return StyleSheet.create({
+    container: {
+      height: emojiScrollHeight,
+      marginBottom: theme.emojiPanelGap,
+      overflow: 'hidden',
+    },
+    pager: {
+      flex: 1,
+    },
+    pagerContent: {
+      alignItems: 'flex-start',
+    },
+    fade: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      bottom: 0,
+      height: emojiFadeHeight,
+    },
+  });
+}

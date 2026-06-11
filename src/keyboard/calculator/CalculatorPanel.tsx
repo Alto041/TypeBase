@@ -1,11 +1,9 @@
 import React, {useCallback, useMemo, useState} from 'react';
 import {Pressable, StyleSheet, Text, View} from 'react-native';
-import {
-  PLUGIN_CARD_COLOR,
-  pluginPanelStyles,
-} from '../components/pluginPanelLayout';
+import {usePluginPanelStyles} from '../components/pluginPanelLayout';
+import {useThemedStyles} from '../KeyboardThemeContext';
 import {triggerKeyHaptic} from '../haptics';
-import {keyboardTheme} from '../theme';
+import type {KeyboardTheme} from '../theme';
 import {
   applyPercent,
   evaluateExpression,
@@ -159,8 +157,11 @@ export function CalculatorPanel({onInsert, onDisplayChange}: CalculatorPanelProp
     return display;
   }, [display]);
 
+  const panelStyles = usePluginPanelStyles();
+  const styles = useThemedStyles(createCalculatorStyles);
+
   return (
-    <View style={pluginPanelStyles.container}>
+    <View style={panelStyles.container}>
       <Pressable
         onPress={handleDisplayPress}
         style={({pressed}) => [
@@ -202,64 +203,66 @@ export function CalculatorPanel({onInsert, onDisplayChange}: CalculatorPanelProp
   );
 }
 
-const styles = StyleSheet.create({
-  display: {
-    marginHorizontal: 12,
-    marginTop: 4,
-    marginBottom: 4,
-    minHeight: 36,
-    borderRadius: 8,
-    backgroundColor: PLUGIN_CARD_COLOR,
-    justifyContent: 'center',
-    paddingHorizontal: 12,
-  },
-  displayPressed: {
-    backgroundColor: keyboardTheme.keyPressed,
-  },
-  displayText: {
-    color: keyboardTheme.label,
-    fontSize: 24,
-    fontFamily: keyboardTheme.fontFamily,
-    fontWeight: '600',
-    textAlign: 'right',
-  },
-  keypad: {
-    flex: 1,
-    paddingHorizontal: 12,
-    paddingBottom: 4,
-    gap: 4,
-  },
-  row: {
-    flex: 1,
-    flexDirection: 'row',
-    gap: 4,
-  },
-  key: {
-    minHeight: 28,
-    borderRadius: 6,
-    backgroundColor: PLUGIN_CARD_COLOR,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  keyDefault: {
-    flex: 1,
-  },
-  keyAction: {
-    backgroundColor: '#474747',
-  },
-  keyAccent: {
-    backgroundColor: keyboardTheme.enter,
-  },
-  keyPressed: {
-    backgroundColor: keyboardTheme.keyPressed,
-  },
-  keyLabel: {
-    color: keyboardTheme.label,
-    fontSize: 18,
-    fontFamily: keyboardTheme.fontFamily,
-    fontWeight: '600',
-  },
-  keyLabelAccent: {
-    color: keyboardTheme.label,
-  },
-});
+function createCalculatorStyles(theme: KeyboardTheme) {
+  return StyleSheet.create({
+    display: {
+      marginHorizontal: 12,
+      marginTop: 4,
+      marginBottom: 4,
+      minHeight: 36,
+      borderRadius: 8,
+      backgroundColor: theme.pluginCard,
+      justifyContent: 'center',
+      paddingHorizontal: 12,
+    },
+    displayPressed: {
+      backgroundColor: theme.letterKeyPressed,
+    },
+    displayText: {
+      color: theme.label,
+      fontSize: 24,
+      fontFamily: theme.fontFamily,
+      fontWeight: '600',
+      textAlign: 'right',
+    },
+    keypad: {
+      flex: 1,
+      paddingHorizontal: 12,
+      paddingBottom: 4,
+      gap: 4,
+    },
+    row: {
+      flex: 1,
+      flexDirection: 'row',
+      gap: 4,
+    },
+    key: {
+      minHeight: 28,
+      borderRadius: 6,
+      backgroundColor: theme.pluginCard,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    keyDefault: {
+      flex: 1,
+    },
+    keyAction: {
+      backgroundColor: theme.pluginCardSecondary,
+    },
+    keyAccent: {
+      backgroundColor: theme.enter,
+    },
+    keyPressed: {
+      backgroundColor: theme.letterKeyPressed,
+    },
+    keyLabel: {
+      color: theme.label,
+      fontSize: 18,
+      fontFamily: theme.fontFamily,
+      fontWeight: '600',
+    },
+    keyLabelAccent: {
+      color: theme.iconOnEnter,
+    },
+  });
+}

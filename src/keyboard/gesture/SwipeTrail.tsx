@@ -1,7 +1,7 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {Animated, PixelRatio, StyleSheet} from 'react-native';
 import Svg, {Path} from 'react-native-svg';
-import {keyboardTheme} from '../theme';
+import {useKeyboardTheme} from '../KeyboardThemeContext';
 import {buildFadingTrailSegments} from './swipeTrailPath';
 import type {TrailPoint} from './types';
 

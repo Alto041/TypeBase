@@ -22,6 +22,14 @@ export type KeyDefinition = {
   width?: number;
 };
 
+/** Gboard-style ASDF row inset: half a key width on each side via flex spacers. */
+const ASDF_ROW_STAGGER_FLEX = 0.5;
+/** Shift, backspace, and row-3 mode keys (=\\<, ?123 on symbols row). */
+const SIDE_KEY_FLEX = 1.5;
+/** Bottom-row ?123 / ABC and enter — kept narrower than shift/backspace. */
+const BOTTOM_ROW_EDGE_FLEX = 1.15;
+const BOTTOM_ROW_SPACE_FLEX = 3.5;
+
 export const QWERTY_ROWS: KeyDefinition[][] = [
   [
     {id: 'q', label: 'q', value: 'q'},
@@ -36,6 +44,7 @@ export const QWERTY_ROWS: KeyDefinition[][] = [
     {id: 'p', label: 'p', value: 'p'},
   ],
   [
+    {id: 'asdf-stagger-start', type: 'spacer', flex: ASDF_ROW_STAGGER_FLEX},
     {id: 'a', label: 'a', value: 'a'},
     {id: 's', label: 's', value: 's'},
     {id: 'd', label: 'd', value: 'd'},
@@ -45,9 +54,10 @@ export const QWERTY_ROWS: KeyDefinition[][] = [
     {id: 'j', label: 'j', value: 'j'},
     {id: 'k', label: 'k', value: 'k'},
     {id: 'l', label: 'l', value: 'l'},
+    {id: 'asdf-stagger-end', type: 'spacer', flex: ASDF_ROW_STAGGER_FLEX},
   ],
   [
-    {id: 'shift', label: '⇧', type: 'shift', flex: 1.4},
+    {id: 'shift', label: '⇧', type: 'shift', flex: SIDE_KEY_FLEX},
     {id: 'z', label: 'z', value: 'z'},
     {id: 'x', label: 'x', value: 'x'},
     {id: 'c', label: 'c', value: 'c'},
@@ -55,14 +65,14 @@ export const QWERTY_ROWS: KeyDefinition[][] = [
     {id: 'b', label: 'b', value: 'b'},
     {id: 'n', label: 'n', value: 'n'},
     {id: 'm', label: 'm', value: 'm'},
-    {id: 'backspace', label: '⌫', type: 'backspace', flex: 1.4},
+    {id: 'backspace', label: '⌫', type: 'backspace', flex: SIDE_KEY_FLEX},
   ],
   [
-    {id: 'numbers', label: '?123', type: 'numbers', flex: 1.2},
+    {id: 'numbers', label: '?123', type: 'numbers', flex: BOTTOM_ROW_EDGE_FLEX},
     {id: 'comma', label: ',', value: ','},
-    {id: 'space', label: 'space', type: 'space', flex: 4},
+    {id: 'space', label: 'space', type: 'space', flex: BOTTOM_ROW_SPACE_FLEX},
     {id: 'period', label: '.', value: '.'},
-    {id: 'enter', label: '↵', type: 'enter', flex: 1.2},
+    {id: 'enter', label: '↵', type: 'enter', flex: BOTTOM_ROW_EDGE_FLEX},
   ],
 ];
 
@@ -92,7 +102,7 @@ export const NUMBER_ROWS: KeyDefinition[][] = [
     {id: 'slash', label: '/', value: '/'},
   ],
   [
-    {id: 'symbols', label: '=\\<', type: 'symbols', flex: 1.4},
+    {id: 'symbols', label: '=\\<', type: 'symbols', flex: SIDE_KEY_FLEX},
     {id: 'star', label: '*', value: '*'},
     {id: 'quote', label: '"', value: '"'},
     {id: 'single_quote', label: "'", value: "'"},
@@ -100,14 +110,14 @@ export const NUMBER_ROWS: KeyDefinition[][] = [
     {id: 'semicolon', label: ';', value: ';'},
     {id: 'exclamation', label: '!', value: '!'},
     {id: 'question', label: '?', value: '?'},
-    {id: 'backspace', label: '⌫', type: 'backspace', flex: 1.4},
+    {id: 'backspace', label: '⌫', type: 'backspace', flex: SIDE_KEY_FLEX},
   ],
   [
-    {id: 'abc', label: 'ABC', type: 'numbers', flex: 1.2},
+    {id: 'abc', label: 'ABC', type: 'numbers', flex: BOTTOM_ROW_EDGE_FLEX},
     {id: 'comma', label: ',', value: ','},
-    {id: 'space', label: 'space', type: 'space', flex: 4},
+    {id: 'space', label: 'space', type: 'space', flex: BOTTOM_ROW_SPACE_FLEX},
     {id: 'period', label: '.', value: '.'},
-    {id: 'enter', label: '↵', type: 'enter', flex: 1.2},
+    {id: 'enter', label: '↵', type: 'enter', flex: BOTTOM_ROW_EDGE_FLEX},
   ],
 ];
 
@@ -137,20 +147,20 @@ export const SYMBOL_ROWS: KeyDefinition[][] = [
     {id: 'backslash', label: '\\', value: '\\'},
   ],
   [
-    {id: 'numbers', label: '?123', type: 'numbers', flex: 1.4},
+    {id: 'numbers', label: '?123', type: 'numbers', flex: SIDE_KEY_FLEX},
     {id: 'underscore', label: '_', value: '_'},
     {id: 'open_bracket', label: '[', value: '['},
     {id: 'close_bracket', label: ']', value: ']'},
     {id: 'less', label: '<', value: '<'},
     {id: 'greater', label: '>', value: '>'},
-    {id: 'backspace', label: '⌫', type: 'backspace', flex: 2.8},
+    {id: 'backspace', label: '⌫', type: 'backspace', flex: SIDE_KEY_FLEX},
   ],
   [
-    {id: 'abc', label: 'ABC', type: 'numbers', flex: 1.2},
+    {id: 'abc', label: 'ABC', type: 'numbers', flex: BOTTOM_ROW_EDGE_FLEX},
     {id: 'comma', label: ',', value: ','},
-    {id: 'space', label: 'space', type: 'space', flex: 4},
+    {id: 'space', label: 'space', type: 'space', flex: BOTTOM_ROW_SPACE_FLEX},
     {id: 'period', label: '.', value: '.'},
-    {id: 'enter', label: '↵', type: 'enter', flex: 1.2},
+    {id: 'enter', label: '↵', type: 'enter', flex: BOTTOM_ROW_EDGE_FLEX},
   ],
 ];
 

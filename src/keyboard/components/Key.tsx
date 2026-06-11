@@ -1,7 +1,8 @@
-import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import React, {memo, useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
   PanResponder,
   PixelRatio,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -24,12 +25,12 @@ import {
   shouldDeferSwipeTypingLetterTap,
 } from '../gesture/gestureState';
 import {triggerKeyHaptic} from '../haptics';
+import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
 import {keyboardBridge} from '../keyboardBridge';
 import type {KeyDefinition} from '../layouts/qwerty';
-import {keyboardTheme} from '../theme';
+import type {KeyboardTheme} from '../theme';
 
 const KEY_BORDER_RADIUS = 6;
-const KEY_PRESS_SCALE = 0.96;
 const BACKSPACE_HOLD_DELAY_MS = 280;
 const BACKSPACE_SENTENCE_ESCALATE_MS = 700;
 const BACKSPACE_SWIPE_ACTIVATE_PX = 10;
@@ -83,17 +84,20 @@ type KeyProps = {
   style?: StyleProp<ViewStyle>;
 };
 
-export function Key({
+function KeyComponent({
   keyDef,
   isUppercase,
   isShiftOn,
   isCapsLocked,
   onPress,
   keyGestures,
-  keyHeight = keyboardTheme.keyHeight,
+  keyHeight: keyHeightProp,
   variant,
   style,
 }: KeyProps) {
+  const theme = useKeyboardTheme();
+  const styles = useThemedStyles(createKeyStyles);
+  const keyHeight = keyHeightProp ?? theme.keyHeight;
   const layoutContext = useKeyLayoutContext();
   const keyRef = useRef<View>(null);
   const backspaceHoldDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -302,31 +306,39 @@ export function Key({
   const showRewrite = Boolean(
     isRewriteGesture && keyGestures?.periodRewriteActive,
   );
+  const isModifierKey =
+    isShift ||
+    isBackspace ||
+    isSpecial ||
+    keyDef.type === 'space' ||
+    isNumpadActionKey ||
+    showLauncher;
+  const keyIconColor = isEnterAction ? theme.iconOnEnter : theme.icon;
 
   const keyContent = isEnterBackspace ? (
-    <BackspaceIcon width={24} height={16} />
+    <BackspaceIcon width={24} height={16} color={keyIconColor} />
   ) : isEnterAction ? (
-    <EnterIcon width={20} height={20} />
+    <EnterIcon width={20} height={20} color={keyIconColor} />
   ) : isNumbersIcon ? (
-    <NumbersIcon width={26} height={14} />
+    <NumbersIcon width={26} height={14} color={keyIconColor} />
   ) : isSymbolsIcon ? (
-    <SymbolsIcon width={22} height={22} />
+    <SymbolsIcon width={22} height={22} color={keyIconColor} />
   ) : isShift ? (
     <View
       style={[
         styles.shiftIconContainer,
         {transform: [{scaleY: isUppercase ? -1 : 1}]},
       ]}>
-      <ShiftArrowIcon width={16} height={12} />
+      <ShiftArrowIcon width={16} height={12} color={keyIconColor} />
     </View>
   ) : isNumpadBack ? (
-    <BackKeyIcon width={22} height={22} />
+    <BackKeyIcon width={22} height={22} color={keyIconColor} />
   ) : isBackspace ? (
-    <BackspaceIcon width={24} height={16} />
+    <BackspaceIcon width={24} height={16} color={keyIconColor} />
   ) : showLauncher ? (
-    <RocketLaunchIcon width={20} height={20} />
+    <RocketLaunchIcon width={20} height={20} color={keyIconColor} />
   ) : showRewrite ? (
-    <ArtificialIcon width={18} height={17} />
+    <ArtificialIcon width={18} height={17} color={keyIconColor} />
   ) : (
     <Text
       style={[
@@ -341,16 +353,39 @@ export function Key({
   const borderRadius = isEnterKey ? keyHeight / 2 : KEY_BORDER_RADIUS;
 
   const handlePressIn = useCallback(() => {
+    triggerKeyHaptic();
     if (isSwipeTypingLetter) {
       if (shouldBlockSwipeTypingKeyInput()) {
         return;
       }
-      triggerKeyHaptic();
       return;
     }
     onPress(keyDef);
-    triggerKeyHaptic();
   }, [isSwipeTypingLetter, keyDef, onPress]);
+
+  const pressedKeyStyle = useCallback(
+    (pressed: boolean): ViewStyle | false => {
+      if (!pressed || isShift || showLauncher || showRewrite) {
+        return false;
+      }
+      if (isEnterAction || isEnterBackspace) {
+        return styles.enterKeyPressed;
+      }
+      if (isModifierKey || isNumpadActionKey) {
+        return styles.modifierKeyPressed;
+      }
+      return styles.letterKeyPressed;
+    },
+    [
+      isEnterAction,
+      isEnterBackspace,
+      isModifierKey,
+      isNumpadActionKey,
+      isShift,
+      showLauncher,
+      showRewrite,
+    ],
+  );
 
   const finishBackspaceHold = useCallback(() => {
     if (!backspaceTouchActiveRef.current) {
@@ -629,14 +664,18 @@ export function Key({
           style={[
             styles.key,
             {borderRadius, minHeight: keyHeight},
-            isNumpadActionKey && styles.numpadActionKey,
+            isModifierKey && styles.modifierKey,
             (isEnterAction || isEnterBackspace) && styles.enterKey,
-            isBackspaceHeld && styles.keyPressedBounce,
+            isBackspaceHeld && styles.modifierKeyPressed,
           ]}>
           {keyContent}
         </View>
       ) : (
         <Pressable
+          unstable_pressDelay={0}
+          android_ripple={
+            Platform.OS === 'android' ? {color: theme.keyRipple} : undefined
+          }
           pressRetentionOffset={KEY_PRESS_RETENTION}
           hitSlop={isTextKey ? KEY_HIT_SLOP : undefined}
           onPress={
@@ -669,20 +708,13 @@ export function Key({
           style={({pressed}) => [
             styles.key,
             {borderRadius, minHeight: keyHeight},
-            showLauncher && styles.launcherKey,
             showRewrite && styles.rewriteKey,
             isShift && styles.shiftKey,
-            isSpecial && styles.specialKey,
-            keyDef.type === 'space' && styles.spaceKey,
-            isNumpadActionKey && styles.numpadActionKey,
+            isModifierKey && styles.modifierKey,
             isShift && isShiftOn && !isCapsLocked && styles.shiftKeyActive,
             isShift && isCapsLocked && styles.shiftKeyLocked,
             (isEnterAction || isEnterBackspace) && styles.enterKey,
-            pressed &&
-              !isShift &&
-              !showLauncher &&
-              !showRewrite &&
-              styles.keyPressedBounce,
+            pressedKeyStyle(pressed),
           ]}>
           {keyContent}
         </Pressable>
@@ -703,7 +735,9 @@ type KeyboardRowProps = {
   rowStyle?: StyleProp<ViewStyle>;
 };
 
-export function KeyboardRow({
+export const Key = memo(KeyComponent);
+
+function KeyboardRowComponent({
   keys,
   isUppercase,
   isShiftOn,
@@ -714,6 +748,8 @@ export function KeyboardRow({
   variant,
   rowStyle,
 }: KeyboardRowProps) {
+  const styles = useThemedStyles(createKeyStyles);
+
   return (
     <View style={[styles.row, rowStyle]}>
       {keys.map(keyDef =>
@@ -738,73 +774,74 @@ export function KeyboardRow({
   );
 }
 
-const styles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    gap: keyboardTheme.keyGap,
-    marginBottom: keyboardTheme.keyRowMargin,
-    paddingHorizontal: keyboardTheme.keyRowPaddingHorizontal,
-    alignItems: 'stretch',
-  },
-  key: {
-    minHeight: keyboardTheme.keyHeight,
-    backgroundColor: keyboardTheme.key,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 5,
-    overflow: 'hidden',
-  },
-  launcherKey: {
-    backgroundColor: '#474747',
-  },
-  numpadActionKey: {
-    backgroundColor: keyboardTheme.numpadActionKey,
-  },
-  rewriteKey: {
-    backgroundColor: keyboardTheme.essentialsAccent,
-  },
-  shiftKey: {
-    overflow: 'visible',
-  },
-  specialKey: {
-    backgroundColor: keyboardTheme.key,
-  },
-  spaceKey: {
-    backgroundColor: keyboardTheme.key,
-  },
-  shiftKeyActive: {
-    backgroundColor: keyboardTheme.keyPressed,
-  },
-  shiftKeyLocked: {
-    backgroundColor: keyboardTheme.key,
-    borderWidth: 1,
-    borderColor: keyboardTheme.label,
-  },
-  shiftIconContainer: {
-    width: 16,
-    height: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  enterKey: {
-    backgroundColor: keyboardTheme.enter,
-  },
-  keyPressedBounce: {
-    transform: [{scale: KEY_PRESS_SCALE}],
-  },
-  keyLabel: {
-    color: keyboardTheme.label,
-    fontSize: 22,
-    fontFamily: keyboardTheme.fontFamily,
-    fontWeight: '500',
-  },
-  specialKeyLabel: {
-    fontSize: 17,
-    fontWeight: '500',
-  },
-  spaceLabel: {
-    fontSize: 16,
-    color: keyboardTheme.spaceLabel,
-    fontWeight: '400',
-  },
-});
+export const KeyboardRow = memo(KeyboardRowComponent);
+
+function createKeyStyles(theme: KeyboardTheme) {
+  return StyleSheet.create({
+    row: {
+      flexDirection: 'row',
+      gap: theme.keyGap,
+      marginBottom: theme.keyRowMargin,
+      paddingHorizontal: theme.keyRowPaddingHorizontal,
+      alignItems: 'stretch',
+    },
+    key: {
+      minHeight: theme.keyHeight,
+      backgroundColor: theme.letterKey,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 5,
+      overflow: 'hidden',
+    },
+    modifierKey: {
+      backgroundColor: theme.modifierKey,
+    },
+    rewriteKey: {
+      backgroundColor: theme.essentialsAccent,
+    },
+    shiftKey: {
+      overflow: 'visible',
+    },
+    shiftKeyActive: {
+      backgroundColor: theme.modifierKeyPressed,
+    },
+    shiftKeyLocked: {
+      backgroundColor: theme.modifierKey,
+      borderWidth: 1,
+      borderColor: theme.label,
+    },
+    shiftIconContainer: {
+      width: 16,
+      height: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    enterKey: {
+      backgroundColor: theme.enter,
+    },
+    letterKeyPressed: {
+      backgroundColor: theme.letterKeyPressed,
+    },
+    modifierKeyPressed: {
+      backgroundColor: theme.modifierKeyPressed,
+    },
+    enterKeyPressed: {
+      backgroundColor: theme.enterPressed,
+    },
+    keyLabel: {
+      color: theme.label,
+      fontSize: 22,
+      fontFamily: theme.fontFamily,
+      fontWeight: '500',
+    },
+    specialKeyLabel: {
+      fontSize: 17,
+      fontWeight: '500',
+    },
+    spaceLabel: {
+      fontSize: 16,
+      color: theme.spaceLabel,
+      fontWeight: '400',
+    },
+  });
+}

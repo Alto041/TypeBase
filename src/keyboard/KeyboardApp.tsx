@@ -22,6 +22,7 @@ import {
   toggleClipboardPin,
 } from './clipboard/clipboardStore';
 import type {ClipboardItem} from './clipboard/types';
+import {useClipboardPasteSuggestion} from './clipboard/useClipboardPasteSuggestion';
 import {EssentialsListPanel} from './essentials/EssentialsListPanel';
 import {ItemsMenuPanel} from './essentials/ItemsMenuPanel';
 import {
@@ -96,11 +97,21 @@ import {
   getWordSuggestions,
 } from './suggestions/wordSuggestions';
 import {ensureApiKeysLoaded} from './settings/apiKeysStore';
-import {keyboardTheme} from './theme';
+import {
+  ensureThemeLoaded,
+  getKeyboardColorScheme,
+  KEYBOARD_THEME_CHANGED_EVENT,
+} from './settings/themeStore';
+import {
+  KeyboardThemeProvider,
+  useKeyboardTheme,
+  useThemedStyles,
+} from './KeyboardThemeContext';
+import type {KeyboardColorScheme, KeyboardTheme} from './theme';
 import {useVoiceInput} from './voice/useVoiceInput';
 
 const DOUBLE_TAP_MS = 350;
-const SUGGESTION_REFRESH_DEBOUNCE_MS = 90;
+const SUGGESTION_REFRESH_DEBOUNCE_MS = 120;
 
 type LetterKeyboardRowsProps = {
   rows: KeyDefinition[][];
@@ -113,7 +124,7 @@ type LetterKeyboardRowsProps = {
   keyGestures?: KeyGesturesConfig;
 };
 
-function LetterKeyboardRows({
+const LetterKeyboardRows = React.memo(function LetterKeyboardRows({
   rows,
   layout,
   modeType,
@@ -123,6 +134,8 @@ function LetterKeyboardRows({
   onKeyPress,
   keyGestures,
 }: LetterKeyboardRowsProps) {
+  const theme = useKeyboardTheme();
+
   return (
     <SwipeTypingKeysHost>
       {rows.map((row, index) => (
@@ -135,20 +148,19 @@ function LetterKeyboardRows({
           onKeyPress={onKeyPress}
           keyGestures={keyGestures}
           keyHeight={
-            layout === 'numpad' ? keyboardTheme.numpadKeyHeight : undefined
+            layout === 'numpad' ? theme.numpadKeyHeight : undefined
           }
           variant={layout === 'numpad' ? 'numpad' : undefined}
-          rowStyle={[
-            layout === 'numpad' ? styles.numpadRow : undefined,
-            layout === 'letters' && index === 1 ? styles.indentedRow : undefined,
-          ]}
+          rowStyle={layout === 'numpad' ? styles.numpadRow : undefined}
         />
       ))}
     </SwipeTypingKeysHost>
   );
-}
+});
 
 function KeyboardBody() {
+  const theme = useKeyboardTheme();
+  const styles = useThemedStyles(createKeyboardAppStyles);
   const [mode, setMode] = useState<KeyboardMode>({type: 'typing'});
   const [layout, setLayout] = useState<KeyboardLayout>('letters');
   const [shiftOn, setShiftOn] = useState(false);
@@ -187,6 +199,11 @@ function KeyboardBody() {
   const [periodRewriteActive, setPeriodRewriteActive] = useState(false);
   const [calculatorDisplay, setCalculatorDisplay] = useState('0');
   const {isListening, partialTranscript, toggleListening} = useVoiceInput();
+  const clipboardPasteEnabled = mode.type === 'typing';
+  const {
+    clipboardPasteSuggestion,
+    clearClipboardPasteSuggestion,
+  } = useClipboardPasteSuggestion({enabled: clipboardPasteEnabled});
 
   const isUppercase = shiftOn || capsLocked;
   const isFormMode = mode.type === 'essentials-form';
@@ -529,7 +546,9 @@ function KeyboardBody() {
     }
     suggestionRefreshTimerRef.current = setTimeout(() => {
       suggestionRefreshTimerRef.current = null;
-      void refreshSuggestions();
+      InteractionManager.runAfterInteractions(() => {
+        void refreshSuggestions();
+      });
     }, SUGGESTION_REFRESH_DEBOUNCE_MS);
   }, [refreshSuggestions]);
 
@@ -648,10 +667,10 @@ function KeyboardBody() {
   useEffect(() => {
     const height =
       layout === 'numpad'
-        ? keyboardTheme.numpadKeyboardHeightDp
-        : keyboardTheme.keyboardHeightDp;
+        ? theme.numpadKeyboardHeightDp
+        : theme.keyboardHeightDp;
     keyboardBridge.setKeyboardHeight(height);
-  }, [layout]);
+  }, [layout, theme]);
 
   const appendToFormField = useCallback(
     (text: string) => {
@@ -747,8 +766,31 @@ function KeyboardBody() {
     [capsLocked, currentPrefix, refreshSuggestions, shiftOn],
   );
 
+  const handleClipboardPasteSelect = useCallback(() => {
+    const item = clipboardPasteSuggestion;
+    if (!item) {
+      return;
+    }
+    clearClipboardPasteSuggestion();
+    if (item.kind === 'image' && item.imageUri) {
+      const imagePath = item.imageUri.replace(/^file:\/\//, '');
+      void keyboardBridge.insertClipboardImage(imagePath);
+    } else if (item.text) {
+      keyboardBridge.insertText(item.text);
+    }
+    scheduleRefreshSuggestions();
+  }, [
+    clearClipboardPasteSuggestion,
+    clipboardPasteSuggestion,
+    scheduleRefreshSuggestions,
+  ]);
+
   const handleKeyPress = useCallback(
     (keyDef: KeyDefinition) => {
+      if (mode.type === 'typing') {
+        clearClipboardPasteSuggestion();
+      }
+
       if (mode.type === 'emoji') {
         switch (keyDef.type) {
           case 'numbers':
@@ -855,10 +897,11 @@ function KeyboardBody() {
                 ? keyDef.value.toUpperCase()
                 : keyDef.value;
             keyboardBridge.insertText(text);
-            if (shiftOn && !capsLocked) {
+            const shouldReleaseShift = shiftOn && !capsLocked;
+            scheduleRefreshSuggestions();
+            if (shouldReleaseShift) {
               setShiftOn(false);
             }
-            scheduleRefreshSuggestions();
           }
       }
     },
@@ -873,6 +916,7 @@ function KeyboardBody() {
       layout,
       mode,
       resetCase,
+      clearClipboardPasteSuggestion,
       scheduleRefreshSuggestions,
       shiftOn,
     ],
@@ -880,6 +924,7 @@ function KeyboardBody() {
 
   const handleWordCommitted = useCallback(
     (word: string) => {
+      clearClipboardPasteSuggestion();
       recordLearnedWord(word);
       keyboardBridge.insertText(word);
       keyboardBridge.insertText(' ');
@@ -890,7 +935,7 @@ function KeyboardBody() {
         void refreshSuggestions();
       });
     },
-    [capsLocked, refreshSuggestions, shiftOn],
+    [capsLocked, clearClipboardPasteSuggestion, refreshSuggestions, shiftOn],
   );
 
   const showKeys =
@@ -1069,6 +1114,8 @@ function KeyboardBody() {
           prefix={currentPrefix}
           autocorrectPreview={autocorrectPreview}
           onSelect={handleSuggestionSelect}
+          clipboardPasteSuggestion={clipboardPasteSuggestion}
+          onClipboardPasteSelect={handleClipboardPasteSelect}
           essentialSuggestions={essentialSuggestions.map(item => ({
             keyword: item.keyword,
             value: item.value,
@@ -1270,6 +1317,23 @@ export default function KeyboardApp() {
     Geist: require('../../assets/Geist-VariableFont_wght.ttf'),
   });
   const [fontTimedOut, setFontTimedOut] = useState(false);
+  const [colorScheme, setColorScheme] =
+    useState<KeyboardColorScheme>('light');
+  const [themeReady, setThemeReady] = useState(false);
+
+  useEffect(() => {
+    void ensureThemeLoaded().then(() => {
+      setColorScheme(getKeyboardColorScheme());
+      setThemeReady(true);
+    });
+    const subscription = DeviceEventEmitter.addListener(
+      KEYBOARD_THEME_CHANGED_EVENT,
+      (scheme: KeyboardColorScheme) => {
+        setColorScheme(scheme);
+      },
+    );
+    return () => subscription.remove();
+  }, []);
 
   useEffect(() => {
     if (fontsLoaded) {
@@ -1279,51 +1343,57 @@ export default function KeyboardApp() {
     return () => clearTimeout(timer);
   }, [fontsLoaded]);
 
-  if (!fontsLoaded && !fontTimedOut) {
+  if ((!fontsLoaded && !fontTimedOut) || !themeReady) {
     return (
-      <View style={[styles.container, styles.loading]}>
-        <ActivityIndicator color={keyboardTheme.label} />
+      <View style={keyboardAppLoadingStyles.container}>
+        <ActivityIndicator color="#000000" />
       </View>
     );
   }
 
   return (
-    <KeyLayoutProvider>
-      <KeyboardBody />
-    </KeyLayoutProvider>
+    <KeyboardThemeProvider scheme={colorScheme}>
+      <KeyLayoutProvider>
+        <KeyboardBody />
+      </KeyLayoutProvider>
+    </KeyboardThemeProvider>
   );
 }
 
-const styles = StyleSheet.create({
+function createKeyboardAppStyles(theme: KeyboardTheme) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.container,
+    },
+    keysPadding: {
+      paddingTop: theme.keysPaddingTop,
+      paddingBottom: theme.imeStripClearance,
+    },
+    keysPanel: {
+      flex: 1,
+      justifyContent: 'flex-start',
+    },
+    keysPanelClip: {
+      overflow: 'hidden',
+    },
+    numpadKeysPadding: {
+      paddingTop: theme.numpadKeysPaddingTop,
+    },
+    containerCompact: {
+      justifyContent: 'flex-start',
+    },
+    numpadRow: {
+      marginBottom: theme.keyGap,
+    },
+  });
+}
+
+const keyboardAppLoadingStyles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: keyboardTheme.container,
-  },
-  loading: {
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  keysPadding: {
-    paddingTop: keyboardTheme.keysPaddingTop,
-    paddingBottom: keyboardTheme.imeStripClearance,
-  },
-  keysPanel: {
-    flex: 1,
-    justifyContent: 'flex-start',
-  },
-  keysPanelClip: {
-    overflow: 'hidden',
-  },
-  indentedRow: {
-    paddingHorizontal: 14,
-  },
-  numpadKeysPadding: {
-    paddingTop: keyboardTheme.numpadKeysPaddingTop,
-  },
-  containerCompact: {
-    justifyContent: 'flex-start',
-  },
-  numpadRow: {
-    marginBottom: keyboardTheme.keyGap,
+    backgroundColor: '#EEEEEE',
   },
 });

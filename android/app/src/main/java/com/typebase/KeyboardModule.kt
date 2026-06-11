@@ -30,6 +30,8 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     ReactContextBaseJavaModule(reactContext) {
 
   private var removePrefersNumpadListener: (() -> Unit)? = null
+  private var removeKeyboardVisibilityListener: (() -> Unit)? = null
+  private var clipboardListener: ClipboardManager.OnPrimaryClipChangedListener? = null
 
   override fun getName(): String = "KeyboardModule"
 
@@ -43,11 +45,41 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
                 .emit("keyboardPrefersNumpad", prefers)
           }
         }
+    removeKeyboardVisibilityListener =
+        KeyboardInputBridge.addKeyboardVisibilityListener { shown ->
+          if (reactApplicationContext.hasActiveReactInstance()) {
+            val event = if (shown) "keyboardShown" else "keyboardHidden"
+            reactApplicationContext
+                .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                .emit(event, null)
+          }
+        }
+    val clipboardManager =
+        reactApplicationContext.getSystemService(Context.CLIPBOARD_SERVICE) as
+            ClipboardManager
+    clipboardListener =
+        ClipboardManager.OnPrimaryClipChangedListener {
+          if (reactApplicationContext.hasActiveReactInstance()) {
+            reactApplicationContext
+                .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                .emit("clipboardChanged", null)
+          }
+        }
+    clipboardManager.addPrimaryClipChangedListener(clipboardListener!!)
   }
 
   override fun invalidate() {
     removePrefersNumpadListener?.invoke()
     removePrefersNumpadListener = null
+    removeKeyboardVisibilityListener?.invoke()
+    removeKeyboardVisibilityListener = null
+    clipboardListener?.let { listener ->
+      val clipboardManager =
+          reactApplicationContext.getSystemService(Context.CLIPBOARD_SERVICE) as
+              ClipboardManager
+      clipboardManager.removePrimaryClipChangedListener(listener)
+    }
+    clipboardListener = null
     super.invalidate()
   }
 
@@ -310,6 +342,38 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   @ReactMethod
   fun setKeyboardHeight(heightDp: Int) {
     KeyboardInputBridge.setKeyboardHeightDp(heightDp)
+  }
+
+  @ReactMethod
+  fun getKeyboardColorScheme(promise: Promise) {
+    try {
+      val scheme =
+          learnedWordsPrefs().getString(KEYBOARD_THEME_KEY, DEFAULT_KEYBOARD_THEME)
+              ?: DEFAULT_KEYBOARD_THEME
+      promise.resolve(scheme)
+    } catch (error: Exception) {
+      promise.reject("GET_KEYBOARD_THEME_FAILED", error)
+    }
+  }
+
+  @ReactMethod
+  fun setKeyboardColorScheme(scheme: String, promise: Promise) {
+    try {
+      val normalized = if (scheme == "dark") "dark" else "light"
+      val saved =
+          learnedWordsPrefs()
+              .edit()
+              .putString(KEYBOARD_THEME_KEY, normalized)
+              .commit()
+      if (saved && reactApplicationContext.hasActiveReactInstance()) {
+        reactApplicationContext
+            .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+            .emit("keyboardThemeChanged", normalized)
+      }
+      promise.resolve(saved)
+    } catch (error: Exception) {
+      promise.reject("SET_KEYBOARD_THEME_FAILED", error)
+    }
   }
 
   @ReactMethod
@@ -595,16 +659,22 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
 
   @ReactMethod
   fun performKeyHaptic() {
-    UiThreadUtil.runOnUiThread {
-      val view =
-          KeyboardInputBridge.inputService?.window?.window?.decorView
-              ?: reactApplicationContext.currentActivity?.window?.decorView
-              ?: return@runOnUiThread
+    val view =
+        KeyboardInputBridge.inputService?.window?.window?.decorView
+            ?: reactApplicationContext.currentActivity?.window?.decorView
+            ?: return
 
+    val feedback = Runnable {
       view.performHapticFeedback(
           HapticFeedbackConstants.KEYBOARD_TAP,
           HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING,
       )
+    }
+
+    if (UiThreadUtil.isOnUiThread()) {
+      feedback.run()
+    } else {
+      UiThreadUtil.runOnUiThread(feedback)
     }
   }
 
@@ -670,6 +740,8 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     private const val LEARNED_PHRASES_KEY = "learned_phrases"
     private const val COMMA_LAUNCHER_ARMED_KEY = "comma_launcher_armed"
     private const val API_KEYS_KEY = "api_keys"
+    private const val KEYBOARD_THEME_KEY = "keyboard_theme"
+    private const val DEFAULT_KEYBOARD_THEME = "light"
     private const val DEFAULT_API_KEYS =
         """{"geminiApiKey":"","speechmaticsApiKey":""}"""
     private const val DEFAULT_GESTURE_SETTINGS =

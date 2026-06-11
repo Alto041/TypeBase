@@ -1,7 +1,8 @@
 import React from 'react';
 import {Pressable, StyleSheet, View} from 'react-native';
+import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
 import {triggerKeyHaptic} from '../haptics';
-import {keyboardTheme} from '../theme';
+import type {KeyboardTheme} from '../theme';
 import {EMOJI_CATEGORIES, type EmojiCategoryId} from './emojis';
 
 type EmojiCategoryBarProps = {
@@ -12,6 +13,9 @@ type EmojiCategoryBarProps = {
 const ICON_SIZE = 22;
 
 export function EmojiCategoryBar({selected, onSelect}: EmojiCategoryBarProps) {
+  const theme = useKeyboardTheme();
+  const styles = useThemedStyles(createEmojiCategoryBarStyles);
+
   return (
     <View style={styles.container}>
       {EMOJI_CATEGORIES.map(({id, Icon}) => {
@@ -32,6 +36,7 @@ export function EmojiCategoryBar({selected, onSelect}: EmojiCategoryBarProps) {
             <Icon
               width={ICON_SIZE}
               height={ICON_SIZE}
+              color={theme.icon}
               style={{opacity: isSelected ? 1 : 0.45}}
             />
           </Pressable>
@@ -41,23 +46,25 @@ export function EmojiCategoryBar({selected, onSelect}: EmojiCategoryBarProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    minHeight: keyboardTheme.keyHeight,
-  },
-  button: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 0,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  buttonPressed: {
-    opacity: 0.75,
-  },
-});
+function createEmojiCategoryBarStyles(theme: KeyboardTheme) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      minHeight: theme.keyHeight,
+    },
+    button: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 0,
+      paddingVertical: 2,
+      borderRadius: 6,
+    },
+    buttonPressed: {
+      opacity: 0.75,
+    },
+  });
+}

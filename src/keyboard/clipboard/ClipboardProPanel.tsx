@@ -4,7 +4,7 @@ import {
   PLUGIN_INNER_RADIUS,
   PLUGIN_OUTER_RADIUS,
   PluginScrollView,
-  pluginPanelStyles,
+  usePluginPanelStyles,
 } from '../components/pluginPanelLayout';
 import {ClipboardSwipeRow} from './ClipboardSwipeRow';
 import type {ClipboardItem} from './types';
@@ -61,13 +61,15 @@ export function ClipboardProPanel({
   onDelete,
   onTogglePin,
 }: ClipboardProPanelProps) {
+  const panelStyles = usePluginPanelStyles();
+
   return (
-    <View style={pluginPanelStyles.container}>
+    <View style={panelStyles.container}>
       <PluginScrollView>
         {items.length === 0 ? (
-          <View style={pluginPanelStyles.emptyState}>
-            <Text style={pluginPanelStyles.emptyTitle}>No clipboard history</Text>
-            <Text style={pluginPanelStyles.emptyHint}>
+          <View style={panelStyles.emptyState}>
+            <Text style={panelStyles.emptyTitle}>No clipboard history</Text>
+            <Text style={panelStyles.emptyHint}>
               Copy text or images in any app and they will appear here.
             </Text>
           </View>

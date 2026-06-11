@@ -4,7 +4,7 @@ import {
   PLUGIN_INNER_RADIUS,
   PLUGIN_OUTER_RADIUS,
   PluginScrollView,
-  pluginPanelStyles,
+  usePluginPanelStyles,
 } from '../components/pluginPanelLayout';
 import {EssentialsSwipeRow} from './EssentialsSwipeRow';
 import type {Essential} from './types';
@@ -59,13 +59,15 @@ export function EssentialsListPanel({
   onSelect,
   onDelete,
 }: EssentialsListPanelProps) {
+  const panelStyles = usePluginPanelStyles();
+
   return (
-    <View style={pluginPanelStyles.container}>
+    <View style={panelStyles.container}>
       <PluginScrollView>
         {essentials.length === 0 ? (
-          <View style={pluginPanelStyles.emptyState}>
-            <Text style={pluginPanelStyles.emptyTitle}>No essentials yet</Text>
-            <Text style={pluginPanelStyles.emptyHint}>
+          <View style={panelStyles.emptyState}>
+            <Text style={panelStyles.emptyTitle}>No essentials yet</Text>
+            <Text style={panelStyles.emptyHint}>
               Tap + to save a shortcut, then type @@keyword to insert it.
             </Text>
           </View>

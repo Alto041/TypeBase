@@ -14,12 +14,11 @@ import {
 import DeleteIcon from '../../../assets/delete.svg';
 import KeepIcon from '../../../assets/keep.svg';
 import KeepOffIcon from '../../../assets/keep_off.svg';
+import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
 import {triggerKeyHaptic} from '../haptics';
-import {keyboardTheme} from '../theme';
+import type {KeyboardTheme} from '../theme';
 import type {ClipboardItem} from './types';
 
-const CARD_COLOR = '#353535';
-const PIN_ICON_COLOR = '#828282';
 const PIN_ICON_SIZE = 16;
 const ACTION_WIDTH = 72;
 const IMAGE_THUMB_SIZE = 48;
@@ -43,6 +42,8 @@ export function ClipboardSwipeRow({
   onDelete,
   onTogglePin,
 }: ClipboardSwipeRowProps) {
+  const theme = useKeyboardTheme();
+  const styles = useThemedStyles(createClipboardSwipeStyles);
   const translateX = useRef(new Animated.Value(0)).current;
   const opacity = useRef(new Animated.Value(1)).current;
   const rowHeight = useRef(new Animated.Value(0)).current;
@@ -221,20 +222,20 @@ export function ClipboardSwipeRow({
                   <KeepOffIcon
                     width={PIN_ICON_SIZE}
                     height={PIN_ICON_SIZE}
-                    color={PIN_ICON_COLOR}
+                    color={theme.iconMuted}
                   />
                 ) : (
                   <KeepIcon
                     width={PIN_ICON_SIZE}
                     height={PIN_ICON_SIZE}
-                    color={PIN_ICON_COLOR}
+                    color={theme.iconMuted}
                   />
                 )}
               </Pressable>
             </Animated.View>
           </View>
           <View style={styles.deleteAction}>
-            <DeleteIcon width={24} height={24} />
+            <DeleteIcon width={24} height={24} color={theme.iconOnEnter} />
           </View>
         </Animated.View>
       ) : null}
@@ -242,73 +243,75 @@ export function ClipboardSwipeRow({
   );
 }
 
-const styles = StyleSheet.create({
-  rowOuter: {
-    overflow: 'hidden',
-  },
-  slidingRow: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
-  },
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: CARD_COLOR,
-    minHeight: 44,
-  },
-  cardBody: {
-    flex: 1,
-    paddingLeft: 12,
-    paddingVertical: 10,
-    minHeight: 44,
-    justifyContent: 'center',
-  },
-  cardPressed: {
-    backgroundColor: keyboardTheme.keyPressed,
-  },
-  cardText: {
-    color: keyboardTheme.label,
-    fontSize: 15,
-    fontFamily: keyboardTheme.fontFamily,
-    lineHeight: 20,
-  },
-  imageRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  imageThumb: {
-    width: IMAGE_THUMB_SIZE,
-    height: IMAGE_THUMB_SIZE,
-    borderRadius: 8,
-    backgroundColor: keyboardTheme.keyPressed,
-  },
-  imageLabel: {
-    flex: 1,
-    color: keyboardTheme.spaceLabel,
-    fontSize: 14,
-    fontFamily: keyboardTheme.fontFamily,
-    fontWeight: '600',
-  },
-  pinSlot: {
-    paddingRight: 10,
-    paddingLeft: 4,
-    justifyContent: 'center',
-  },
-  pinButton: {
-    width: 28,
-    height: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 14,
-  },
-  pinButtonPressed: {
-    backgroundColor: keyboardTheme.keyPressed,
-  },
-  deleteAction: {
-    width: ACTION_WIDTH,
-    backgroundColor: keyboardTheme.enter,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
+function createClipboardSwipeStyles(theme: KeyboardTheme) {
+  return StyleSheet.create({
+    rowOuter: {
+      overflow: 'hidden',
+    },
+    slidingRow: {
+      flexDirection: 'row',
+      alignItems: 'stretch',
+    },
+    card: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: theme.pluginCard,
+      minHeight: 44,
+    },
+    cardBody: {
+      flex: 1,
+      paddingLeft: 12,
+      paddingVertical: 10,
+      minHeight: 44,
+      justifyContent: 'center',
+    },
+    cardPressed: {
+      backgroundColor: theme.letterKeyPressed,
+    },
+    cardText: {
+      color: theme.label,
+      fontSize: 15,
+      fontFamily: theme.fontFamily,
+      lineHeight: 20,
+    },
+    imageRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+    imageThumb: {
+      width: IMAGE_THUMB_SIZE,
+      height: IMAGE_THUMB_SIZE,
+      borderRadius: 8,
+      backgroundColor: theme.letterKeyPressed,
+    },
+    imageLabel: {
+      flex: 1,
+      color: theme.spaceLabel,
+      fontSize: 14,
+      fontFamily: theme.fontFamily,
+      fontWeight: '600',
+    },
+    pinSlot: {
+      paddingRight: 10,
+      paddingLeft: 4,
+      justifyContent: 'center',
+    },
+    pinButton: {
+      width: 28,
+      height: 28,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 14,
+    },
+    pinButtonPressed: {
+      backgroundColor: theme.letterKeyPressed,
+    },
+    deleteAction: {
+      width: ACTION_WIDTH,
+      backgroundColor: theme.enter,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+  });
+}
