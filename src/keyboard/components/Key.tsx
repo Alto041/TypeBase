@@ -33,7 +33,7 @@ import type {KeyboardTheme} from '../theme';
 const KEY_BORDER_RADIUS = 6;
 const BACKSPACE_HOLD_DELAY_MS = 280;
 const BACKSPACE_SENTENCE_ESCALATE_MS = 700;
-const BACKSPACE_SWIPE_ACTIVATE_PX = 10;
+const BACKSPACE_SWIPE_ACTIVATE_PX = 6;
 const COMMA_HOLD_DELAY_MS = 400;
 const PERIOD_HOLD_DELAY_MS = 400;
 const BACKSPACE_INITIAL_INTERVAL_MS = 75;
@@ -41,7 +41,7 @@ const BACKSPACE_MIN_INTERVAL_MS = 25;
 const BACKSPACE_ACCEL_STEP_MS = 10;
 const CURSOR_STEP_PX = 10;
 const SPACE_SWIPE_THRESHOLD_PX = 8;
-const BACKSPACE_WORD_SWIPE_PX = 24;
+const BACKSPACE_WORD_SWIPE_PX = 14;
 const KEY_PRESS_RETENTION = {top: 18, left: 10, bottom: 18, right: 10};
 const KEY_HIT_SLOP = {top: 3, left: 2, bottom: 3, right: 2};
 
@@ -108,6 +108,7 @@ function KeyComponent({
   const spaceSwipingRef = useRef(false);
   const spaceDidSwipeRef = useRef(false);
   const backspaceDidSwipeRef = useRef(false);
+  const backspaceCharsDeletedRef = useRef(0);
   const backspaceHoldStartedAtRef = useRef(0);
   const backspaceTouchActiveRef = useRef(false);
   const keyGesturesRef = useRef(keyGestures);
@@ -169,6 +170,10 @@ function KeyComponent({
     : keyDef.label;
 
   const measureKey = useCallback(() => {
+    if (!isSwipeTypingLetter) {
+      return;
+    }
+
     const keyView = keyRef.current;
     const keysArea = layoutContext?.keysAreaRef.current;
     if (!keyView || !layoutContext) {
@@ -217,7 +222,7 @@ function KeyComponent({
       );
       return;
     }
-  }, [keyDef, layoutContext]);
+  }, [isSwipeTypingLetter, keyDef, layoutContext]);
 
   const clearLauncherHold = useCallback(() => {
     if (launcherHoldDelayRef.current) {
@@ -262,6 +267,7 @@ function KeyComponent({
       }
 
       keyboardBridge.deleteBackward();
+      backspaceCharsDeletedRef.current += 1;
       backspaceIntervalRef.current = Math.max(
         BACKSPACE_MIN_INTERVAL_MS,
         backspaceIntervalRef.current - BACKSPACE_ACCEL_STEP_MS,
@@ -402,9 +408,10 @@ function KeyComponent({
       return;
     }
     backspaceTouchActiveRef.current = true;
+    backspaceCharsDeletedRef.current = 0;
+    backspaceDidSwipeRef.current = false;
     setIsBackspaceHeld(true);
     triggerKeyHaptic();
-    keyboardBridge.deleteBackward();
     scheduleBackspaceRepeat();
   }, [scheduleBackspaceRepeat]);
 
@@ -605,30 +612,43 @@ function KeyComponent({
           isBackspace &&
           Math.abs(gesture.dx) > dp(BACKSPACE_SWIPE_ACTIVATE_PX) &&
           Math.abs(gesture.dx) > Math.abs(gesture.dy),
+        onPanResponderTerminationRequest: () => false,
         onPanResponderGrant: () => {
-          backspaceDidSwipeRef.current = false;
           handleBackspaceTouchStart();
         },
         onPanResponderMove: (_, gesture) => {
           if (!isBackspaceGesture) {
             return;
           }
-          if (gesture.dx < -dp(BACKSPACE_SWIPE_ACTIVATE_PX)) {
-            if (!backspaceDidSwipeRef.current) {
-              clearBackspaceRepeat();
-            }
-            backspaceDidSwipeRef.current = true;
+          const swipeLeft =
+            gesture.dx < -dp(BACKSPACE_SWIPE_ACTIVATE_PX) &&
+            Math.abs(gesture.dx) > Math.abs(gesture.dy);
+          if (!swipeLeft) {
+            return;
           }
+          if (!backspaceDidSwipeRef.current) {
+            clearBackspaceRepeat();
+            triggerKeyHaptic();
+          }
+          backspaceDidSwipeRef.current = true;
         },
         onPanResponderRelease: (_, gesture) => {
-          if (
+          const shouldDeleteWord =
             isBackspaceGesture &&
-            backspaceDidSwipeRef.current &&
-            (gesture.dx < -backspaceWordSwipePx || gesture.vx < -0.4)
-          ) {
+            (backspaceDidSwipeRef.current ||
+              gesture.dx < -backspaceWordSwipePx ||
+              gesture.vx < -0.25);
+
+          if (shouldDeleteWord) {
+            clearBackspaceRepeat();
             triggerKeyHaptic();
             keyGesturesRef.current?.onDeleteWord();
+          } else if (backspaceCharsDeletedRef.current === 0) {
+            clearBackspaceRepeat();
+            keyboardBridge.deleteBackward();
+            backspaceCharsDeletedRef.current = 1;
           }
+
           backspaceDidSwipeRef.current = false;
           finishBackspaceHold();
         },

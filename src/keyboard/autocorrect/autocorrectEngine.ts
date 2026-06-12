@@ -1,4 +1,5 @@
 import englishWords from '../gesture/data/englishWords.json';
+import {getExactDictionaryFix, isPreserveTypedWord} from './dictionaryFixes';
 import {getAutocorrectSettings} from './autocorrectStore';
 import {getLearnedCounts} from '../suggestions/learnedDictionary';
 import {applyCaseToWord} from '../suggestions/wordSuggestions';
@@ -22,8 +23,10 @@ for (const word of WORDS) {
   }
 }
 
-const MIN_AUTO_CONFIDENCE = 0.72;
+const MIN_AUTO_CONFIDENCE = 0.67;
 const COMMON_WORD_RANK = 3500;
+const FREQUENT_WORD_SCAN_LIMIT = 5000;
+const FREQUENT_FALLBACK_LIMIT = 7000;
 
 export type AutocorrectCandidate = {
   correction: string;
@@ -59,8 +62,8 @@ function maxEditDistance(length: number): number {
   if (length <= 3) {
     return 1;
   }
-  if (length <= 6) {
-    return 1;
+  if (length <= 8) {
+    return 2;
   }
   return 2;
 }
@@ -129,13 +132,107 @@ function isAdjacentTransposition(a: string, b: string): boolean {
   );
 }
 
-/** Missing/extra letters at the end, or a simple letter swap (teh → the). */
-function isPlausibleTypo(typed: string, candidate: string): boolean {
+/** Missing/extra letters at the end, swap, or a close 2-edit match on longer words. */
+function isPlausibleTypo(
+  typed: string,
+  candidate: string,
+  edits: number,
+  staticRank: number,
+): boolean {
+  if (edits <= 1) {
+    return true;
+  }
+
   if (candidate.startsWith(typed) || typed.startsWith(candidate)) {
     return true;
   }
 
-  return isAdjacentTransposition(typed, candidate);
+  if (isAdjacentTransposition(typed, candidate)) {
+    return true;
+  }
+
+  return (
+    edits === 2 &&
+    typed.length >= 5 &&
+    staticRank < 7000 &&
+    sharedPrefixLength(typed, candidate) >= 2
+  );
+}
+
+function isDestructiveShortening(typed: string, correction: string): boolean {
+  if (correction.length >= typed.length) {
+    return false;
+  }
+
+  if (getExactDictionaryFix(typed)) {
+    return false;
+  }
+
+  const typedRank = STATIC_RANK.get(typed);
+  return typedRank != null && typedRank < 25_000;
+}
+
+function shouldRejectFuzzyCorrection(
+  typed: string,
+  correction: string,
+  edits: number,
+  learnedUses: number,
+  staticRank: number,
+): boolean {
+  if (isDestructiveShortening(typed, correction)) {
+    return true;
+  }
+
+  const typedRank = STATIC_RANK.get(typed);
+  if (
+    typedRank != null &&
+    typedRank < 12_000 &&
+    edits >= 2 &&
+    learnedUses === 0
+  ) {
+    return true;
+  }
+
+  if (typedRank != null && typedRank < 8_000 && edits >= 1) {
+    const correctionRank = staticRank;
+    if (correctionRank > typedRank * 2) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/** Both typed and correction are real dictionary words one edit apart (lol → lot). */
+function isDictionaryOneEditSubstitution(
+  typed: string,
+  correction: string,
+  edits: number,
+): boolean {
+  if (edits !== 1 || isAdjacentTransposition(typed, correction)) {
+    return false;
+  }
+  if (getExactDictionaryFix(typed)) {
+    return false;
+  }
+
+  return (
+    STATIC_RANK.has(typed) &&
+    STATIC_RANK.has(correction) &&
+    typed !== correction
+  );
+}
+
+function shouldBlockAutoCorrection(
+  typed: string,
+  correction: string,
+  edits: number,
+): boolean {
+  if (isPreserveTypedWord(typed)) {
+    return true;
+  }
+
+  return isDictionaryOneEditSubstitution(typed, correction, edits);
 }
 
 /** e.g. "arun" → "run" (drops the first letter). */
@@ -276,6 +373,29 @@ function collectCandidates(
     }
   }
 
+  if (typed.length >= 3) {
+    const thirdBucket = STATIC_BY_FIRST.get(typed[2]);
+    if (thirdBucket) {
+      for (const word of thirdBucket) {
+        consider(word, learned.get(word) ?? 0, STATIC_RANK.get(word) ?? 60_000);
+      }
+    }
+  }
+
+  if (results.length < 2 && typed.length >= 4) {
+    for (let i = 0; i < Math.min(FREQUENT_WORD_SCAN_LIMIT, WORDS.length); i++) {
+      const word = WORDS[i];
+      consider(word, learned.get(word) ?? 0, i);
+    }
+  }
+
+  if (results.length === 0 && typed.length >= 4) {
+    for (let i = 0; i < Math.min(FREQUENT_FALLBACK_LIMIT, WORDS.length); i++) {
+      const word = WORDS[i];
+      consider(word, learned.get(word) ?? 0, i);
+    }
+  }
+
   return results;
 }
 
@@ -298,6 +418,17 @@ export function getSimilarWordSuggestions(
   const editBudget = typed.length <= 4 ? 2 : typed.length <= 7 ? 2 : 2;
   const candidates = collectCandidates(typed, editBudget).filter(candidate => {
     if (exclude.has(candidate.word) || isLikelyNameTrap(typed, candidate.word)) {
+      return false;
+    }
+    if (
+      shouldRejectFuzzyCorrection(
+        typed,
+        candidate.word,
+        candidate.edits,
+        candidate.learnedUses,
+        candidate.staticRank,
+      )
+    ) {
       return false;
     }
     return isLikelyTypoMatch(typed, candidate.word, candidate.edits);
@@ -337,6 +468,11 @@ export function getTypoSuggestionPreview(typedWord: string): string | null {
   }
 
   const lower = typed.toLowerCase();
+  const exactFix = getExactDictionaryFix(lower);
+  if (exactFix) {
+    return applyCaseToWord(exactFix.correction, typed);
+  }
+
   if (isProtectedWord(lower, getLearnedCounts().get(lower) ?? 0)) {
     return null;
   }
@@ -366,6 +502,14 @@ export function getAutocorrectCandidate(
   const lower = typed.toLowerCase();
   const learned = getLearnedCounts();
   const learnedUses = learned.get(lower) ?? 0;
+
+  const exactFix = getExactDictionaryFix(lower);
+  if (exactFix) {
+    return {
+      correction: applyCaseToWord(exactFix.correction, typed),
+      confidence: exactFix.confidence,
+    };
+  }
 
   if (isProtectedWord(lower, learnedUses)) {
     return null;
@@ -401,8 +545,23 @@ export function getAutocorrectCandidate(
     return null;
   }
 
+  if (
+    shouldRejectFuzzyCorrection(
+      lower,
+      best.word,
+      best.edits,
+      best.learnedUses,
+      best.staticRank,
+    )
+  ) {
+    return null;
+  }
+
   const learnedCorrection = best.learnedUses >= 2;
-  if (!learnedCorrection && !isPlausibleTypo(lower, best.word)) {
+  if (
+    !learnedCorrection &&
+    !isPlausibleTypo(lower, best.word, best.edits, best.staticRank)
+  ) {
     return null;
   }
 
@@ -417,6 +576,10 @@ export function getAutocorrectCandidate(
     return null;
   }
 
+  if (shouldBlockAutoCorrection(lower, best.word, best.edits)) {
+    return null;
+  }
+
   return {
     correction: applyCaseToWord(best.word, typed),
     confidence,
@@ -425,6 +588,52 @@ export function getAutocorrectCandidate(
 
 export function getAutocorrectPreview(typedWord: string): string | null {
   return getAutocorrectCandidate(typedWord)?.correction ?? null;
+}
+
+/** Bar chips: keep what you typed + optional correction (correction may be blocked from auto-apply). */
+export function getSuggestionBarAutocorrect(typedWord: string): {
+  keepTyped: string | null;
+  correction: string | null;
+} {
+  const typed = typedWord.trim();
+  if (typed.length < 2 || !/^[a-zA-Z]+$/.test(typed)) {
+    return {keepTyped: null, correction: null};
+  }
+  if (hasIntentionalCasing(typed) || isProbablyProperNoun(typed)) {
+    return {keepTyped: null, correction: null};
+  }
+
+  const lower = typed.toLowerCase();
+  const learnedUses = getLearnedCounts().get(lower) ?? 0;
+  const offerKeepTyped = learnedUses === 0;
+
+  const exactFix = getExactDictionaryFix(lower);
+  if (exactFix) {
+    const correction = applyCaseToWord(exactFix.correction, typed);
+    if (correction.toLowerCase() === lower) {
+      return {keepTyped: null, correction: null};
+    }
+    return {
+      keepTyped: offerKeepTyped ? typed : null,
+      correction,
+    };
+  }
+
+  const softCorrection = getTypoSuggestionPreview(typed);
+  const autoCandidate = getAutocorrectCandidate(typed);
+  const correction = autoCandidate?.correction ?? softCorrection;
+
+  if (!correction || correction.toLowerCase() === lower) {
+    if (isPreserveTypedWord(lower) && offerKeepTyped) {
+      return {keepTyped: typed, correction: null};
+    }
+    return {keepTyped: null, correction: null};
+  }
+
+  return {
+    keepTyped: offerKeepTyped ? typed : null,
+    correction,
+  };
 }
 
 export function shouldAutoApply(

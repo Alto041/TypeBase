@@ -531,33 +531,41 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   fun deleteWordBackward(promise: Promise) {
     UiThreadUtil.runOnUiThread {
       try {
-        val connection = KeyboardInputBridge.getInputConnection()
-        if (connection == null) {
-          promise.resolve(false)
-          return@runOnUiThread
-        }
-        val before = connection.getTextBeforeCursor(1000, 0)?.toString().orEmpty()
-        if (before.isEmpty()) {
-          promise.resolve(false)
-          return@runOnUiThread
-        }
-        var end = before.length
-        while (end > 0 && before[end - 1].isWhitespace()) {
-          end--
-        }
-        var start = end
-        while (start > 0 && !before[start - 1].isWhitespace()) {
-          start--
-        }
-        val deleteCount = before.length - start
-        if (deleteCount > 0) {
-          connection.deleteSurroundingText(deleteCount, 0)
-        }
-        promise.resolve(deleteCount > 0)
+        val deleted = deleteWordBackwardInternal()
+        promise.resolve(deleted)
       } catch (error: Exception) {
         promise.reject("DELETE_WORD_BACKWARD_FAILED", error)
       }
     }
+  }
+
+  private fun deleteWordBackwardInternal(): Boolean {
+    val connection = KeyboardInputBridge.getInputConnection() ?: return false
+    val before = connection.getTextBeforeCursor(1000, 0)?.toString().orEmpty()
+    if (before.isEmpty()) {
+      return false
+    }
+
+    var end = before.length
+    while (end > 0 && before[end - 1].isWhitespace()) {
+      end--
+    }
+    if (end == 0) {
+      return false
+    }
+
+    var start = end
+    while (start > 0 && !before[start - 1].isWhitespace()) {
+      start--
+    }
+
+    val deleteCount = before.length - start
+    if (deleteCount <= 0) {
+      return false
+    }
+
+    connection.deleteSurroundingText(deleteCount, 0)
+    return true
   }
 
   @ReactMethod

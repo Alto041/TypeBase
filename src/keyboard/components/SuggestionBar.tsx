@@ -36,6 +36,8 @@ type SuggestionBarProps = {
   suggestions: string[];
   prefix: string;
   autocorrectPreview?: string | null;
+  /** What you typed — tap to keep it and add to adaptive dictionary. */
+  typedKeepSuggestion?: string | null;
   onSelect: (word: string) => void;
   essentialSuggestions?: EssentialSuggestion[];
   onEssentialSelect?: (item: EssentialSuggestion) => void;
@@ -67,6 +69,7 @@ export function SuggestionBar({
   suggestions,
   prefix,
   autocorrectPreview = null,
+  typedKeepSuggestion = null,
   onSelect,
   essentialSuggestions = [],
   onEssentialSelect,
@@ -105,10 +108,12 @@ export function SuggestionBar({
     !isVoiceProcessing &&
     partialTranscript.length > 0;
   const hasEssentials = !isFormMode && essentialSuggestions.length > 0;
+  const hasTypedKeep =
+    !isFormMode && Boolean(typedKeepSuggestion) && prefix.length > 0;
   const hasAutocorrect =
     !isFormMode && Boolean(autocorrectPreview) && prefix.length > 0;
   const hasSuggestions = !isFormMode && suggestions.length > 0;
-  const showWordSuggestions = hasAutocorrect || hasSuggestions;
+  const showWordSuggestions = hasTypedKeep || hasAutocorrect || hasSuggestions;
   const hasClipboardPaste =
     !isFormMode &&
     !centerTitle &&
@@ -265,6 +270,22 @@ export function SuggestionBar({
           </View>
         ) : showWordSuggestions ? (
           <View style={styles.row}>
+            {hasTypedKeep && typedKeepSuggestion ? (
+              <Pressable
+                onPressIn={() => {
+                  triggerKeyHaptic();
+                  onSelect(typedKeepSuggestion);
+                }}
+                style={({pressed}) => [
+                  styles.suggestion,
+                  styles.typedKeepSuggestion,
+                  pressed && styles.suggestionPressed,
+                ]}>
+                <Text style={styles.typedKeepSuggestionText} numberOfLines={1}>
+                  {typedKeepSuggestion}
+                </Text>
+              </Pressable>
+            ) : null}
             {hasAutocorrect && autocorrectPreview ? (
               <Pressable
                 onPressIn={() => {
@@ -287,7 +308,7 @@ export function SuggestionBar({
                 : applyCaseToWord(word, prefix);
               return (
                 <Fragment key={word}>
-                  {index > 0 || hasAutocorrect ? (
+                  {index > 0 || hasTypedKeep || hasAutocorrect ? (
                     <View style={styles.divider} />
                   ) : null}
                   <Pressable
@@ -517,6 +538,15 @@ function createSuggestionBarStyles(theme: KeyboardTheme) {
     fontSize: 17,
     fontFamily: theme.fontFamily,
     fontWeight: '500',
+  },
+  typedKeepSuggestion: {
+    flex: 1.1,
+  },
+  typedKeepSuggestionText: {
+    color: theme.label,
+    fontSize: 17,
+    fontFamily: theme.fontFamily,
+    fontWeight: '600',
   },
   autocorrectSuggestion: {
     paddingHorizontal: 4,

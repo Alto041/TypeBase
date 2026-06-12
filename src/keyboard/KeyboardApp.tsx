@@ -1,4 +1,11 @@
-import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import React, {
+  startTransition,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   ActivityIndicator,
   DeviceEventEmitter,
@@ -52,8 +59,7 @@ import {
 } from './autocorrect/autocorrectStore';
 import {
   getAutocorrectCandidate,
-  getAutocorrectPreview,
-  getTypoSuggestionPreview,
+  getSuggestionBarAutocorrect,
   shouldAutoApply,
 } from './autocorrect/autocorrectEngine';
 import {
@@ -111,7 +117,7 @@ import type {KeyboardColorScheme, KeyboardTheme} from './theme';
 import {useVoiceInput} from './voice/useVoiceInput';
 
 const DOUBLE_TAP_MS = 350;
-const SUGGESTION_REFRESH_DEBOUNCE_MS = 120;
+const SUGGESTION_REFRESH_DEBOUNCE_MS = 160;
 
 type LetterKeyboardRowsProps = {
   rows: KeyDefinition[][];
@@ -189,6 +195,9 @@ function KeyboardBody() {
   const [autocorrectSettings, setAutocorrectSettings] =
     useState<AutocorrectSettings>(getAutocorrectSettings());
   const [autocorrectPreview, setAutocorrectPreview] = useState<string | null>(
+    null,
+  );
+  const [typedKeepSuggestion, setTypedKeepSuggestion] = useState<string | null>(
     null,
   );
   const [launcherAppPackage, setLauncherAppPackageState] = useState(
@@ -491,11 +500,14 @@ function KeyboardBody() {
       isRewriteMode ||
       isTranslateMode
     ) {
-      setSuggestions([]);
-      setEssentialSuggestions([]);
-      setEssentialTriggerLength(0);
-      setCurrentPrefix('');
-      setAutocorrectPreview(null);
+      startTransition(() => {
+        setSuggestions([]);
+        setEssentialSuggestions([]);
+        setEssentialTriggerLength(0);
+        setCurrentPrefix('');
+        setAutocorrectPreview(null);
+        setTypedKeepSuggestion(null);
+      });
       return;
     }
 
@@ -503,13 +515,16 @@ function KeyboardBody() {
     const context = await keyboardBridge.getTextBeforeCursor(96);
     const essentialTrigger = extractEssentialTrigger(context);
     if (essentialTrigger) {
-      setEssentialTriggerLength(essentialTrigger.triggerLength);
-      setEssentialSuggestions(
-        matchEssentialSuggestions(essentialTrigger.query, 3),
-      );
-      setSuggestions([]);
-      setCurrentPrefix('');
-      setAutocorrectPreview(null);
+      startTransition(() => {
+        setEssentialTriggerLength(essentialTrigger.triggerLength);
+        setEssentialSuggestions(
+          matchEssentialSuggestions(essentialTrigger.query, 3),
+        );
+        setSuggestions([]);
+        setCurrentPrefix('');
+        setAutocorrectPreview(null);
+        setTypedKeepSuggestion(null);
+      });
       return;
     }
 
@@ -518,26 +533,40 @@ function KeyboardBody() {
     await ensureAutocorrectLoaded();
 
     const prefix = extractCurrentWord(context);
-    setCurrentPrefix(prefix);
 
-    let preview: string | null = null;
-    if (getAutocorrectSettings().enabled && prefix.length >= 2) {
-      preview =
-        getAutocorrectPreview(prefix) ?? getTypoSuggestionPreview(prefix);
-    }
+    const barAutocorrect =
+      getAutocorrectSettings().enabled && prefix.length >= 2
+        ? getSuggestionBarAutocorrect(prefix)
+        : {keepTyped: null, correction: null};
 
     const phraseSuggestions = getPhraseSuggestions(context, 2);
     let wordSuggestions = getWordSuggestions(prefix, 3);
-    if (preview) {
+    const reserved = new Set<string>();
+    if (barAutocorrect.keepTyped) {
+      reserved.add(barAutocorrect.keepTyped.toLowerCase());
+    }
+    if (barAutocorrect.correction) {
+      reserved.add(barAutocorrect.correction.toLowerCase());
+    }
+    if (reserved.size > 0) {
       wordSuggestions = wordSuggestions.filter(
-        word => word.toLowerCase() !== preview!.toLowerCase(),
+        word => !reserved.has(word.toLowerCase()),
       );
     }
 
-    setAutocorrectPreview(preview);
-    setSuggestions([...phraseSuggestions, ...wordSuggestions].slice(0, 3));
-    setEssentialSuggestions([]);
-    setEssentialTriggerLength(0);
+    const nextSuggestions = [...phraseSuggestions, ...wordSuggestions].slice(
+      0,
+      3,
+    );
+
+    startTransition(() => {
+      setCurrentPrefix(prefix);
+      setTypedKeepSuggestion(barAutocorrect.keepTyped);
+      setAutocorrectPreview(barAutocorrect.correction);
+      setSuggestions(nextSuggestions);
+      setEssentialSuggestions([]);
+      setEssentialTriggerLength(0);
+    });
   }, [
     isClipboardMode,
     isEmojiMode,
@@ -548,16 +577,18 @@ function KeyboardBody() {
   ]);
 
   const scheduleRefreshSuggestions = useCallback(() => {
+    if (layout !== 'letters' || mode.type !== 'typing') {
+      return;
+    }
+
     if (suggestionRefreshTimerRef.current) {
       clearTimeout(suggestionRefreshTimerRef.current);
     }
     suggestionRefreshTimerRef.current = setTimeout(() => {
       suggestionRefreshTimerRef.current = null;
-      InteractionManager.runAfterInteractions(() => {
-        void refreshSuggestions();
-      });
+      void refreshSuggestions();
     }, SUGGESTION_REFRESH_DEBOUNCE_MS);
-  }, [refreshSuggestions]);
+  }, [layout, mode.type, refreshSuggestions]);
 
   useEffect(() => {
     return () => {
@@ -907,7 +938,7 @@ function KeyboardBody() {
             const shouldReleaseShift = shiftOn && !capsLocked;
             scheduleRefreshSuggestions();
             if (shouldReleaseShift) {
-              setShiftOn(false);
+              startTransition(() => setShiftOn(false));
             }
           }
       }
@@ -1119,6 +1150,7 @@ function KeyboardBody() {
         <SuggestionBar
           suggestions={suggestions}
           prefix={currentPrefix}
+          typedKeepSuggestion={typedKeepSuggestion}
           autocorrectPreview={autocorrectPreview}
           onSelect={handleSuggestionSelect}
           clipboardPasteSuggestion={clipboardPasteSuggestion}
