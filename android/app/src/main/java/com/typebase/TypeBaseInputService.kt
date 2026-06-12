@@ -5,6 +5,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.TypedValue
 import android.view.View
+import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.widget.FrameLayout
 import com.facebook.react.ReactApplication
@@ -43,7 +44,11 @@ class TypeBaseInputService : InputMethodService() {
 
   override fun onCreateInputView(): View {
     surfaceMountAttempts = 0
-    val frame = FrameLayout(this)
+    val frame =
+        FrameLayout(this).apply {
+          // Allow two+ letter keys to receive touches at the same time (Gboard-style).
+          setMotionEventSplittingEnabled(true)
+        }
     container = frame
     resumeReactForKeyboard()
     mountKeyboardSurface(frame)
@@ -137,6 +142,7 @@ class TypeBaseInputService : InputMethodService() {
     }
 
     (view.parent as? FrameLayout)?.removeView(view)
+    (view as? ViewGroup)?.setMotionEventSplittingEnabled(true)
     keyboardView = view
     frame.addView(
         view,

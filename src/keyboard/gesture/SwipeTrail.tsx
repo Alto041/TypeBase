@@ -29,6 +29,7 @@ export function SwipeTrail({
   fading,
   onFadeComplete,
 }: SwipeTrailProps) {
+  const theme = useKeyboardTheme();
   const opacity = useRef(new Animated.Value(1)).current;
   const [nowMs, setNowMs] = useState(() => Date.now());
 
@@ -90,7 +91,7 @@ export function SwipeTrail({
           <Path
             key={index}
             d={segment.d}
-            stroke={keyboardTheme.swipeTrail}
+            stroke={theme.swipeTrail}
             strokeWidth={segment.strokeWidth}
             strokeLinecap="round"
             strokeLinejoin="round"

@@ -1,27 +1,32 @@
 export const gestureSwipeActiveRef = {current: false};
 
-/** Tracks an active finger on the letter-key area for swipe vs tap. */
-export const swipeTypingSessionRef = {
-  touchActive: false,
-  isSwiping: false,
-  blockKeyPress: false,
-  /** Set when a letter was inserted on press-in and should be undone if a swipe starts. */
-  tapCommitted: false,
+export type SwipePointerSession = {
+  rawStartX: number;
+  rawStartY: number;
+  isSwiping: boolean;
+  tapCommitted: boolean;
 };
 
-export function shouldBlockSwipeTypingKeyInput(): boolean {
-  return (
-    swipeTypingSessionRef.blockKeyPress ||
-    swipeTypingSessionRef.isSwiping ||
-    gestureSwipeActiveRef.current
-  );
+/** Per-finger sessions so a second finger can tap while the first swipes. */
+function pointerKey(id: number | string): number {
+  return typeof id === 'number' ? id : Number(id);
 }
 
-/** True when a completed swipe should not also register as a letter tap. */
-export function shouldDeferSwipeTypingLetterTap(): boolean {
-  return (
-    swipeTypingSessionRef.blockKeyPress ||
-    swipeTypingSessionRef.isSwiping ||
-    gestureSwipeActiveRef.current
-  );
+export const swipePointerSessionsRef = {
+  current: new Map<number, SwipePointerSession>(),
+};
+
+/** Pointer id currently drawing the swipe trail (at most one). */
+export const activeSwipePointerIdRef = {current: null as number | null};
+
+export function markSwipeTypingTapCommitted(pointerId: number | string): void {
+  const session = swipePointerSessionsRef.current.get(pointerKey(pointerId));
+  if (session) {
+    session.tapCommitted = true;
+  }
+}
+
+/** Never block other fingers — each key commits on touch-down independently. */
+export function shouldBlockSwipeTypingKeyInput(): boolean {
+  return false;
 }

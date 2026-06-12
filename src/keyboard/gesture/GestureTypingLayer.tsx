@@ -1,4 +1,4 @@
-import React, {useMemo, useRef} from 'react';
+import React, {memo, useMemo, useRef} from 'react';
 import {PanResponder, PixelRatio, StyleSheet, View} from 'react-native';
 import {gestureSwipeActiveRef} from './gestureState';
 import {SwipeTypingProvider} from './SwipeTypingContext';
@@ -23,7 +23,7 @@ type GestureTypingLayerProps = {
   children: React.ReactNode;
 };
 
-export function GestureTypingLayer({
+function GestureTypingLayerComponent({
   enabled,
   alignTop = false,
   compact = false,
@@ -100,6 +100,8 @@ export function GestureTypingLayer({
     </SwipeTypingProvider>
   );
 }
+
+export const GestureTypingLayer = memo(GestureTypingLayerComponent);
 
 const styles = StyleSheet.create({
   spacer: {

@@ -88,7 +88,11 @@ function getPrefixMatches(
   );
 }
 
-export function getWordSuggestions(prefix: string, limit = 3): string[] {
+export function getWordSuggestions(
+  prefix: string,
+  limit = 3,
+  options?: {skipFuzzy?: boolean},
+): string[] {
   if (!prefix || prefix.length < 1) {
     return [];
   }
@@ -101,7 +105,9 @@ export function getWordSuggestions(prefix: string, limit = 3): string[] {
   const learned = getLearnedCounts();
   const prefixMatches = getPrefixMatches(lower, learned);
   const taken = new Set<string>([lower, ...prefixMatches]);
-  const fuzzyMatches = getSimilarWordSuggestions(lower, limit, taken);
+  const fuzzyMatches = options?.skipFuzzy
+    ? []
+    : getSimilarWordSuggestions(lower, limit, taken, {skipFrequentScan: true});
 
   type RankedSuggestion = {
     word: string;

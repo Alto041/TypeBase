@@ -1,4 +1,4 @@
-import React, {Fragment} from 'react';
+import React, {Fragment, memo} from 'react';
 import {Image, Pressable, StyleSheet, Text, View} from 'react-native';
 import AddIcon from '../../../assets/add.svg';
 import InsertIcon from '../../../assets/insert.svg';
@@ -22,6 +22,37 @@ export type EssentialSuggestion = {
   keyword: string;
   value: string;
 };
+
+const MAX_SUGGESTION_CHIPS = 3;
+
+type WordSuggestionChip =
+  | {kind: 'keep'; text: string}
+  | {kind: 'autocorrect'; text: string}
+  | {kind: 'word'; text: string};
+
+function buildWordSuggestionChips(
+  prefix: string,
+  typedKeepSuggestion: string | null,
+  autocorrectPreview: string | null,
+  suggestions: string[],
+): WordSuggestionChip[] {
+  const chips: WordSuggestionChip[] = [];
+
+  if (typedKeepSuggestion && prefix.length > 0) {
+    chips.push({kind: 'keep', text: typedKeepSuggestion});
+  }
+  if (autocorrectPreview && prefix.length > 0) {
+    chips.push({kind: 'autocorrect', text: autocorrectPreview});
+  }
+  for (const word of suggestions) {
+    chips.push({
+      kind: 'word',
+      text: word.includes(' ') ? word : applyCaseToWord(word, prefix),
+    });
+  }
+
+  return chips.slice(0, MAX_SUGGESTION_CHIPS);
+}
 
 type EssentialsFormBarState = {
   focusField: 'keyword' | 'value';
@@ -65,7 +96,7 @@ type SuggestionBarProps = {
   };
 };
 
-export function SuggestionBar({
+function SuggestionBarComponent({
   suggestions,
   prefix,
   autocorrectPreview = null,
@@ -108,12 +139,15 @@ export function SuggestionBar({
     !isVoiceProcessing &&
     partialTranscript.length > 0;
   const hasEssentials = !isFormMode && essentialSuggestions.length > 0;
-  const hasTypedKeep =
-    !isFormMode && Boolean(typedKeepSuggestion) && prefix.length > 0;
-  const hasAutocorrect =
-    !isFormMode && Boolean(autocorrectPreview) && prefix.length > 0;
-  const hasSuggestions = !isFormMode && suggestions.length > 0;
-  const showWordSuggestions = hasTypedKeep || hasAutocorrect || hasSuggestions;
+  const wordSuggestionChips = isFormMode
+    ? []
+    : buildWordSuggestionChips(
+        prefix,
+        typedKeepSuggestion,
+        autocorrectPreview,
+        suggestions,
+      );
+  const showWordSuggestions = wordSuggestionChips.length > 0;
   const hasClipboardPaste =
     !isFormMode &&
     !centerTitle &&
@@ -270,63 +304,32 @@ export function SuggestionBar({
           </View>
         ) : showWordSuggestions ? (
           <View style={styles.row}>
-            {hasTypedKeep && typedKeepSuggestion ? (
-              <Pressable
-                onPressIn={() => {
-                  triggerKeyHaptic();
-                  onSelect(typedKeepSuggestion);
-                }}
-                style={({pressed}) => [
-                  styles.suggestion,
-                  styles.typedKeepSuggestion,
-                  pressed && styles.suggestionPressed,
-                ]}>
-                <Text style={styles.typedKeepSuggestionText} numberOfLines={1}>
-                  {typedKeepSuggestion}
-                </Text>
-              </Pressable>
-            ) : null}
-            {hasAutocorrect && autocorrectPreview ? (
-              <Pressable
-                onPressIn={() => {
-                  triggerKeyHaptic();
-                  onSelect(autocorrectPreview);
-                }}
-                style={({pressed}) => [
-                  styles.suggestion,
-                  styles.autocorrectSuggestion,
-                  pressed && styles.suggestionPressed,
-                ]}>
-                <Text style={styles.suggestionText} numberOfLines={1}>
-                  {autocorrectPreview}
-                </Text>
-              </Pressable>
-            ) : null}
-            {suggestions.map((word, index) => {
-              const display = word.includes(' ')
-                ? word
-                : applyCaseToWord(word, prefix);
-              return (
-                <Fragment key={word}>
-                  {index > 0 || hasTypedKeep || hasAutocorrect ? (
-                    <View style={styles.divider} />
-                  ) : null}
-                  <Pressable
-                    onPressIn={() => {
-                      triggerKeyHaptic();
-                      onSelect(display);
-                    }}
-                    style={({pressed}) => [
-                      styles.suggestion,
-                      pressed && styles.suggestionPressed,
-                    ]}>
-                    <Text style={styles.suggestionText} numberOfLines={1}>
-                      {display}
-                    </Text>
-                  </Pressable>
-                </Fragment>
-              );
-            })}
+            {wordSuggestionChips.map((chip, index) => (
+              <Fragment key={`${chip.kind}:${chip.text}`}>
+                {index > 0 ? <View style={styles.divider} /> : null}
+                <Pressable
+                  onPressIn={() => {
+                    triggerKeyHaptic();
+                    onSelect(chip.text);
+                  }}
+                  style={({pressed}) => [
+                    styles.suggestion,
+                    chip.kind === 'keep' && styles.typedKeepSuggestion,
+                    chip.kind === 'autocorrect' && styles.autocorrectSuggestion,
+                    pressed && styles.suggestionPressed,
+                  ]}>
+                  <Text
+                    style={
+                      chip.kind === 'keep'
+                        ? styles.typedKeepSuggestionText
+                        : styles.suggestionText
+                    }
+                    numberOfLines={1}>
+                    {chip.text}
+                  </Text>
+                </Pressable>
+              </Fragment>
+            ))}
           </View>
         ) : null}
       </View>
@@ -617,3 +620,5 @@ function createSuggestionBarStyles(theme: KeyboardTheme) {
   },
   });
 }
+
+export const SuggestionBar = memo(SuggestionBarComponent);

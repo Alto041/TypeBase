@@ -7,6 +7,8 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.view.HapticFeedbackConstants
 import android.view.KeyEvent
@@ -32,6 +34,9 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   private var removePrefersNumpadListener: (() -> Unit)? = null
   private var removeKeyboardVisibilityListener: (() -> Unit)? = null
   private var clipboardListener: ClipboardManager.OnPrimaryClipChangedListener? = null
+  private val backspaceHandler = Handler(Looper.getMainLooper())
+  private var backspaceHoldRunnable: Runnable? = null
+  private var backspaceTickRunnable: Runnable? = null
 
   override fun getName(): String = "KeyboardModule"
 
@@ -80,6 +85,7 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
       clipboardManager.removePrimaryClipChangedListener(listener)
     }
     clipboardListener = null
+    stopBackspaceRepeatInternal()
     super.invalidate()
   }
 
@@ -311,6 +317,43 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
 
   @ReactMethod
   fun deleteBackward() {
+    performDeleteBackward()
+  }
+
+  @ReactMethod
+  fun startBackspaceRepeat(holdDelayMs: Int, intervalMs: Int) {
+    UiThreadUtil.runOnUiThread {
+      stopBackspaceRepeatInternal()
+      val holdDelay = holdDelayMs.coerceAtLeast(0).toLong()
+      val interval = intervalMs.coerceIn(16, 500).toLong()
+
+      val holdRunnable = Runnable {
+        backspaceHoldRunnable = null
+        performDeleteBackward()
+        val tickRunnable =
+            object : Runnable {
+              override fun run() {
+                if (backspaceTickRunnable !== this) {
+                  return
+                }
+                performDeleteBackward()
+                backspaceHandler.postDelayed(this, interval)
+              }
+            }
+        backspaceTickRunnable = tickRunnable
+        backspaceHandler.postDelayed(tickRunnable, interval)
+      }
+      backspaceHoldRunnable = holdRunnable
+      backspaceHandler.postDelayed(holdRunnable, holdDelay)
+    }
+  }
+
+  @ReactMethod
+  fun stopBackspaceRepeat() {
+    UiThreadUtil.runOnUiThread { stopBackspaceRepeatInternal() }
+  }
+
+  private fun performDeleteBackward() {
     val connection = KeyboardInputBridge.getInputConnection() ?: return
     val selected = connection.getSelectedText(0)
     if (selected != null && selected.isNotEmpty()) {
@@ -318,6 +361,13 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
       return
     }
     connection.deleteSurroundingText(1, 0)
+  }
+
+  private fun stopBackspaceRepeatInternal() {
+    backspaceHoldRunnable?.let { backspaceHandler.removeCallbacks(it) }
+    backspaceTickRunnable?.let { backspaceHandler.removeCallbacks(it) }
+    backspaceHoldRunnable = null
+    backspaceTickRunnable = null
   }
 
   @ReactMethod

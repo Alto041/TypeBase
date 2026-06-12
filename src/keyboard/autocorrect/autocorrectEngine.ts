@@ -25,8 +25,12 @@ for (const word of WORDS) {
 
 const MIN_AUTO_CONFIDENCE = 0.67;
 const COMMON_WORD_RANK = 3500;
-const FREQUENT_WORD_SCAN_LIMIT = 5000;
-const FREQUENT_FALLBACK_LIMIT = 7000;
+const FREQUENT_WORD_SCAN_LIMIT = 1000;
+const FREQUENT_FALLBACK_LIMIT = 2000;
+
+type CollectOptions = {
+  skipFrequentScan?: boolean;
+};
 
 export type AutocorrectCandidate = {
   correction: string;
@@ -320,6 +324,7 @@ function isLikelyTypoMatch(typed: string, candidate: string, edits: number): boo
 function collectCandidates(
   typed: string,
   editBudget = maxEditDistance(typed.length),
+  options?: CollectOptions,
 ): Array<{
   word: string;
   edits: number;
@@ -382,17 +387,19 @@ function collectCandidates(
     }
   }
 
-  if (results.length < 2 && typed.length >= 4) {
-    for (let i = 0; i < Math.min(FREQUENT_WORD_SCAN_LIMIT, WORDS.length); i++) {
-      const word = WORDS[i];
-      consider(word, learned.get(word) ?? 0, i);
+  if (!options?.skipFrequentScan) {
+    if (results.length < 2 && typed.length >= 4) {
+      for (let i = 0; i < Math.min(FREQUENT_WORD_SCAN_LIMIT, WORDS.length); i++) {
+        const word = WORDS[i];
+        consider(word, learned.get(word) ?? 0, i);
+      }
     }
-  }
 
-  if (results.length === 0 && typed.length >= 4) {
-    for (let i = 0; i < Math.min(FREQUENT_FALLBACK_LIMIT, WORDS.length); i++) {
-      const word = WORDS[i];
-      consider(word, learned.get(word) ?? 0, i);
+    if (results.length === 0 && typed.length >= 4) {
+      for (let i = 0; i < Math.min(FREQUENT_FALLBACK_LIMIT, WORDS.length); i++) {
+        const word = WORDS[i];
+        consider(word, learned.get(word) ?? 0, i);
+      }
     }
   }
 
@@ -409,6 +416,7 @@ export function getSimilarWordSuggestions(
   typedWord: string,
   limit = 3,
   exclude: ReadonlySet<string> = new Set(),
+  options?: CollectOptions,
 ): SimilarWordSuggestion[] {
   const typed = typedWord.trim().toLowerCase();
   if (typed.length < 2 || !/^[a-z]+$/.test(typed)) {
@@ -416,7 +424,7 @@ export function getSimilarWordSuggestions(
   }
 
   const editBudget = typed.length <= 4 ? 2 : typed.length <= 7 ? 2 : 2;
-  const candidates = collectCandidates(typed, editBudget).filter(candidate => {
+  const candidates = collectCandidates(typed, editBudget, options).filter(candidate => {
     if (exclude.has(candidate.word) || isLikelyNameTrap(typed, candidate.word)) {
       return false;
     }
@@ -458,7 +466,10 @@ export function getSimilarWordSuggestions(
   }));
 }
 
-export function getTypoSuggestionPreview(typedWord: string): string | null {
+export function getTypoSuggestionPreview(
+  typedWord: string,
+  fast = false,
+): string | null {
   const typed = typedWord.trim();
   if (typed.length < 2 || !/^[a-zA-Z]+$/.test(typed)) {
     return null;
@@ -477,7 +488,9 @@ export function getTypoSuggestionPreview(typedWord: string): string | null {
     return null;
   }
 
-  const [best] = getSimilarWordSuggestions(lower, 1, new Set([lower]));
+  const [best] = getSimilarWordSuggestions(lower, 1, new Set([lower]), {
+    skipFrequentScan: fast,
+  });
   if (!best || best.word.startsWith(lower)) {
     return null;
   }
@@ -591,7 +604,10 @@ export function getAutocorrectPreview(typedWord: string): string | null {
 }
 
 /** Bar chips: keep what you typed + optional correction (correction may be blocked from auto-apply). */
-export function getSuggestionBarAutocorrect(typedWord: string): {
+export function getSuggestionBarAutocorrect(
+  typedWord: string,
+  options?: {fast?: boolean},
+): {
   keepTyped: string | null;
   correction: string | null;
 } {
@@ -619,9 +635,11 @@ export function getSuggestionBarAutocorrect(typedWord: string): {
     };
   }
 
-  const softCorrection = getTypoSuggestionPreview(typed);
-  const autoCandidate = getAutocorrectCandidate(typed);
-  const correction = autoCandidate?.correction ?? softCorrection;
+  const fast = options?.fast ?? false;
+  const softCorrection = getTypoSuggestionPreview(typed, fast);
+  const correction =
+    softCorrection ??
+    (fast ? null : getAutocorrectCandidate(typed)?.correction ?? null);
 
   if (!correction || correction.toLowerCase() === lower) {
     if (isPreserveTypedWord(lower) && offerKeepTyped) {

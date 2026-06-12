@@ -14,7 +14,7 @@ import {
   View,
 } from 'react-native';
 import {useFonts} from 'expo-font';
-import {KeyboardRow} from './components/Key';
+import {KeyboardRow} from './components/KeyboardRows';
 import {SuggestionBar} from './components/SuggestionBar';
 import {CalculatorPanel} from './calculator/CalculatorPanel';
 import {ClipboardProPanel} from './clipboard/ClipboardProPanel';
@@ -117,7 +117,8 @@ import type {KeyboardColorScheme, KeyboardTheme} from './theme';
 import {useVoiceInput} from './voice/useVoiceInput';
 
 const DOUBLE_TAP_MS = 350;
-const SUGGESTION_REFRESH_DEBOUNCE_MS = 160;
+const SUGGESTION_REFRESH_DEBOUNCE_MS = 450;
+const TYPING_BURST_MS = 120;
 
 type LetterKeyboardRowsProps = {
   rows: KeyDefinition[][];
@@ -144,7 +145,9 @@ const LetterKeyboardRows = React.memo(function LetterKeyboardRows({
   const styles = useThemedStyles(createKeyboardAppStyles);
 
   return (
-    <SwipeTypingKeysHost>
+    <SwipeTypingKeysHost
+      multiTouchEnabled={modeType === 'typing'}
+      onMultiTouchKeyPress={onKeyPress}>
       {rows.map((row, index) => (
         <KeyboardRow
           key={`${layout}-${modeType}-${index}`}
@@ -177,6 +180,15 @@ function KeyboardBody() {
   const suggestionRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
+  const livePrefixRef = useRef('');
+  const lastTypingAtRef = useRef(0);
+  const shiftOnRef = useRef(false);
+  const capsLockedRef = useRef(false);
+  const layoutRef = useRef<KeyboardLayout>('letters');
+  const modeRef = useRef<KeyboardMode>({type: 'typing'});
+  const isUppercaseRef = useRef(false);
+  const clipboardPasteSuggestionRef =
+    useRef<ReturnType<typeof useClipboardPasteSuggestion>['clipboardPasteSuggestion']>(null);
   const [prefersNumpad, setPrefersNumpad] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [essentialSuggestions, setEssentialSuggestions] = useState<Essential[]>(
@@ -221,7 +233,14 @@ function KeyboardBody() {
     clearClipboardPasteSuggestion,
   } = useClipboardPasteSuggestion({enabled: clipboardPasteEnabled});
 
+  shiftOnRef.current = shiftOn;
+  capsLockedRef.current = capsLocked;
+  layoutRef.current = layout;
+  modeRef.current = mode;
+  clipboardPasteSuggestionRef.current = clipboardPasteSuggestion;
+
   const isUppercase = shiftOn || capsLocked;
+  isUppercaseRef.current = isUppercase;
   const isFormMode = mode.type === 'essentials-form';
   const isClipboardMode = mode.type === 'clipboard';
   const isEssentialsListMode = mode.type === 'essentials-list';
@@ -491,7 +510,7 @@ function KeyboardBody() {
     void handleSaveEssential();
   }, [formKeyword, handleSaveEssential, mode]);
 
-  const refreshSuggestions = useCallback(async () => {
+  const refreshSuggestions = useCallback(async (options?: {fast?: boolean}) => {
     if (
       layout !== 'letters' ||
       isFormMode ||
@@ -533,14 +552,18 @@ function KeyboardBody() {
     await ensureAutocorrectLoaded();
 
     const prefix = extractCurrentWord(context);
+    livePrefixRef.current = prefix;
 
+    const fast = options?.fast ?? false;
     const barAutocorrect =
       getAutocorrectSettings().enabled && prefix.length >= 2
-        ? getSuggestionBarAutocorrect(prefix)
+        ? getSuggestionBarAutocorrect(prefix, {fast})
         : {keepTyped: null, correction: null};
 
-    const phraseSuggestions = getPhraseSuggestions(context, 2);
-    let wordSuggestions = getWordSuggestions(prefix, 3);
+    const phraseSuggestions = fast ? [] : getPhraseSuggestions(context, 2);
+    let wordSuggestions = getWordSuggestions(prefix, 3, {
+      skipFuzzy: fast && prefix.length < 5,
+    });
     const reserved = new Set<string>();
     if (barAutocorrect.keepTyped) {
       reserved.add(barAutocorrect.keepTyped.toLowerCase());
@@ -577,7 +600,7 @@ function KeyboardBody() {
   ]);
 
   const scheduleRefreshSuggestions = useCallback(() => {
-    if (layout !== 'letters' || mode.type !== 'typing') {
+    if (layoutRef.current !== 'letters' || modeRef.current.type !== 'typing') {
       return;
     }
 
@@ -586,9 +609,15 @@ function KeyboardBody() {
     }
     suggestionRefreshTimerRef.current = setTimeout(() => {
       suggestionRefreshTimerRef.current = null;
-      void refreshSuggestions();
+      const idleFor = Date.now() - lastTypingAtRef.current;
+      if (idleFor < TYPING_BURST_MS) {
+        scheduleRefreshSuggestions();
+        return;
+      }
+      const fast = idleFor < 450;
+      void refreshSuggestions({fast});
     }, SUGGESTION_REFRESH_DEBOUNCE_MS);
-  }, [layout, mode.type, refreshSuggestions]);
+  }, [refreshSuggestions]);
 
   useEffect(() => {
     return () => {
@@ -823,9 +852,15 @@ function KeyboardBody() {
     scheduleRefreshSuggestions,
   ]);
 
-  const handleKeyPress = useCallback(
+  const handleKeyPressImpl = useCallback(
     (keyDef: KeyDefinition) => {
-      if (mode.type === 'typing') {
+      const mode = modeRef.current;
+      const layout = layoutRef.current;
+      const shiftOn = shiftOnRef.current;
+      const capsLocked = capsLockedRef.current;
+      const isUppercase = isUppercaseRef.current;
+
+      if (mode.type === 'typing' && clipboardPasteSuggestionRef.current) {
         clearClipboardPasteSuggestion();
       }
 
@@ -888,9 +923,12 @@ function KeyboardBody() {
       switch (keyDef.type) {
         case 'backspace':
           keyboardBridge.deleteBackward();
+          livePrefixRef.current = livePrefixRef.current.slice(0, -1);
+          lastTypingAtRef.current = Date.now();
           scheduleRefreshSuggestions();
           return;
         case 'space':
+          livePrefixRef.current = '';
           void commitTypedWordBoundary(() => {
             keyboardBridge.insertText(' ');
           });
@@ -910,6 +948,7 @@ function KeyboardBody() {
           return;
         case 'numpad-back':
           keyboardBridge.deleteBackward();
+          lastTypingAtRef.current = Date.now();
           scheduleRefreshSuggestions();
           return;
         case 'numbers':
@@ -935,9 +974,13 @@ function KeyboardBody() {
                 ? keyDef.value.toUpperCase()
                 : keyDef.value;
             keyboardBridge.insertText(text);
-            const shouldReleaseShift = shiftOn && !capsLocked;
-            scheduleRefreshSuggestions();
-            if (shouldReleaseShift) {
+            if (layout === 'letters' && mode.type === 'typing') {
+              livePrefixRef.current += text;
+              lastTypingAtRef.current = Date.now();
+              scheduleRefreshSuggestions();
+            }
+            if (shiftOn && !capsLocked) {
+              shiftOnRef.current = false;
               startTransition(() => setShiftOn(false));
             }
           }
@@ -946,19 +989,21 @@ function KeyboardBody() {
     [
       appendToFormField,
       backspaceFormField,
-      capsLocked,
+      clearClipboardPasteSuggestion,
       commitTypedWordBoundary,
       handleFormConfirm,
       handleShiftPress,
-      isUppercase,
-      layout,
-      mode,
       resetCase,
-      clearClipboardPasteSuggestion,
       scheduleRefreshSuggestions,
-      shiftOn,
     ],
   );
+
+  const handleKeyPressRef = useRef(handleKeyPressImpl);
+  handleKeyPressRef.current = handleKeyPressImpl;
+
+  const handleKeyPress = useCallback((keyDef: KeyDefinition) => {
+    handleKeyPressRef.current(keyDef);
+  }, []);
 
   const handleWordCommitted = useCallback(
     (word: string) => {

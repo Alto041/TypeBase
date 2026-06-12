@@ -1,5 +1,6 @@
 import React from 'react';
 import {StyleSheet, View} from 'react-native';
+import {BackspaceKey} from '../components/BackspaceKey';
 import {Key} from '../components/Key';
 import type {KeyDefinition} from '../layouts/qwerty';
 import {useThemedStyles} from '../KeyboardThemeContext';
@@ -47,11 +48,8 @@ export function EmojiBottomRow({
         <EmojiCategoryBar selected={category} onSelect={onCategorySelect} />
       </View>
       <View style={styles.sideKey}>
-        <Key
+        <BackspaceKey
           keyDef={BACKSPACE_KEY}
-          isUppercase={false}
-          isShiftOn={false}
-          isCapsLocked={false}
           onPress={onKeyPress}
         />
       </View>

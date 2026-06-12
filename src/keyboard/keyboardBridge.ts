@@ -4,6 +4,8 @@ import type {ClipboardContent} from './clipboard/types';
 type KeyboardModuleType = {
   insertText: (text: string) => void;
   deleteBackward: () => void;
+  startBackspaceRepeat: (holdDelayMs: number, intervalMs: number) => void;
+  stopBackspaceRepeat: () => void;
   getTextBeforeCursor: (length: number) => Promise<string>;
   getLearnedWordCounts: () => Promise<Record<string, number>>;
   getEssentials: () => Promise<string>;
@@ -52,6 +54,16 @@ export const keyboardBridge: KeyboardModuleType = {
   deleteBackward: () => {
     if (Platform.OS === 'android' && KeyboardModule?.deleteBackward) {
       KeyboardModule.deleteBackward();
+    }
+  },
+  startBackspaceRepeat: (holdDelayMs: number, intervalMs: number) => {
+    if (Platform.OS === 'android' && KeyboardModule?.startBackspaceRepeat) {
+      KeyboardModule.startBackspaceRepeat(holdDelayMs, intervalMs);
+    }
+  },
+  stopBackspaceRepeat: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.stopBackspaceRepeat) {
+      KeyboardModule.stopBackspaceRepeat();
     }
   },
   getTextBeforeCursor: (length: number) => {

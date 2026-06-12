@@ -2,6 +2,7 @@ import React, {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -14,16 +15,29 @@ import {decodeSwipeGesture} from './gestureDecoder';
 import {ensureLearnedDictionaryLoaded} from '../suggestions/learnedDictionary';
 import {isValidSwipeCommit} from './wordDictionary';
 import {
+  activeSwipePointerIdRef,
   gestureSwipeActiveRef,
-  swipeTypingSessionRef,
+  swipePointerSessionsRef,
+  type SwipePointerSession,
 } from './gestureState';
 import {
   useKeyLayoutContext,
   type KeyLayoutContextValue,
 } from './KeyLayoutContext';
 import {measureKeysArea} from './measureKeysArea';
+import {
+  dispatchMultiTouchEnd,
+  dispatchMultiTouchStart,
+} from './multiTouchKeys';
 import {SwipeTrail} from './SwipeTrail';
 import type {Point, TrailPoint} from './types';
+import type {KeyDefinition} from '../layouts/qwerty';
+
+function pointerId(touch: {identifier: number | string}): number {
+  return typeof touch.identifier === 'number'
+    ? touch.identifier
+    : Number(touch.identifier);
+}
 
 /** Finger movement below this is treated as a tap, not a swipe. */
 const SWIPE_TAP_SLOP_DP = 10;
@@ -31,12 +45,6 @@ const SWIPE_MIN_STEP_DP = 1.5;
 const SWIPE_MAX_POINTS = 240;
 
 type PagePoint = {pageX: number; pageY: number};
-
-type SwipeSession = {
-  rawStartX: number;
-  rawStartY: number;
-  isSwiping: boolean;
-};
 
 type SwipeTypingContextValue = {
   enabled: boolean;
@@ -122,18 +130,6 @@ function pathDistance(points: Point[]): number {
   return total;
 }
 
-function releaseSwipeKeyBlock(onReleased?: () => void) {
-  gestureSwipeActiveRef.current = true;
-  swipeTypingSessionRef.blockKeyPress = true;
-  setTimeout(() => {
-    gestureSwipeActiveRef.current = false;
-    swipeTypingSessionRef.blockKeyPress = false;
-    swipeTypingSessionRef.touchActive = false;
-    swipeTypingSessionRef.isSwiping = false;
-    onReleased?.();
-  }, 45);
-}
-
 type SwipeTypingProviderProps = {
   enabled: boolean;
   isUppercase: boolean;
@@ -150,7 +146,6 @@ export function SwipeTypingProvider({
   const layoutContext = useKeyLayoutContext();
   const pagePointsRef = useRef<PagePoint[]>([]);
   const localPointsRef = useRef<Point[]>([]);
-  const sessionRef = useRef<SwipeSession | null>(null);
   const trailOriginRef = useRef({pageX: 0, pageY: 0});
   const trailSizeRef = useRef({width: 0, height: 0});
   const [trailPoints, setTrailPoints] = useState<TrailPoint[]>([]);
@@ -160,6 +155,18 @@ export function SwipeTypingProvider({
     setTrailPoints([]);
     setTrailFading(false);
   }, []);
+
+  useEffect(() => {
+    if (enabled) {
+      return;
+    }
+    swipePointerSessionsRef.current.clear();
+    activeSwipePointerIdRef.current = null;
+    gestureSwipeActiveRef.current = false;
+    pagePointsRef.current = [];
+    localPointsRef.current = [];
+    clearTrail();
+  }, [clearTrail, enabled]);
 
   const onTrailFadeComplete = useCallback(() => {
     clearTrail();
@@ -246,7 +253,7 @@ export function SwipeTypingProvider({
   }, []);
 
   const decodeAndCommit = useCallback(
-    (localPoints: Point[]) => {
+    (localPoints: Point[], tapCommitted: boolean) => {
       const attemptDecode = (retriesLeft: number) => {
         const layouts = layoutContext?.getLayouts() ?? [];
         const letterKeyCount = layouts.filter(layout => layout.letter).length;
@@ -261,20 +268,17 @@ export function SwipeTypingProvider({
           localPoints.length < 2 ||
           pathDistance(localPoints) < dp(SWIPE_TAP_SLOP_DP)
         ) {
-          releaseSwipeKeyBlock();
           return;
         }
 
         const word = decodeSwipeGesture(localPoints, layouts, isUppercase);
         if (word && isValidSwipeCommit(word)) {
-          if (swipeTypingSessionRef.tapCommitted) {
+          if (tapCommitted) {
             keyboardBridge.deleteBackward();
-            swipeTypingSessionRef.tapCommitted = false;
           }
           triggerKeyHaptic();
           onWordCommitted(word);
         }
-        releaseSwipeKeyBlock();
       };
 
       void ensureLearnedDictionaryLoaded().then(() => {
@@ -284,38 +288,52 @@ export function SwipeTypingProvider({
     [isUppercase, layoutContext, onWordCommitted],
   );
 
-  const finishSwipe = useCallback(
-    (wasSwiping: boolean, endPageX?: number, endPageY?: number) => {
-      if (wasSwiping) {
-        swipeTypingSessionRef.blockKeyPress = true;
-        if (endPageX != null && endPageY != null) {
-          const lastPage = pagePointsRef.current[pagePointsRef.current.length - 1];
-          const endJump = lastPage
-            ? Math.hypot(endPageX - lastPage.pageX, endPageY - lastPage.pageY)
-            : 0;
-          if (!lastPage || endJump < dp(48)) {
-            appendSwipePoint(endPageX, endPageY);
-          }
+  const beginSwipeTrail = useCallback(
+    (session: SwipePointerSession, pageX: number, pageY: number) => {
+      gestureSwipeActiveRef.current = true;
+      syncTrailBounds(() => {
+        localPointsRef.current = [];
+        pagePointsRef.current = [];
+        appendSwipePoint(session.rawStartX, session.rawStartY);
+        appendSwipePoint(pageX, pageY);
+      });
+    },
+    [appendSwipePoint, syncTrailBounds],
+  );
+
+  const finishPointerSession = useCallback(
+    (
+      pointerId: number,
+      session: SwipePointerSession,
+      endPageX: number,
+      endPageY: number,
+    ) => {
+      if (session.isSwiping && activeSwipePointerIdRef.current === pointerId) {
+        const lastPage = pagePointsRef.current[pagePointsRef.current.length - 1];
+        const endJump = lastPage
+          ? Math.hypot(endPageX - lastPage.pageX, endPageY - lastPage.pageY)
+          : 0;
+        if (!lastPage || endJump < dp(48)) {
+          appendSwipePoint(endPageX, endPageY);
         }
         const localPoints = [...localPointsRef.current];
+        const tapCommitted = session.tapCommitted;
         pagePointsRef.current = [];
         localPointsRef.current = [];
-        sessionRef.current = null;
-        swipeTypingSessionRef.isSwiping = false;
+        activeSwipePointerIdRef.current = null;
+        gestureSwipeActiveRef.current = false;
         setTrailFading(true);
-        decodeAndCommit(localPoints);
+        decodeAndCommit(localPoints, tapCommitted);
         return;
       }
 
-      gestureSwipeActiveRef.current = false;
-      swipeTypingSessionRef.touchActive = false;
-      swipeTypingSessionRef.isSwiping = false;
-      swipeTypingSessionRef.blockKeyPress = false;
-      swipeTypingSessionRef.tapCommitted = false;
-      sessionRef.current = null;
-      pagePointsRef.current = [];
-      localPointsRef.current = [];
-      clearTrail();
+      if (activeSwipePointerIdRef.current === pointerId) {
+        activeSwipePointerIdRef.current = null;
+        gestureSwipeActiveRef.current = false;
+        pagePointsRef.current = [];
+        localPointsRef.current = [];
+        clearTrail();
+      }
     },
     [appendSwipePoint, clearTrail, decodeAndCommit],
   );
@@ -325,33 +343,21 @@ export function SwipeTypingProvider({
       if (!enabled) {
         return;
       }
-      const {pageX, pageY} = event.nativeEvent;
-      if (!touchIsOnLetterKey(pageX, pageY, layoutContext)) {
-        sessionRef.current = null;
-        swipeTypingSessionRef.touchActive = false;
-        swipeTypingSessionRef.isSwiping = false;
-        swipeTypingSessionRef.blockKeyPress = false;
-        swipeTypingSessionRef.tapCommitted = false;
-        return;
-      }
 
       layoutContext?.refreshAreaBounds();
-      sessionRef.current = {
-        rawStartX: pageX,
-        rawStartY: pageY,
-        isSwiping: false,
-      };
-      pagePointsRef.current = [];
-      localPointsRef.current = [];
-      clearTrail();
-      syncTrailBounds();
-      swipeTypingSessionRef.touchActive = true;
-      swipeTypingSessionRef.isSwiping = false;
-      swipeTypingSessionRef.blockKeyPress = false;
-      swipeTypingSessionRef.tapCommitted = false;
-      gestureSwipeActiveRef.current = false;
+      for (const touch of event.nativeEvent.changedTouches) {
+        if (!touchIsOnLetterKey(touch.pageX, touch.pageY, layoutContext)) {
+          continue;
+        }
+        swipePointerSessionsRef.current.set(pointerId(touch), {
+          rawStartX: touch.pageX,
+          rawStartY: touch.pageY,
+          isSwiping: false,
+          tapCommitted: false,
+        });
+      }
     },
-    [clearTrail, enabled, layoutContext, syncTrailBounds],
+    [enabled, layoutContext],
   );
 
   const onTouchMoveCapture = useCallback(
@@ -359,42 +365,37 @@ export function SwipeTypingProvider({
       if (!enabled) {
         return;
       }
-      const session = sessionRef.current;
-      if (!session) {
-        return;
-      }
 
-      const touch = event.nativeEvent.touches[0];
-      if (!touch) {
-        return;
-      }
+      for (const touch of event.nativeEvent.touches) {
+        const id = pointerId(touch);
+        const session = swipePointerSessionsRef.current.get(id);
+        if (!session) {
+          continue;
+        }
 
-      if (!session.isSwiping) {
+        if (session.isSwiping) {
+          if (activeSwipePointerIdRef.current === id) {
+            appendSwipePoint(touch.pageX, touch.pageY);
+          }
+          continue;
+        }
+
         const dx = touch.pageX - session.rawStartX;
         const dy = touch.pageY - session.rawStartY;
         if (Math.hypot(dx, dy) < dp(SWIPE_TAP_SLOP_DP)) {
-          return;
+          continue;
         }
-        session.isSwiping = true;
-        swipeTypingSessionRef.isSwiping = true;
-        swipeTypingSessionRef.blockKeyPress = true;
-        if (swipeTypingSessionRef.tapCommitted) {
-          keyboardBridge.deleteBackward();
-          swipeTypingSessionRef.tapCommitted = false;
-        }
-        gestureSwipeActiveRef.current = true;
-        syncTrailBounds(() => {
-          localPointsRef.current = [];
-          pagePointsRef.current = [];
-          appendSwipePoint(session.rawStartX, session.rawStartY);
-          appendSwipePoint(touch.pageX, touch.pageY);
-        });
-        return;
-      }
 
-      appendSwipePoint(touch.pageX, touch.pageY);
+        session.isSwiping = true;
+        activeSwipePointerIdRef.current = id;
+        if (session.tapCommitted) {
+          keyboardBridge.deleteBackward();
+          session.tapCommitted = false;
+        }
+        beginSwipeTrail(session, touch.pageX, touch.pageY);
+      }
     },
-    [appendSwipePoint, enabled, syncTrailBounds],
+    [appendSwipePoint, beginSwipeTrail, enabled],
   );
 
   const onTouchEndCapture = useCallback(
@@ -402,15 +403,18 @@ export function SwipeTypingProvider({
       if (!enabled) {
         return;
       }
-      const session = sessionRef.current;
-      if (!session) {
-        return;
+
+      for (const touch of event.nativeEvent.changedTouches) {
+        const id = pointerId(touch);
+        const session = swipePointerSessionsRef.current.get(id);
+        if (!session) {
+          continue;
+        }
+        finishPointerSession(id, session, touch.pageX, touch.pageY);
+        swipePointerSessionsRef.current.delete(id);
       }
-      const wasSwiping = session.isSwiping;
-      const {pageX, pageY} = event.nativeEvent;
-      finishSwipe(wasSwiping, pageX, pageY);
     },
-    [enabled, finishSwipe],
+    [enabled, finishPointerSession],
   );
 
   const trailWidth = layoutContext?.areaBounds.width ?? trailSizeRef.current.width;
@@ -453,18 +457,68 @@ export function useSwipeTypingContext() {
   return useContext(SwipeTypingContext);
 }
 
-export function SwipeTypingKeysHost({children}: {children: React.ReactNode}) {
+type SwipeTypingKeysHostProps = {
+  children: React.ReactNode;
+  multiTouchEnabled?: boolean;
+  onMultiTouchKeyPress?: (keyDef: KeyDefinition) => void;
+};
+
+export function SwipeTypingKeysHost({
+  children,
+  multiTouchEnabled = false,
+  onMultiTouchKeyPress,
+}: SwipeTypingKeysHostProps) {
   const ctx = useContext(SwipeTypingContext);
   const layoutContext = useKeyLayoutContext();
+  const pointerToKeyRef = useRef(new Map<number, string>());
+
+  const handleTouchStartCapture = useCallback(
+    (event: GestureResponderEvent) => {
+      // Swipe sessions first so dispatch can mark tapCommitted on the same session.
+      ctx?.onTouchStartCapture?.(event);
+
+      if (multiTouchEnabled && onMultiTouchKeyPress && layoutContext) {
+        layoutContext.refreshAreaBounds();
+        dispatchMultiTouchStart(
+          event.nativeEvent.changedTouches,
+          pointerToKeyRef.current,
+          {
+            onKeyPress: onMultiTouchKeyPress,
+            getLayouts: layoutContext.getLayouts,
+            areaOrigin: layoutContext.areaOriginRef.current,
+            swipeTypingEnabled: Boolean(ctx?.enabled),
+          },
+        );
+      }
+    },
+    [ctx, layoutContext, multiTouchEnabled, onMultiTouchKeyPress],
+  );
+
+  const handleTouchEndCapture = useCallback(
+    (event: GestureResponderEvent) => {
+      if (multiTouchEnabled) {
+        dispatchMultiTouchEnd(
+          event.nativeEvent.changedTouches,
+          pointerToKeyRef.current,
+        );
+      }
+      ctx?.onTouchEndCapture?.(event);
+    },
+    [ctx, multiTouchEnabled],
+  );
+
+  const usesTouchCapture = multiTouchEnabled || Boolean(ctx?.enabled);
 
   return (
     <View
       ref={layoutContext?.keysAreaRef}
       onLayout={layoutContext?.onKeysAreaLayout}
-      onTouchStartCapture={ctx?.enabled ? ctx.onTouchStartCapture : undefined}
+      onStartShouldSetResponderCapture={() => false}
+      onMoveShouldSetResponderCapture={() => false}
+      onTouchStartCapture={usesTouchCapture ? handleTouchStartCapture : undefined}
       onTouchMoveCapture={ctx?.enabled ? ctx.onTouchMoveCapture : undefined}
-      onTouchEndCapture={ctx?.enabled ? ctx.onTouchEndCapture : undefined}
-      onTouchCancelCapture={ctx?.enabled ? ctx.onTouchEndCapture : undefined}
+      onTouchEndCapture={usesTouchCapture ? handleTouchEndCapture : undefined}
+      onTouchCancelCapture={usesTouchCapture ? handleTouchEndCapture : undefined}
       collapsable={false}>
       {children}
       {ctx?.enabled && ctx.trailWidth > 0 && ctx.trailHeight > 0 ? (
