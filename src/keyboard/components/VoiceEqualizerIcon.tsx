@@ -68,7 +68,7 @@ export function VoiceEqualizerIcon({
   }, [active, anims]);
 
   if (!active) {
-    return <GraphicEqIcon width={size} height={size} fill={color} />;
+    return <GraphicEqIcon width={size} height={size} color={color} />;
   }
 
   return (

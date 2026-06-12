@@ -20,16 +20,44 @@ export function splitPartialWords(partial: string): {
   };
 }
 
+function buildPreviewWords(
+  committedWords: string[],
+  partial: string,
+): string[] {
+  const {completeWords, inProgressWord} = splitPartialWords(partial);
+  return [
+    ...committedWords,
+    ...completeWords,
+    ...(inProgressWord ? [inProgressWord] : []),
+  ];
+}
+
+export function finalsToWords(finals: string[]): string[] {
+  return finals.join(' ').split(/\s+/).filter(Boolean);
+}
+
+export function getRollingPreviewWords(
+  finals: string[],
+  partial: string,
+  maxWords = VOICE_PREVIEW_MAX_WORDS,
+): string[] {
+  const committedText = finals.join(' ').trim();
+  const partialTrim = partial.trim();
+  let livePartial = partialTrim;
+
+  if (committedText && partialTrim.startsWith(committedText)) {
+    livePartial = partialTrim.slice(committedText.length).trimStart();
+  }
+
+  return buildPreviewWords(finalsToWords(finals), livePartial).slice(-maxWords);
+}
+
 export function rollingPreviewText(
   committedWords: string[],
   partial: string,
   maxWords = VOICE_PREVIEW_MAX_WORDS,
 ): string {
-  const {completeWords, inProgressWord} = splitPartialWords(partial);
-  const previewWords = [
-    ...committedWords,
-    ...completeWords,
-    ...(inProgressWord ? [inProgressWord] : []),
-  ];
-  return previewWords.slice(-maxWords).join(' ');
+  return buildPreviewWords(committedWords, partial)
+    .slice(-maxWords)
+    .join(' ');
 }

@@ -8,7 +8,9 @@ import EmojiIcon from '../../../assets/emoji.svg';
 import ItemsIcon from '../../../assets/items.svg';
 import ClipboardIcon from '../../../assets/plugins/clipboard.svg';
 import TranslateIcon from '../../../assets/plugins/translate.svg';
+import {VoiceConnectingDots} from './VoiceConnectingDots';
 import {VoiceEqualizerIcon} from './VoiceEqualizerIcon';
+import {VoiceTranscriptPreview} from './VoiceTranscriptPreview';
 import {clipboardPastePreviewText} from '../clipboard/clipboardPasteSuggestion';
 import type {ClipboardPasteSuggestion} from '../clipboard/clipboardPasteSuggestion';
 import {triggerKeyHaptic} from '../haptics';
@@ -40,6 +42,8 @@ type SuggestionBarProps = {
   essentialsForm?: EssentialsFormBarState;
   visible?: boolean;
   isListening?: boolean;
+  isVoiceConnecting?: boolean;
+  isVoiceProcessing?: boolean;
   partialTranscript?: string;
   onItemsPress?: () => void;
   onTranslatePress?: () => void;
@@ -69,6 +73,8 @@ export function SuggestionBar({
   essentialsForm,
   visible = true,
   isListening = false,
+  isVoiceConnecting = false,
+  isVoiceProcessing = false,
   partialTranscript = '',
   onItemsPress,
   onTranslatePress,
@@ -92,7 +98,12 @@ export function SuggestionBar({
 
   const isFormMode = Boolean(essentialsForm);
   const showLeadingBack = isFormMode || leadingBack;
-  const showPartial = !isFormMode && isListening && partialTranscript.length > 0;
+  const showVoiceProcessing = !isFormMode && isVoiceProcessing;
+  const showPartial =
+    !isFormMode &&
+    isListening &&
+    !isVoiceProcessing &&
+    partialTranscript.length > 0;
   const hasEssentials = !isFormMode && essentialSuggestions.length > 0;
   const hasAutocorrect =
     !isFormMode && Boolean(autocorrectPreview) && prefix.length > 0;
@@ -112,7 +123,8 @@ export function SuggestionBar({
     ? toolbarIconActive
     : toolbarIconMuted;
   const emojiIconColor = emojiSelected ? toolbarIconActive : toolbarIconMuted;
-  const voiceIconColor = isListening ? toolbarIconActive : toolbarIconMuted;
+  const voiceActive = isListening || isVoiceConnecting;
+  const voiceIconColor = voiceActive ? toolbarIconActive : toolbarIconMuted;
 
   return (
     <View style={styles.container}>
@@ -187,12 +199,14 @@ export function SuggestionBar({
               <View style={styles.cursor} />
             </View>
           </View>
-        ) : centerTitle ? null : showPartial ? (
+        ) : centerTitle ? null : showVoiceProcessing ? (
           <View style={styles.partialContainer}>
             <Text style={styles.partialText} numberOfLines={1}>
-              {partialTranscript}
+              Polishing…
             </Text>
           </View>
+        ) : showPartial ? (
+          <VoiceTranscriptPreview transcript={partialTranscript} />
         ) : hasClipboardPaste && clipboardPasteSuggestion ? (
           <View style={styles.clipboardPasteContainer}>
             <Pressable
@@ -366,11 +380,18 @@ export function SuggestionBar({
               pressed && styles.toolbarButtonPressed,
             ]}
             hitSlop={6}>
-            <VoiceEqualizerIcon
-              active={isListening}
-              size={toolbarIconSize}
-              color={voiceIconColor}
-            />
+            {isVoiceConnecting ? (
+              <VoiceConnectingDots
+                size={toolbarIconSize}
+                color={voiceIconColor}
+              />
+            ) : (
+              <VoiceEqualizerIcon
+                active={isListening}
+                size={toolbarIconSize}
+                color={voiceIconColor}
+              />
+            )}
           </Pressable>
         </View>
       )}

@@ -63,8 +63,13 @@ export async function setApiKeys(keys: Partial<ApiKeys>): Promise<void> {
   loadPromise = Promise.resolve();
 }
 
-export async function requireGeminiApiKey(): Promise<string> {
+export async function getGeminiApiKeyOptional(): Promise<string | null> {
   const {geminiApiKey} = await refreshApiKeys();
+  return geminiApiKey || null;
+}
+
+export async function requireGeminiApiKey(): Promise<string> {
+  const geminiApiKey = await getGeminiApiKeyOptional();
   if (!geminiApiKey) {
     throw new Error(
       'Add your Google Gemini API key in the TypeBase app settings.',

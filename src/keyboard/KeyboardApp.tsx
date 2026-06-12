@@ -135,6 +135,7 @@ const LetterKeyboardRows = React.memo(function LetterKeyboardRows({
   keyGestures,
 }: LetterKeyboardRowsProps) {
   const theme = useKeyboardTheme();
+  const styles = useThemedStyles(createKeyboardAppStyles);
 
   return (
     <SwipeTypingKeysHost>
@@ -198,7 +199,13 @@ function KeyboardBody() {
   const [commaLauncherActive, setCommaLauncherActive] = useState(false);
   const [periodRewriteActive, setPeriodRewriteActive] = useState(false);
   const [calculatorDisplay, setCalculatorDisplay] = useState('0');
-  const {isListening, partialTranscript, toggleListening} = useVoiceInput();
+  const {
+    isListening,
+    isVoiceConnecting,
+    isVoiceProcessing,
+    partialTranscript,
+    toggleListening,
+  } = useVoiceInput();
   const clipboardPasteEnabled = mode.type === 'typing';
   const {
     clipboardPasteSuggestion,
@@ -1133,8 +1140,15 @@ function KeyboardBody() {
                 }
               : undefined
           }
-          visible={layout === 'letters' || layout === 'numpad'}
+          visible={
+            layout === 'letters' ||
+            layout === 'numbers' ||
+            layout === 'symbols' ||
+            layout === 'numpad'
+          }
           isListening={isListening}
+          isVoiceConnecting={isVoiceConnecting}
+          isVoiceProcessing={isVoiceProcessing}
           partialTranscript={partialTranscript}
           onItemsPress={toggleItemsMenu}
           leadingBack={isFormMode || isTranslateMode || isRewriteMode}

@@ -9,7 +9,11 @@ class KeyboardModulePackage : ReactPackage {
   override fun createNativeModules(
       reactContext: ReactApplicationContext,
   ): List<NativeModule> =
-      listOf(KeyboardModule(reactContext), VoiceRecorderModule(reactContext))
+      listOf(
+          KeyboardModule(reactContext),
+          VoiceRecorderModule(reactContext),
+          VoiceActivationSoundModule(reactContext),
+      )
 
   override fun createViewManagers(
       reactContext: ReactApplicationContext,
