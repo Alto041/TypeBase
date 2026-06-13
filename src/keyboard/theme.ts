@@ -7,6 +7,11 @@ const KEYBOARD_HEIGHT_BUFFER = 6;
 const KEY_HEIGHT = 52;
 const KEY_ROW_MARGIN = 10;
 const KEY_GAP = 4;
+/** Touch slop into gaps — half the visual gap on each side of a key. */
+export const KEY_HIT_SLOP = {
+  horizontal: KEY_GAP / 2,
+  vertical: KEY_ROW_MARGIN / 2,
+};
 const NUMPAD_KEY_HEIGHT = 46;
 const NUMPAD_KEYS_PADDING_TOP = 2;
 

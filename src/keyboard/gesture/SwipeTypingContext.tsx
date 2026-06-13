@@ -28,6 +28,7 @@ import {measureKeysArea} from './measureKeysArea';
 import {
   dispatchMultiTouchEnd,
   dispatchMultiTouchStart,
+  hitTestKey,
 } from './multiTouchKeys';
 import {SwipeTrail} from './SwipeTrail';
 import type {Point, TrailPoint} from './types';
@@ -76,22 +77,8 @@ function touchIsOnLetterKey(
   const origin = layoutContext.areaOriginRef.current;
   const localX = pageX - origin.pageX;
   const localY = pageY - origin.pageY;
-
-  for (const layout of layoutContext.getLayouts()) {
-    if (!layout.letter) {
-      continue;
-    }
-    if (
-      localX >= layout.x &&
-      localX <= layout.x + layout.width &&
-      localY >= layout.y &&
-      localY <= layout.y + layout.height
-    ) {
-      return true;
-    }
-  }
-
-  return false;
+  const hit = hitTestKey(localX, localY, layoutContext.getLayouts());
+  return Boolean(hit?.letter);
 }
 
 function decimateTrailPoints(

@@ -1,7 +1,16 @@
 import type {KeyDefinition} from '../layouts/qwerty';
 import {triggerKeyHaptic} from '../haptics';
+import {KEY_HIT_SLOP} from '../theme';
 import {markSwipeTypingTapCommitted} from './gestureState';
 import type {KeyBounds} from './types';
+
+/** Half the visual gap between keys — matches theme keyGap / keyRowMargin. */
+export type KeyHitSlop = {
+  horizontal: number;
+  vertical: number;
+};
+
+export const DEFAULT_KEY_HIT_SLOP: KeyHitSlop = KEY_HIT_SLOP;
 
 const pressVisualHandlers = new Map<string, (pressed: boolean) => void>();
 
@@ -34,23 +43,73 @@ export function isMultiTouchTextKey(keyDef: KeyDefinition): boolean {
   }
 }
 
+function expandedBounds(layout: KeyBounds, slop: KeyHitSlop) {
+  return {
+    left: layout.x - slop.horizontal,
+    right: layout.x + layout.width + slop.horizontal,
+    top: layout.y - slop.vertical,
+    bottom: layout.y + layout.height + slop.vertical,
+  };
+}
+
+/** Nearest-key hit test with gap slop (Gboard-style taps between keys/rows). */
 export function hitTestKey(
   localX: number,
   localY: number,
   layouts: readonly KeyBounds[],
+  slop: KeyHitSlop = DEFAULT_KEY_HIT_SLOP,
 ): KeyBounds | null {
+  let strictMatch: KeyBounds | null = null;
+  let smallestArea = Infinity;
+
   for (let index = layouts.length - 1; index >= 0; index -= 1) {
     const layout = layouts[index];
-    if (
+    const inside =
       localX >= layout.x &&
       localX <= layout.x + layout.width &&
       localY >= layout.y &&
-      localY <= layout.y + layout.height
-    ) {
-      return layout;
+      localY <= layout.y + layout.height;
+
+    if (!inside) {
+      continue;
+    }
+
+    const area = layout.width * layout.height;
+    if (area < smallestArea) {
+      smallestArea = area;
+      strictMatch = layout;
     }
   }
-  return null;
+
+  if (strictMatch) {
+    return strictMatch;
+  }
+
+  let gapMatch: KeyBounds | null = null;
+  let nearestCenter = Infinity;
+
+  for (const layout of layouts) {
+    const bounds = expandedBounds(layout, slop);
+    if (
+      localX < bounds.left ||
+      localX > bounds.right ||
+      localY < bounds.top ||
+      localY > bounds.bottom
+    ) {
+      continue;
+    }
+
+    const centerDistance = Math.hypot(
+      localX - layout.centerX,
+      localY - layout.centerY,
+    );
+    if (centerDistance < nearestCenter) {
+      nearestCenter = centerDistance;
+      gapMatch = layout;
+    }
+  }
+
+  return gapMatch;
 }
 
 export function registerMultiTouchKeyVisual(
