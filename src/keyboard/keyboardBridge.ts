@@ -41,6 +41,10 @@ type KeyboardModuleType = {
   setCommaLauncherArmed: (armed: boolean) => Promise<boolean>;
   getKeyboardColorScheme: () => Promise<string>;
   setKeyboardColorScheme: (scheme: string) => Promise<boolean>;
+  getKeyboardDesign: () => Promise<string>;
+  setKeyboardDesign: (design: string) => Promise<boolean>;
+  getKeyboardCustomTheme: () => Promise<string>;
+  setKeyboardCustomTheme: (json: string) => Promise<boolean>;
 };
 
 const {KeyboardModule} = NativeModules;
@@ -278,6 +282,30 @@ export const keyboardBridge: KeyboardModuleType = {
   setKeyboardColorScheme: (scheme: string) => {
     if (Platform.OS === 'android' && KeyboardModule?.setKeyboardColorScheme) {
       return KeyboardModule.setKeyboardColorScheme(scheme) as Promise<boolean>;
+    }
+    return Promise.resolve(false);
+  },
+  getKeyboardDesign: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.getKeyboardDesign) {
+      return KeyboardModule.getKeyboardDesign() as Promise<string>;
+    }
+    return Promise.resolve('typebase');
+  },
+  setKeyboardDesign: (design: string) => {
+    if (Platform.OS === 'android' && KeyboardModule?.setKeyboardDesign) {
+      return KeyboardModule.setKeyboardDesign(design) as Promise<boolean>;
+    }
+    return Promise.resolve(false);
+  },
+  getKeyboardCustomTheme: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.getKeyboardCustomTheme) {
+      return KeyboardModule.getKeyboardCustomTheme() as Promise<string>;
+    }
+    return Promise.resolve('{}');
+  },
+  setKeyboardCustomTheme: (json: string) => {
+    if (Platform.OS === 'android' && KeyboardModule?.setKeyboardCustomTheme) {
+      return KeyboardModule.setKeyboardCustomTheme(json) as Promise<boolean>;
     }
     return Promise.resolve(false);
   },

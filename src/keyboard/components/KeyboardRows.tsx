@@ -4,8 +4,9 @@ import type {KeyDefinition} from '../layouts/qwerty';
 import {useThemedStyles} from '../KeyboardThemeContext';
 import type {KeyboardTheme} from '../theme';
 import {BackspaceKey} from './BackspaceKey';
-import {isBackspaceKeyType} from './keyboardRowLayout';
+import {isBackspaceKeyType, isGesturePunctuationKey} from './keyboardRowLayout';
 import {Key, type KeyGesturesConfig, type KeyVariant} from './Key';
+import {PunctuationKey} from './PunctuationKey';
 
 type SharedRowProps = {
   isUppercase: boolean;
@@ -30,6 +31,19 @@ function renderRowKey(
   if (isBackspaceKeyType(keyDef)) {
     return (
       <BackspaceKey
+        key={keyDef.id}
+        keyDef={keyDef}
+        onPress={props.onKeyPress}
+        keyGestures={props.keyGestures}
+        keyHeight={props.keyHeight}
+        style={style}
+      />
+    );
+  }
+
+  if (isGesturePunctuationKey(keyDef)) {
+    return (
+      <PunctuationKey
         key={keyDef.id}
         keyDef={keyDef}
         onPress={props.onKeyPress}

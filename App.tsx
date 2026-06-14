@@ -22,9 +22,83 @@ import {keyboardBridge} from './src/keyboard/keyboardBridge';
 import {
   ensureThemeLoaded,
   getKeyboardColorScheme,
+  getKeyboardDesign,
+  getKeyboardCustomTheme,
   setKeyboardColorScheme,
+  setKeyboardDesign,
+  setKeyboardCustomTheme,
 } from './src/keyboard/settings/themeStore';
-import type {KeyboardColorScheme} from './src/keyboard/theme';
+
+import ClipboardIcon from './assets/plugins/clipboard.svg';
+import TranslateIcon from './assets/plugins/translate.svg';
+import EssentialsIcon from './assets/plugins/essentials.svg';
+import CalculatorIcon from './assets/plugins/calculator.svg';
+import AutocorrectIcon from './assets/plugins/autocorrect.svg';
+import GestureIcon from './assets/gesture.svg';
+import EmojiIcon from './assets/emoji.svg';
+import ArtificialIcon from './assets/Artificial.svg';
+import VoiceIcon from './assets/graphic_eq.svg';
+import LinkIcon from './assets/Link.svg';
+import ItemsIcon from './assets/items.svg';
+import BackIcon from './assets/back.svg';
+
+const C = {
+  bg: '#f2f2f4',
+  card: '#ffffff',
+  text: '#111111',
+  sub: '#6b6b6b',
+  border: '#e8e8ea',
+} as const;
+
+const CARD_R = 25;
+const INNER_R = 5;
+const HOME_ICON = 22;
+
+type LaunchpadCardProps = {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  onPress?: () => void;
+  position?: 'top' | 'mid' | 'bottom' | 'solo';
+};
+
+function LaunchpadCard({
+  icon,
+  title,
+  description,
+  onPress,
+  position = 'solo',
+}: LaunchpadCardProps) {
+  const positionStyle =
+    position === 'top'
+      ? styles.stackItemTop
+      : position === 'mid'
+        ? styles.stackItemMid
+        : position === 'bottom'
+          ? styles.stackItemBottom
+          : styles.stackItemSolo;
+
+  const content = (
+    <View style={styles.linkRow}>
+      <View style={styles.launchpadIconWrap}>{icon}</View>
+      <View style={styles.linkTextWrap}>
+        <Text style={styles.rowTitle}>{title}</Text>
+        <Text style={styles.rowSub}>{description}</Text>
+      </View>
+    </View>
+  );
+
+  return onPress ? (
+    <Pressable
+      onPress={onPress}
+      style={[styles.stackItem, positionStyle, styles.launchpadPressable]}
+    >
+      {content}
+    </Pressable>
+  ) : (
+    <View style={[styles.stackItem, positionStyle]}>{content}</View>
+  );
+}
 
 function ApiKeysCard() {
   const [geminiApiKey, setGeminiApiKey] = useState('');
@@ -105,18 +179,80 @@ function ApiKeysCard() {
 
 function KeyboardThemeCard() {
   const [isDark, setIsDark] = useState(false);
+  const [isQuivox, setIsQuivox] = useState(false);
+  const [isCustom, setIsCustom] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [customThemeJson, setCustomThemeJson] = useState(
+    `{
+  "container": "#000000",
+  "pluginCard": "#07070D",
+  "pluginCardSecondary": "#0D0D16",
+  "borderSubtle": "#1A1A26",
+  "suggestionDivider": "#2A2A3A",
+
+  "letterKey": "#1A1A22",
+  "letterKeyPressed": "#252533",
+  "modifierKey": "#00C2A8",
+  "modifierKeyPressed": "#009A86",
+  "spaceKey": "#FFB020",
+  "spaceKeyPressed": "#E79A0E",
+  "enter": "#FF2D55",
+  "enterPressed": "#C81F41",
+
+  "label": "#E9EEF6",
+  "spaceLabel": "#111827",
+  "icon": "#E9EEF6",
+  "iconMuted": "#A9B4C2",
+  "iconOnEnter": "#FFFFFF",
+
+  "essentialsAccent": "#FFB020",
+  "swipeTrail": "#FFB020",
+  "launcherKey": "#00C2A8",
+
+  "chipSelectedBackground": "#00C2A8",
+  "chipSelectedText": "#FFFFFF",
+
+  "keyRipple": "rgba(255, 255, 255, 0.18)"
+}`,
+  );
 
   useEffect(() => {
     void ensureThemeLoaded().then(() => {
       setIsDark(getKeyboardColorScheme() === 'dark');
+      setIsQuivox(getKeyboardDesign() === 'quivox');
+      setIsCustom(getKeyboardDesign() === 'custom');
+      setCustomThemeJson(getKeyboardCustomTheme());
       setLoading(false);
     });
   }, []);
 
-  const handleToggle = (enabled: boolean) => {
+  const handleDarkToggle = (enabled: boolean) => {
     setIsDark(enabled);
     void setKeyboardColorScheme(enabled ? 'dark' : 'light');
+  };
+
+  const handleQuivoxToggle = (enabled: boolean) => {
+    setIsQuivox(enabled);
+    if (enabled) {
+      setIsCustom(false);
+      void setKeyboardDesign('quivox');
+      return;
+    }
+    if (isCustom) {
+      // If custom is enabled, turning Quivox off should not change it.
+      return;
+    }
+    void setKeyboardDesign('typebase');
+  };
+
+  const handleCustomToggle = (enabled: boolean) => {
+    setIsCustom(enabled);
+    if (enabled) {
+      setIsQuivox(false);
+      void setKeyboardDesign('custom');
+    } else {
+      void setKeyboardDesign('typebase');
+    }
   };
 
   return (
@@ -130,29 +266,228 @@ function KeyboardThemeCard() {
         </View>
         <Switch
           value={isDark}
-          onValueChange={handleToggle}
+          onValueChange={handleDarkToggle}
           disabled={loading}
           trackColor={{false: '#334155', true: '#2563EB'}}
           thumbColor="#F8FAFC"
         />
       </View>
+
+      <View style={styles.themeDivider} />
+
+      <View style={styles.themeToggleRow}>
+        <View style={styles.themeToggleText}>
+          <Text style={styles.cardTitle}>Quivox Design</Text>
+          <Text style={styles.hint}>
+            Use the Quivox keyboard look — lilac keys, blue modifiers, gold space.
+          </Text>
+        </View>
+        <Switch
+          value={isQuivox}
+          onValueChange={handleQuivoxToggle}
+          disabled={loading || isCustom}
+          trackColor={{false: '#334155', true: '#2563EB'}}
+          thumbColor="#F8FAFC"
+        />
+      </View>
+
+      <View style={styles.themeDivider} />
+
+      <View style={styles.themeToggleRow}>
+        <View style={styles.themeToggleText}>
+          <Text style={styles.cardTitle}>Custom Theme JSON</Text>
+          <Text style={styles.hint}>
+            Paste a theme palette JSON (colors + keys) and apply it.
+          </Text>
+        </View>
+        <Switch
+          value={isCustom}
+          onValueChange={handleCustomToggle}
+          disabled={loading}
+          trackColor={{false: '#334155', true: '#2563EB'}}
+          thumbColor="#F8FAFC"
+        />
+      </View>
+
+      {isCustom ? (
+        <View style={{gap: 8}}>
+          <Text style={styles.fieldLabel}>Theme JSON</Text>
+          <TextInput
+            style={styles.input}
+            value={customThemeJson}
+            onChangeText={setCustomThemeJson}
+            multiline
+            editable={!loading}
+          />
+          <Pressable
+            style={[
+              styles.primaryButton,
+              {backgroundColor: '#2563EB', marginTop: 0},
+            ]}
+            onPress={() => {
+              try {
+                // Ensure it's valid JSON before sending to native.
+                JSON.parse(customThemeJson);
+                void setKeyboardCustomTheme(customThemeJson);
+                void setKeyboardDesign('custom');
+              } catch {
+                // No native-side error UI right now; we rely on this local guard.
+              }
+            }}
+            disabled={loading}
+          >
+            <Text style={styles.primaryButtonText}>Apply custom theme</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.linkButton, {paddingVertical: 0}]}
+            onPress={() => {
+              setCustomThemeJson(`{
+  "container": "#000000",
+  "pluginCard": "#07070D",
+  "pluginCardSecondary": "#0D0D16",
+  "borderSubtle": "#1A1A26",
+  "suggestionDivider": "#2A2A3A",
+  "letterKey": "#1A1A22",
+  "letterKeyPressed": "#252533",
+  "modifierKey": "#00C2A8",
+  "modifierKeyPressed": "#009A86",
+  "spaceKey": "#FFB020",
+  "spaceKeyPressed": "#E79A0E",
+  "enter": "#FF2D55",
+  "enterPressed": "#C81F41",
+  "label": "#E9EEF6",
+  "spaceLabel": "#111827",
+  "icon": "#E9EEF6",
+  "iconMuted": "#A9B4C2",
+  "iconOnEnter": "#FFFFFF",
+  "essentialsAccent": "#FFB020",
+  "swipeTrail": "#FFB020",
+  "launcherKey": "#00C2A8",
+  "chipSelectedBackground": "#00C2A8",
+  "chipSelectedText": "#FFFFFF",
+  "keyRipple": "rgba(255, 255, 255, 0.18)"
+}`);
+            }}
+          >
+            <Text style={{color: '#64748B', fontSize: 13}}>
+              Reset template
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
     </View>
   );
 }
 
 function SetupScreen() {
-  const [pin, setPin] = useState('');
+  const [route, setRoute] = useState<'launchpad' | 'settings'>('launchpad');
 
+  if (route === 'settings') {
+    return <SettingsScreen onBack={() => setRoute('launchpad')} />;
+  }
+  return <LaunchpadScreen onOpenSettings={() => setRoute('settings')} />;
+}
+
+function LaunchpadScreen({onOpenSettings}: {onOpenSettings: () => void}) {
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
-      <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.badge}>Android Custom Keyboard</Text>
-        <Text style={styles.title}>TypeBase</Text>
-        <Text style={styles.subtitle}>
-          A React Native keyboard built with an Android InputMethodService and
-          a native bridge for text input.
-        </Text>
+      <StatusBar barStyle="dark-content" backgroundColor={C.bg} />
+      <View style={styles.topRightActions}>
+        <Pressable style={styles.topRightSettings} onPress={onOpenSettings}>
+          <ItemsIcon width={18} height={18} color={C.text} />
+        </Pressable>
+      </View>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <Text style={styles.pageTitle}>Launchpad</Text>
+
+        <View style={styles.stack}>
+          <LaunchpadCard
+            position="top"
+            icon={<ClipboardIcon width={HOME_ICON} height={HOME_ICON} />}
+            title="CLIPBOARD"
+            description="Swipe clipboard history and quick picks."
+          />
+          <View style={styles.divider} />
+          <LaunchpadCard
+            position="mid"
+            icon={<TranslateIcon width={HOME_ICON} height={HOME_ICON} />}
+            title="TRANSLATE"
+            description="Instant translate suggestions and quick replace."
+          />
+          <View style={styles.divider} />
+          <LaunchpadCard
+            position="mid"
+            icon={<ArtificialIcon width={HOME_ICON} height={HOME_ICON} />}
+            title="REWRITE"
+            description="AI rewrite tools for punctuation and phrasing."
+          />
+          <View style={styles.divider} />
+          <LaunchpadCard
+            position="mid"
+            icon={<EssentialsIcon width={HOME_ICON} height={HOME_ICON} />}
+            title="ESSENTIALS"
+            description="Custom keywords, snippets, and fast insert."
+          />
+          <View style={styles.divider} />
+          <LaunchpadCard
+            position="mid"
+            icon={<CalculatorIcon width={HOME_ICON} height={HOME_ICON} />}
+            title="CALCULATOR"
+            description="A built-in keypad for numbers and math."
+          />
+          <View style={styles.divider} />
+          <LaunchpadCard
+            position="mid"
+            icon={<AutocorrectIcon width={HOME_ICON} height={HOME_ICON} />}
+            title="AUTOCORRECT"
+            description="Smarter suggestions with learn-on-device."
+          />
+          <View style={styles.divider} />
+          <LaunchpadCard
+            position="mid"
+            icon={<GestureIcon width={HOME_ICON} height={HOME_ICON} />}
+            title="GESTURES"
+            description="Swipe typing + special long-press keys."
+          />
+          <View style={styles.divider} />
+          <LaunchpadCard
+            position="mid"
+            icon={<EmojiIcon width={HOME_ICON} height={HOME_ICON} />}
+            title="EMOJI"
+            description="Emoji panel with categories and fast insertion."
+          />
+          <View style={styles.divider} />
+          <LaunchpadCard
+            position="mid"
+            icon={<VoiceIcon width={HOME_ICON} height={HOME_ICON} />}
+            title="VOICE"
+            description="Speech-to-text with live preview."
+          />
+          <View style={styles.divider} />
+          <LaunchpadCard
+            position="bottom"
+            icon={<LinkIcon width={HOME_ICON} height={HOME_ICON} />}
+            title="THEMES"
+            description="Paste a theme JSON and instantly apply it."
+          />
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+function SettingsScreen({onBack}: {onBack: () => void}) {
+  const [pin, setPin] = useState('');
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="dark-content" backgroundColor={C.bg} />
+      <View style={styles.topRightActions}>
+        <Pressable style={styles.topRightSettings} onPress={onBack}>
+          <BackIcon width={18} height={18} color={C.text} />
+        </Pressable>
+      </View>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <Text style={styles.pageTitle}>Settings</Text>
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Enable the keyboard</Text>
@@ -213,7 +548,9 @@ function SetupScreen() {
 
         <Pressable
           style={styles.linkButton}
-          onPress={() => Linking.openURL('https://github.com/SitePen/rn-input-extensions-blog')}>
+          onPress={() =>
+            Linking.openURL('https://github.com/SitePen/rn-input-extensions-blog')
+          }>
           <Text style={styles.linkText}>
             Reference: SitePen RN Input Extensions
           </Text>
@@ -249,64 +586,67 @@ export default function App() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#0F172A',
+    backgroundColor: C.bg,
   },
-  content: {
-    padding: 24,
+  scrollContent: {
+    paddingHorizontal: 18,
+    paddingTop: 104,
+    paddingBottom: 24,
     gap: 20,
   },
-  badge: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#1E293B',
-    color: '#38BDF8',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+  pageTitle: {
+    fontSize: 40,
+    color: C.text,
+    marginBottom: 20,
+  },
+  topRightActions: {
+    position: 'absolute',
+    right: 10,
+    top: 6,
+    flexDirection: 'row',
+    gap: 8,
+    zIndex: 10,
+  },
+  topRightSettings: {
+    width: 36,
+    height: 36,
     borderRadius: 999,
-    overflow: 'hidden',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  title: {
-    color: '#F8FAFC',
-    fontSize: 36,
-    fontWeight: '700',
-  },
-  subtitle: {
-    color: '#94A3B8',
-    fontSize: 16,
-    lineHeight: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: C.card,
+    zIndex: 10,
   },
   card: {
-    backgroundColor: '#111827',
-    borderRadius: 16,
+    backgroundColor: C.card,
+    borderRadius: CARD_R,
     padding: 20,
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: C.border,
     gap: 12,
   },
   cardTitle: {
-    color: '#F8FAFC',
+    color: C.text,
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   step: {
-    color: '#CBD5E1',
+    color: C.text,
     fontSize: 15,
     lineHeight: 22,
   },
   hint: {
-    color: '#94A3B8',
+    color: C.sub,
     fontSize: 14,
     lineHeight: 20,
   },
   fieldLabel: {
-    color: '#E2E8F0',
+    color: C.text,
     fontSize: 14,
     fontWeight: '600',
     marginTop: 4,
   },
   fieldHint: {
-    color: '#64748B',
+    color: C.sub,
     fontSize: 12,
     lineHeight: 18,
   },
@@ -314,9 +654,9 @@ const styles = StyleSheet.create({
     minHeight: 48,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#334155',
-    backgroundColor: '#0B1220',
-    color: '#F8FAFC',
+    borderColor: C.border,
+    backgroundColor: C.card,
+    color: C.text,
     paddingHorizontal: 14,
     fontSize: 15,
   },
@@ -327,7 +667,7 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     marginTop: 8,
-    backgroundColor: '#2563EB',
+    backgroundColor: '#111111',
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
@@ -341,9 +681,9 @@ const styles = StyleSheet.create({
     minHeight: 120,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#334155',
-    backgroundColor: '#0B1220',
-    color: '#F8FAFC',
+    borderColor: C.border,
+    backgroundColor: C.card,
+    color: C.text,
     padding: 14,
     textAlignVertical: 'top',
     fontSize: 16,
@@ -352,9 +692,9 @@ const styles = StyleSheet.create({
     minHeight: 52,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#334155',
-    backgroundColor: '#0B1220',
-    color: '#F8FAFC',
+    borderColor: C.border,
+    backgroundColor: C.card,
+    color: C.text,
     paddingHorizontal: 16,
     fontSize: 24,
     letterSpacing: 8,
@@ -362,7 +702,7 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   pinStatus: {
-    color: '#64748B',
+    color: C.sub,
     fontSize: 13,
     textAlign: 'center',
   },
@@ -371,7 +711,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   linkText: {
-    color: '#64748B',
+    color: C.sub,
     fontSize: 13,
   },
   themeToggleRow: {
@@ -382,5 +722,83 @@ const styles = StyleSheet.create({
   themeToggleText: {
     flex: 1,
     gap: 4,
+  },
+  themeDivider: {
+    height: 1,
+    backgroundColor: C.border,
+    marginVertical: 4,
+  },
+
+  // Reference-design card stack styles (HomeDockScreen.tsx)
+  stack: {
+    marginBottom: 12,
+  },
+  stackItem: {
+    backgroundColor: C.card,
+    paddingHorizontal: 16,
+  },
+  stackItemTop: {
+    borderTopLeftRadius: CARD_R,
+    borderTopRightRadius: CARD_R,
+    borderBottomLeftRadius: INNER_R,
+    borderBottomRightRadius: INNER_R,
+    marginBottom: 2,
+    paddingVertical: 4,
+  },
+  stackItemBottom: {
+    borderTopLeftRadius: INNER_R,
+    borderTopRightRadius: INNER_R,
+    borderBottomLeftRadius: CARD_R,
+    borderBottomRightRadius: CARD_R,
+    paddingVertical: 4,
+  },
+  stackItemMid: {
+    borderRadius: 0,
+    borderTopLeftRadius: INNER_R,
+    borderTopRightRadius: INNER_R,
+    borderBottomLeftRadius: INNER_R,
+    borderBottomRightRadius: INNER_R,
+    marginBottom: 2,
+    paddingVertical: 4,
+  },
+  stackItemSolo: {
+    borderRadius: CARD_R,
+    paddingVertical: 4,
+  },
+  linkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    gap: 12,
+  },
+  linkTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  rowTitle: {
+    fontSize: 16,
+    color: C.text,
+    fontWeight: '200',
+    textTransform: 'uppercase',
+  },
+  rowSub: {
+    fontSize: 13,
+    color: C.sub,
+    marginTop: 1,
+    letterSpacing: 0.2,
+  },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: C.border,
+    marginLeft: 34,
+  },
+  launchpadIconWrap: {
+    width: 22,
+    height: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  launchpadPressable: {
+    // keep pressable layout identical to stack items
   },
 });

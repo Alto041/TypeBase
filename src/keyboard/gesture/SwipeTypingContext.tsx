@@ -29,6 +29,7 @@ import {
   dispatchMultiTouchEnd,
   dispatchMultiTouchStart,
   hitTestKey,
+  touchHitsPressableOnlyKey,
 } from './multiTouchKeys';
 import {SwipeTrail} from './SwipeTrail';
 import type {Point, TrailPoint} from './types';
@@ -332,7 +333,15 @@ export function SwipeTypingProvider({
       }
 
       layoutContext?.refreshAreaBounds();
+      const layouts = layoutContext?.getLayouts() ?? [];
+      const origin = layoutContext?.areaOriginRef.current ?? {pageX: 0, pageY: 0};
+
       for (const touch of event.nativeEvent.changedTouches) {
+        const localX = touch.pageX - origin.pageX;
+        const localY = touch.pageY - origin.pageY;
+        if (touchHitsPressableOnlyKey(localX, localY, layouts)) {
+          continue;
+        }
         if (!touchIsOnLetterKey(touch.pageX, touch.pageY, layoutContext)) {
           continue;
         }
@@ -461,21 +470,37 @@ export function SwipeTypingKeysHost({
 
   const handleTouchStartCapture = useCallback(
     (event: GestureResponderEvent) => {
-      // Swipe sessions first so dispatch can mark tapCommitted on the same session.
-      ctx?.onTouchStartCapture?.(event);
+      if (!layoutContext) {
+        ctx?.onTouchStartCapture?.(event);
+        return;
+      }
 
-      if (multiTouchEnabled && onMultiTouchKeyPress && layoutContext) {
-        layoutContext.refreshAreaBounds();
-        dispatchMultiTouchStart(
-          event.nativeEvent.changedTouches,
-          pointerToKeyRef.current,
-          {
-            onKeyPress: onMultiTouchKeyPress,
-            getLayouts: layoutContext.getLayouts,
-            areaOrigin: layoutContext.areaOriginRef.current,
-            swipeTypingEnabled: Boolean(ctx?.enabled),
-          },
-        );
+      layoutContext.refreshAreaBounds();
+      const layouts = layoutContext.getLayouts();
+      const origin = layoutContext.areaOriginRef.current;
+      const passThroughTouches = event.nativeEvent.changedTouches.filter(
+        touch => {
+          const localX = touch.pageX - origin.pageX;
+          const localY = touch.pageY - origin.pageY;
+          return !touchHitsPressableOnlyKey(localX, localY, layouts);
+        },
+      );
+
+      if (passThroughTouches.length > 0) {
+        ctx?.onTouchStartCapture?.(event);
+      }
+
+      if (
+        multiTouchEnabled &&
+        onMultiTouchKeyPress &&
+        passThroughTouches.length > 0
+      ) {
+        dispatchMultiTouchStart(passThroughTouches, pointerToKeyRef.current, {
+          onKeyPress: onMultiTouchKeyPress,
+          getLayouts: layoutContext.getLayouts,
+          areaOrigin: origin,
+          swipeTypingEnabled: Boolean(ctx?.enabled),
+        });
       }
     },
     [ctx, layoutContext, multiTouchEnabled, onMultiTouchKeyPress],

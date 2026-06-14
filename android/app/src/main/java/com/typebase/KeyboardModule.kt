@@ -427,6 +427,71 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   }
 
   @ReactMethod
+  fun getKeyboardDesign(promise: Promise) {
+    try {
+      val design =
+          learnedWordsPrefs().getString(KEYBOARD_DESIGN_KEY, DEFAULT_KEYBOARD_DESIGN)
+              ?: DEFAULT_KEYBOARD_DESIGN
+      promise.resolve(design)
+    } catch (error: Exception) {
+      promise.reject("GET_KEYBOARD_DESIGN_FAILED", error)
+    }
+  }
+
+  @ReactMethod
+  fun setKeyboardDesign(design: String, promise: Promise) {
+    try {
+      val normalized =
+          when (design) {
+            "quivox" -> "quivox"
+            "custom" -> "custom"
+            else -> "typebase"
+          }
+      val saved =
+          learnedWordsPrefs()
+              .edit()
+              .putString(KEYBOARD_DESIGN_KEY, normalized)
+              .commit()
+      if (saved && reactApplicationContext.hasActiveReactInstance()) {
+        reactApplicationContext
+            .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+            .emit("keyboardDesignChanged", normalized)
+      }
+      promise.resolve(saved)
+    } catch (error: Exception) {
+      promise.reject("SET_KEYBOARD_DESIGN_FAILED", error)
+    }
+  }
+
+  @ReactMethod
+  fun getKeyboardCustomTheme(promise: Promise) {
+    try {
+      val raw =
+          learnedWordsPrefs().getString(KEYBOARD_CUSTOM_THEME_KEY, DEFAULT_KEYBOARD_CUSTOM_THEME)
+              ?: DEFAULT_KEYBOARD_CUSTOM_THEME
+      promise.resolve(raw)
+    } catch (error: Exception) {
+      promise.reject("GET_KEYBOARD_CUSTOM_THEME_FAILED", error)
+    }
+  }
+
+  @ReactMethod
+  fun setKeyboardCustomTheme(json: String, promise: Promise) {
+    try {
+      val saved =
+          learnedWordsPrefs().edit().putString(KEYBOARD_CUSTOM_THEME_KEY, json).commit()
+      if (saved && reactApplicationContext.hasActiveReactInstance()) {
+        reactApplicationContext
+            .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+            .emit("keyboardCustomThemeChanged", json)
+      }
+      promise.resolve(saved)
+    } catch (error: Exception) {
+      promise.reject("SET_KEYBOARD_CUSTOM_THEME_FAILED", error)
+    }
+  }
+
+  @ReactMethod
   fun getGestureSettings(promise: Promise) {
     try {
       val raw = learnedWordsPrefs().getString(GESTURE_SETTINGS_KEY, DEFAULT_GESTURE_SETTINGS) ?: DEFAULT_GESTURE_SETTINGS
@@ -800,6 +865,10 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     private const val API_KEYS_KEY = "api_keys"
     private const val KEYBOARD_THEME_KEY = "keyboard_theme"
     private const val DEFAULT_KEYBOARD_THEME = "light"
+    private const val KEYBOARD_DESIGN_KEY = "keyboard_design"
+    private const val DEFAULT_KEYBOARD_DESIGN = "typebase"
+    private const val KEYBOARD_CUSTOM_THEME_KEY = "keyboard_custom_theme"
+    private const val DEFAULT_KEYBOARD_CUSTOM_THEME = "{}"
     private const val DEFAULT_API_KEYS =
         """{"geminiApiKey":"","speechmaticsApiKey":""}"""
     private const val DEFAULT_GESTURE_SETTINGS =

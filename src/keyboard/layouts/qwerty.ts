@@ -1,6 +1,8 @@
 export type KeyType =
   | 'char'
   | 'backspace'
+  | 'comma'
+  | 'period'
   | 'space'
   | 'enter'
   | 'shift'
@@ -69,9 +71,9 @@ export const QWERTY_ROWS: KeyDefinition[][] = [
   ],
   [
     {id: 'numbers', label: '?123', type: 'numbers', flex: BOTTOM_ROW_EDGE_FLEX},
-    {id: 'comma', label: ',', value: ','},
+    {id: 'comma', label: ',', value: ',', type: 'comma'},
     {id: 'space', label: 'space', type: 'space', flex: BOTTOM_ROW_SPACE_FLEX},
-    {id: 'period', label: '.', value: '.'},
+    {id: 'period', label: '.', value: '.', type: 'period'},
     {id: 'enter', label: '↵', type: 'enter', flex: BOTTOM_ROW_EDGE_FLEX},
   ],
 ];
@@ -114,9 +116,9 @@ export const NUMBER_ROWS: KeyDefinition[][] = [
   ],
   [
     {id: 'abc', label: 'ABC', type: 'numbers', flex: BOTTOM_ROW_EDGE_FLEX},
-    {id: 'comma', label: ',', value: ','},
+    {id: 'comma', label: ',', value: ',', type: 'comma'},
     {id: 'space', label: 'space', type: 'space', flex: BOTTOM_ROW_SPACE_FLEX},
-    {id: 'period', label: '.', value: '.'},
+    {id: 'period', label: '.', value: '.', type: 'period'},
     {id: 'enter', label: '↵', type: 'enter', flex: BOTTOM_ROW_EDGE_FLEX},
   ],
 ];
@@ -157,9 +159,9 @@ export const SYMBOL_ROWS: KeyDefinition[][] = [
   ],
   [
     {id: 'abc', label: 'ABC', type: 'numbers', flex: BOTTOM_ROW_EDGE_FLEX},
-    {id: 'comma', label: ',', value: ','},
+    {id: 'comma', label: ',', value: ',', type: 'comma'},
     {id: 'space', label: 'space', type: 'space', flex: BOTTOM_ROW_SPACE_FLEX},
-    {id: 'period', label: '.', value: '.'},
+    {id: 'period', label: '.', value: '.', type: 'period'},
     {id: 'enter', label: '↵', type: 'enter', flex: BOTTOM_ROW_EDGE_FLEX},
   ],
 ];

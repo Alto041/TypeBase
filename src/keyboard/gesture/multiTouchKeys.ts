@@ -20,15 +20,25 @@ export function pointerIdFromTouch(touch: {identifier: number | string}): number
     : Number(touch.identifier);
 }
 
+/** Comma/period — Pressable-only keys (long-press launcher / rewrite). */
+export function isGesturePunctuationKey(keyDef: KeyDefinition): boolean {
+  return keyDef.type === 'comma' || keyDef.type === 'period';
+}
+
 /** Letter/digit keys handled by the multi-touch router (not Pressable). */
 export function isMultiTouchTextKey(keyDef: KeyDefinition): boolean {
   if (!keyDef.value || keyDef.type === 'spacer') {
+    return false;
+  }
+  if (isGesturePunctuationKey(keyDef)) {
     return false;
   }
   switch (keyDef.type) {
     case 'space':
     case 'shift':
     case 'backspace':
+    case 'comma':
+    case 'period':
     case 'enter':
     case 'enter-backspace':
     case 'numbers':
@@ -112,6 +122,30 @@ export function hitTestKey(
   return gapMatch;
 }
 
+/** True when a touch lies in a Pressable-only key zone (blocks multi-touch dispatch). */
+export function touchHitsPressableOnlyKey(
+  localX: number,
+  localY: number,
+  layouts: readonly KeyBounds[],
+  slop: KeyHitSlop = DEFAULT_KEY_HIT_SLOP,
+): boolean {
+  for (const layout of layouts) {
+    if (!isGesturePunctuationKey(layout.keyDef)) {
+      continue;
+    }
+    const bounds = expandedBounds(layout, slop);
+    if (
+      localX >= bounds.left &&
+      localX <= bounds.right &&
+      localY >= bounds.top &&
+      localY <= bounds.bottom
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export function registerMultiTouchKeyVisual(
   id: string,
   handler: (pressed: boolean) => void,
@@ -162,6 +196,9 @@ export function dispatchMultiTouchStart(
 
     const localX = touch.pageX - options.areaOrigin.pageX;
     const localY = touch.pageY - options.areaOrigin.pageY;
+    if (touchHitsPressableOnlyKey(localX, localY, layouts)) {
+      continue;
+    }
     const hit = hitTestKey(localX, localY, layouts);
     if (!hit || !isMultiTouchTextKey(hit.keyDef)) {
       continue;

@@ -106,19 +106,23 @@ import {ensureApiKeysLoaded} from './settings/apiKeysStore';
 import {
   ensureThemeLoaded,
   getKeyboardColorScheme,
+  getKeyboardDesign,
+  getKeyboardCustomTheme,
+  KEYBOARD_DESIGN_CHANGED_EVENT,
   KEYBOARD_THEME_CHANGED_EVENT,
+  KEYBOARD_CUSTOM_THEME_CHANGED_EVENT,
 } from './settings/themeStore';
 import {
   KeyboardThemeProvider,
   useKeyboardTheme,
   useThemedStyles,
 } from './KeyboardThemeContext';
-import type {KeyboardColorScheme, KeyboardTheme} from './theme';
+import type {KeyboardColorScheme, KeyboardDesign, KeyboardTheme} from './theme';
 import {useVoiceInput} from './voice/useVoiceInput';
 
 const DOUBLE_TAP_MS = 350;
-const SUGGESTION_REFRESH_DEBOUNCE_MS = 450;
-const TYPING_BURST_MS = 120;
+/** Debounced async refresh (phrases, essentials, native cursor sync). */
+const SUGGESTION_FULL_REFRESH_DEBOUNCE_MS = 120;
 
 type LetterKeyboardRowsProps = {
   rows: KeyDefinition[][];
@@ -167,6 +171,41 @@ const LetterKeyboardRows = React.memo(function LetterKeyboardRows({
     </SwipeTypingKeysHost>
   );
 });
+
+function computeTypingSuggestionBar(
+  prefix: string,
+  options: {fast: boolean; context?: string},
+) {
+  const fast = options.fast;
+  const barAutocorrect =
+    getAutocorrectSettings().enabled && prefix.length >= 2
+      ? getSuggestionBarAutocorrect(prefix, {fast})
+      : {keepTyped: null, correction: null};
+
+  const phraseSuggestions =
+    fast || !options.context ? [] : getPhraseSuggestions(options.context, 2);
+  let wordSuggestions = getWordSuggestions(prefix, 3, {
+    skipFuzzy: fast && prefix.length < 5,
+  });
+  const reserved = new Set<string>();
+  if (barAutocorrect.keepTyped) {
+    reserved.add(barAutocorrect.keepTyped.toLowerCase());
+  }
+  if (barAutocorrect.correction) {
+    reserved.add(barAutocorrect.correction.toLowerCase());
+  }
+  if (reserved.size > 0) {
+    wordSuggestions = wordSuggestions.filter(
+      word => !reserved.has(word.toLowerCase()),
+    );
+  }
+
+  return {
+    typedKeepSuggestion: barAutocorrect.keepTyped,
+    autocorrectPreview: barAutocorrect.correction,
+    suggestions: [...phraseSuggestions, ...wordSuggestions].slice(0, 3),
+  };
+}
 
 function KeyboardBody() {
   const theme = useKeyboardTheme();
@@ -555,38 +594,13 @@ function KeyboardBody() {
     livePrefixRef.current = prefix;
 
     const fast = options?.fast ?? false;
-    const barAutocorrect =
-      getAutocorrectSettings().enabled && prefix.length >= 2
-        ? getSuggestionBarAutocorrect(prefix, {fast})
-        : {keepTyped: null, correction: null};
-
-    const phraseSuggestions = fast ? [] : getPhraseSuggestions(context, 2);
-    let wordSuggestions = getWordSuggestions(prefix, 3, {
-      skipFuzzy: fast && prefix.length < 5,
-    });
-    const reserved = new Set<string>();
-    if (barAutocorrect.keepTyped) {
-      reserved.add(barAutocorrect.keepTyped.toLowerCase());
-    }
-    if (barAutocorrect.correction) {
-      reserved.add(barAutocorrect.correction.toLowerCase());
-    }
-    if (reserved.size > 0) {
-      wordSuggestions = wordSuggestions.filter(
-        word => !reserved.has(word.toLowerCase()),
-      );
-    }
-
-    const nextSuggestions = [...phraseSuggestions, ...wordSuggestions].slice(
-      0,
-      3,
-    );
+    const barState = computeTypingSuggestionBar(prefix, {fast, context});
 
     startTransition(() => {
       setCurrentPrefix(prefix);
-      setTypedKeepSuggestion(barAutocorrect.keepTyped);
-      setAutocorrectPreview(barAutocorrect.correction);
-      setSuggestions(nextSuggestions);
+      setTypedKeepSuggestion(barState.typedKeepSuggestion);
+      setAutocorrectPreview(barState.autocorrectPreview);
+      setSuggestions(barState.suggestions);
       setEssentialSuggestions([]);
       setEssentialTriggerLength(0);
     });
@@ -599,25 +613,46 @@ function KeyboardBody() {
     layout,
   ]);
 
+  const applyInstantSuggestionBar = useCallback((prefix: string) => {
+    if (layoutRef.current !== 'letters' || modeRef.current.type !== 'typing') {
+      return;
+    }
+
+    if (!prefix) {
+      setCurrentPrefix('');
+      setTypedKeepSuggestion(null);
+      setAutocorrectPreview(null);
+      setSuggestions([]);
+      setEssentialSuggestions([]);
+      setEssentialTriggerLength(0);
+      return;
+    }
+
+    const barState = computeTypingSuggestionBar(prefix, {fast: true});
+    setCurrentPrefix(prefix);
+    setTypedKeepSuggestion(barState.typedKeepSuggestion);
+    setAutocorrectPreview(barState.autocorrectPreview);
+    setSuggestions(barState.suggestions);
+    setEssentialSuggestions([]);
+    setEssentialTriggerLength(0);
+  }, []);
+
   const scheduleRefreshSuggestions = useCallback(() => {
     if (layoutRef.current !== 'letters' || modeRef.current.type !== 'typing') {
       return;
     }
+
+    applyInstantSuggestionBar(livePrefixRef.current);
 
     if (suggestionRefreshTimerRef.current) {
       clearTimeout(suggestionRefreshTimerRef.current);
     }
     suggestionRefreshTimerRef.current = setTimeout(() => {
       suggestionRefreshTimerRef.current = null;
-      const idleFor = Date.now() - lastTypingAtRef.current;
-      if (idleFor < TYPING_BURST_MS) {
-        scheduleRefreshSuggestions();
-        return;
-      }
-      const fast = idleFor < 450;
-      void refreshSuggestions({fast});
-    }, SUGGESTION_REFRESH_DEBOUNCE_MS);
-  }, [refreshSuggestions]);
+      const stillTyping = Date.now() - lastTypingAtRef.current < 200;
+      void refreshSuggestions({fast: stillTyping});
+    }, SUGGESTION_FULL_REFRESH_DEBOUNCE_MS);
+  }, [applyInstantSuggestionBar, refreshSuggestions]);
 
   useEffect(() => {
     return () => {
@@ -929,6 +964,7 @@ function KeyboardBody() {
           return;
         case 'space':
           livePrefixRef.current = '';
+          applyInstantSuggestionBar('');
           void commitTypedWordBoundary(() => {
             keyboardBridge.insertText(' ');
           });
@@ -988,6 +1024,7 @@ function KeyboardBody() {
     },
     [
       appendToFormField,
+      applyInstantSuggestionBar,
       backspaceFormField,
       clearClipboardPasteSuggestion,
       commitTypedWordBoundary,
@@ -1410,20 +1447,41 @@ export default function KeyboardApp() {
   const [fontTimedOut, setFontTimedOut] = useState(false);
   const [colorScheme, setColorScheme] =
     useState<KeyboardColorScheme>('light');
+  const [keyboardDesign, setKeyboardDesign] =
+    useState<KeyboardDesign>('typebase');
+  const [customThemeJson, setCustomThemeJson] = useState<string>('{}');
   const [themeReady, setThemeReady] = useState(false);
 
   useEffect(() => {
     void ensureThemeLoaded().then(() => {
       setColorScheme(getKeyboardColorScheme());
+      setKeyboardDesign(getKeyboardDesign());
+      setCustomThemeJson(getKeyboardCustomTheme());
       setThemeReady(true);
     });
-    const subscription = DeviceEventEmitter.addListener(
+    const schemeSubscription = DeviceEventEmitter.addListener(
       KEYBOARD_THEME_CHANGED_EVENT,
       (scheme: KeyboardColorScheme) => {
         setColorScheme(scheme);
       },
     );
-    return () => subscription.remove();
+    const designSubscription = DeviceEventEmitter.addListener(
+      KEYBOARD_DESIGN_CHANGED_EVENT,
+      (design: KeyboardDesign) => {
+        setKeyboardDesign(design);
+      },
+    );
+    const customThemeSubscription = DeviceEventEmitter.addListener(
+      KEYBOARD_CUSTOM_THEME_CHANGED_EVENT,
+      (json: string) => {
+        setCustomThemeJson(json);
+      },
+    );
+    return () => {
+      schemeSubscription.remove();
+      designSubscription.remove();
+      customThemeSubscription.remove();
+    };
   }, []);
 
   useEffect(() => {
@@ -1443,7 +1501,11 @@ export default function KeyboardApp() {
   }
 
   return (
-    <KeyboardThemeProvider scheme={colorScheme}>
+    <KeyboardThemeProvider
+      scheme={colorScheme}
+      design={keyboardDesign}
+      customThemeJson={customThemeJson}
+    >
       <KeyLayoutProvider>
         <KeyboardBody />
       </KeyLayoutProvider>

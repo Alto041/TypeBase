@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import ShiftArrowIcon from '../../../assets/arrow_forward_ios.svg';
 import EnterIcon from '../../../assets/enter.svg';
+import QuivoxEnterIcon from '../../../assets/quivox_enter.svg';
 import NumbersIcon from '../../../assets/123.svg';
 import SymbolsIcon from '../../../assets/symbols.svg';
 import RocketLaunchIcon from '../../../assets/rocket_launch.svg';
@@ -102,6 +103,8 @@ function KeyComponent({
   const isSpecial =
     keyDef.type &&
     keyDef.type !== 'char' &&
+    keyDef.type !== 'comma' &&
+    keyDef.type !== 'period' &&
     keyDef.type !== 'enter' &&
     keyDef.type !== 'enter-backspace' &&
     keyDef.type !== 'essentials-save' &&
@@ -115,6 +118,7 @@ function KeyComponent({
   const isNumpadActionKey =
     variant === 'numpad' &&
     (keyDef.type === 'space' || keyDef.type === 'letters');
+  const isSpaceKey = keyDef.type === 'space';
   const isNumbersIcon = keyDef.id === 'numbers';
   const isSymbolsIcon = keyDef.type === 'symbols';
   const isTextKey =
@@ -219,11 +223,15 @@ function KeyComponent({
   }, []);
 
   useEffect(() => {
+    if (!usesMultiTouchRouter) {
+      return;
+    }
     const timer = setTimeout(measureKey, 0);
     return () => clearTimeout(timer);
   }, [
     measureKey,
     keyDef.id,
+    usesMultiTouchRouter,
     layoutContext?.areaBounds.pageX,
     layoutContext?.areaBounds.pageY,
     layoutContext?.areaBounds.width,
@@ -239,25 +247,28 @@ function KeyComponent({
   }, [clearLauncherHold, clearRewriteHold, keyDef.id, layoutContext]);
 
   const isLauncherGesture =
-    keyDef.id === 'period' && keyGestures?.commaLauncher;
+    keyDef.type === 'period' && keyGestures?.commaLauncher;
   const showLauncher = Boolean(
     isLauncherGesture && keyGestures?.commaLauncherActive,
   );
   const isRewriteGesture =
-    keyDef.id === 'comma' && keyGestures?.periodRewrite;
+    keyDef.type === 'comma' && keyGestures?.periodRewrite;
   const showRewrite = Boolean(
     isRewriteGesture && keyGestures?.periodRewriteActive,
   );
   const isModifierKey =
     isShift ||
     isSpecial ||
-    keyDef.type === 'space' ||
     isNumpadActionKey ||
     showLauncher;
   const keyIconColor = isEnterAction ? theme.iconOnEnter : theme.icon;
 
   const keyContent = isEnterAction ? (
-    <EnterIcon width={20} height={20} color={keyIconColor} />
+    theme.design === 'quivox' && isEnterKey ? (
+      <QuivoxEnterIcon width={22} height={19} />
+    ) : (
+      <EnterIcon width={20} height={20} color={keyIconColor} />
+    )
   ) : isNumbersIcon ? (
     <NumbersIcon width={26} height={14} color={keyIconColor} />
   ) : isSymbolsIcon ? (
@@ -537,6 +548,7 @@ function KeyComponent({
             {borderRadius, minHeight: keyHeight},
             showRewrite && styles.rewriteKey,
             isShift && styles.shiftKey,
+            isSpaceKey && styles.spaceKey,
             isModifierKey && styles.modifierKey,
             isShift && isShiftOn && !isCapsLocked && styles.shiftKeyActive,
             isShift && isCapsLocked && styles.shiftKeyLocked,
@@ -547,9 +559,11 @@ function KeyComponent({
               !showRewrite &&
               (isEnterAction
                 ? styles.enterKeyPressed
-                : isModifierKey || isNumpadActionKey
-                  ? styles.modifierKeyPressed
-                  : styles.letterKeyPressed),
+                : isSpaceKey
+                  ? styles.spaceKeyPressed
+                  : isModifierKey || isNumpadActionKey
+                    ? styles.modifierKeyPressed
+                    : styles.letterKeyPressed),
           ]}>
         {keyContent}
       </Pressable>
@@ -586,6 +600,9 @@ function createKeyStyles(theme: KeyboardTheme) {
     modifierKey: {
       backgroundColor: theme.modifierKey,
     },
+    spaceKey: {
+      backgroundColor: theme.spaceKey,
+    },
     rewriteKey: {
       backgroundColor: theme.essentialsAccent,
     },
@@ -614,6 +631,9 @@ function createKeyStyles(theme: KeyboardTheme) {
     },
     modifierKeyPressed: {
       backgroundColor: theme.modifierKeyPressed,
+    },
+    spaceKeyPressed: {
+      backgroundColor: theme.spaceKeyPressed,
     },
     enterKeyPressed: {
       backgroundColor: theme.enterPressed,

@@ -7,6 +7,7 @@ import React, {
 import {
   createKeyboardTheme,
   type KeyboardColorScheme,
+  type KeyboardDesign,
   type KeyboardTheme,
 } from './theme';
 
@@ -14,14 +15,21 @@ const KeyboardThemeContext = createContext<KeyboardTheme | null>(null);
 
 type KeyboardThemeProviderProps = {
   scheme: KeyboardColorScheme;
+  design: KeyboardDesign;
+  customThemeJson?: string | null;
   children: ReactNode;
 };
 
 export function KeyboardThemeProvider({
   scheme,
+  design,
+  customThemeJson,
   children,
 }: KeyboardThemeProviderProps) {
-  const theme = useMemo(() => createKeyboardTheme(scheme), [scheme]);
+  const theme = useMemo(
+    () => createKeyboardTheme(scheme, design, customThemeJson),
+    [customThemeJson, design, scheme],
+  );
 
   return (
     <KeyboardThemeContext.Provider value={theme}>

@@ -1,24 +1,48 @@
 import {DeviceEventEmitter} from 'react-native';
 import {keyboardBridge} from '../keyboardBridge';
-import type {KeyboardColorScheme} from '../theme';
+import type {KeyboardColorScheme, KeyboardDesign} from '../theme';
 
 export const KEYBOARD_THEME_CHANGED_EVENT = 'keyboardThemeChanged';
+export const KEYBOARD_DESIGN_CHANGED_EVENT = 'keyboardDesignChanged';
+export const KEYBOARD_CUSTOM_THEME_CHANGED_EVENT =
+  'keyboardCustomThemeChanged';
 
 const DEFAULT_SCHEME: KeyboardColorScheme = 'light';
+const DEFAULT_DESIGN: KeyboardDesign = 'typebase';
 
-let cached: KeyboardColorScheme = DEFAULT_SCHEME;
+let cachedScheme: KeyboardColorScheme = DEFAULT_SCHEME;
+let cachedDesign: KeyboardDesign = DEFAULT_DESIGN;
+let cachedCustomThemeJson: string = '{}';
 let loadPromise: Promise<void> | null = null;
 
 function normalizeScheme(value: string | null | undefined): KeyboardColorScheme {
   return value === 'dark' ? 'dark' : 'light';
 }
 
+function normalizeDesign(value: string | null | undefined): KeyboardDesign {
+  if (value === 'quivox') {
+    return 'quivox';
+  }
+  if (value === 'custom') {
+    return 'custom';
+  }
+  return 'typebase';
+}
+
 async function loadFromStorage(): Promise<void> {
   try {
-    const raw = await keyboardBridge.getKeyboardColorScheme();
-    cached = normalizeScheme(raw);
+    const [schemeRaw, designRaw, customThemeRaw] = await Promise.all([
+      keyboardBridge.getKeyboardColorScheme(),
+      keyboardBridge.getKeyboardDesign(),
+      keyboardBridge.getKeyboardCustomTheme(),
+    ]);
+    cachedScheme = normalizeScheme(schemeRaw);
+    cachedDesign = normalizeDesign(designRaw);
+    cachedCustomThemeJson = customThemeRaw ?? '{}';
   } catch {
-    cached = DEFAULT_SCHEME;
+    cachedScheme = DEFAULT_SCHEME;
+    cachedDesign = DEFAULT_DESIGN;
+    cachedCustomThemeJson = '{}';
   }
 }
 
@@ -38,14 +62,27 @@ export async function refreshKeyboardColorScheme(): Promise<KeyboardColorScheme>
   return getKeyboardColorScheme();
 }
 
+export async function refreshKeyboardDesign(): Promise<KeyboardDesign> {
+  await loadFromStorage();
+  return getKeyboardDesign();
+}
+
 export function getKeyboardColorScheme(): KeyboardColorScheme {
-  return cached;
+  return cachedScheme;
+}
+
+export function getKeyboardDesign(): KeyboardDesign {
+  return cachedDesign;
+}
+
+export function getKeyboardCustomTheme(): string {
+  return cachedCustomThemeJson;
 }
 
 export async function setKeyboardColorScheme(
   scheme: KeyboardColorScheme,
 ): Promise<void> {
-  cached = scheme;
+  cachedScheme = scheme;
   try {
     await keyboardBridge.setKeyboardColorScheme(scheme);
   } catch {
@@ -53,4 +90,26 @@ export async function setKeyboardColorScheme(
   }
   loadPromise = Promise.resolve();
   DeviceEventEmitter.emit(KEYBOARD_THEME_CHANGED_EVENT, scheme);
+}
+
+export async function setKeyboardDesign(design: KeyboardDesign): Promise<void> {
+  cachedDesign = design;
+  try {
+    await keyboardBridge.setKeyboardDesign(design);
+  } catch {
+    // Keep in-memory value when native persistence is unavailable.
+  }
+  loadPromise = Promise.resolve();
+  DeviceEventEmitter.emit(KEYBOARD_DESIGN_CHANGED_EVENT, design);
+}
+
+export async function setKeyboardCustomTheme(json: string): Promise<void> {
+  cachedCustomThemeJson = json;
+  try {
+    await keyboardBridge.setKeyboardCustomTheme(json);
+  } catch {
+    // Keep in-memory value when native persistence is unavailable.
+  }
+  loadPromise = Promise.resolve();
+  DeviceEventEmitter.emit(KEYBOARD_CUSTOM_THEME_CHANGED_EVENT, json);
 }
