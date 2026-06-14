@@ -45,6 +45,8 @@ type KeyboardModuleType = {
   setKeyboardDesign: (design: string) => Promise<boolean>;
   getKeyboardCustomTheme: () => Promise<string>;
   setKeyboardCustomTheme: (json: string) => Promise<boolean>;
+  undo: () => Promise<boolean>;
+  redo: () => Promise<boolean>;
 };
 
 const {KeyboardModule} = NativeModules;
@@ -306,6 +308,18 @@ export const keyboardBridge: KeyboardModuleType = {
   setKeyboardCustomTheme: (json: string) => {
     if (Platform.OS === 'android' && KeyboardModule?.setKeyboardCustomTheme) {
       return KeyboardModule.setKeyboardCustomTheme(json) as Promise<boolean>;
+    }
+    return Promise.resolve(false);
+  },
+  undo: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.undo) {
+      return KeyboardModule.undo() as Promise<boolean>;
+    }
+    return Promise.resolve(false);
+  },
+  redo: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.redo) {
+      return KeyboardModule.redo() as Promise<boolean>;
     }
     return Promise.resolve(false);
   },

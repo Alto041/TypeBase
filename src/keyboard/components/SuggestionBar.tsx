@@ -6,6 +6,8 @@ import BackIcon from '../../../assets/back.svg';
 import CheckIcon from '../../../assets/check.svg';
 import EmojiIcon from '../../../assets/emoji.svg';
 import ItemsIcon from '../../../assets/items.svg';
+import UndoIcon from '../../../assets/undo.svg';
+import RedoIcon from '../../../assets/redo.svg';
 import ClipboardIcon from '../../../assets/plugins/clipboard.svg';
 import TranslateIcon from '../../../assets/plugins/translate.svg';
 import {VoiceConnectingDots} from './VoiceConnectingDots';
@@ -94,6 +96,9 @@ type SuggestionBarProps = {
     onPress: () => void;
     icon?: 'add' | 'insert';
   };
+  showUndoRedo?: boolean;
+  onUndo?: () => void;
+  onRedo?: () => void;
 };
 
 function SuggestionBarComponent({
@@ -122,6 +127,9 @@ function SuggestionBarComponent({
   onClipboardPasteSelect,
   leadingBack = false,
   trailingAction,
+  showUndoRedo = false,
+  onUndo,
+  onRedo,
 }: SuggestionBarProps) {
   const theme = useKeyboardTheme();
   const styles = useThemedStyles(createSuggestionBarStyles);
@@ -164,6 +172,7 @@ function SuggestionBarComponent({
   const emojiIconColor = emojiSelected ? toolbarIconActive : toolbarIconMuted;
   const voiceActive = isListening || isVoiceConnecting;
   const voiceIconColor = voiceActive ? toolbarIconActive : toolbarIconMuted;
+  const showUndoRedoButtons = showUndoRedo && !isFormMode && !centerTitle;
 
   return (
     <View style={styles.container}>
@@ -209,6 +218,21 @@ function SuggestionBarComponent({
               height={toolbarIconSize}
               color={translateIconColor}
             />
+          </Pressable>
+        ) : null}
+
+        {showUndoRedoButtons ? (
+          <Pressable
+            onPressIn={() => {
+              triggerKeyHaptic();
+              onUndo?.();
+            }}
+            style={({pressed}) => [
+              styles.toolbarButton,
+              pressed && styles.toolbarButtonPressed,
+            ]}
+            hitSlop={6}>
+            <UndoIcon width={22} height={22} color={theme.icon} />
           </Pressable>
         ) : null}
       </View>
@@ -378,6 +402,20 @@ function SuggestionBarComponent({
         </Pressable>
       ) : (
         <View style={styles.toolbarTrailing}>
+          {showUndoRedoButtons ? (
+            <Pressable
+              onPressIn={() => {
+                triggerKeyHaptic();
+                onRedo?.();
+              }}
+              style={({pressed}) => [
+                styles.toolbarButton,
+                pressed && styles.toolbarButtonPressed,
+              ]}
+              hitSlop={6}>
+              <RedoIcon width={22} height={22} color={theme.icon} />
+            </Pressable>
+          ) : null}
           <Pressable
             onPressIn={() => {
               triggerKeyHaptic();

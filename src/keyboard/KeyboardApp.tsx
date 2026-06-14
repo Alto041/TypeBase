@@ -221,6 +221,8 @@ function KeyboardBody() {
   );
   const livePrefixRef = useRef('');
   const lastTypingAtRef = useRef(0);
+  const typingIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [stoppedTyping, setStoppedTyping] = useState(true);
   const shiftOnRef = useRef(false);
   const capsLockedRef = useRef(false);
   const layoutRef = useRef<KeyboardLayout>('letters');
@@ -377,6 +379,18 @@ function KeyboardBody() {
     await reloadAutocorrectFromStorage();
     await ensureLearnedPhrasesLoaded();
     setAutocorrectSettings(getAutocorrectSettings());
+  }, []);
+
+  const markTyping = useCallback(() => {
+    lastTypingAtRef.current = Date.now();
+    setStoppedTyping(false);
+    if (typingIdleTimerRef.current) {
+      clearTimeout(typingIdleTimerRef.current);
+    }
+    typingIdleTimerRef.current = setTimeout(() => {
+      typingIdleTimerRef.current = null;
+      setStoppedTyping(true);
+    }, 450);
   }, []);
 
   const openAutocorrect = useCallback(() => {
@@ -824,6 +838,7 @@ function KeyboardBody() {
 
   const handleEssentialSuggestionSelect = useCallback(
     (essential: {value: string}) => {
+      markTyping();
       keyboardBridge.replaceWordPrefix(
         essentialTriggerLength,
         essential.value,
@@ -839,6 +854,7 @@ function KeyboardBody() {
 
   const handleSuggestionSelect = useCallback(
     (word: string) => {
+      markTyping();
       void keyboardBridge.getTextBeforeCursor(96).then(context => {
         if (word.includes(' ')) {
           const trailing = extractTrailingWords(context, 4);
@@ -873,6 +889,7 @@ function KeyboardBody() {
     if (!item) {
       return;
     }
+    markTyping();
     clearClipboardPasteSuggestion();
     if (item.kind === 'image' && item.imageUri) {
       const imagePath = item.imageUri.replace(/^file:\/\//, '');
@@ -884,6 +901,7 @@ function KeyboardBody() {
   }, [
     clearClipboardPasteSuggestion,
     clipboardPasteSuggestion,
+    markTyping,
     scheduleRefreshSuggestions,
   ]);
 
@@ -1039,11 +1057,13 @@ function KeyboardBody() {
   handleKeyPressRef.current = handleKeyPressImpl;
 
   const handleKeyPress = useCallback((keyDef: KeyDefinition) => {
+    markTyping();
     handleKeyPressRef.current(keyDef);
-  }, []);
+  }, [markTyping]);
 
   const handleWordCommitted = useCallback(
     (word: string) => {
+      markTyping();
       clearClipboardPasteSuggestion();
       recordLearnedWord(word);
       keyboardBridge.insertText(word);
@@ -1057,6 +1077,18 @@ function KeyboardBody() {
     },
     [capsLocked, clearClipboardPasteSuggestion, refreshSuggestions, shiftOn],
   );
+
+  const handleUndo = useCallback(() => {
+    void keyboardBridge.undo().finally(() => {
+      scheduleRefreshSuggestions();
+    });
+  }, [scheduleRefreshSuggestions]);
+
+  const handleRedo = useCallback(() => {
+    void keyboardBridge.redo().finally(() => {
+      scheduleRefreshSuggestions();
+    });
+  }, [scheduleRefreshSuggestions]);
 
   const showKeys =
     mode.type === 'typing' ||
@@ -1265,6 +1297,9 @@ function KeyboardBody() {
           isVoiceProcessing={isVoiceProcessing}
           partialTranscript={partialTranscript}
           onItemsPress={toggleItemsMenu}
+          showUndoRedo={gestureSettings.undoRedo && stoppedTyping}
+          onUndo={handleUndo}
+          onRedo={handleRedo}
           leadingBack={isFormMode || isTranslateMode || isRewriteMode}
           onTranslatePress={() => {
             void toggleTranslatePanel();
@@ -1312,6 +1347,7 @@ function KeyboardBody() {
             styles.keysPadding,
             layout === 'numpad' && styles.numpadKeysPadding,
             !showKeys && styles.keysPanel,
+            !showKeys && styles.keysPanelPlugins,
             !showKeys ? styles.keysPanelClip : null,
           ]}>
           {isEmojiMode ? (
@@ -1526,6 +1562,11 @@ function createKeyboardAppStyles(theme: KeyboardTheme) {
     keysPanel: {
       flex: 1,
       justifyContent: 'flex-start',
+      minHeight: 0,
+    },
+    keysPanelPlugins: {
+      flexGrow: 0,
+      flexShrink: 0,
     },
     keysPanelClip: {
       overflow: 'hidden',

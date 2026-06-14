@@ -13,6 +13,7 @@ import android.provider.Settings
 import android.view.HapticFeedbackConstants
 import android.view.KeyEvent
 import android.view.inputmethod.InputConnection
+import android.R
 import android.view.inputmethod.InputContentInfo
 import androidx.core.content.FileProvider
 import java.io.File
@@ -375,6 +376,36 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     val connection = KeyboardInputBridge.getInputConnection() ?: return
     connection.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER))
     connection.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER))
+  }
+
+  @ReactMethod
+  fun undo(promise: Promise) {
+    try {
+      val connection = KeyboardInputBridge.getInputConnection()
+      if (connection == null) {
+        promise.resolve(false)
+        return
+      }
+      val ok = connection.performContextMenuAction(R.id.undo)
+      promise.resolve(ok)
+    } catch (error: Exception) {
+      promise.reject("UNDO_FAILED", error)
+    }
+  }
+
+  @ReactMethod
+  fun redo(promise: Promise) {
+    try {
+      val connection = KeyboardInputBridge.getInputConnection()
+      if (connection == null) {
+        promise.resolve(false)
+        return
+      }
+      val ok = connection.performContextMenuAction(R.id.redo)
+      promise.resolve(ok)
+    } catch (error: Exception) {
+      promise.reject("REDO_FAILED", error)
+    }
   }
 
   @ReactMethod

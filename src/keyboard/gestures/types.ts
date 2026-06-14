@@ -4,6 +4,7 @@ export type GestureSettingKey =
   | 'backspaceWordSwipe'
   | 'backspaceSentenceHold'
   | 'commaLauncher'
+  | 'undoRedo'
   | 'trackpadMode';
 
 export type GestureSettings = Record<GestureSettingKey, boolean>;
@@ -49,6 +50,12 @@ export const GESTURE_FEATURES: GestureFeature[] = [
     description: 'Hold . to arm the launcher key, then tap the rocket to open an app.',
   },
   {
+    key: 'undoRedo',
+    title: 'Undo / Redo',
+    description:
+      'Show undo and redo buttons on the suggestion bar when you stop typing.',
+  },
+  {
     key: 'trackpadMode',
     title: 'Trackpad mode',
     description: 'Drag anywhere on the keyboard to move the cursor.',
@@ -61,5 +68,6 @@ export const DEFAULT_GESTURE_SETTINGS: GestureSettings = {
   backspaceWordSwipe: true,
   backspaceSentenceHold: false,
   commaLauncher: true,
+  undoRedo: false,
   trackpadMode: true,
 };

@@ -1,8 +1,8 @@
 import React, {type FC} from 'react';
 import {
-  Pressable,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
   type StyleProp,
   type ViewStyle,
@@ -45,21 +45,19 @@ function PluginTile({title, Icon, tileStyle, onPress}: PluginTileProps) {
   const styles = useThemedStyles(createItemsMenuStyles);
 
   return (
-    <Pressable
+    <TouchableOpacity
+      activeOpacity={0.7}
+      delayPressIn={80}
       onPress={() => {
         triggerKeyHaptic();
         onPress();
       }}
-      style={({pressed}) => [
-        styles.tile,
-        tileStyle,
-        pressed && styles.tilePressed,
-      ]}>
+      style={[styles.tile, tileStyle]}>
       <Icon width={22} height={22} color={theme.icon} />
       <Text style={styles.tileTitle}>{title}</Text>
       <View style={styles.tileSpacer} />
       <ArrowIcon width={9} height={16} color={theme.iconMuted} />
-    </Pressable>
+    </TouchableOpacity>
   );
 }
 

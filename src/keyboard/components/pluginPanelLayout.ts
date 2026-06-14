@@ -1,5 +1,5 @@
 import React from 'react';
-import {ScrollView, StyleSheet} from 'react-native';
+import {Platform, ScrollView, StyleSheet} from 'react-native';
 import {useThemedStyles} from '../KeyboardThemeContext';
 import {keyboardTheme, type KeyboardTheme} from '../theme';
 
@@ -15,10 +15,12 @@ export function createPluginPanelStyles(theme: KeyboardTheme) {
     container: {
       height: PLUGIN_PANEL_HEIGHT,
       alignSelf: 'stretch',
+      minHeight: 0,
       overflow: 'hidden',
     },
     list: {
       flex: 1,
+      minHeight: 0,
     },
     listContent: {
       paddingHorizontal: 12,
@@ -58,9 +60,12 @@ export function PluginScrollView({children}: PluginScrollViewProps) {
     {
       style: styles.list,
       contentContainerStyle: styles.listContent,
-      keyboardShouldPersistTaps: 'always' as const,
+      keyboardShouldPersistTaps: 'handled' as const,
       nestedScrollEnabled: true,
       showsVerticalScrollIndicator: false,
+      scrollEventThrottle: 16,
+      overScrollMode: Platform.OS === 'android' ? 'always' : undefined,
+      bounces: true,
     },
     children,
   );

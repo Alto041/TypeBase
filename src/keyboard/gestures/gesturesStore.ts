@@ -31,6 +31,7 @@ function normalizeSettings(raw: PersistedGestureData): GestureSettings {
       raw.commaLauncher ??
       raw.commaHoldOpenApp ??
       DEFAULT_GESTURE_SETTINGS.commaLauncher,
+    undoRedo: raw.undoRedo ?? DEFAULT_GESTURE_SETTINGS.undoRedo,
     trackpadMode: raw.trackpadMode ?? DEFAULT_GESTURE_SETTINGS.trackpadMode,
   };
 }
