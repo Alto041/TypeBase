@@ -13,6 +13,10 @@ export type KeyHitSlop = {
 export const DEFAULT_KEY_HIT_SLOP: KeyHitSlop = KEY_HIT_SLOP;
 
 const pressVisualHandlers = new Map<string, (pressed: boolean) => void>();
+const keyPressCounts = new Map<string, number>();
+const keyReleaseTimers = new Map<string, ReturnType<typeof setTimeout>>();
+/** Keep pressed visuals visible long enough to paint between fast taps. */
+const MIN_PRESS_VISIBLE_MS = 90;
 
 export function pointerIdFromTouch(touch: {identifier: number | string}): number {
   return typeof touch.identifier === 'number'
@@ -146,6 +150,18 @@ export function touchHitsPressableOnlyKey(
   return false;
 }
 
+function applyKeyPressedVisual(id: string, pressed: boolean): void {
+  pressVisualHandlers.get(id)?.(pressed);
+}
+
+function clearKeyReleaseTimer(id: string): void {
+  const timer = keyReleaseTimers.get(id);
+  if (timer) {
+    clearTimeout(timer);
+    keyReleaseTimers.delete(id);
+  }
+}
+
 export function registerMultiTouchKeyVisual(
   id: string,
   handler: (pressed: boolean) => void,
@@ -153,11 +169,41 @@ export function registerMultiTouchKeyVisual(
   pressVisualHandlers.set(id, handler);
   return () => {
     pressVisualHandlers.delete(id);
+    keyPressCounts.delete(id);
+    clearKeyReleaseTimer(id);
+    handler(false);
   };
 }
 
 export function setMultiTouchKeyPressed(id: string, pressed: boolean): void {
-  pressVisualHandlers.get(id)?.(pressed);
+  if (pressed) {
+    clearKeyReleaseTimer(id);
+    const count = (keyPressCounts.get(id) ?? 0) + 1;
+    keyPressCounts.set(id, count);
+    if (count === 1) {
+      applyKeyPressedVisual(id, true);
+    }
+    return;
+  }
+
+  const count = Math.max(0, (keyPressCounts.get(id) ?? 0) - 1);
+  if (count === 0) {
+    keyPressCounts.delete(id);
+  } else {
+    keyPressCounts.set(id, count);
+    return;
+  }
+
+  clearKeyReleaseTimer(id);
+  keyReleaseTimers.set(
+    id,
+    setTimeout(() => {
+      keyReleaseTimers.delete(id);
+      if ((keyPressCounts.get(id) ?? 0) === 0) {
+        applyKeyPressedVisual(id, false);
+      }
+    }, MIN_PRESS_VISIBLE_MS),
+  );
 }
 
 type DispatchMultiTouchOptions = {

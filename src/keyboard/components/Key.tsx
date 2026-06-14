@@ -1,5 +1,6 @@
-import React, {memo, useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import React, {memo, useCallback, useEffect, useMemo, useRef} from 'react';
 import {
+  Animated,
   PanResponder,
   PixelRatio,
   Platform,
@@ -91,7 +92,7 @@ function KeyComponent({
   const lastSpaceDxRef = useRef(0);
   const spaceSwipingRef = useRef(false);
   const spaceDidSwipeRef = useRef(false);
-  const [multiTouchPressed, setMultiTouchPressed] = useState(false);
+  const multiTouchPressAnim = useRef(new Animated.Value(0)).current;
   const usesMultiTouchRouter = isMultiTouchTextKey(keyDef);
   const launcherHoldDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const launcherDidHoldRef = useRef(false);
@@ -191,12 +192,33 @@ function KeyComponent({
     }
   }, [keyDef, layoutContext, usesMultiTouchRouter]);
 
+  const multiTouchPressBg = useMemo(
+    () =>
+      multiTouchPressAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: [theme.letterKey, theme.letterKeyPressed],
+      }),
+    [multiTouchPressAnim, theme.letterKey, theme.letterKeyPressed],
+  );
+
   useEffect(() => {
     if (!usesMultiTouchRouter) {
       return;
     }
-    return registerMultiTouchKeyVisual(keyDef.id, setMultiTouchPressed);
-  }, [keyDef.id, usesMultiTouchRouter]);
+    return registerMultiTouchKeyVisual(keyDef.id, pressed => {
+      if (pressed) {
+        multiTouchPressAnim.stopAnimation(() => {
+          multiTouchPressAnim.setValue(1);
+        });
+        return;
+      }
+      Animated.timing(multiTouchPressAnim, {
+        toValue: 0,
+        duration: 70,
+        useNativeDriver: false,
+      }).start();
+    });
+  }, [keyDef.id, multiTouchPressAnim, usesMultiTouchRouter]);
 
   useEffect(() => {
     if (!usesMultiTouchRouter) {
@@ -284,7 +306,7 @@ function KeyComponent({
   ) : showLauncher ? (
     <RocketLaunchIcon width={20} height={20} color={keyIconColor} />
   ) : showRewrite ? (
-    <ArtificialIcon width={18} height={17} color={keyIconColor} />
+    <ArtificialIcon width={18} height={17} color="#000000" />
   ) : (
     <Text
       style={[
@@ -488,15 +510,14 @@ function KeyComponent({
         onLayout={measureKey}
         collapsable={false}
         pointerEvents="box-none">
-        <View
+        <Animated.View
           pointerEvents="none"
           style={[
             styles.key,
-            {borderRadius, minHeight: keyHeight},
-            multiTouchPressed && styles.letterKeyPressed,
+            {borderRadius, minHeight: keyHeight, backgroundColor: multiTouchPressBg},
           ]}>
           {keyContent}
-        </View>
+        </Animated.View>
       </View>
     );
   }
