@@ -49,6 +49,7 @@ import type {KeyGesturesConfig} from './components/Key';
 import {GestureTypingLayer} from './gesture/GestureTypingLayer';
 import {SwipeTypingKeysHost} from './gesture/SwipeTypingContext';
 import {KeyLayoutProvider} from './gesture/KeyLayoutContext';
+import {destroyKeyPreview, initKeyPreview} from './KeyPreview';
 import {AutocorrectPanel} from './autocorrect/AutocorrectPanel';
 import {
   ensureAutocorrectLoaded,
@@ -296,6 +297,11 @@ function KeyboardBody() {
     mode.type === 'typing';
 
   const rows = useMemo(() => LAYOUTS[layout], [layout]);
+
+  useEffect(() => {
+    initKeyPreview();
+    return () => destroyKeyPreview();
+  }, []);
 
   useEffect(() => {
     void keyboardBridge.getPrefersNumpad().then(setPrefersNumpad);

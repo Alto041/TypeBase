@@ -417,13 +417,7 @@ function LaunchpadScreen({onOpenSettings}: {onOpenSettings: () => void}) {
           <View style={styles.divider} />
           <LaunchpadCard
             position="mid"
-            icon={
-              <ArtificialIcon
-                width={HOME_ICON}
-                height={HOME_ICON}
-                color="#000000"
-              />
-            }
+            icon={<ArtificialIcon width={HOME_ICON} height={HOME_ICON} />}
             title="REWRITE"
             description="AI rewrite tools for punctuation and phrasing."
           />

@@ -1,6 +1,6 @@
-import React, {memo, useCallback, useEffect, useMemo, useRef} from 'react';
+import React, {memo, useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
-  Animated,
+  findNodeHandle,
   PanResponder,
   PixelRatio,
   Platform,
@@ -24,6 +24,7 @@ import {
   isMultiTouchTextKey,
   registerMultiTouchKeyVisual,
 } from '../gesture/multiTouchKeys';
+import {hideKeyPreview, showKeyPreview} from '../KeyPreview';
 import {triggerKeyHaptic} from '../haptics';
 import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
 import type {KeyDefinition} from '../layouts/qwerty';
@@ -92,7 +93,7 @@ function KeyComponent({
   const lastSpaceDxRef = useRef(0);
   const spaceSwipingRef = useRef(false);
   const spaceDidSwipeRef = useRef(false);
-  const multiTouchPressAnim = useRef(new Animated.Value(0)).current;
+  const [multiTouchPressed, setMultiTouchPressed] = useState(false);
   const usesMultiTouchRouter = isMultiTouchTextKey(keyDef);
   const launcherHoldDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const launcherDidHoldRef = useRef(false);
@@ -192,33 +193,25 @@ function KeyComponent({
     }
   }, [keyDef, layoutContext, usesMultiTouchRouter]);
 
-  const multiTouchPressBg = useMemo(
-    () =>
-      multiTouchPressAnim.interpolate({
-        inputRange: [0, 1],
-        outputRange: [theme.letterKey, theme.letterKeyPressed],
-      }),
-    [multiTouchPressAnim, theme.letterKey, theme.letterKeyPressed],
-  );
-
   useEffect(() => {
     if (!usesMultiTouchRouter) {
       return;
     }
     return registerMultiTouchKeyVisual(keyDef.id, pressed => {
+      setMultiTouchPressed(pressed);
       if (pressed) {
-        multiTouchPressAnim.stopAnimation(() => {
-          multiTouchPressAnim.setValue(1);
-        });
-        return;
+        const tag = findNodeHandle(keyRef.current);
+        const label = isUppercase
+          ? (keyDef.value ?? '').toUpperCase()
+          : (keyDef.value ?? '').toLowerCase();
+        if (tag) {
+          showKeyPreview(tag, label);
+        }
+      } else {
+        hideKeyPreview(80);
       }
-      Animated.timing(multiTouchPressAnim, {
-        toValue: 0,
-        duration: 70,
-        useNativeDriver: false,
-      }).start();
     });
-  }, [keyDef.id, multiTouchPressAnim, usesMultiTouchRouter]);
+  }, [keyDef.id, keyDef.value, isUppercase, usesMultiTouchRouter]);
 
   useEffect(() => {
     if (!usesMultiTouchRouter) {
@@ -306,7 +299,7 @@ function KeyComponent({
   ) : showLauncher ? (
     <RocketLaunchIcon width={20} height={20} color={keyIconColor} />
   ) : showRewrite ? (
-    <ArtificialIcon width={18} height={17} color="#000000" />
+    <ArtificialIcon width={18} height={17} />
   ) : (
     <Text
       style={[
@@ -510,14 +503,15 @@ function KeyComponent({
         onLayout={measureKey}
         collapsable={false}
         pointerEvents="box-none">
-        <Animated.View
+        <View
           pointerEvents="none"
           style={[
             styles.key,
-            {borderRadius, minHeight: keyHeight, backgroundColor: multiTouchPressBg},
+            {borderRadius, minHeight: keyHeight},
+            multiTouchPressed && {opacity: 0.6},
           ]}>
           {keyContent}
-        </Animated.View>
+        </View>
       </View>
     );
   }

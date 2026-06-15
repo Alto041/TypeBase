@@ -584,3 +584,16 @@ export function chunkEmojis(
   }
   return rows;
 }
+
+export const EMOJI_ROWS_BY_CATEGORY = Object.fromEntries(
+  EMOJI_CATEGORIES.map(({id}) => [
+    id,
+    chunkEmojis(EMOJIS_BY_CATEGORY[id], EMOJI_COLUMNS),
+  ]),
+) as Record<EmojiCategoryId, readonly (readonly string[])[]>;
+
+export function getEmojiRowsForCategory(
+  category: EmojiCategoryId,
+): readonly (readonly string[])[] {
+  return EMOJI_ROWS_BY_CATEGORY[category];
+}

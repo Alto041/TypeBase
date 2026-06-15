@@ -1,7 +1,8 @@
 import React, {useMemo, useRef, type RefObject} from 'react';
 import {
+  FlatList,
+  ListRenderItem,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -13,9 +14,8 @@ import {triggerKeyHaptic} from '../haptics';
 import type {KeyboardTheme} from '../theme';
 import {
   EMOJI_COLUMNS,
+  EMOJI_ROWS_BY_CATEGORY,
   type EmojiCategoryId,
-  chunkEmojis,
-  getEmojisForCategory,
 } from './emojis';
 
 type EmojiCategoryGridProps = {
@@ -34,7 +34,7 @@ export function EmojiCategoryGrid({
   const styles = useThemedStyles(createEmojiCategoryGridStyles);
   const isVerticalScrollingRef = useRef(false);
   const rows = useMemo(
-    () => chunkEmojis(getEmojisForCategory(category), EMOJI_COLUMNS),
+    () => EMOJI_ROWS_BY_CATEGORY[category] ?? [],
     [category],
   );
 
@@ -55,13 +55,43 @@ export function EmojiCategoryGrid({
     onSelect(emoji);
   };
 
+  const renderRow: ListRenderItem<readonly string[]> = ({item: row, index: rowIndex}) => (
+    <View style={styles.row}>
+      {row.map(emoji => (
+        <Pressable
+          key={`${category}-${emoji}`}
+          onPress={() => {
+            handleEmojiPress(emoji);
+          }}
+          style={({pressed}) => [
+            styles.cell,
+            pressed && styles.cellPressed,
+          ]}>
+          <Text style={styles.emoji}>{emoji}</Text>
+        </Pressable>
+      ))}
+      {row.length < EMOJI_COLUMNS
+        ? Array.from({length: EMOJI_COLUMNS - row.length}).map((_, index) => (
+            <View
+              key={`${category}-spacer-${rowIndex}-${index}`}
+              style={styles.cell}
+            />
+          ))
+        : null}
+    </View>
+  );
+
   return (
-    <ScrollView
+    <FlatList
       style={[styles.scroll, {width}]}
       contentContainerStyle={styles.content}
+      data={rows}
+      keyExtractor={(_, rowIndex) => `${category}-row-${rowIndex}`}
+      renderItem={renderRow}
       keyboardShouldPersistTaps="handled"
       nestedScrollEnabled
       showsVerticalScrollIndicator={false}
+      removeClippedSubviews
       onScrollBeginDrag={() => {
         isVerticalScrollingRef.current = true;
       }}
@@ -71,35 +101,8 @@ export function EmojiCategoryGrid({
       onMomentumScrollEnd={() => {
         isVerticalScrollingRef.current = false;
       }}
-      onScrollEndDrag={handleVerticalScrollEnd}>
-      {rows.map((row, rowIndex) => (
-        <View key={`${category}-row-${rowIndex}`} style={styles.row}>
-          {row.map(emoji => (
-            <Pressable
-              key={`${category}-${emoji}`}
-              onPress={() => {
-                handleEmojiPress(emoji);
-              }}
-              style={({pressed}) => [
-                styles.cell,
-                pressed && styles.cellPressed,
-              ]}>
-              <Text style={styles.emoji}>{emoji}</Text>
-            </Pressable>
-          ))}
-          {row.length < EMOJI_COLUMNS
-            ? Array.from({length: EMOJI_COLUMNS - row.length}).map(
-                (_, index) => (
-                  <View
-                    key={`${category}-spacer-${rowIndex}-${index}`}
-                    style={styles.cell}
-                  />
-                ),
-              )
-            : null}
-        </View>
-      ))}
-    </ScrollView>
+      onScrollEndDrag={handleVerticalScrollEnd}
+    />
   );
 }
 

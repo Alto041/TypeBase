@@ -1,5 +1,6 @@
 package com.typebase
 
+import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import java.util.concurrent.CopyOnWriteArrayList
@@ -51,6 +52,8 @@ object KeyboardInputBridge {
     keyboardVisibilityListeners.add(listener)
     return { keyboardVisibilityListeners.remove(listener) }
   }
+
+  fun getPopupAnchorView(): View? = inputService?.popupAnchorView
 
   fun shouldPreferNumpad(info: EditorInfo?): Boolean {
     if (info == null) {

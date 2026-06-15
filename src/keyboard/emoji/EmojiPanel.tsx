@@ -1,16 +1,10 @@
-import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {
-  NativeScrollEvent,
-  NativeSyntheticEvent,
-  ScrollView,
-  StyleSheet,
-  View,
-} from 'react-native';
+import React, {useMemo, useState} from 'react';
+import {Dimensions, StyleSheet, View} from 'react-native';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import {useKeyboardTheme} from '../KeyboardThemeContext';
 import type {KeyboardTheme} from '../theme';
 import {EmojiCategoryGrid} from './EmojiCategoryGrid';
-import {EMOJI_CATEGORIES, type EmojiCategoryId} from './emojis';
+import type {EmojiCategoryId} from './emojis';
 
 type EmojiPanelProps = {
   category: EmojiCategoryId;
@@ -30,61 +24,9 @@ export function EmojiPanel({
     () => createEmojiPanelStyles(theme, emojiScrollHeight, emojiFadeHeight),
     [theme, emojiScrollHeight, emojiFadeHeight],
   );
-  const pagerRef = useRef<ScrollView>(null);
-  const [panelWidth, setPanelWidth] = useState(0);
-  const isDraggingPager = useRef(false);
-  const selectionLockedRef = useRef(false);
-  const hasInitializedPager = useRef(false);
-
-  const scrollToCategory = useCallback(
-    (nextCategory: EmojiCategoryId, animated: boolean) => {
-      if (panelWidth <= 0) {
-        return;
-      }
-      const index = EMOJI_CATEGORIES.findIndex(item => item.id === nextCategory);
-      if (index < 0) {
-        return;
-      }
-      pagerRef.current?.scrollTo({
-        x: index * panelWidth,
-        animated,
-      });
-    },
-    [panelWidth],
+  const [panelWidth, setPanelWidth] = useState(() =>
+    Math.max(280, Math.round(Dimensions.get('window').width)),
   );
-
-  useEffect(() => {
-    if (panelWidth <= 0 || isDraggingPager.current) {
-      return;
-    }
-    scrollToCategory(category, hasInitializedPager.current);
-    hasInitializedPager.current = true;
-  }, [category, panelWidth, scrollToCategory]);
-
-  const releasePagerSelectionLock = (
-    event: NativeSyntheticEvent<NativeScrollEvent>,
-  ) => {
-    const velocityX = event.nativeEvent.velocity?.x ?? 0;
-    if (Math.abs(velocityX) < 0.15) {
-      isDraggingPager.current = false;
-      selectionLockedRef.current = false;
-    }
-  };
-
-  const handlePagerScrollEnd = (
-    event: NativeSyntheticEvent<NativeScrollEvent>,
-  ) => {
-    if (panelWidth <= 0) {
-      return;
-    }
-    const index = Math.round(event.nativeEvent.contentOffset.x / panelWidth);
-    const nextCategory = EMOJI_CATEGORIES[index]?.id;
-    isDraggingPager.current = false;
-    selectionLockedRef.current = false;
-    if (nextCategory && nextCategory !== category) {
-      onCategoryChange(nextCategory);
-    }
-  };
 
   return (
     <View
@@ -95,37 +37,11 @@ export function EmojiPanel({
           setPanelWidth(width);
         }
       }}>
-      {panelWidth > 0 ? (
-        <ScrollView
-          ref={pagerRef}
-          horizontal
-          pagingEnabled
-          nestedScrollEnabled
-          decelerationRate="fast"
-          keyboardShouldPersistTaps="always"
-          showsHorizontalScrollIndicator={false}
-          onScrollBeginDrag={() => {
-            isDraggingPager.current = true;
-            selectionLockedRef.current = true;
-          }}
-          onMomentumScrollBegin={() => {
-            selectionLockedRef.current = true;
-          }}
-          onMomentumScrollEnd={handlePagerScrollEnd}
-          onScrollEndDrag={releasePagerSelectionLock}
-          style={styles.pager}
-          contentContainerStyle={styles.pagerContent}>
-          {EMOJI_CATEGORIES.map(({id}) => (
-            <EmojiCategoryGrid
-              key={id}
-              category={id}
-              width={panelWidth}
-              selectionLockedRef={selectionLockedRef}
-              onSelect={onSelect}
-            />
-          ))}
-        </ScrollView>
-      ) : null}
+      <EmojiCategoryGrid
+        category={category}
+        width={panelWidth}
+        onSelect={onSelect}
+      />
       <View style={styles.fade} pointerEvents="none">
         <Svg width="100%" height="100%" preserveAspectRatio="none">
           <Defs>
@@ -170,12 +86,6 @@ function createEmojiPanelStyles(
       height: emojiScrollHeight,
       marginBottom: theme.emojiPanelGap,
       overflow: 'hidden',
-    },
-    pager: {
-      flex: 1,
-    },
-    pagerContent: {
-      alignItems: 'flex-start',
     },
     fade: {
       position: 'absolute',

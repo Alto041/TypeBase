@@ -13,6 +13,7 @@ class KeyboardModulePackage : ReactPackage {
           KeyboardModule(reactContext),
           VoiceRecorderModule(reactContext),
           VoiceActivationSoundModule(reactContext),
+          KeyPreviewModule(reactContext),
       )
 
   override fun createViewManagers(

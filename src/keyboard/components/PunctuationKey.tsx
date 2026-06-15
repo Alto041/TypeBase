@@ -254,7 +254,7 @@ function PunctuationKeyComponent({
   const content = showLauncher ? (
     <RocketLaunchIcon width={20} height={20} color={theme.icon} />
   ) : showRewrite ? (
-    <ArtificialIcon width={18} height={17} color="#000000" />
+    <ArtificialIcon width={18} height={17} />
   ) : (
     <Text style={styles.keyLabel}>{label}</Text>
   );

@@ -42,6 +42,9 @@ class TypeBaseInputService : InputMethodService() {
     preloadKeyboardRuntime()
   }
 
+  val popupAnchorView: View?
+    get() = container
+
   override fun onCreateInputView(): View {
     surfaceMountAttempts = 0
     val frame =

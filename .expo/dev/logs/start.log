@@ -4707,3 +4707,769 @@
 {"_e":"metro:client_log","_t":1781457462983,"level":"error","data":["[Error: Uncaught (in promise, id: 0): \"java.lang.IllegalStateException: Tried to use permissions API while not attached to an Activity.\"]"]}
 {"_e":"metro:client_log","_t":1781457604733,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":21,\"initialProps\":{},\"fabric\":true}"]}
 {"_e":"metro:client_log","_t":1781457657671,"level":"error","data":["[Error: Uncaught (in promise, id: 1): \"java.lang.IllegalStateException: Tried to use permissions API while not attached to an Activity.\"]"]}
+{"_e":"root:init","_t":1781518794972,"format":"v0-jsonl","version":"56.1.14"}
+{"_e":"devserver:start","_t":1781518795012,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../..\\..\\app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1781518796487,"serverRoot":"../..\\..","projectRoot":"../..\\..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"metro:instantiate","_t":1781518820309,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"metro:bundling:started","_t":1781518831993,"id":"1","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781518831993,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781518831998,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781518832099,"id":"1","progress":0.008391119398636442,"total":131,"current":12}
+{"_e":"metro:bundling:progress","_t":1781518832199,"id":"1","progress":0.03272644630186106,"total":199,"current":36}
+{"_e":"metro:bundling:progress","_t":1781518832299,"id":"1","progress":0.1818298326806693,"total":265,"current":113}
+{"_e":"metro:bundling:progress","_t":1781518832399,"id":"1","progress":0.3439942896947911,"total":341,"current":200}
+{"_e":"metro:bundling:progress","_t":1781518832499,"id":"1","progress":0.4148233266302786,"total":413,"current":266}
+{"_e":"metro:bundling:progress","_t":1781518832599,"id":"1","progress":0.6972760192632352,"total":491,"current":410}
+{"_e":"metro:bundling:progress","_t":1781518832701,"id":"1","progress":0.6972760192632352,"total":620,"current":495}
+{"_e":"metro:bundling:progress","_t":1781518832801,"id":"1","progress":0.6972760192632352,"total":626,"current":504}
+{"_e":"metro:bundling:progress","_t":1781518832901,"id":"1","progress":0.8490306122448978,"total":700,"current":645}
+{"_e":"metro:bundling:progress","_t":1781518833001,"id":"1","progress":0.9170705341267318,"total":779,"current":746}
+{"_e":"metro:bundling:progress","_t":1781518833101,"id":"1","progress":0.958767361111111,"total":816,"current":799}
+{"_e":"metro:bundling:progress","_t":1781518833201,"id":"1","progress":0.997594709229163,"total":831,"current":830}
+{"_e":"metro:bundling:progress","_t":1781518834223,"id":"1","progress":0.999,"total":831,"current":831}
+{"_e":"metro:bundling:progress","_t":1781518834326,"id":"1","progress":0.999,"total":920,"current":909}
+{"_e":"metro:bundling:progress","_t":1781518834441,"id":"1","progress":0.999,"total":923,"current":920}
+{"_e":"metro:bundling:progress","_t":1781518836143,"id":"1","progress":0.999,"total":923,"current":921}
+{"_e":"metro:bundling:progress","_t":1781518836245,"id":"1","progress":0.999,"total":930,"current":929}
+{"_e":"metro:bundling:progress","_t":1781518836345,"id":"1","progress":0.999,"total":930,"current":930}
+{"_e":"metro:bundling:done","_t":1781518836478,"id":"1","total":930,"ms":4485.0802}
+{"_e":"metro:client_log","_t":1781518837876,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781518837876,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:bundling:started","_t":1781518913859,"id":"2","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781518913859,"id":"2","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1781518913912,"id":"2","total":1,"ms":53.607}
+{"_e":"metro:client_log","_t":1781518915475,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781518915475,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1781518915475,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":1,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781518915952,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"metro:server_log","_t":1781519111929,"level":"error","data":["[timeout] connection terminated with Device for app='%s' on device='%s' after not responding for %s seconds.","com.typebase","AIN065 - 16 - API 36","60"]}
+{"_e":"metro:server_log","_t":1781519112270,"level":"error","data":["[timeout] connection terminated with Device for app='%s' on device='%s' after not responding for %s seconds.","com.typebase","AIN065 - 16 - API 36","60"]}
+{"_e":"metro:bundling:started","_t":1781519123060,"id":"3","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781519123060,"id":"3","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1781519123128,"id":"3","total":1,"ms":67.8739}
+{"_e":"metro:client_log","_t":1781519124262,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":11,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:bundling:started","_t":1781519246044,"id":"4","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781519246044,"id":"4","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1781519246108,"id":"4","total":1,"ms":64.1533}
+{"_e":"metro:client_log","_t":1781519247645,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781519247645,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1781519247645,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":11,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781519248104,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"metro:bundling:started","_t":1781519376068,"id":"5","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781519376068,"id":"5","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1781519376140,"id":"5","total":1,"ms":71.1887}
+{"_e":"metro:client_log","_t":1781519377756,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781519377756,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1781519377756,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":11,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781519378225,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"metro:bundling:started","_t":1781519596922,"id":"6","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781519596922,"id":"6","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1781519596984,"id":"6","total":1,"ms":61.2802}
+{"_e":"metro:client_log","_t":1781519598595,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781519598596,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1781519598596,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":11,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781519599134,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"metro:bundling:started","_t":1781519771010,"id":"7","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781519771011,"id":"7","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1781519771084,"id":"7","total":1,"ms":73.3298}
+{"_e":"metro:client_log","_t":1781519772654,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781519772654,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1781519772654,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":11,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781519773136,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"metro:client_log","_t":1781519786540,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":21,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781520186141,"level":"error","data":["[ReferenceError: Property 'useMemo' doesn't exist]"]}
+{"_e":"metro:bundling:started","_t":1781520188663,"id":"a","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781520188663,"id":"a","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1781520188723,"id":"a","total":1,"ms":59.4743}
+{"_e":"metro:client_log","_t":1781520190044,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781520190044,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1781520190044,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":21,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781520190203,"level":"error","data":["[ReferenceError: Property 'useMemo' doesn't exist]"]}
+{"_e":"metro:client_log","_t":1781520281556,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"metro:bundling:started","_t":1781520496243,"id":"d","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781520496243,"id":"d","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1781520496309,"id":"d","total":1,"ms":66.7171}
+{"_e":"metro:client_log","_t":1781520497950,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781520497950,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1781520497950,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":21,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781520498406,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"metro:bundling:started","_t":1781520530066,"id":"e","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781520530066,"id":"e","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1781520530128,"id":"e","total":1,"ms":61.5382}
+{"_e":"metro:client_log","_t":1781520531726,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781520531727,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1781520531727,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":21,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781520532187,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"root:init","_t":1781521303067,"format":"v0-jsonl","version":"56.1.14"}
+{"_e":"devserver:start","_t":1781521303141,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../..\\..\\app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1781521305826,"serverRoot":"../..\\..","projectRoot":"../..\\..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"metro:instantiate","_t":1781521335469,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"metro:bundling:started","_t":1781521341795,"id":"1","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781521341796,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781521341801,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781521341925,"id":"1","progress":0.0087890625,"total":64,"current":6}
+{"_e":"metro:bundling:progress","_t":1781521342026,"id":"1","progress":0.030091628488129945,"total":196,"current":34}
+{"_e":"metro:bundling:progress","_t":1781521342126,"id":"1","progress":0.055982940051020405,"total":224,"current":53}
+{"_e":"metro:bundling:progress","_t":1781521342227,"id":"1","progress":0.09361773223435063,"total":268,"current":82}
+{"_e":"metro:bundling:progress","_t":1781521342329,"id":"1","progress":0.1442076590290018,"total":316,"current":120}
+{"_e":"metro:bundling:progress","_t":1781521342430,"id":"1","progress":0.2513869598913452,"total":361,"current":181}
+{"_e":"metro:bundling:progress","_t":1781521342529,"id":"1","progress":0.3948386248288807,"total":409,"current":257}
+{"_e":"metro:bundling:progress","_t":1781521342630,"id":"1","progress":0.42972267380285123,"total":479,"current":314}
+{"_e":"metro:bundling:progress","_t":1781521342736,"id":"1","progress":0.48260580396980046,"total":547,"current":380}
+{"_e":"metro:bundling:progress","_t":1781521342836,"id":"1","progress":0.532643890427824,"total":570,"current":416}
+{"_e":"metro:bundling:progress","_t":1781521342936,"id":"1","progress":0.6394568215818587,"total":589,"current":471}
+{"_e":"metro:bundling:progress","_t":1781521343036,"id":"1","progress":0.7623850247931192,"total":607,"current":530}
+{"_e":"metro:bundling:progress","_t":1781521343138,"id":"1","progress":0.7623850247931192,"total":707,"current":576}
+{"_e":"metro:bundling:progress","_t":1781521343245,"id":"1","progress":0.7623850247931192,"total":726,"current":602}
+{"_e":"metro:bundling:progress","_t":1781521343349,"id":"1","progress":0.8669890149937526,"total":784,"current":730}
+{"_e":"metro:bundling:progress","_t":1781521343452,"id":"1","progress":0.9736380687415332,"total":829,"current":818}
+{"_e":"metro:bundling:progress","_t":1781521343551,"id":"1","progress":0.9736380687415332,"total":908,"current":881}
+{"_e":"metro:bundling:progress","_t":1781521343655,"id":"1","progress":0.999,"total":935,"current":935}
+{"_e":"metro:bundling:done","_t":1781521343800,"id":"1","total":935,"ms":2004.7905}
+{"_e":"metro:client_log","_t":1781521344906,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781521344907,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:bundling:started","_t":1781521367512,"id":"2","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781521367512,"id":"2","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1781521367581,"id":"2","total":1,"ms":68.9217}
+{"_e":"metro:client_log","_t":1781521368524,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781521368525,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:bundling:started","_t":1781521369296,"id":"3","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781521369296,"id":"3","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1781521369379,"id":"3","total":1,"ms":82.3714}
+{"_e":"metro:client_log","_t":1781521370340,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781521370340,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1781521370937,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":1,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781521371564,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"metro:bundling:started","_t":1781521381500,"id":"4","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781521381500,"id":"4","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1781521381560,"id":"4","total":1,"ms":60.1661}
+{"_e":"metro:client_log","_t":1781521382536,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781521382536,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1781521384512,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":11,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781521385122,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"metro:bundling:started","_t":1781521598636,"id":"5","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781521598636,"id":"5","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1781521598706,"id":"5","total":1,"ms":69.9947}
+{"_e":"metro:client_log","_t":1781521599876,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781521599876,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1781521599876,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":11,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781521600206,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"metro:client_log","_t":1781521781194,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":21,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:bundling:started","_t":1781522093006,"id":"6","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781522093006,"id":"6","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1781522093063,"id":"6","total":1,"ms":56.4091}
+{"_e":"metro:client_log","_t":1781522094262,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781522094262,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1781522094262,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":21,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781522094588,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"metro:client_log","_t":1781522144384,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":31,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781522152298,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":41,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781522926702,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":51,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:bundling:started","_t":1781523150909,"id":"7","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781523150909,"id":"7","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1781523150967,"id":"7","total":1,"ms":58.6737}
+{"_e":"metro:client_log","_t":1781523152170,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781523152170,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1781523152170,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":51,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781523152498,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"metro:client_log","_t":1781523173794,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":61,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781523183650,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":71,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781523189072,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":81,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"root:init","_t":1781523312803,"format":"v0-jsonl","version":"56.1.14"}
+{"_e":"devserver:start","_t":1781523313053,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../..\\..\\app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1781523315894,"serverRoot":"../..\\..","projectRoot":"../..\\..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"metro:instantiate","_t":1781523347151,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"metro:bundling:started","_t":1781523352730,"id":"1","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781523352730,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781523352736,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781523352837,"id":"1","progress":0.002039542143600416,"total":155,"current":7}
+{"_e":"metro:bundling:progress","_t":1781523352938,"id":"1","progress":0.027296786389413984,"total":230,"current":38}
+{"_e":"metro:bundling:progress","_t":1781523353038,"id":"1","progress":0.17407131266172537,"total":302,"current":126}
+{"_e":"metro:bundling:progress","_t":1781523353138,"id":"1","progress":0.3054764375070215,"total":389,"current":215}
+{"_e":"metro:bundling:progress","_t":1781523353238,"id":"1","progress":0.36986255726780504,"total":490,"current":298}
+{"_e":"metro:bundling:progress","_t":1781523353338,"id":"1","progress":0.4672328152539657,"total":553,"current":378}
+{"_e":"metro:bundling:progress","_t":1781523353438,"id":"1","progress":0.7531861329699896,"total":613,"current":532}
+{"_e":"metro:bundling:progress","_t":1781523353553,"id":"1","progress":0.7531861329699896,"total":724,"current":601}
+{"_e":"metro:bundling:progress","_t":1781523353652,"id":"1","progress":0.8500745678011002,"total":782,"current":721}
+{"_e":"metro:bundling:progress","_t":1781523353753,"id":"1","progress":0.9808157932936566,"total":830,"current":822}
+{"_e":"metro:bundling:progress","_t":1781523353853,"id":"1","progress":0.9808157932936566,"total":916,"current":890}
+{"_e":"metro:bundling:done","_t":1781523354077,"id":"1","total":916,"ms":1347.1133}
+{"_e":"metro:client_log","_t":1781523357952,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781523357953,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:bundling:started","_t":1781523386340,"id":"2","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781523386340,"id":"2","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1781523386401,"id":"2","total":1,"ms":60.4379}
+{"_e":"metro:client_log","_t":1781523387694,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781523387694,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1781523387694,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":1,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781523388128,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"metro:bundling:started","_t":1781523675608,"id":"3","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781523675608,"id":"3","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1781523675674,"id":"3","total":1,"ms":66.1639}
+{"_e":"metro:client_log","_t":1781523677242,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781523677244,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1781523677245,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":1,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781523677557,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"metro:bundling:started","_t":1781523803060,"id":"4","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781523803060,"id":"4","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1781523803123,"id":"4","total":1,"ms":63.2515}
+{"_e":"metro:client_log","_t":1781523804670,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781523804671,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1781523804671,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":1,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781523805049,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"root:init","_t":1781523885980,"format":"v0-jsonl","version":"56.1.14"}
+{"_e":"devserver:start","_t":1781523886040,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../..\\..\\app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1781523888222,"serverRoot":"../..\\..","projectRoot":"../..\\..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"metro:instantiate","_t":1781523916674,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"metro:bundling:started","_t":1781523922282,"id":"1","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781523922283,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781523922287,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781523922387,"id":"1","progress":0.002304,"total":125,"current":6}
+{"_e":"metro:bundling:progress","_t":1781523922497,"id":"1","progress":0.02218198279764599,"total":188,"current":28}
+{"_e":"metro:bundling:progress","_t":1781523922607,"id":"1","progress":0.04648177762814579,"total":218,"current":47}
+{"_e":"metro:bundling:progress","_t":1781523922711,"id":"1","progress":0.08198188326393453,"total":234,"current":67}
+{"_e":"metro:bundling:progress","_t":1781523922812,"id":"1","progress":0.14317019722425128,"total":259,"current":98}
+{"_e":"metro:bundling:progress","_t":1781523922917,"id":"1","progress":0.18699780861943027,"total":333,"current":144}
+{"_e":"metro:bundling:progress","_t":1781523923018,"id":"1","progress":0.22827160493827162,"total":360,"current":172}
+{"_e":"metro:bundling:progress","_t":1781523923117,"id":"1","progress":0.25,"total":402,"current":201}
+{"_e":"metro:bundling:progress","_t":1781523923218,"id":"1","progress":0.27752511668595586,"total":429,"current":226}
+{"_e":"metro:bundling:progress","_t":1781523923320,"id":"1","progress":0.3146361485770779,"total":476,"current":267}
+{"_e":"metro:bundling:progress","_t":1781523923420,"id":"1","progress":0.3662170886873267,"total":504,"current":305}
+{"_e":"metro:bundling:progress","_t":1781523923520,"id":"1","progress":0.4256612310302574,"total":515,"current":336}
+{"_e":"metro:bundling:progress","_t":1781523923619,"id":"1","progress":0.46533699092052355,"total":538,"current":367}
+{"_e":"metro:bundling:progress","_t":1781523923723,"id":"1","progress":0.5550654166489541,"total":553,"current":412}
+{"_e":"metro:bundling:progress","_t":1781523923822,"id":"1","progress":0.6282442913136543,"total":569,"current":451}
+{"_e":"metro:bundling:progress","_t":1781523923926,"id":"1","progress":0.6652272049977372,"total":602,"current":491}
+{"_e":"metro:bundling:progress","_t":1781523924026,"id":"1","progress":0.7898001987565662,"total":611,"current":543}
+{"_e":"metro:bundling:progress","_t":1781523924131,"id":"1","progress":0.7898001987565662,"total":724,"current":600}
+{"_e":"metro:bundling:progress","_t":1781523924230,"id":"1","progress":0.7898001987565662,"total":726,"current":603}
+{"_e":"metro:bundling:progress","_t":1781523924330,"id":"1","progress":0.8573388203017833,"total":783,"current":725}
+{"_e":"metro:bundling:progress","_t":1781523924430,"id":"1","progress":0.949200095755959,"total":855,"current":833}
+{"_e":"metro:bundling:progress","_t":1781523924530,"id":"1","progress":0.949200095755959,"total":918,"current":894}
+{"_e":"metro:bundling:done","_t":1781523924709,"id":"1","total":918,"ms":2426.3591}
+{"_e":"metro:client_log","_t":1781523927717,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781523927718,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:bundling:started","_t":1781524261128,"id":"2","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781524261128,"id":"2","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1781524261191,"id":"2","total":1,"ms":62.4413}
+{"_e":"metro:client_log","_t":1781524263170,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781524263171,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1781524263171,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":1,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781524263542,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"metro:bundling:started","_t":1781525378518,"id":"3","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781525378518,"id":"3","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781525378521,"id":"3","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781525378638,"id":"3","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781525378667,"id":"3","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781525378768,"id":"3","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781525378868,"id":"3","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781525378968,"id":"3","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781525379080,"id":"3","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781525379194,"id":"3","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781525380475,"id":"3","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:failed","_t":1781525380502,"id":"3","message":"Unable to resolve \"react-native-reanimated\" from \"src\\keyboard\\components\\Key.tsx\"\n  16 |   useSharedValue,\n  17 |   withTiming,\n> 18 | } from 'react-native-reanimated';\n     |         ^\n  19 | import ShiftArrowIcon from '../../../assets/arrow_forward_ios.svg';\n  20 | import EnterIcon from '../../../assets/enter.svg';\n  21 | import QuivoxEnterIcon from '../../../assets/quivox_enter.svg';","importStack":"\u001b[1mImport stack:\u001b[22m\n\n\u001b[90m \u001b[39msrc\\keyboard\\components\\Key.tsx\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"react-native-reanimated\"\u001b[39m\n\n\u001b[90m \u001b[39msrc\\keyboard\\components\\KeyboardRows.tsx\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./Key\"\u001b[39m\n\n\u001b[90m \u001b[39msrc\\keyboard\\KeyboardApp.tsx\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./components/KeyboardRows\"\u001b[39m\n\n\u001b[90m \u001b[39mindex.js\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./src/keyboard/KeyboardApp\"\u001b[39m\n\n\u001b[90m \u001b[39m\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./index\"\u001b[39m\n","filename":null,"targetModuleName":"react-native-reanimated","originModulePath":"src\\keyboard\\components\\Key.tsx"}
+{"_e":"root:init","_t":1781526380505,"format":"v0-jsonl","version":"56.1.14"}
+{"_e":"devserver:start","_t":1781526381584,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../..\\..\\app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1781526384615,"serverRoot":"../..\\..","projectRoot":"../..\\..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"metro:instantiate","_t":1781526420453,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"metro:bundling:started","_t":1781526429154,"id":"1","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781526429155,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781526429161,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781526430703,"id":"1","progress":0.010000000000000002,"total":1,"current":1}
+{"_e":"metro:bundling:progress","_t":1781526430819,"id":"1","progress":0.010000000000000002,"total":6,"current":1}
+{"_e":"metro:bundling:progress","_t":1781526431517,"id":"1","progress":0.04000000000000001,"total":6,"current":2}
+{"_e":"metro:bundling:progress","_t":1781526431617,"id":"1","progress":0.09,"total":8,"current":3}
+{"_e":"metro:bundling:progress","_t":1781526433405,"id":"1","progress":0.16000000000000003,"total":8,"current":4}
+{"_e":"metro:bundling:progress","_t":1781526433515,"id":"1","progress":0.16000000000000003,"total":20,"current":5}
+{"_e":"metro:bundling:progress","_t":1781526433622,"id":"1","progress":0.16000000000000003,"total":21,"current":8}
+{"_e":"metro:bundling:progress","_t":1781526433728,"id":"1","progress":0.16000000000000003,"total":46,"current":12}
+{"_e":"metro:bundling:progress","_t":1781526433842,"id":"1","progress":0.16000000000000003,"total":52,"current":16}
+{"_e":"metro:bundling:progress","_t":1781526433957,"id":"1","progress":0.16000000000000003,"total":57,"current":19}
+{"_e":"metro:bundling:progress","_t":1781526434117,"id":"1","progress":0.16000000000000003,"total":57,"current":20}
+{"_e":"metro:bundling:progress","_t":1781526434259,"id":"1","progress":0.16000000000000003,"total":59,"current":22}
+{"_e":"metro:bundling:progress","_t":1781526434359,"id":"1","progress":0.16000000000000003,"total":169,"current":28}
+{"_e":"metro:bundling:progress","_t":1781526434463,"id":"1","progress":0.16000000000000003,"total":170,"current":35}
+{"_e":"metro:bundling:progress","_t":1781526434567,"id":"1","progress":0.16000000000000003,"total":174,"current":44}
+{"_e":"metro:bundling:progress","_t":1781526434670,"id":"1","progress":0.16000000000000003,"total":188,"current":54}
+{"_e":"metro:bundling:progress","_t":1781526434770,"id":"1","progress":0.16000000000000003,"total":221,"current":57}
+{"_e":"metro:bundling:progress","_t":1781526434884,"id":"1","progress":0.16000000000000003,"total":227,"current":59}
+{"_e":"metro:bundling:progress","_t":1781526434953,"id":"1","progress":0.16000000000000003,"total":227,"current":60}
+{"_e":"metro:bundling:progress","_t":1781526435052,"id":"1","progress":0.16000000000000003,"total":228,"current":62}
+{"_e":"metro:bundling:progress","_t":1781526435155,"id":"1","progress":0.16000000000000003,"total":230,"current":65}
+{"_e":"metro:bundling:progress","_t":1781526435258,"id":"1","progress":0.16000000000000003,"total":241,"current":68}
+{"_e":"metro:bundling:progress","_t":1781526435360,"id":"1","progress":0.16000000000000003,"total":249,"current":73}
+{"_e":"metro:bundling:progress","_t":1781526435471,"id":"1","progress":0.16000000000000003,"total":257,"current":78}
+{"_e":"metro:bundling:progress","_t":1781526435573,"id":"1","progress":0.16000000000000003,"total":261,"current":81}
+{"_e":"metro:bundling:progress","_t":1781526435704,"id":"1","progress":0.16000000000000003,"total":261,"current":82}
+{"_e":"metro:bundling:progress","_t":1781526435804,"id":"1","progress":0.16000000000000003,"total":267,"current":86}
+{"_e":"metro:bundling:progress","_t":1781526435905,"id":"1","progress":0.16000000000000003,"total":276,"current":92}
+{"_e":"metro:bundling:progress","_t":1781526436004,"id":"1","progress":0.16000000000000003,"total":295,"current":103}
+{"_e":"metro:bundling:progress","_t":1781526436104,"id":"1","progress":0.16000000000000003,"total":301,"current":113}
+{"_e":"metro:bundling:progress","_t":1781526436216,"id":"1","progress":0.16000000000000003,"total":309,"current":122}
+{"_e":"metro:bundling:progress","_t":1781526436317,"id":"1","progress":0.16551251880714477,"total":322,"current":131}
+{"_e":"metro:bundling:progress","_t":1781526436418,"id":"1","progress":0.18973239489630772,"total":326,"current":142}
+{"_e":"metro:bundling:progress","_t":1781526436519,"id":"1","progress":0.21280647675736963,"total":336,"current":155}
+{"_e":"metro:bundling:progress","_t":1781526436619,"id":"1","progress":0.21556122448979592,"total":336,"current":156}
+{"_e":"metro:bundling:progress","_t":1781526436707,"id":"1","progress":0.21833368764172337,"total":336,"current":157}
+{"_e":"metro:bundling:progress","_t":1781526437714,"id":"1","progress":0.22112386621315192,"total":336,"current":158}
+{"_e":"metro:bundling:progress","_t":1781526437821,"id":"1","progress":0.23682518997261576,"total":337,"current":164}
+{"_e":"metro:bundling:progress","_t":1781526437921,"id":"1","progress":0.25890138408304497,"total":340,"current":173}
+{"_e":"metro:bundling:progress","_t":1781526438022,"id":"1","progress":0.27076291238507305,"total":344,"current":179}
+{"_e":"metro:bundling:progress","_t":1781526438132,"id":"1","progress":0.28688078830528974,"total":351,"current":188}
+{"_e":"metro:bundling:progress","_t":1781526438232,"id":"1","progress":0.3048284070620909,"total":355,"current":196}
+{"_e":"metro:bundling:progress","_t":1781526438351,"id":"1","progress":0.313475221328202,"total":359,"current":201}
+{"_e":"metro:bundling:progress","_t":1781526438455,"id":"1","progress":0.3144668966148774,"total":362,"current":203}
+{"_e":"metro:bundling:progress","_t":1781526438556,"id":"1","progress":0.3156506532547115,"total":372,"current":209}
+{"_e":"metro:bundling:progress","_t":1781526438661,"id":"1","progress":0.3156506532547115,"total":381,"current":214}
+{"_e":"metro:bundling:progress","_t":1781526438765,"id":"1","progress":0.32269537567500894,"total":382,"current":217}
+{"_e":"metro:bundling:progress","_t":1781526438874,"id":"1","progress":0.3299497576505396,"total":383,"current":220}
+{"_e":"metro:bundling:progress","_t":1781526438973,"id":"1","progress":0.3385656910455621,"total":397,"current":231}
+{"_e":"metro:bundling:progress","_t":1781526439074,"id":"1","progress":0.35244877783105716,"total":411,"current":244}
+{"_e":"metro:bundling:progress","_t":1781526439174,"id":"1","progress":0.37425605536332185,"total":425,"current":260}
+{"_e":"metro:bundling:progress","_t":1781526439274,"id":"1","progress":0.39460448346302984,"total":433,"current":272}
+{"_e":"metro:bundling:progress","_t":1781526439383,"id":"1","progress":0.40754544005102034,"total":448,"current":286}
+{"_e":"metro:bundling:progress","_t":1781526439491,"id":"1","progress":0.40754544005102034,"total":479,"current":299}
+{"_e":"metro:bundling:progress","_t":1781526439592,"id":"1","progress":0.41401840902983067,"total":488,"current":314}
+{"_e":"metro:bundling:progress","_t":1781526439694,"id":"1","progress":0.4179165391286604,"total":495,"current":320}
+{"_e":"metro:bundling:progress","_t":1781526439800,"id":"1","progress":0.4179165391286604,"total":516,"current":330}
+{"_e":"metro:bundling:progress","_t":1781526439907,"id":"1","progress":0.4201419227942924,"total":523,"current":339}
+{"_e":"metro:bundling:progress","_t":1781526440015,"id":"1","progress":0.4263895076854534,"total":536,"current":350}
+{"_e":"metro:bundling:progress","_t":1781526440119,"id":"1","progress":0.42983357583034026,"total":543,"current":356}
+{"_e":"metro:bundling:progress","_t":1781526440221,"id":"1","progress":0.4331420512083527,"total":547,"current":360}
+{"_e":"metro:bundling:progress","_t":1781526440331,"id":"1","progress":0.43564774091017594,"total":553,"current":365}
+{"_e":"metro:bundling:progress","_t":1781526440442,"id":"1","progress":0.448464726504972,"total":554,"current":371}
+{"_e":"metro:bundling:progress","_t":1781526440542,"id":"1","progress":0.46045918367346944,"total":560,"current":380}
+{"_e":"metro:bundling:progress","_t":1781526440643,"id":"1","progress":0.4857667584940313,"total":561,"current":391}
+{"_e":"metro:bundling:progress","_t":1781526440751,"id":"1","progress":0.4972379002363007,"total":563,"current":397}
+{"_e":"metro:bundling:progress","_t":1781526440859,"id":"1","progress":0.5080353100950656,"total":564,"current":402}
+{"_e":"metro:bundling:progress","_t":1781526440960,"id":"1","progress":0.5116222993827161,"total":576,"current":412}
+{"_e":"metro:bundling:progress","_t":1781526441061,"id":"1","progress":0.5232608259231705,"total":582,"current":421}
+{"_e":"metro:bundling:progress","_t":1781526441160,"id":"1","progress":0.5471945956089322,"total":584,"current":432}
+{"_e":"metro:bundling:progress","_t":1781526441261,"id":"1","progress":0.5792612610513809,"total":586,"current":446}
+{"_e":"metro:bundling:progress","_t":1781526441366,"id":"1","progress":0.5841694158192474,"total":594,"current":454}
+{"_e":"metro:bundling:progress","_t":1781526441466,"id":"1","progress":0.5864201278131588,"total":602,"current":461}
+{"_e":"metro:bundling:progress","_t":1781526441567,"id":"1","progress":0.6289225253278365,"total":604,"current":479}
+{"_e":"metro:bundling:progress","_t":1781526441679,"id":"1","progress":0.6505348024724535,"total":610,"current":492}
+{"_e":"metro:bundling:progress","_t":1781526441781,"id":"1","progress":0.6696649800038037,"total":611,"current":500}
+{"_e":"metro:bundling:progress","_t":1781526441880,"id":"1","progress":0.698068414518987,"total":614,"current":513}
+{"_e":"metro:bundling:progress","_t":1781526441981,"id":"1","progress":0.705493506395654,"total":631,"current":530}
+{"_e":"metro:bundling:progress","_t":1781526442084,"id":"1","progress":0.7176019334065094,"total":641,"current":543}
+{"_e":"metro:bundling:progress","_t":1781526442185,"id":"1","progress":0.7415869801718745,"total":641,"current":552}
+{"_e":"metro:bundling:progress","_t":1781526442288,"id":"1","progress":0.7415869801718745,"total":670,"current":562}
+{"_e":"metro:bundling:progress","_t":1781526442389,"id":"1","progress":0.7415869801718745,"total":672,"current":575}
+{"_e":"metro:bundling:progress","_t":1781526442490,"id":"1","progress":0.7415869801718745,"total":683,"current":587}
+{"_e":"metro:bundling:progress","_t":1781526442590,"id":"1","progress":0.7417889003976076,"total":692,"current":596}
+{"_e":"metro:bundling:progress","_t":1781526442693,"id":"1","progress":0.765625,"total":696,"current":609}
+{"_e":"metro:bundling:progress","_t":1781526442801,"id":"1","progress":0.779140853170583,"total":699,"current":617}
+{"_e":"metro:bundling:progress","_t":1781526442903,"id":"1","progress":0.7816684779605445,"total":699,"current":618}
+{"_e":"metro:bundling:progress","_t":1781526443004,"id":"1","progress":0.7816684779605445,"total":731,"current":624}
+{"_e":"metro:bundling:progress","_t":1781526443131,"id":"1","progress":0.7816684779605445,"total":785,"current":631}
+{"_e":"metro:bundling:progress","_t":1781526443230,"id":"1","progress":0.7816684779605445,"total":787,"current":638}
+{"_e":"metro:bundling:progress","_t":1781526443330,"id":"1","progress":0.7816684779605445,"total":810,"current":645}
+{"_e":"metro:bundling:progress","_t":1781526443436,"id":"1","progress":0.7816684779605445,"total":813,"current":649}
+{"_e":"metro:bundling:progress","_t":1781526443539,"id":"1","progress":0.7816684779605445,"total":816,"current":651}
+{"_e":"metro:bundling:progress","_t":1781526443641,"id":"1","progress":0.7816684779605445,"total":831,"current":654}
+{"_e":"metro:bundling:progress","_t":1781526443748,"id":"1","progress":0.7816684779605445,"total":840,"current":657}
+{"_e":"metro:bundling:progress","_t":1781526443863,"id":"1","progress":0.7816684779605445,"total":845,"current":659}
+{"_e":"metro:bundling:progress","_t":1781526443988,"id":"1","progress":0.7816684779605445,"total":845,"current":660}
+{"_e":"metro:bundling:progress","_t":1781526444106,"id":"1","progress":0.7816684779605445,"total":847,"current":661}
+{"_e":"metro:bundling:progress","_t":1781526444264,"id":"1","progress":0.7816684779605445,"total":847,"current":662}
+{"_e":"metro:bundling:progress","_t":1781526444384,"id":"1","progress":0.7816684779605445,"total":848,"current":665}
+{"_e":"metro:bundling:progress","_t":1781526444497,"id":"1","progress":0.7816684779605445,"total":861,"current":672}
+{"_e":"metro:bundling:progress","_t":1781526444609,"id":"1","progress":0.7816684779605445,"total":867,"current":678}
+{"_e":"metro:bundling:progress","_t":1781526444715,"id":"1","progress":0.7816684779605445,"total":869,"current":684}
+{"_e":"metro:bundling:progress","_t":1781526444840,"id":"1","progress":0.7816684779605445,"total":874,"current":688}
+{"_e":"metro:bundling:progress","_t":1781526444947,"id":"1","progress":0.7816684779605445,"total":876,"current":691}
+{"_e":"metro:bundling:progress","_t":1781526445053,"id":"1","progress":0.7816684779605445,"total":880,"current":699}
+{"_e":"metro:bundling:progress","_t":1781526445161,"id":"1","progress":0.7816684779605445,"total":880,"current":707}
+{"_e":"metro:bundling:progress","_t":1781526445271,"id":"1","progress":0.7816684779605445,"total":880,"current":715}
+{"_e":"metro:bundling:progress","_t":1781526445378,"id":"1","progress":0.7816684779605445,"total":880,"current":722}
+{"_e":"metro:bundling:progress","_t":1781526445479,"id":"1","progress":0.7816684779605445,"total":881,"current":734}
+{"_e":"metro:bundling:progress","_t":1781526445588,"id":"1","progress":0.7816684779605445,"total":886,"current":744}
+{"_e":"metro:bundling:progress","_t":1781526445689,"id":"1","progress":0.7816684779605445,"total":890,"current":755}
+{"_e":"metro:bundling:progress","_t":1781526445789,"id":"1","progress":0.7816684779605445,"total":896,"current":769}
+{"_e":"metro:bundling:progress","_t":1781526445889,"id":"1","progress":0.7816684779605445,"total":899,"current":785}
+{"_e":"metro:bundling:progress","_t":1781526445993,"id":"1","progress":0.7816684779605445,"total":914,"current":797}
+{"_e":"metro:bundling:progress","_t":1781526446103,"id":"1","progress":0.7816684779605445,"total":915,"current":799}
+{"_e":"metro:bundling:progress","_t":1781526446173,"id":"1","progress":0.7816684779605445,"total":915,"current":800}
+{"_e":"metro:bundling:progress","_t":1781526446280,"id":"1","progress":0.7816684779605445,"total":918,"current":804}
+{"_e":"metro:bundling:progress","_t":1781526446318,"id":"1","progress":0.7816684779605445,"total":918,"current":805}
+{"_e":"metro:bundling:progress","_t":1781526446421,"id":"1","progress":0.7816684779605445,"total":934,"current":810}
+{"_e":"metro:bundling:progress","_t":1781526446533,"id":"1","progress":0.7816684779605445,"total":940,"current":815}
+{"_e":"metro:bundling:progress","_t":1781526446648,"id":"1","progress":0.7816684779605445,"total":942,"current":820}
+{"_e":"metro:bundling:progress","_t":1781526446754,"id":"1","progress":0.7816684779605445,"total":942,"current":823}
+{"_e":"metro:bundling:progress","_t":1781526446868,"id":"1","progress":0.7816684779605445,"total":943,"current":826}
+{"_e":"metro:bundling:progress","_t":1781526446927,"id":"1","progress":0.7816684779605445,"total":943,"current":827}
+{"_e":"metro:bundling:progress","_t":1781526447027,"id":"1","progress":0.7816684779605445,"total":944,"current":830}
+{"_e":"metro:bundling:progress","_t":1781526447153,"id":"1","progress":0.7816684779605445,"total":945,"current":834}
+{"_e":"metro:bundling:progress","_t":1781526447258,"id":"1","progress":0.7816684779605445,"total":967,"current":841}
+{"_e":"metro:bundling:progress","_t":1781526447479,"id":"1","progress":0.7816684779605445,"total":969,"current":842}
+{"_e":"metro:bundling:progress","_t":1781526447613,"id":"1","progress":0.7816684779605445,"total":974,"current":847}
+{"_e":"metro:bundling:progress","_t":1781526447719,"id":"1","progress":0.7816684779605445,"total":977,"current":858}
+{"_e":"metro:bundling:progress","_t":1781526447820,"id":"1","progress":0.786298417326114,"total":980,"current":869}
+{"_e":"metro:bundling:progress","_t":1781526447920,"id":"1","progress":0.7917220875535849,"total":989,"current":880}
+{"_e":"metro:bundling:progress","_t":1781526448020,"id":"1","progress":0.8089138452445053,"total":994,"current":894}
+{"_e":"metro:bundling:progress","_t":1781526448127,"id":"1","progress":0.8089138452445053,"total":999,"current":898}
+{"_e":"metro:bundling:progress","_t":1781526448290,"id":"1","progress":0.8098198298398499,"total":999,"current":899}
+{"_e":"metro:bundling:progress","_t":1781526448392,"id":"1","progress":0.8098198298398499,"total":1011,"current":906}
+{"_e":"metro:bundling:progress","_t":1781526448509,"id":"1","progress":0.8155286898517885,"total":1011,"current":913}
+{"_e":"metro:bundling:progress","_t":1781526448609,"id":"1","progress":0.8163905077810155,"total":1016,"current":918}
+{"_e":"metro:bundling:progress","_t":1781526448715,"id":"1","progress":0.8163905077810155,"total":1029,"current":926}
+{"_e":"metro:bundling:progress","_t":1781526448820,"id":"1","progress":0.8163905077810155,"total":1030,"current":927}
+{"_e":"metro:bundling:progress","_t":1781526448935,"id":"1","progress":0.8163905077810155,"total":1030,"current":928}
+{"_e":"metro:bundling:progress","_t":1781526449035,"id":"1","progress":0.8163905077810155,"total":1034,"current":931}
+{"_e":"metro:bundling:progress","_t":1781526449134,"id":"1","progress":0.8163905077810155,"total":1039,"current":938}
+{"_e":"metro:bundling:progress","_t":1781526449236,"id":"1","progress":0.8205818871051538,"total":1041,"current":943}
+{"_e":"metro:bundling:progress","_t":1781526449336,"id":"1","progress":0.8259704687206428,"total":1042,"current":947}
+{"_e":"metro:bundling:progress","_t":1781526449440,"id":"1","progress":0.8329627801253311,"total":1042,"current":951}
+{"_e":"metro:bundling:progress","_t":1781526449578,"id":"1","progress":0.8399845638647073,"total":1042,"current":955}
+{"_e":"metro:bundling:progress","_t":1781526449712,"id":"1","progress":0.8435065078599032,"total":1042,"current":957}
+{"_e":"metro:bundling:progress","_t":1781526449792,"id":"1","progress":0.8452702428888782,"total":1042,"current":958}
+{"_e":"metro:bundling:progress","_t":1781526449896,"id":"1","progress":0.8470358199387712,"total":1042,"current":959}
+{"_e":"metro:bundling:progress","_t":1781526449964,"id":"1","progress":0.8488032390095822,"total":1042,"current":960}
+{"_e":"metro:bundling:progress","_t":1781526450064,"id":"1","progress":0.8543850281117424,"total":1044,"current":965}
+{"_e":"metro:bundling:progress","_t":1781526450172,"id":"1","progress":0.861482692561765,"total":1044,"current":969}
+{"_e":"metro:bundling:progress","_t":1781526450279,"id":"1","progress":0.8705157848950345,"total":1045,"current":975}
+{"_e":"metro:bundling:progress","_t":1781526450384,"id":"1","progress":0.8813727246471124,"total":1046,"current":982}
+{"_e":"metro:bundling:progress","_t":1781526450486,"id":"1","progress":0.8905740122953207,"total":1048,"current":989}
+{"_e":"metro:bundling:progress","_t":1781526450606,"id":"1","progress":0.9014125415185597,"total":1048,"current":995}
+{"_e":"metro:bundling:progress","_t":1781526450717,"id":"1","progress":0.9034049886621315,"total":1050,"current":998}
+{"_e":"metro:bundling:progress","_t":1781526450791,"id":"1","progress":0.9052163265306122,"total":1050,"current":999}
+{"_e":"metro:bundling:progress","_t":1781526450890,"id":"1","progress":0.9052163265306122,"total":1060,"current":1001}
+{"_e":"metro:bundling:progress","_t":1781526451005,"id":"1","progress":0.9052163265306122,"total":1060,"current":1005}
+{"_e":"metro:bundling:progress","_t":1781526451108,"id":"1","progress":0.9052163265306122,"total":1060,"current":1008}
+{"_e":"metro:bundling:progress","_t":1781526451215,"id":"1","progress":0.9115660096951198,"total":1061,"current":1013}
+{"_e":"metro:bundling:progress","_t":1781526451320,"id":"1","progress":0.9314705864064008,"total":1061,"current":1024}
+{"_e":"metro:bundling:progress","_t":1781526451421,"id":"1","progress":0.9443524556868373,"total":1063,"current":1033}
+{"_e":"metro:bundling:progress","_t":1781526451525,"id":"1","progress":0.9443524556868373,"total":1079,"current":1042}
+{"_e":"metro:bundling:progress","_t":1781526451642,"id":"1","progress":0.9443524556868373,"total":1087,"current":1055}
+{"_e":"metro:bundling:progress","_t":1781526451743,"id":"1","progress":0.9443524556868373,"total":1116,"current":1071}
+{"_e":"metro:bundling:progress","_t":1781526451844,"id":"1","progress":0.9443524556868373,"total":1132,"current":1083}
+{"_e":"metro:bundling:progress","_t":1781526451943,"id":"1","progress":0.9443524556868373,"total":1142,"current":1090}
+{"_e":"metro:bundling:progress","_t":1781526452043,"id":"1","progress":0.9443524556868373,"total":1169,"current":1107}
+{"_e":"metro:bundling:progress","_t":1781526452147,"id":"1","progress":0.9443524556868373,"total":1193,"current":1128}
+{"_e":"metro:bundling:progress","_t":1781526452252,"id":"1","progress":0.9443524556868373,"total":1207,"current":1140}
+{"_e":"metro:bundling:progress","_t":1781526452352,"id":"1","progress":0.9443524556868373,"total":1227,"current":1154}
+{"_e":"metro:bundling:progress","_t":1781526452453,"id":"1","progress":0.9443524556868373,"total":1229,"current":1165}
+{"_e":"metro:bundling:progress","_t":1781526452553,"id":"1","progress":0.9443524556868373,"total":1236,"current":1178}
+{"_e":"metro:bundling:progress","_t":1781526452659,"id":"1","progress":0.9443524556868373,"total":1242,"current":1190}
+{"_e":"metro:bundling:progress","_t":1781526452759,"id":"1","progress":0.9443524556868373,"total":1258,"current":1204}
+{"_e":"metro:bundling:progress","_t":1781526452861,"id":"1","progress":0.9443524556868373,"total":1258,"current":1218}
+{"_e":"metro:bundling:progress","_t":1781526452960,"id":"1","progress":0.9443524556868373,"total":1267,"current":1229}
+{"_e":"metro:bundling:progress","_t":1781526453062,"id":"1","progress":0.9443524556868373,"total":1274,"current":1238}
+{"_e":"metro:bundling:progress","_t":1781526453162,"id":"1","progress":0.9642469819300269,"total":1275,"current":1252}
+{"_e":"metro:bundling:progress","_t":1781526453263,"id":"1","progress":0.9859321799307958,"total":1275,"current":1266}
+{"_e":"metro:bundling:progress","_t":1781526453365,"id":"1","progress":0.9984332160650937,"total":1276,"current":1275}
+{"_e":"metro:bundling:progress","_t":1781526454674,"id":"1","progress":0.999,"total":1276,"current":1276}
+{"_e":"metro:bundling:progress","_t":1781526454787,"id":"1","progress":0.999,"total":1287,"current":1287}
+{"_e":"metro:bundling:done","_t":1781526455255,"id":"1","total":1287,"ms":26100.3974}
+{"_e":"metro:client_log","_t":1781526457130,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781526457130,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:bundling:started","_t":1781526464527,"id":"2","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781526464527,"id":"2","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1781526464617,"id":"2","total":1,"ms":89.7903}
+{"_e":"metro:client_log","_t":1781526467393,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781526467393,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1781526467394,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":1,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781526467394,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"metro:bundling:started","_t":1781526837968,"id":"3","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781526837968,"id":"3","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1781526838027,"id":"3","total":1,"ms":58.9046}
+{"_e":"metro:client_log","_t":1781526839318,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781526839319,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1781526839319,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":1,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781526839590,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"metro:bundling:started","_t":1781527269219,"id":"4","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781527269219,"id":"4","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1781527269303,"id":"4","total":1,"ms":84.3476}
+{"_e":"metro:client_log","_t":1781527270554,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781527270554,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1781527270554,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":1,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781527270808,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"root:init","_t":1781528006480,"format":"v0-jsonl","version":"56.1.14"}
+{"_e":"devserver:start","_t":1781528006588,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../..\\..\\app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1781528008666,"serverRoot":"../..\\..","projectRoot":"../..\\..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"metro:instantiate","_t":1781528040437,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"metro:bundling:started","_t":1781528048136,"id":"1","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781528048137,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781528048145,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781528048254,"id":"1","progress":0.0016259105098855359,"total":124,"current":5}
+{"_e":"metro:bundling:progress","_t":1781528048355,"id":"1","progress":0.05262975778546712,"total":170,"current":39}
+{"_e":"metro:bundling:progress","_t":1781528048454,"id":"1","progress":0.11797731568998111,"total":230,"current":79}
+{"_e":"metro:bundling:progress","_t":1781528048555,"id":"1","progress":0.21035671886483123,"total":266,"current":122}
+{"_e":"metro:bundling:progress","_t":1781528048682,"id":"1","progress":0.23011669231083454,"total":271,"current":130}
+{"_e":"metro:bundling:progress","_t":1781528048800,"id":"1","progress":0.2336705654879427,"total":271,"current":131}
+{"_e":"metro:bundling:progress","_t":1781528048906,"id":"1","progress":0.32265491230505805,"total":294,"current":167}
+{"_e":"metro:bundling:progress","_t":1781528049005,"id":"1","progress":0.3546695606312629,"total":314,"current":187}
+{"_e":"metro:bundling:progress","_t":1781528049105,"id":"1","progress":0.3843331565449249,"total":371,"current":230}
+{"_e":"metro:bundling:progress","_t":1781528049206,"id":"1","progress":0.43710271557242647,"total":422,"current":279}
+{"_e":"metro:bundling:progress","_t":1781528049307,"id":"1","progress":0.47283642964193573,"total":477,"current":328}
+{"_e":"metro:bundling:progress","_t":1781528049407,"id":"1","progress":0.6807070104225541,"total":503,"current":415}
+{"_e":"metro:bundling:progress","_t":1781528049549,"id":"1","progress":0.6807070104225541,"total":620,"current":496}
+{"_e":"metro:bundling:progress","_t":1781528049649,"id":"1","progress":0.7922956164714405,"total":637,"current":567}
+{"_e":"metro:bundling:progress","_t":1781528049749,"id":"1","progress":0.8549548414198697,"total":690,"current":638}
+{"_e":"metro:bundling:progress","_t":1781528049850,"id":"1","progress":0.8830200110549621,"total":713,"current":670}
+{"_e":"metro:bundling:progress","_t":1781528049962,"id":"1","progress":0.8856578587600737,"total":713,"current":671}
+{"_e":"metro:bundling:progress","_t":1781528050062,"id":"1","progress":0.9365244536940688,"total":744,"current":720}
+{"_e":"metro:bundling:progress","_t":1781528050164,"id":"1","progress":0.9365244536940688,"total":804,"current":773}
+{"_e":"metro:bundling:progress","_t":1781528050275,"id":"1","progress":0.997594709229163,"total":831,"current":830}
+{"_e":"metro:bundling:progress","_t":1781528052003,"id":"1","progress":0.999,"total":831,"current":831}
+{"_e":"metro:bundling:progress","_t":1781528052105,"id":"1","progress":0.999,"total":922,"current":896}
+{"_e":"metro:bundling:progress","_t":1781528052210,"id":"1","progress":0.999,"total":931,"current":930}
+{"_e":"metro:bundling:progress","_t":1781528054330,"id":"1","progress":0.999,"total":931,"current":931}
+{"_e":"metro:bundling:done","_t":1781528054542,"id":"1","total":931,"ms":6405.6764}
+{"_e":"metro:client_log","_t":1781528055668,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781528055669,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:bundling:started","_t":1781528069549,"id":"2","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781528069549,"id":"2","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1781528069616,"id":"2","total":1,"ms":66.8324}
+{"_e":"metro:client_log","_t":1781528070634,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781528070634,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1781528074435,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":11,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781528075043,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"root:init","_t":1781528409967,"format":"v0-jsonl","version":"56.1.14"}
+{"_e":"devserver:start","_t":1781528410064,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../..\\..\\app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1781528412243,"serverRoot":"../..\\..","projectRoot":"../..\\..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"metro:instantiate","_t":1781528446171,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"metro:bundling:started","_t":1781528452744,"id":"1","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781528452745,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781528452751,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781528452855,"id":"1","progress":0.0023413111342351716,"total":124,"current":6}
+{"_e":"metro:bundling:progress","_t":1781528452955,"id":"1","progress":0.020201499652142546,"total":197,"current":28}
+{"_e":"metro:bundling:progress","_t":1781528453054,"id":"1","progress":0.1111111111111111,"total":255,"current":85}
+{"_e":"metro:bundling:progress","_t":1781528453154,"id":"1","progress":0.18926442803552357,"total":331,"current":144}
+{"_e":"metro:bundling:progress","_t":1781528453268,"id":"1","progress":0.24195763330898468,"total":370,"current":182}
+{"_e":"metro:bundling:progress","_t":1781528453368,"id":"1","progress":0.2884956427222975,"total":458,"current":246}
+{"_e":"metro:bundling:progress","_t":1781528453468,"id":"1","progress":0.4219883439766879,"total":508,"current":330}
+{"_e":"metro:bundling:progress","_t":1781528453572,"id":"1","progress":0.5294092089475918,"total":547,"current":398}
+{"_e":"metro:bundling:progress","_t":1781528453671,"id":"1","progress":0.7041519874370545,"total":603,"current":506}
+{"_e":"metro:bundling:progress","_t":1781528453772,"id":"1","progress":0.7649798557269776,"total":678,"current":593}
+{"_e":"metro:bundling:progress","_t":1781528453912,"id":"1","progress":0.7649798557269776,"total":725,"current":602}
+{"_e":"metro:bundling:progress","_t":1781528454052,"id":"1","progress":0.7649798557269776,"total":727,"current":603}
+{"_e":"metro:bundling:progress","_t":1781528454152,"id":"1","progress":0.7649798557269776,"total":743,"current":614}
+{"_e":"metro:bundling:progress","_t":1781528454252,"id":"1","progress":0.8583822875051604,"total":789,"current":731}
+{"_e":"metro:bundling:progress","_t":1781528454352,"id":"1","progress":0.9167538965554405,"total":823,"current":788}
+{"_e":"metro:bundling:progress","_t":1781528454453,"id":"1","progress":0.9300052847139648,"total":870,"current":839}
+{"_e":"metro:bundling:progress","_t":1781528454584,"id":"1","progress":0.9548203149328467,"total":919,"current":898}
+{"_e":"metro:bundling:done","_t":1781528454785,"id":"1","total":919,"ms":2041.1199}
+{"_e":"metro:client_log","_t":1781528458466,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781528458467,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:bundling:started","_t":1781528470407,"id":"2","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781528470407,"id":"2","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1781528470482,"id":"2","total":1,"ms":75.2146}
+{"_e":"metro:client_log","_t":1781528471708,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781528471708,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1781528471708,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":1,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781528471963,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"root:init","_t":1781529204680,"format":"v0-jsonl","version":"56.1.14"}
+{"_e":"devserver:start","_t":1781529204743,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../..\\..\\app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1781529207185,"serverRoot":"../..\\..","projectRoot":"../..\\..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"metro:instantiate","_t":1781529233315,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"metro:bundling:started","_t":1781529239828,"id":"1","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781529239828,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781529239834,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781529239935,"id":"1","progress":0.007199265381083564,"total":165,"current":14}
+{"_e":"metro:bundling:progress","_t":1781529240035,"id":"1","progress":0.10762549016544548,"total":253,"current":83}
+{"_e":"metro:bundling:progress","_t":1781529240136,"id":"1","progress":0.18699780861943027,"total":333,"current":144}
+{"_e":"metro:bundling:progress","_t":1781529240236,"id":"1","progress":0.27636147261769584,"total":428,"current":225}
+{"_e":"metro:bundling:progress","_t":1781529240336,"id":"1","progress":0.4098036038243698,"total":503,"current":322}
+{"_e":"metro:bundling:progress","_t":1781529240436,"id":"1","progress":0.5930124140870584,"total":548,"current":422}
+{"_e":"metro:bundling:progress","_t":1781529240536,"id":"1","progress":0.7495988706769778,"total":611,"current":529}
+{"_e":"metro:bundling:progress","_t":1781529240650,"id":"1","progress":0.7495988706769778,"total":725,"current":602}
+{"_e":"metro:bundling:progress","_t":1781529240750,"id":"1","progress":0.8598777202207414,"total":784,"current":727}
+{"_e":"metro:bundling:progress","_t":1781529240855,"id":"1","progress":0.922209624590577,"total":882,"current":847}
+{"_e":"metro:bundling:progress","_t":1781529240957,"id":"1","progress":0.999,"total":936,"current":936}
+{"_e":"metro:bundling:done","_t":1781529241068,"id":"1","total":936,"ms":1239.935}
+{"_e":"metro:client_log","_t":1781529242037,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781529242041,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:bundling:started","_t":1781529278188,"id":"2","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781529278188,"id":"2","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1781529278251,"id":"2","total":1,"ms":62.9618}
+{"_e":"metro:client_log","_t":1781529279284,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781529279285,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1781529279285,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":1,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781529279527,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"root:init","_t":1781530930443,"format":"v0-jsonl","version":"56.1.14"}
+{"_e":"devserver:start","_t":1781530930512,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../..\\..\\app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1781530932398,"serverRoot":"../..\\..","projectRoot":"../..\\..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"metro:instantiate","_t":1781530961098,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"metro:bundling:started","_t":1781530967038,"id":"1","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781530967038,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781530967042,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781530967147,"id":"1","progress":0.0022249911000356,"total":106,"current":5}
+{"_e":"metro:bundling:progress","_t":1781530967247,"id":"1","progress":0.06103806228373703,"total":255,"current":63}
+{"_e":"metro:bundling:progress","_t":1781530967347,"id":"1","progress":0.20236324498110697,"total":329,"current":148}
+{"_e":"metro:bundling:progress","_t":1781530967447,"id":"1","progress":0.3183335180055402,"total":475,"current":268}
+{"_e":"metro:bundling:progress","_t":1781530967547,"id":"1","progress":0.4988685983280578,"total":555,"current":392}
+{"_e":"metro:bundling:progress","_t":1781530967648,"id":"1","progress":0.709141274238227,"total":608,"current":512}
+{"_e":"metro:bundling:progress","_t":1781530967775,"id":"1","progress":0.709141274238227,"total":719,"current":580}
+{"_e":"metro:bundling:progress","_t":1781530967874,"id":"1","progress":0.84790462722378,"total":783,"current":721}
+{"_e":"metro:bundling:progress","_t":1781530967974,"id":"1","progress":0.9318511678653114,"total":894,"current":863}
+{"_e":"metro:bundling:progress","_t":1781530968074,"id":"1","progress":0.999,"total":936,"current":936}
+{"_e":"metro:bundling:done","_t":1781530968195,"id":"1","total":936,"ms":1156.3153}
+{"_e":"metro:client_log","_t":1781530969138,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781530969138,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:bundling:started","_t":1781531056679,"id":"2","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781531056679,"id":"2","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1781531056808,"id":"2","total":1,"ms":128.632}
+{"_e":"metro:client_log","_t":1781531057841,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781531057842,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1781531057842,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":1,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781531058048,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"metro:bundling:started","_t":1781531064305,"id":"3","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781531064305,"id":"3","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1781531064584,"id":"3","total":1,"ms":278.0273}
+{"_e":"metro:client_log","_t":1781531065590,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781531065590,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1781531065591,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":1,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781531065799,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"root:init","_t":1781531201883,"format":"v0-jsonl","version":"56.1.14"}
+{"_e":"devserver:start","_t":1781531201934,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../..\\..\\app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1781531203454,"serverRoot":"../..\\..","projectRoot":"../..\\..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"metro:instantiate","_t":1781531227613,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"metro:bundling:started","_t":1781531233728,"id":"1","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781531233729,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781531233738,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781531233838,"id":"1","progress":0.008553576798422934,"total":173,"current":16}
+{"_e":"metro:bundling:progress","_t":1781531233938,"id":"1","progress":0.14661212531612333,"total":269,"current":103}
+{"_e":"metro:bundling:progress","_t":1781531234038,"id":"1","progress":0.23241430078394765,"total":363,"current":175}
+{"_e":"metro:bundling:progress","_t":1781531234138,"id":"1","progress":0.31566965090164334,"total":477,"current":268}
+{"_e":"metro:bundling:progress","_t":1781531234238,"id":"1","progress":0.5543182907986574,"total":548,"current":408}
+{"_e":"metro:bundling:progress","_t":1781531234338,"id":"1","progress":0.8390901900839038,"total":643,"current":589}
+{"_e":"metro:bundling:progress","_t":1781531234439,"id":"1","progress":0.8390901900839038,"total":727,"current":603}
+{"_e":"metro:bundling:progress","_t":1781531234540,"id":"1","progress":0.8923625767622989,"total":813,"current":768}
+{"_e":"metro:bundling:progress","_t":1781531234640,"id":"1","progress":0.9314249562070618,"total":917,"current":885}
+{"_e":"metro:bundling:done","_t":1781531234811,"id":"1","total":917,"ms":1082.8715}
+{"_e":"metro:client_log","_t":1781531235919,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781531235920,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:bundling:started","_t":1781531255644,"id":"2","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781531255644,"id":"2","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1781531255711,"id":"2","total":1,"ms":67.7783}
+{"_e":"metro:client_log","_t":1781531256709,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781531256709,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1781531269056,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":11,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781531269549,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"root:init","_t":1781531325343,"format":"v0-jsonl","version":"56.1.14"}
+{"_e":"devserver:start","_t":1781531325386,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../..\\..\\app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1781531326838,"serverRoot":"../..\\..","projectRoot":"../..\\..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"metro:instantiate","_t":1781531382471,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"metro:bundling:started","_t":1781531389965,"id":"1","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781531389969,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781531390011,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781531390112,"id":"1","progress":0.010000000000000002,"total":6,"current":1}
+{"_e":"metro:bundling:progress","_t":1781531390304,"id":"1","progress":0.053254437869822494,"total":13,"current":3}
+{"_e":"metro:bundling:progress","_t":1781531390443,"id":"1","progress":0.053254437869822494,"total":123,"current":5}
+{"_e":"metro:bundling:progress","_t":1781531390583,"id":"1","progress":0.053254437869822494,"total":125,"current":6}
+{"_e":"metro:bundling:progress","_t":1781531390675,"id":"1","progress":0.053254437869822494,"total":163,"current":12}
+{"_e":"metro:bundling:progress","_t":1781531390775,"id":"1","progress":0.053254437869822494,"total":186,"current":16}
+{"_e":"metro:bundling:progress","_t":1781531390884,"id":"1","progress":0.053254437869822494,"total":210,"current":28}
+{"_e":"metro:bundling:progress","_t":1781531390987,"id":"1","progress":0.053254437869822494,"total":227,"current":35}
+{"_e":"metro:bundling:progress","_t":1781531391095,"id":"1","progress":0.053254437869822494,"total":242,"current":49}
+{"_e":"metro:bundling:progress","_t":1781531391200,"id":"1","progress":0.07807093425605537,"total":272,"current":76}
+{"_e":"metro:bundling:progress","_t":1781531391301,"id":"1","progress":0.11973036721303622,"total":289,"current":100}
+{"_e":"metro:bundling:progress","_t":1781531391401,"id":"1","progress":0.1664858334917954,"total":299,"current":122}
+{"_e":"metro:bundling:progress","_t":1781531391503,"id":"1","progress":0.18248656800829482,"total":309,"current":132}
+{"_e":"metro:bundling:progress","_t":1781531391604,"id":"1","progress":0.1906004994735514,"total":339,"current":148}
+{"_e":"metro:bundling:progress","_t":1781531391705,"id":"1","progress":0.21481662668854945,"total":356,"current":165}
+{"_e":"metro:bundling:progress","_t":1781531391809,"id":"1","progress":0.2609877126654065,"total":368,"current":188}
+{"_e":"metro:bundling:progress","_t":1781531391917,"id":"1","progress":0.3054764375070215,"total":389,"current":215}
+{"_e":"metro:bundling:progress","_t":1781531392024,"id":"1","progress":0.3092315491481593,"total":419,"current":233}
+{"_e":"metro:bundling:progress","_t":1781531392131,"id":"1","progress":0.3298484295105917,"total":444,"current":255}
+{"_e":"metro:bundling:progress","_t":1781531392232,"id":"1","progress":0.35229968782518206,"total":465,"current":276}
+{"_e":"metro:bundling:progress","_t":1781531392333,"id":"1","progress":0.36888855433023454,"total":489,"current":297}
+{"_e":"metro:bundling:progress","_t":1781531392433,"id":"1","progress":0.36888855433023454,"total":511,"current":306}
+{"_e":"metro:bundling:progress","_t":1781531392533,"id":"1","progress":0.4139587041651833,"total":530,"current":341}
+{"_e":"metro:bundling:progress","_t":1781531392635,"id":"1","progress":0.4477924133642377,"total":532,"current":356}
+{"_e":"metro:bundling:progress","_t":1781531392736,"id":"1","progress":0.46099590147192987,"total":542,"current":368}
+{"_e":"metro:bundling:progress","_t":1781531392851,"id":"1","progress":0.48447608819419286,"total":556,"current":387}
+{"_e":"metro:bundling:progress","_t":1781531392956,"id":"1","progress":0.5109229319579449,"total":568,"current":406}
+{"_e":"metro:bundling:progress","_t":1781531393073,"id":"1","progress":0.5429362880886426,"total":570,"current":420}
+{"_e":"metro:bundling:progress","_t":1781531393176,"id":"1","progress":0.5455247768544167,"total":570,"current":421}
+{"_e":"metro:bundling:progress","_t":1781531393275,"id":"1","progress":0.5816391485369858,"total":573,"current":437}
+{"_e":"metro:bundling:progress","_t":1781531393385,"id":"1","progress":0.609095910723795,"total":583,"current":455}
+{"_e":"metro:bundling:progress","_t":1781531393494,"id":"1","progress":0.6361961451247167,"total":588,"current":469}
+{"_e":"metro:bundling:progress","_t":1781531393602,"id":"1","progress":0.6719538155398214,"total":588,"current":482}
+{"_e":"metro:bundling:progress","_t":1781531393704,"id":"1","progress":0.6736642452912245,"total":597,"current":490}
+{"_e":"metro:bundling:progress","_t":1781531393806,"id":"1","progress":0.6921582091415637,"total":607,"current":505}
+{"_e":"metro:bundling:progress","_t":1781531393913,"id":"1","progress":0.7507347558064278,"total":614,"current":532}
+{"_e":"metro:bundling:progress","_t":1781531394008,"id":"1","progress":0.812294616414459,"total":628,"current":566}
+{"_e":"metro:bundling:progress","_t":1781531394113,"id":"1","progress":0.812294616414459,"total":678,"current":593}
+{"_e":"metro:bundling:progress","_t":1781531394236,"id":"1","progress":0.812294616414459,"total":725,"current":595}
+{"_e":"metro:bundling:progress","_t":1781531394354,"id":"1","progress":0.812294616414459,"total":725,"current":596}
+{"_e":"metro:bundling:progress","_t":1781531394470,"id":"1","progress":0.812294616414459,"total":727,"current":597}
+{"_e":"metro:bundling:progress","_t":1781531394569,"id":"1","progress":0.812294616414459,"total":738,"current":616}
+{"_e":"metro:bundling:progress","_t":1781531394672,"id":"1","progress":0.812294616414459,"total":764,"current":635}
+{"_e":"metro:bundling:progress","_t":1781531394774,"id":"1","progress":0.812294616414459,"total":769,"current":646}
+{"_e":"metro:bundling:progress","_t":1781531394873,"id":"1","progress":0.812294616414459,"total":778,"current":697}
+{"_e":"metro:bundling:progress","_t":1781531394973,"id":"1","progress":0.8566581901249314,"total":806,"current":746}
+{"_e":"metro:bundling:progress","_t":1781531395073,"id":"1","progress":0.9286798890771476,"total":826,"current":796}
+{"_e":"metro:bundling:progress","_t":1781531395173,"id":"1","progress":0.9469836339418289,"total":856,"current":833}
+{"_e":"metro:bundling:progress","_t":1781531395275,"id":"1","progress":0.9469836339418289,"total":894,"current":857}
+{"_e":"metro:bundling:progress","_t":1781531395423,"id":"1","progress":0.9469836339418289,"total":911,"current":884}
+{"_e":"metro:bundling:progress","_t":1781531395537,"id":"1","progress":0.999,"total":936,"current":936}
+{"_e":"metro:bundling:done","_t":1781531395820,"id":"1","total":936,"ms":5853.0853}
+{"_e":"metro:client_log","_t":1781531400183,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781531400184,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:bundling:started","_t":1781531529825,"id":"2","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781531529825,"id":"2","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1781531529895,"id":"2","total":1,"ms":70.2999}
+{"_e":"metro:client_log","_t":1781531530858,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781531530858,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:bundling:started","_t":1781531535021,"id":"3","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781531535022,"id":"3","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1781531535135,"id":"3","total":1,"ms":113.8229}
+{"_e":"metro:client_log","_t":1781531536336,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781531536337,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1781531536337,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":1,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781531536618,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"root:init","_t":1781531766777,"format":"v0-jsonl","version":"56.1.14"}
+{"_e":"devserver:start","_t":1781531766911,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../..\\..\\app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1781531770220,"serverRoot":"../..\\..","projectRoot":"../..\\..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"metro:instantiate","_t":1781531819089,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"metro:bundling:started","_t":1781531825954,"id":"1","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781531825957,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781531825969,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781531826084,"id":"1","progress":0.04000000000000001,"total":7,"current":2}
+{"_e":"metro:bundling:progress","_t":1781531826180,"id":"1","progress":0.04000000000000001,"total":124,"current":6}
+{"_e":"metro:bundling:progress","_t":1781531826285,"id":"1","progress":0.04000000000000001,"total":172,"current":15}
+{"_e":"metro:bundling:progress","_t":1781531826384,"id":"1","progress":0.04340277777777778,"total":216,"current":45}
+{"_e":"metro:bundling:progress","_t":1781531826486,"id":"1","progress":0.09580498866213152,"total":252,"current":78}
+{"_e":"metro:bundling:progress","_t":1781531826586,"id":"1","progress":0.16463371066357727,"total":313,"current":127}
+{"_e":"metro:bundling:progress","_t":1781531826694,"id":"1","progress":0.20446124763705104,"total":345,"current":156}
+{"_e":"metro:bundling:progress","_t":1781531826793,"id":"1","progress":0.2486824792364297,"total":379,"current":189}
+{"_e":"metro:bundling:progress","_t":1781531826893,"id":"1","progress":0.27890794531357416,"total":409,"current":216}
+{"_e":"metro:bundling:progress","_t":1781531826993,"id":"1","progress":0.3030916869002197,"total":465,"current":256}
+{"_e":"metro:bundling:progress","_t":1781531827093,"id":"1","progress":0.39662117574663275,"total":497,"current":313}
+{"_e":"metro:bundling:progress","_t":1781531827193,"id":"1","progress":0.4540443420410156,"total":512,"current":345}
+{"_e":"metro:bundling:progress","_t":1781531827293,"id":"1","progress":0.5241018819621067,"total":547,"current":396}
+{"_e":"metro:bundling:progress","_t":1781531827393,"id":"1","progress":0.6851998851004291,"total":569,"current":471}
+{"_e":"metro:bundling:progress","_t":1781531827513,"id":"1","progress":0.758025791440806,"total":603,"current":525}
+{"_e":"metro:bundling:progress","_t":1781531827618,"id":"1","progress":0.8390901900839038,"total":643,"current":589}
+{"_e":"metro:bundling:progress","_t":1781531827737,"id":"1","progress":0.8390901900839038,"total":725,"current":602}
+{"_e":"metro:bundling:progress","_t":1781531827839,"id":"1","progress":0.8390901900839038,"total":737,"current":613}
+{"_e":"metro:bundling:progress","_t":1781531827944,"id":"1","progress":0.8390901900839038,"total":761,"current":637}
+{"_e":"metro:bundling:progress","_t":1781531828044,"id":"1","progress":0.8390901900839038,"total":769,"current":657}
+{"_e":"metro:bundling:progress","_t":1781531828144,"id":"1","progress":0.843207103699463,"total":783,"current":719}
+{"_e":"metro:bundling:progress","_t":1781531828245,"id":"1","progress":0.8775733960276881,"total":791,"current":741}
+{"_e":"metro:bundling:progress","_t":1781531828345,"id":"1","progress":0.8830913401384937,"total":813,"current":764}
+{"_e":"metro:bundling:progress","_t":1781531828452,"id":"1","progress":0.9760487734068805,"total":830,"current":820}
+{"_e":"metro:bundling:progress","_t":1781531828553,"id":"1","progress":0.9760487734068805,"total":891,"current":856}
+{"_e":"metro:bundling:progress","_t":1781531828668,"id":"1","progress":0.9760487734068805,"total":921,"current":902}
+{"_e":"metro:bundling:done","_t":1781531828949,"id":"1","total":921,"ms":2993.9373}
+{"_e":"metro:client_log","_t":1781531832261,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781531832265,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:bundling:started","_t":1781531926431,"id":"2","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781531926431,"id":"2","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1781531926517,"id":"2","total":1,"ms":86.5263}
+{"_e":"metro:client_log","_t":1781531927476,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781531927476,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:bundling:started","_t":1781531944173,"id":"3","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781531944174,"id":"3","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1781531944250,"id":"3","total":1,"ms":76.8946}
+{"_e":"metro:client_log","_t":1781531945476,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781531945476,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1781531945476,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":1,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781531945746,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"metro:client_log","_t":1781531981191,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":11,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781531985105,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":21,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781531994124,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":31,\"initialProps\":{},\"fabric\":true}"]}
