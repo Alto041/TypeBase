@@ -165,6 +165,7 @@ type DispatchMultiTouchOptions = {
   getLayouts: () => KeyBounds[];
   areaOrigin: {pageX: number; pageY: number};
   swipeTypingEnabled: boolean;
+  hitSlop?: KeyHitSlop;
 };
 
 type TouchLike = {
@@ -184,6 +185,8 @@ export function dispatchMultiTouchStart(
     return;
   }
 
+  const hitSlop = options.hitSlop ?? DEFAULT_KEY_HIT_SLOP;
+
   const touches = [...changedTouches].sort(
     (left, right) => (left.timestamp ?? 0) - (right.timestamp ?? 0),
   );
@@ -196,10 +199,10 @@ export function dispatchMultiTouchStart(
 
     const localX = touch.pageX - options.areaOrigin.pageX;
     const localY = touch.pageY - options.areaOrigin.pageY;
-    if (touchHitsPressableOnlyKey(localX, localY, layouts)) {
+    if (touchHitsPressableOnlyKey(localX, localY, layouts, hitSlop)) {
       continue;
     }
-    const hit = hitTestKey(localX, localY, layouts);
+    const hit = hitTestKey(localX, localY, layouts, hitSlop);
     if (!hit || !isMultiTouchTextKey(hit.keyDef)) {
       continue;
     }

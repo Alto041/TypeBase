@@ -14,8 +14,11 @@ const config: ExpoConfig = {
     [
       'expo-dev-client',
       {
-        // Skip the Expo project picker when Metro is already running.
         launchMode: 'most-recent',
+        defaultLaunchURL: 'http://127.0.0.1:8081',
+        android: {
+          defaultLaunchURL: 'http://127.0.0.1:8081',
+        },
         showMenuAtLaunch: false,
         skipOnboarding: true,
       },

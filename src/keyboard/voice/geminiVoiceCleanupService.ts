@@ -1,4 +1,8 @@
 import {getGeminiApiKeyOptional} from '../settings/apiKeysStore';
+import {ensureAiProviderLoaded, getAiProvider} from '../settings/aiProviderStore';
+import {buildGemmaVoiceCleanupPrompt} from '../ai/gemmaPrompts';
+import {generateOnDeviceText} from '../ai/onDeviceTextAi';
+import {GEMINI_GENERATION_CONFIG} from '../ai/generationConfig';
 import {GEMINI_API_URL} from '../translate/geminiConfig';
 
 export class VoiceCleanupError extends Error {
@@ -11,8 +15,10 @@ export class VoiceCleanupError extends Error {
 export type VoiceCleanupResult = {
   text: string;
   detectedLanguageCode: string | null;
-  /** True when a Gemini key was used to polish the transcript. */
+  /** True when cloud Gemini polished the transcript. */
   usedGemini: boolean;
+  /** True when on-device Gemma polished the transcript. */
+  usedOnDeviceAi: boolean;
 };
 
 type GeminiResponse = {
@@ -66,18 +72,60 @@ function parseCleanupResult(
   };
 }
 
+function parseOnDeviceCleanupResult(
+  raw: string,
+): Pick<VoiceCleanupResult, 'text' | 'detectedLanguageCode'> {
+  const trimmed = raw.trim();
+  const unquoted =
+    trimmed.startsWith('"') && trimmed.endsWith('"') && trimmed.length >= 2
+      ? trimmed.slice(1, -1)
+      : trimmed;
+  return {text: unquoted.trim(), detectedLanguageCode: null};
+}
+
 export async function cleanupVoiceTranscript(
   transcript: string,
 ): Promise<VoiceCleanupResult> {
   const input = transcript.trim();
   if (!input) {
-    return {text: '', detectedLanguageCode: null, usedGemini: false};
+    return {
+      text: '',
+      detectedLanguageCode: null,
+      usedGemini: false,
+      usedOnDeviceAi: false,
+    };
+  }
+
+  await ensureAiProviderLoaded();
+  if (getAiProvider() === 'on_device') {
+    console.log('[VoiceCleanup/OnDevice] Input transcript:', input);
+    try {
+      const raw = await generateOnDeviceText(buildGemmaVoiceCleanupPrompt(input));
+      const parsed = parseOnDeviceCleanupResult(raw);
+      const result: VoiceCleanupResult = {
+        ...parsed,
+        usedGemini: false,
+        usedOnDeviceAi: true,
+      };
+      console.log('[VoiceCleanup/OnDevice] Parsed result:', result);
+      return result;
+    } catch (error) {
+      console.warn('[VoiceCleanup/OnDevice] Cleanup failed:', error);
+      throw new VoiceCleanupError(
+        error instanceof Error ? error.message : undefined,
+      );
+    }
   }
 
   const apiKey = await getGeminiApiKeyOptional();
   if (!apiKey) {
     console.log('[VoiceCleanup/Gemini] No API key — using raw transcript:', input);
-    return {text: input, detectedLanguageCode: null, usedGemini: false};
+    return {
+      text: input,
+      detectedLanguageCode: null,
+      usedGemini: false,
+      usedOnDeviceAi: false,
+    };
   }
 
   console.log('[VoiceCleanup/Gemini] Input transcript:', input);
@@ -96,7 +144,7 @@ export async function cleanupVoiceTranscript(
           },
         ],
         generationConfig: {
-          temperature: 0.1,
+          ...GEMINI_GENERATION_CONFIG,
           maxOutputTokens: 512,
           responseMimeType: 'application/json',
         },
@@ -125,7 +173,11 @@ export async function cleanupVoiceTranscript(
     }
 
     const parsed = parseCleanupResult(rawText);
-    const result: VoiceCleanupResult = {...parsed, usedGemini: true};
+    const result: VoiceCleanupResult = {
+      ...parsed,
+      usedGemini: true,
+      usedOnDeviceAi: false,
+    };
     console.log('[VoiceCleanup/Gemini] Parsed result:', result);
     return result;
   } catch (error) {

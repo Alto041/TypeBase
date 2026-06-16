@@ -1,5 +1,7 @@
 import React, {useEffect, useState} from 'react';
 import {
+  ActivityIndicator,
+  DeviceEventEmitter,
   Linking,
   PermissionsAndroid,
   Platform,
@@ -18,6 +20,21 @@ import {
   getApiKeys,
   setApiKeys,
 } from './src/keyboard/settings/apiKeysStore';
+import {
+  ensureAiProviderLoaded,
+  getAiProvider,
+  setAiProvider,
+  type AiProvider,
+} from './src/keyboard/settings/aiProviderStore';
+import {
+  ensureGemmaModelDownloaded,
+  isOnDeviceAiSupported,
+} from './src/keyboard/ai/gemmaModelManager';
+import {
+  GEMMA_DOWNLOAD_PROGRESS_EVENT,
+  isGemmaModelDownloaded,
+} from './src/keyboard/ai/gemmaBridge';
+import {runAiDebugPrompt} from './src/keyboard/ai/aiDebugService';
 import {keyboardBridge} from './src/keyboard/keyboardBridge';
 import {
   ensureThemeLoaded,
@@ -28,6 +45,14 @@ import {
   setKeyboardDesign,
   setKeyboardCustomTheme,
 } from './src/keyboard/settings/themeStore';
+import {
+  ensureLayoutLoaded,
+  getKeyboardLayoutSettings,
+  setKeyboardLayoutSettings,
+  updateKeyboardLayoutSetting,
+} from './src/keyboard/settings/layoutStore';
+import {DEFAULT_KEYBOARD_LAYOUT_SETTINGS} from './src/keyboard/theme';
+import type {KeyboardLayoutSettings} from './src/keyboard/theme';
 
 import ClipboardIcon from './assets/plugins/clipboard.svg';
 import TranslateIcon from './assets/plugins/translate.svg';
@@ -39,6 +64,7 @@ import EmojiIcon from './assets/emoji.svg';
 import ArtificialIcon from './assets/Artificial.svg';
 import VoiceIcon from './assets/graphic_eq.svg';
 import LinkIcon from './assets/Link.svg';
+import SymbolsIcon from './assets/symbols.svg';
 import ItemsIcon from './assets/items.svg';
 import BackIcon from './assets/back.svg';
 
@@ -100,6 +126,249 @@ function LaunchpadCard({
   );
 }
 
+function AiProviderCard() {
+  const [provider, setProviderState] = useState<AiProvider>('gemini');
+  const [loading, setLoading] = useState(true);
+  const [modelDownloaded, setModelDownloaded] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const onDeviceSupported = isOnDeviceAiSupported();
+
+  useEffect(() => {
+    void ensureAiProviderLoaded().then(async () => {
+      setProviderState(getAiProvider());
+      if (onDeviceSupported) {
+        setModelDownloaded(await isGemmaModelDownloaded());
+      }
+      setLoading(false);
+    });
+  }, [onDeviceSupported]);
+
+  const handleProviderChange = async (next: AiProvider) => {
+    if (next === 'on_device' && !onDeviceSupported) {
+      return;
+    }
+    setProviderState(next);
+    await setAiProvider(next);
+    setStatusMessage(
+      next === 'on_device'
+        ? 'On-device AI selected. Download the model if you have not already.'
+        : 'Cloud Gemini selected.',
+    );
+    setTimeout(() => setStatusMessage(null), 3000);
+  };
+
+  const handleDownloadModel = async () => {
+    setDownloadProgress(0);
+    setStatusMessage(null);
+    const subscription = DeviceEventEmitter.addListener(
+      GEMMA_DOWNLOAD_PROGRESS_EVENT,
+      (progress: number) => {
+        setDownloadProgress(progress);
+      },
+    );
+    try {
+      await ensureGemmaModelDownloaded(progress => {
+        setDownloadProgress(progress);
+      });
+      setModelDownloaded(true);
+      setStatusMessage('On-device model downloaded.');
+    } catch (error) {
+      setStatusMessage(
+        error instanceof Error ? error.message : 'Model download failed.',
+      );
+    } finally {
+      subscription.remove();
+      setDownloadProgress(null);
+      setTimeout(() => setStatusMessage(null), 4000);
+    }
+  };
+
+  return (
+    <View style={styles.card}>
+      <Text style={styles.cardTitle}>AI provider</Text>
+      <Text style={styles.hint}>
+        Choose cloud Gemini or on-device Gemma 3 for Translate, Rewrite, and
+        voice cleanup. On-device runs locally on Android after you download the
+        model (~550 MB).
+      </Text>
+
+      <Pressable
+        style={[
+          styles.providerOption,
+          provider === 'gemini' && styles.providerOptionSelected,
+        ]}
+        onPress={() => {
+          void handleProviderChange('gemini');
+        }}
+        disabled={loading}>
+        <Text style={styles.providerOptionTitle}>Cloud (Gemini)</Text>
+        <Text style={styles.fieldHint}>
+          Uses your Google Gemini API key. Requires internet.
+        </Text>
+      </Pressable>
+
+      <Pressable
+        style={[
+          styles.providerOption,
+          provider === 'on_device' && styles.providerOptionSelected,
+          !onDeviceSupported && styles.providerOptionDisabled,
+        ]}
+        onPress={() => {
+          void handleProviderChange('on_device');
+        }}
+        disabled={loading || !onDeviceSupported}>
+        <Text style={styles.providerOptionTitle}>On-device (Gemma 3)</Text>
+        <Text style={styles.fieldHint}>
+          {onDeviceSupported
+            ? modelDownloaded
+              ? 'Model downloaded. Runs offline after first load.'
+              : 'Download required before use.'
+            : 'Only available on Android.'}
+        </Text>
+      </Pressable>
+
+      {provider === 'on_device' && onDeviceSupported ? (
+        <>
+          {downloadProgress !== null ? (
+            <Text style={styles.fieldHint}>
+              Downloading… {Math.round(downloadProgress * 100)}%
+            </Text>
+          ) : null}
+          {!modelDownloaded ? (
+            <Pressable
+              style={styles.primaryButton}
+              onPress={() => {
+                void handleDownloadModel();
+              }}
+              disabled={downloadProgress !== null}>
+              <Text style={styles.primaryButtonText}>Download model</Text>
+            </Pressable>
+          ) : null}
+        </>
+      ) : null}
+
+      {statusMessage ? (
+        <Text style={styles.savedMessage}>{statusMessage}</Text>
+      ) : null}
+    </View>
+  );
+}
+
+function AiDebugCard() {
+  const [prompt, setPrompt] = useState(
+    'Say hello in one short sentence and include the word TypeBase.',
+  );
+  const [wrapGemma, setWrapGemma] = useState(true);
+  const [provider, setProvider] = useState<AiProvider>('gemini');
+  const [output, setOutput] = useState('');
+  const [meta, setMeta] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
+  const [running, setRunning] = useState(false);
+
+  useEffect(() => {
+    void ensureAiProviderLoaded().then(() => {
+      const current = getAiProvider();
+      setProvider(current);
+      setWrapGemma(current === 'on_device');
+    });
+  }, []);
+
+  const handleRun = async () => {
+    setRunning(true);
+    setError(null);
+    setOutput('');
+    setMeta(null);
+    setStatus('Starting…');
+    try {
+      const result = await runAiDebugPrompt(prompt, {
+        wrapGemma,
+        onStatus: setStatus,
+      });
+      setOutput(result.output);
+      setProvider(result.provider);
+      setMeta(
+        `${result.provider === 'on_device' ? 'On-device Gemma' : 'Cloud Gemini'} · ${result.elapsedMs} ms`,
+      );
+      setStatus(null);
+    } catch (runError) {
+      const message =
+        runError instanceof Error ? runError.message : 'AI request failed.';
+      setError(message);
+      setStatus(null);
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  return (
+    <View style={styles.card}>
+      <Text style={styles.cardTitle}>AI debug</Text>
+      <Text style={styles.hint}>
+        Send a test prompt through the currently selected AI provider. Uses{' '}
+        {provider === 'on_device' ? 'on-device Gemma' : 'cloud Gemini'}.
+      </Text>
+
+      <Text style={styles.fieldLabel}>Prompt</Text>
+      <TextInput
+        style={styles.debugInput}
+        value={prompt}
+        onChangeText={setPrompt}
+        placeholder="Enter a prompt..."
+        placeholderTextColor="#64748B"
+        multiline
+        editable={!running}
+      />
+
+      <View style={styles.themeToggleRow}>
+        <View style={styles.themeToggleText}>
+          <Text style={styles.fieldLabel}>Gemma instruct wrap</Text>
+          <Text style={styles.fieldHint}>
+            Wraps prompt with &lt;start_of_turn&gt; tags for on-device Gemma.
+          </Text>
+        </View>
+        <Switch
+          value={wrapGemma}
+          onValueChange={setWrapGemma}
+          disabled={running}
+          trackColor={{false: '#334155', true: '#2563EB'}}
+          thumbColor="#F8FAFC"
+        />
+      </View>
+
+      <Pressable
+        style={[styles.primaryButton, running && styles.primaryButtonDisabled]}
+        onPress={() => {
+          void handleRun();
+        }}
+        disabled={running || !prompt.trim()}>
+        {running ? (
+          <ActivityIndicator color="#FFFFFF" />
+        ) : (
+          <Text style={styles.primaryButtonText}>Run prompt</Text>
+        )}
+      </Pressable>
+
+      {status ? <Text style={styles.debugMeta}>{status}</Text> : null}
+      {meta ? <Text style={styles.debugMeta}>{meta}</Text> : null}
+      {error ? <Text style={styles.debugError}>{error}</Text> : null}
+
+      {output ? (
+        <>
+          <Text style={styles.fieldLabel}>Response</Text>
+          <TextInput
+            style={styles.debugOutput}
+            value={output}
+            multiline
+            editable={false}
+          />
+        </>
+      ) : null}
+    </View>
+  );
+}
+
 function ApiKeysCard() {
   const [geminiApiKey, setGeminiApiKey] = useState('');
   const [speechmaticsApiKey, setSpeechmaticsApiKey] = useState('');
@@ -125,8 +394,9 @@ function ApiKeysCard() {
     <View style={styles.card}>
       <Text style={styles.cardTitle}>API keys</Text>
       <Text style={styles.hint}>
-        Translate, Rewrite, and voice typing use your own Google Gemini and
-        Speechmatics keys. Keys are stored locally on this device.
+        When using cloud Gemini, Translate, Rewrite, and voice cleanup need your
+        Google Gemini key. Speechmatics is still used for voice transcription.
+        Keys are stored locally on this device.
       </Text>
 
       <Text style={styles.fieldLabel}>Google Gemini API key</Text>
@@ -173,6 +443,131 @@ function ApiKeysCard() {
       {savedMessage ? (
         <Text style={styles.savedMessage}>{savedMessage}</Text>
       ) : null}
+    </View>
+  );
+}
+
+function LayoutStepperRow({
+  label,
+  hint,
+  value,
+  min,
+  max,
+  step,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  hint: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  disabled?: boolean;
+  onChange: (next: number) => void;
+}) {
+  const decrease = () => onChange(Math.max(min, value - step));
+  const increase = () => onChange(Math.min(max, value + step));
+
+  return (
+    <View style={styles.layoutStepperRow}>
+      <View style={styles.layoutStepperText}>
+        <Text style={styles.fieldLabel}>{label}</Text>
+        <Text style={styles.fieldHint}>{hint}</Text>
+      </View>
+      <View style={styles.stepper}>
+        <Pressable
+          style={[styles.stepperButton, disabled && styles.stepperButtonDisabled]}
+          onPress={decrease}
+          disabled={disabled || value <= min}>
+          <Text style={styles.stepperButtonText}>−</Text>
+        </Pressable>
+        <Text style={styles.stepperValue}>{value} dp</Text>
+        <Pressable
+          style={[styles.stepperButton, disabled && styles.stepperButtonDisabled]}
+          onPress={increase}
+          disabled={disabled || value >= max}>
+          <Text style={styles.stepperButtonText}>+</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+function KeyboardLayoutCard() {
+  const [layout, setLayout] = useState<KeyboardLayoutSettings>(
+    DEFAULT_KEYBOARD_LAYOUT_SETTINGS,
+  );
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    void ensureLayoutLoaded().then(() => {
+      setLayout(getKeyboardLayoutSettings());
+      setLoading(false);
+    });
+  }, []);
+
+  const update = (key: keyof KeyboardLayoutSettings, value: number) => {
+    setLayout(current => ({...current, [key]: value}));
+    void updateKeyboardLayoutSetting(key, value);
+  };
+
+  const handleReset = () => {
+    setLayout(DEFAULT_KEYBOARD_LAYOUT_SETTINGS);
+    void setKeyboardLayoutSettings(DEFAULT_KEYBOARD_LAYOUT_SETTINGS);
+  };
+
+  return (
+    <View style={styles.card}>
+      <Text style={styles.cardTitle}>Keyboard layout</Text>
+      <Text style={styles.hint}>
+        Tune key size and spacing. Changes apply to the TypeBase keyboard
+        immediately.
+      </Text>
+
+      <LayoutStepperRow
+        label="Key height"
+        hint="How tall each letter key is."
+        value={layout.keyHeight}
+        min={40}
+        max={64}
+        step={2}
+        disabled={loading}
+        onChange={value => update('keyHeight', value)}
+      />
+
+      <View style={styles.themeDivider} />
+
+      <LayoutStepperRow
+        label="Key gap"
+        hint="Horizontal space between keys on a row."
+        value={layout.keyGap}
+        min={0}
+        max={12}
+        step={1}
+        disabled={loading}
+        onChange={value => update('keyGap', value)}
+      />
+
+      <View style={styles.themeDivider} />
+
+      <LayoutStepperRow
+        label="Row gap"
+        hint="Vertical space between keyboard rows."
+        value={layout.keyRowMargin}
+        min={0}
+        max={20}
+        step={1}
+        disabled={loading}
+        onChange={value => update('keyRowMargin', value)}
+      />
+
+      <Pressable
+        style={styles.linkButton}
+        onPress={handleReset}
+        disabled={loading}>
+        <Text style={styles.linkText}>Reset layout to defaults</Text>
+      </Pressable>
     </View>
   );
 }
@@ -380,25 +775,111 @@ function KeyboardThemeCard() {
 }
 
 function SetupScreen() {
-  const [route, setRoute] = useState<'launchpad' | 'settings'>('launchpad');
+  const [route, setRoute] = useState<'launchpad' | 'settings' | 'keyboard'>(
+    'launchpad',
+  );
 
   if (route === 'settings') {
-    return <SettingsScreen onBack={() => setRoute('launchpad')} />;
+    return (
+      <SettingsScreen
+        onBack={() => setRoute('launchpad')}
+        onOpenKeyboard={() => setRoute('keyboard')}
+      />
+    );
   }
-  return <LaunchpadScreen onOpenSettings={() => setRoute('settings')} />;
+  if (route === 'keyboard') {
+    return <KeyboardSettingsScreen onBack={() => setRoute('launchpad')} />;
+  }
+  return (
+    <LaunchpadScreen
+      onOpenSettings={() => setRoute('settings')}
+      onOpenKeyboard={() => setRoute('keyboard')}
+    />
+  );
 }
 
-function LaunchpadScreen({onOpenSettings}: {onOpenSettings: () => void}) {
+function KeyboardSettingsScreen({onBack}: {onBack: () => void}) {
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="dark-content" backgroundColor={C.bg} />
+      <View style={styles.topRightActions}>
+        <Pressable style={styles.topRightSettings} onPress={onBack}>
+          <BackIcon width={18} height={18} color={C.text} />
+        </Pressable>
+      </View>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <Text style={styles.pageTitle}>Keyboard</Text>
+
+        <KeyboardLayoutCard />
+
+        <KeyboardThemeCard />
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Try it here</Text>
+          <Text style={styles.hint}>
+            Changes apply live. Tap below and use TypeBase Keyboard to feel the
+            new layout.
+          </Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Tap here to test your keyboard..."
+            placeholderTextColor="#64748B"
+            multiline
+          />
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+function LaunchpadScreen({
+  onOpenSettings,
+  onOpenKeyboard,
+}: {
+  onOpenSettings: () => void;
+  onOpenKeyboard: () => void;
+}) {
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={C.bg} />
       <View style={styles.topRightActions}>
         <Pressable style={styles.topRightSettings} onPress={onOpenSettings}>
           <ItemsIcon width={18} height={18} color={C.text} />
+          <Text style={styles.topRightSettingsLabel}>Settings</Text>
         </Pressable>
       </View>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <Text style={styles.pageTitle}>Launchpad</Text>
+
+        <Pressable
+          style={styles.keyboardShortcut}
+          onPress={onOpenKeyboard}>
+          <View style={styles.keyboardShortcutIcon}>
+            <SymbolsIcon width={HOME_ICON} height={HOME_ICON} color={C.text} />
+          </View>
+          <View style={styles.keyboardShortcutText}>
+            <Text style={styles.keyboardShortcutTitle}>Customize keyboard</Text>
+            <Text style={styles.keyboardShortcutSub}>
+              Key height, gaps, themes, and more
+            </Text>
+          </View>
+          <Text style={styles.keyboardShortcutChevron}>›</Text>
+        </Pressable>
+
+        <Pressable
+          style={[styles.keyboardShortcut, styles.keyboardShortcutSpaced]}
+          onPress={onOpenSettings}>
+          <View style={styles.keyboardShortcutIcon}>
+            <ItemsIcon width={HOME_ICON} height={HOME_ICON} color={C.text} />
+          </View>
+          <View style={styles.keyboardShortcutText}>
+            <Text style={styles.keyboardShortcutTitle}>Settings</Text>
+            <Text style={styles.keyboardShortcutSub}>
+              AI provider, API keys, and keyboard setup
+            </Text>
+          </View>
+          <Text style={styles.keyboardShortcutChevron}>›</Text>
+        </Pressable>
 
         <View style={styles.stack}>
           <LaunchpadCard
@@ -469,6 +950,7 @@ function LaunchpadScreen({onOpenSettings}: {onOpenSettings: () => void}) {
             icon={<LinkIcon width={HOME_ICON} height={HOME_ICON} />}
             title="THEMES"
             description="Paste a theme JSON and instantly apply it."
+            onPress={onOpenKeyboard}
           />
         </View>
       </ScrollView>
@@ -476,7 +958,13 @@ function LaunchpadScreen({onOpenSettings}: {onOpenSettings: () => void}) {
   );
 }
 
-function SettingsScreen({onBack}: {onBack: () => void}) {
+function SettingsScreen({
+  onBack,
+  onOpenKeyboard,
+}: {
+  onBack: () => void;
+  onOpenKeyboard: () => void;
+}) {
   const [pin, setPin] = useState('');
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -503,9 +991,24 @@ function SettingsScreen({onBack}: {onBack: () => void}) {
           </Pressable>
         </View>
 
+        <AiProviderCard />
+
+        <AiDebugCard />
+
         <ApiKeysCard />
 
-        <KeyboardThemeCard />
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Keyboard look & layout</Text>
+          <Text style={styles.hint}>
+            Tune key size, spacing, colors, and themes in the dedicated
+            keyboard editor.
+          </Text>
+          <Pressable
+            style={styles.primaryButton}
+            onPress={onOpenKeyboard}>
+            <Text style={styles.primaryButtonText}>Open keyboard editor</Text>
+          </Pressable>
+        </View>
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Try it here</Text>
@@ -599,6 +1102,47 @@ const styles = StyleSheet.create({
     color: C.text,
     marginBottom: 20,
   },
+  keyboardShortcut: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    backgroundColor: C.card,
+    borderRadius: CARD_R,
+    borderWidth: 1,
+    borderColor: C.border,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    marginBottom: 10,
+  },
+  keyboardShortcutSpaced: {
+    marginBottom: 20,
+  },
+  keyboardShortcutIcon: {
+    width: 22,
+    height: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  keyboardShortcutText: {
+    flex: 1,
+    gap: 2,
+  },
+  keyboardShortcutTitle: {
+    fontSize: 17,
+    color: C.text,
+    fontWeight: '600',
+  },
+  keyboardShortcutSub: {
+    fontSize: 13,
+    color: C.sub,
+    lineHeight: 18,
+  },
+  keyboardShortcutChevron: {
+    fontSize: 28,
+    color: C.sub,
+    lineHeight: 28,
+    marginTop: -2,
+  },
   topRightActions: {
     position: 'absolute',
     right: 10,
@@ -608,13 +1152,20 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   topRightSettings: {
-    width: 36,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     height: 36,
     borderRadius: 999,
-    alignItems: 'center',
+    paddingHorizontal: 12,
     justifyContent: 'center',
     backgroundColor: C.card,
     zIndex: 10,
+  },
+  topRightSettingsLabel: {
+    color: C.text,
+    fontSize: 13,
+    fontWeight: '600',
   },
   card: {
     backgroundColor: C.card,
@@ -672,6 +1223,9 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     alignItems: 'center',
   },
+  primaryButtonDisabled: {
+    opacity: 0.7,
+  },
   primaryButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
@@ -687,6 +1241,40 @@ const styles = StyleSheet.create({
     padding: 14,
     textAlignVertical: 'top',
     fontSize: 16,
+  },
+  debugInput: {
+    minHeight: 100,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: C.border,
+    backgroundColor: C.bg,
+    color: C.text,
+    padding: 14,
+    textAlignVertical: 'top',
+    fontSize: 15,
+  },
+  debugOutput: {
+    minHeight: 120,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: C.border,
+    backgroundColor: '#f8f8fa',
+    color: C.text,
+    padding: 14,
+    textAlignVertical: 'top',
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  debugMeta: {
+    color: C.sub,
+    fontSize: 13,
+    textAlign: 'center',
+  },
+  debugError: {
+    color: '#DC2626',
+    fontSize: 13,
+    lineHeight: 18,
   },
   pinInput: {
     minHeight: 52,
@@ -727,6 +1315,67 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: C.border,
     marginVertical: 4,
+  },
+  layoutStepperRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  layoutStepperText: {
+    flex: 1,
+    gap: 2,
+  },
+  stepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  stepperButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: C.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: C.bg,
+  },
+  stepperButtonDisabled: {
+    opacity: 0.4,
+  },
+  stepperButtonText: {
+    color: C.text,
+    fontSize: 20,
+    lineHeight: 22,
+    fontWeight: '500',
+  },
+  stepperValue: {
+    minWidth: 52,
+    textAlign: 'center',
+    color: C.text,
+    fontSize: 14,
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
+  },
+  providerOption: {
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 12,
+    padding: 14,
+    marginTop: 10,
+    backgroundColor: C.bg,
+  },
+  providerOptionSelected: {
+    borderColor: C.text,
+  },
+  providerOptionDisabled: {
+    opacity: 0.5,
+  },
+  providerOptionTitle: {
+    color: C.text,
+    fontSize: 15,
+    fontWeight: '600',
+    marginBottom: 4,
   },
 
   // Reference-design card stack styles (HomeDockScreen.tsx)

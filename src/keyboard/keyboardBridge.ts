@@ -30,6 +30,8 @@ type KeyboardModuleType = {
   setAutocorrectSettings: (json: string) => Promise<boolean>;
   getApiKeys: () => Promise<string>;
   setApiKeys: (json: string) => Promise<boolean>;
+  getAiProvider: () => Promise<string>;
+  setAiProvider: (provider: string) => Promise<boolean>;
   getLearnedPhraseCounts: () => Promise<Record<string, number>>;
   recordLearnedPhrase: (phrase: string) => Promise<number>;
   moveCursor: (offset: number) => Promise<boolean>;
@@ -45,6 +47,8 @@ type KeyboardModuleType = {
   setKeyboardDesign: (design: string) => Promise<boolean>;
   getKeyboardCustomTheme: () => Promise<string>;
   setKeyboardCustomTheme: (json: string) => Promise<boolean>;
+  getKeyboardLayoutSettings: () => Promise<string>;
+  setKeyboardLayoutSettings: (json: string) => Promise<boolean>;
   undo: () => Promise<boolean>;
   redo: () => Promise<boolean>;
 };
@@ -219,6 +223,18 @@ export const keyboardBridge: KeyboardModuleType = {
     }
     return Promise.resolve(false);
   },
+  getAiProvider: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.getAiProvider) {
+      return KeyboardModule.getAiProvider() as Promise<string>;
+    }
+    return Promise.resolve('gemini');
+  },
+  setAiProvider: (provider: string) => {
+    if (Platform.OS === 'android' && KeyboardModule?.setAiProvider) {
+      return KeyboardModule.setAiProvider(provider) as Promise<boolean>;
+    }
+    return Promise.resolve(false);
+  },
   getLearnedPhraseCounts: () => {
     if (Platform.OS === 'android' && KeyboardModule?.getLearnedPhraseCounts) {
       return KeyboardModule.getLearnedPhraseCounts() as Promise<Record<string, number>>;
@@ -308,6 +324,20 @@ export const keyboardBridge: KeyboardModuleType = {
   setKeyboardCustomTheme: (json: string) => {
     if (Platform.OS === 'android' && KeyboardModule?.setKeyboardCustomTheme) {
       return KeyboardModule.setKeyboardCustomTheme(json) as Promise<boolean>;
+    }
+    return Promise.resolve(false);
+  },
+  getKeyboardLayoutSettings: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.getKeyboardLayoutSettings) {
+      return KeyboardModule.getKeyboardLayoutSettings() as Promise<string>;
+    }
+    return Promise.resolve(
+      '{"keyHeight":52,"keyGap":4,"keyRowMargin":10}',
+    );
+  },
+  setKeyboardLayoutSettings: (json: string) => {
+    if (Platform.OS === 'android' && KeyboardModule?.setKeyboardLayoutSettings) {
+      return KeyboardModule.setKeyboardLayoutSettings(json) as Promise<boolean>;
     }
     return Promise.resolve(false);
   },

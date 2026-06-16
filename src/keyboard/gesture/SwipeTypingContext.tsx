@@ -9,6 +9,7 @@ import React, {
 } from 'react';
 import {PixelRatio, View, type GestureResponderEvent} from 'react-native';
 import {triggerKeyHaptic} from '../haptics';
+import {useKeyboardTheme} from '../KeyboardThemeContext';
 import {keyboardBridge} from '../keyboardBridge';
 import {clampPoint, decimatePoints, distance} from './coordinates';
 import {decodeSwipeGesture} from './gestureDecoder';
@@ -466,7 +467,9 @@ export function SwipeTypingKeysHost({
 }: SwipeTypingKeysHostProps) {
   const ctx = useContext(SwipeTypingContext);
   const layoutContext = useKeyLayoutContext();
+  const theme = useKeyboardTheme();
   const pointerToKeyRef = useRef(new Map<number, string>());
+  const keyHitSlop = theme.keyHitSlop;
 
   const handleTouchStartCapture = useCallback(
     (event: GestureResponderEvent) => {
@@ -482,7 +485,7 @@ export function SwipeTypingKeysHost({
         touch => {
           const localX = touch.pageX - origin.pageX;
           const localY = touch.pageY - origin.pageY;
-          return !touchHitsPressableOnlyKey(localX, localY, layouts);
+          return !touchHitsPressableOnlyKey(localX, localY, layouts, keyHitSlop);
         },
       );
 
@@ -500,10 +503,11 @@ export function SwipeTypingKeysHost({
           getLayouts: layoutContext.getLayouts,
           areaOrigin: origin,
           swipeTypingEnabled: Boolean(ctx?.enabled),
+          hitSlop: keyHitSlop,
         });
       }
     },
-    [ctx, layoutContext, multiTouchEnabled, onMultiTouchKeyPress],
+    [ctx, keyHitSlop, layoutContext, multiTouchEnabled, onMultiTouchKeyPress],
   );
 
   const handleTouchEndCapture = useCallback(

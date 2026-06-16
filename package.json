@@ -4,12 +4,14 @@
   "private": true,
   "main": "index.js",
   "scripts": {
-    "android": "expo run:android",
+    "android": "node scripts/run-android-dev.mjs",
+    "android:build": "expo run:android",
+    "android:reverse": "adb reverse tcp:8081 tcp:8081",
     "android:release": "cd android && .\\gradlew.bat assembleRelease",
     "android:apk": "cd android && .\\gradlew.bat assembleRelease",
     "ios": "expo run:ios",
     "lint": "eslint .",
-    "start": "expo start --dev-client --localhost",
+    "start": "npm run android:reverse && expo start --dev-client --localhost",
     "test": "jest"
   },
   "dependencies": {

@@ -7,12 +7,24 @@ const KEYBOARD_HEIGHT_BUFFER = 6;
 const KEY_HEIGHT = 52;
 const KEY_ROW_MARGIN = 10;
 const KEY_GAP = 4;
+
+export type KeyboardLayoutSettings = {
+  keyHeight: number;
+  keyGap: number;
+  keyRowMargin: number;
+};
+
+export const DEFAULT_KEYBOARD_LAYOUT_SETTINGS: KeyboardLayoutSettings = {
+  keyHeight: KEY_HEIGHT,
+  keyGap: KEY_GAP,
+  keyRowMargin: KEY_ROW_MARGIN,
+};
+
 /** Touch slop into gaps — half the visual gap on each side of a key. */
 export const KEY_HIT_SLOP = {
-  horizontal: KEY_GAP / 2,
-  vertical: KEY_ROW_MARGIN / 2,
+  horizontal: DEFAULT_KEYBOARD_LAYOUT_SETTINGS.keyGap / 2,
+  vertical: DEFAULT_KEYBOARD_LAYOUT_SETTINGS.keyRowMargin / 2,
 };
-const NUMPAD_KEY_HEIGHT = 46;
 const NUMPAD_KEYS_PADDING_TOP = 2;
 
 export type KeyboardColorScheme = 'light' | 'dark';
@@ -247,11 +259,14 @@ export function createKeyboardTheme(
   scheme: KeyboardColorScheme,
   design: KeyboardDesign = 'typebase',
   customThemeJson?: string | null,
+  layout: KeyboardLayoutSettings = DEFAULT_KEYBOARD_LAYOUT_SETTINGS,
 ) {
   const palette =
     design === 'custom'
       ? paletteForCustomTheme(scheme, customThemeJson)
       : paletteFor(scheme, design);
+
+  const numpadKeyHeight = Math.max(36, layout.keyHeight - 6);
 
   return {
     ...palette,
@@ -267,26 +282,30 @@ export function createKeyboardTheme(
     keysPaddingTop: KEYS_PADDING_TOP,
     imeStripClearance: IME_STRIP_CLEARANCE,
     essentialsPanelHeight: 136,
-    keyHeight: KEY_HEIGHT,
-    keyRowMargin: KEY_ROW_MARGIN,
-    keyGap: KEY_GAP,
-    numpadKeyHeight: NUMPAD_KEY_HEIGHT,
+    keyHeight: layout.keyHeight,
+    keyRowMargin: layout.keyRowMargin,
+    keyGap: layout.keyGap,
+    keyHitSlop: {
+      horizontal: layout.keyGap / 2,
+      vertical: layout.keyRowMargin / 2,
+    },
+    numpadKeyHeight,
     numpadKeysPaddingTop: NUMPAD_KEYS_PADDING_TOP,
     keyRowPaddingHorizontal: 5,
-    emojiPanelHeight: KEY_HEIGHT * 3 + KEY_ROW_MARGIN * 3,
+    emojiPanelHeight: layout.keyHeight * 3 + layout.keyRowMargin * 3,
     emojiPanelGap: 12,
     keyboardHeightDp:
       48 +
       KEYS_PADDING_TOP +
-      KEY_ROW_COUNT * KEY_HEIGHT +
-      KEY_ROW_COUNT * KEY_ROW_MARGIN +
+      KEY_ROW_COUNT * layout.keyHeight +
+      KEY_ROW_COUNT * layout.keyRowMargin +
       IME_STRIP_CLEARANCE +
       KEYBOARD_HEIGHT_BUFFER,
     numpadKeyboardHeightDp:
       48 +
       NUMPAD_KEYS_PADDING_TOP +
-      4 * NUMPAD_KEY_HEIGHT +
-      4 * KEY_GAP +
+      4 * numpadKeyHeight +
+      4 * layout.keyGap +
       IME_STRIP_CLEARANCE,
     fontFamily: 'Geist' as const,
   };

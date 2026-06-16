@@ -1,4 +1,8 @@
 import {requireGeminiApiKey} from '../settings/apiKeysStore';
+import {ensureAiProviderLoaded, getAiProvider} from '../settings/aiProviderStore';
+import {buildGemmaTranslatePrompt} from '../ai/gemmaPrompts';
+import {extractJsonPayload, generateOnDeviceText} from '../ai/onDeviceTextAi';
+import {GEMINI_GENERATION_CONFIG} from '../ai/generationConfig';
 import {GEMINI_API_URL} from './geminiConfig';
 
 export type TranslateResult = {
@@ -80,6 +84,14 @@ export async function translateText(
     };
   }
 
+  await ensureAiProviderLoaded();
+  if (getAiProvider() === 'on_device') {
+    const raw = await generateOnDeviceText(
+      buildGemmaTranslatePrompt(input, targetLanguage),
+    );
+    return parseTranslateResult(extractJsonPayload(raw));
+  }
+
   const apiKey = await requireGeminiApiKey();
   const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
     method: 'POST',
@@ -94,7 +106,7 @@ export async function translateText(
         },
       ],
       generationConfig: {
-        temperature: 0.15,
+        ...GEMINI_GENERATION_CONFIG,
         maxOutputTokens: 2048,
         responseMimeType: 'application/json',
       },

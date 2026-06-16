@@ -104,6 +104,13 @@ import {
   getWordSuggestions,
 } from './suggestions/wordSuggestions';
 import {ensureApiKeysLoaded} from './settings/apiKeysStore';
+import {ensureAiProviderLoaded} from './settings/aiProviderStore';
+import {
+  ensureLayoutLoaded,
+  getKeyboardLayoutSettings,
+  KEYBOARD_LAYOUT_CHANGED_EVENT,
+  parseLayoutEventPayload,
+} from './settings/layoutStore';
 import {
   ensureThemeLoaded,
   getKeyboardColorScheme,
@@ -118,7 +125,13 @@ import {
   useKeyboardTheme,
   useThemedStyles,
 } from './KeyboardThemeContext';
-import type {KeyboardColorScheme, KeyboardDesign, KeyboardTheme} from './theme';
+import type {
+  KeyboardColorScheme,
+  KeyboardDesign,
+  KeyboardLayoutSettings,
+  KeyboardTheme,
+} from './theme';
+import {DEFAULT_KEYBOARD_LAYOUT_SETTINGS} from './theme';
 import {useVoiceInput} from './voice/useVoiceInput';
 
 const DOUBLE_TAP_MS = 350;
@@ -768,6 +781,7 @@ function KeyboardBody() {
         ensureLearnedPhrasesLoaded(),
         ensureAutocorrectLoaded(),
         ensureApiKeysLoaded(),
+        ensureAiProviderLoaded(),
         reloadGesturesFromStorage(),
       ]).finally(() => {
         reloadEssentials();
@@ -1492,13 +1506,17 @@ export default function KeyboardApp() {
   const [keyboardDesign, setKeyboardDesign] =
     useState<KeyboardDesign>('typebase');
   const [customThemeJson, setCustomThemeJson] = useState<string>('{}');
+  const [layoutSettings, setLayoutSettings] = useState<KeyboardLayoutSettings>(
+    DEFAULT_KEYBOARD_LAYOUT_SETTINGS,
+  );
   const [themeReady, setThemeReady] = useState(false);
 
   useEffect(() => {
-    void ensureThemeLoaded().then(() => {
+    void Promise.all([ensureThemeLoaded(), ensureLayoutLoaded()]).then(() => {
       setColorScheme(getKeyboardColorScheme());
       setKeyboardDesign(getKeyboardDesign());
       setCustomThemeJson(getKeyboardCustomTheme());
+      setLayoutSettings(getKeyboardLayoutSettings());
       setThemeReady(true);
     });
     const schemeSubscription = DeviceEventEmitter.addListener(
@@ -1519,10 +1537,17 @@ export default function KeyboardApp() {
         setCustomThemeJson(json);
       },
     );
+    const layoutSubscription = DeviceEventEmitter.addListener(
+      KEYBOARD_LAYOUT_CHANGED_EVENT,
+      (payload: unknown) => {
+        setLayoutSettings(parseLayoutEventPayload(payload));
+      },
+    );
     return () => {
       schemeSubscription.remove();
       designSubscription.remove();
       customThemeSubscription.remove();
+      layoutSubscription.remove();
     };
   }, []);
 
@@ -1547,6 +1572,7 @@ export default function KeyboardApp() {
       scheme={colorScheme}
       design={keyboardDesign}
       customThemeJson={customThemeJson}
+      layoutSettings={layoutSettings}
     >
       <KeyLayoutProvider>
         <KeyboardBody />

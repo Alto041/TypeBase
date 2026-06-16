@@ -2,6 +2,7 @@ package com.typebase
 
 import android.app.Application
 import android.content.res.Configuration
+import android.preference.PreferenceManager
 import com.facebook.react.PackageList
 import com.facebook.react.ReactApplication
 import com.facebook.react.ReactHost
@@ -25,6 +26,7 @@ class MainApplication : Application(), ReactApplication {
 
   override fun onCreate() {
     super.onCreate()
+    configureUsbMetroPackagerHost()
     DefaultNewArchitectureEntryPoint.releaseLevel =
         try {
           ReleaseLevel.valueOf(BuildConfig.REACT_NATIVE_RELEASE_LEVEL.uppercase())
@@ -40,5 +42,15 @@ class MainApplication : Application(), ReactApplication {
   override fun onConfigurationChanged(newConfig: Configuration) {
     super.onConfigurationChanged(newConfig)
     ApplicationLifecycleDispatcher.onConfigurationChanged(this, newConfig)
+  }
+
+  private fun configureUsbMetroPackagerHost() {
+    if (!BuildConfig.DEBUG) {
+      return
+    }
+    PreferenceManager.getDefaultSharedPreferences(this)
+        .edit()
+        .putString("debug_http_host", "localhost:8081")
+        .apply()
   }
 }

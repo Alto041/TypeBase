@@ -1,4 +1,8 @@
 import {requireGeminiApiKey} from '../settings/apiKeysStore';
+import {ensureAiProviderLoaded, getAiProvider} from '../settings/aiProviderStore';
+import {buildGemmaRewritePrompt} from '../ai/gemmaPrompts';
+import {generateOnDeviceText} from '../ai/onDeviceTextAi';
+import {GEMINI_GENERATION_CONFIG} from '../ai/generationConfig';
 import {GEMINI_API_URL} from '../translate/geminiConfig';
 import {DEFAULT_REWRITE_TONE, REWRITE_TONES} from './rewriteTones';
 
@@ -51,13 +55,27 @@ function parseRewriteResult(raw: string): RewriteResult {
     ? trimmed.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')
     : trimmed;
 
-  const parsed = JSON.parse(jsonText) as Partial<RewriteResult>;
+  try {
+    const parsed = JSON.parse(jsonText) as Partial<RewriteResult>;
 
-  if (typeof parsed.rewritten !== 'string') {
-    throw new Error('Invalid rewrite response');
+    if (typeof parsed.rewritten !== 'string') {
+      throw new Error('Invalid rewrite response');
+    }
+
+    return {rewritten: parsed.rewritten};
+  } catch {
+    // Gemini can occasionally return plain text despite JSON hints.
+    return parseOnDeviceRewriteResult(jsonText);
   }
+}
 
-  return {rewritten: parsed.rewritten};
+function parseOnDeviceRewriteResult(raw: string): RewriteResult {
+  const trimmed = raw.trim();
+  const unquoted =
+    trimmed.startsWith('"') && trimmed.endsWith('"') && trimmed.length >= 2
+      ? trimmed.slice(1, -1)
+      : trimmed;
+  return {rewritten: unquoted.trim()};
 }
 
 export async function rewriteText(
@@ -67,6 +85,14 @@ export async function rewriteText(
   const input = text.trim();
   if (!input) {
     return {rewritten: ''};
+  }
+
+  await ensureAiProviderLoaded();
+  if (getAiProvider() === 'on_device') {
+    const raw = await generateOnDeviceText(
+      buildGemmaRewritePrompt(input, getToneInstruction(toneId)),
+    );
+    return parseOnDeviceRewriteResult(raw);
   }
 
   const apiKey = await requireGeminiApiKey();
@@ -83,7 +109,7 @@ export async function rewriteText(
         },
       ],
       generationConfig: {
-        temperature: 0.25,
+        ...GEMINI_GENERATION_CONFIG,
         maxOutputTokens: 2048,
         responseMimeType: 'application/json',
       },

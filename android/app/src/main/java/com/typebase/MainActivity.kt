@@ -1,7 +1,9 @@
 package com.typebase
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import androidx.core.app.ActivityCompat
@@ -16,10 +18,50 @@ class MainActivity : ReactActivity() {
 
   override fun onCreate(savedInstanceState: Bundle?) {
     setTheme(R.style.AppTheme)
+    normalizeDevLauncherUrl(intent)
     super.onCreate(null)
     if (intent?.getBooleanExtra(EXTRA_REQUEST_MIC, false) == true) {
       requestMicPermissionIfNeeded()
     }
+  }
+
+  override fun onNewIntent(intent: Intent) {
+    normalizeDevLauncherUrl(intent)
+    super.onNewIntent(intent)
+  }
+
+  /**
+   * expo run:android opens the dev client with a LAN Metro URL (e.g. 192.168.x.x:8081).
+   * USB debugging needs 127.0.0.1:8081 with `adb reverse tcp:8081 tcp:8081`.
+   */
+  private fun normalizeDevLauncherUrl(intent: Intent?) {
+    if (!BuildConfig.DEBUG) {
+      return
+    }
+    val data = intent?.data ?: return
+    if (data.host != "expo-development-client") {
+      return
+    }
+
+    val metroUrl = data.getQueryParameter("url") ?: return
+    val normalizedMetroUrl =
+        metroUrl.replace(Regex("""https?://[^/:]+:8081"""), "http://127.0.0.1:8081")
+    if (normalizedMetroUrl == metroUrl) {
+      return
+    }
+
+    val builder = data.buildUpon().clearQuery()
+    for (key in data.queryParameterNames) {
+      val value =
+          when (key) {
+            "url" -> normalizedMetroUrl
+            else -> data.getQueryParameter(key)
+          }
+      if (value != null) {
+        builder.appendQueryParameter(key, value)
+      }
+    }
+    intent.data = builder.build()
   }
 
   private fun requestMicPermissionIfNeeded() {

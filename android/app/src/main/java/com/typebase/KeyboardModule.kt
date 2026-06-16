@@ -523,6 +523,34 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   }
 
   @ReactMethod
+  fun getKeyboardLayoutSettings(promise: Promise) {
+    try {
+      val raw =
+          learnedWordsPrefs().getString(KEYBOARD_LAYOUT_KEY, DEFAULT_KEYBOARD_LAYOUT)
+              ?: DEFAULT_KEYBOARD_LAYOUT
+      promise.resolve(raw)
+    } catch (error: Exception) {
+      promise.reject("GET_KEYBOARD_LAYOUT_FAILED", error)
+    }
+  }
+
+  @ReactMethod
+  fun setKeyboardLayoutSettings(json: String, promise: Promise) {
+    try {
+      val saved =
+          learnedWordsPrefs().edit().putString(KEYBOARD_LAYOUT_KEY, json).commit()
+      if (saved && reactApplicationContext.hasActiveReactInstance()) {
+        reactApplicationContext
+            .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+            .emit("keyboardLayoutChanged", json)
+      }
+      promise.resolve(saved)
+    } catch (error: Exception) {
+      promise.reject("SET_KEYBOARD_LAYOUT_FAILED", error)
+    }
+  }
+
+  @ReactMethod
   fun getGestureSettings(promise: Promise) {
     try {
       val raw = learnedWordsPrefs().getString(GESTURE_SETTINGS_KEY, DEFAULT_GESTURE_SETTINGS) ?: DEFAULT_GESTURE_SETTINGS
@@ -584,6 +612,28 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
       promise.resolve(saved)
     } catch (error: Exception) {
       promise.reject("SET_API_KEYS_FAILED", error)
+    }
+  }
+
+  @ReactMethod
+  fun getAiProvider(promise: Promise) {
+    try {
+      val provider =
+          learnedWordsPrefs().getString(AI_PROVIDER_KEY, DEFAULT_AI_PROVIDER) ?: DEFAULT_AI_PROVIDER
+      promise.resolve(provider)
+    } catch (error: Exception) {
+      promise.reject("GET_AI_PROVIDER_FAILED", error)
+    }
+  }
+
+  @ReactMethod
+  fun setAiProvider(provider: String, promise: Promise) {
+    try {
+      val normalized = if (provider == "on_device") "on_device" else "gemini"
+      val saved = learnedWordsPrefs().edit().putString(AI_PROVIDER_KEY, normalized).commit()
+      promise.resolve(saved)
+    } catch (error: Exception) {
+      promise.reject("SET_AI_PROVIDER_FAILED", error)
     }
   }
 
@@ -894,12 +944,17 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     private const val LEARNED_PHRASES_KEY = "learned_phrases"
     private const val COMMA_LAUNCHER_ARMED_KEY = "comma_launcher_armed"
     private const val API_KEYS_KEY = "api_keys"
+    private const val AI_PROVIDER_KEY = "ai_provider"
+    private const val DEFAULT_AI_PROVIDER = "gemini"
     private const val KEYBOARD_THEME_KEY = "keyboard_theme"
     private const val DEFAULT_KEYBOARD_THEME = "light"
     private const val KEYBOARD_DESIGN_KEY = "keyboard_design"
     private const val DEFAULT_KEYBOARD_DESIGN = "typebase"
     private const val KEYBOARD_CUSTOM_THEME_KEY = "keyboard_custom_theme"
     private const val DEFAULT_KEYBOARD_CUSTOM_THEME = "{}"
+    private const val KEYBOARD_LAYOUT_KEY = "keyboard_layout"
+    private const val DEFAULT_KEYBOARD_LAYOUT =
+        """{"keyHeight":52,"keyGap":4,"keyRowMargin":10}"""
     private const val DEFAULT_API_KEYS =
         """{"geminiApiKey":"","speechmaticsApiKey":""}"""
     private const val DEFAULT_GESTURE_SETTINGS =

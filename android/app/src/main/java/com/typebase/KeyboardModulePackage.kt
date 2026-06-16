@@ -14,6 +14,7 @@ class KeyboardModulePackage : ReactPackage {
           VoiceRecorderModule(reactContext),
           VoiceActivationSoundModule(reactContext),
           KeyPreviewModule(reactContext),
+          GemmaModule(reactContext),
       )
 
   override fun createViewManagers(
