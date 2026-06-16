@@ -1,6 +1,7 @@
-import React, {useEffect, useState} from 'react';
+import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {
   ActivityIndicator,
+  Animated,
   DeviceEventEmitter,
   Linking,
   PermissionsAndroid,
@@ -12,9 +13,13 @@ import {
   Switch,
   Text,
   TextInput,
+  TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
-import {SafeAreaProvider, SafeAreaView} from 'react-native-safe-area-context';
+import {SafeAreaProvider, SafeAreaView, useSafeAreaInsets} from 'react-native-safe-area-context';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
+import {useFonts} from 'expo-font';
 import {
   ensureApiKeysLoaded,
   getApiKeys,
@@ -36,24 +41,6 @@ import {
 } from './src/keyboard/ai/gemmaBridge';
 import {runAiDebugPrompt} from './src/keyboard/ai/aiDebugService';
 import {keyboardBridge} from './src/keyboard/keyboardBridge';
-import {
-  ensureThemeLoaded,
-  getKeyboardColorScheme,
-  getKeyboardDesign,
-  getKeyboardCustomTheme,
-  setKeyboardColorScheme,
-  setKeyboardDesign,
-  setKeyboardCustomTheme,
-} from './src/keyboard/settings/themeStore';
-import {
-  ensureLayoutLoaded,
-  getKeyboardLayoutSettings,
-  setKeyboardLayoutSettings,
-  updateKeyboardLayoutSetting,
-} from './src/keyboard/settings/layoutStore';
-import {DEFAULT_KEYBOARD_LAYOUT_SETTINGS} from './src/keyboard/theme';
-import type {KeyboardLayoutSettings} from './src/keyboard/theme';
-
 import ClipboardIcon from './assets/plugins/clipboard.svg';
 import TranslateIcon from './assets/plugins/translate.svg';
 import EssentialsIcon from './assets/plugins/essentials.svg';
@@ -67,6 +54,15 @@ import LinkIcon from './assets/Link.svg';
 import SymbolsIcon from './assets/symbols.svg';
 import ItemsIcon from './assets/items.svg';
 import BackIcon from './assets/back.svg';
+import AiConfigIcon from './assets/ai_config.svg';
+import KeyboardPermIcon from './assets/keyboard_perm.svg';
+
+import HomeIcon from './assets/home.svg';
+import CustomizeIcon from './assets/customize.svg';
+import ThemesIcon from './assets/themes.svg';
+import SettingsIcon from './assets/settings.svg';
+
+import { CustomizeScreen, ThemesScreen } from './KeyboardCustomization';
 
 const C = {
   bg: '#f2f2f4',
@@ -79,6 +75,219 @@ const C = {
 const CARD_R = 25;
 const INNER_R = 5;
 const HOME_ICON = 22;
+
+const CONFIG_AI_W = 80;
+const CONFIG_AI_H = 94;
+const CONFIG_PERM_SIZE = 68;
+const CONFIG_ICON_INSET = 16;
+
+const TEXT_KERNING = -0.7;
+
+// Bottom nav (exact replica of BottomNavigation.tsx visuals)
+const DOCK_WIDTH       = 308;
+const PILL_RADIUS      = 22;
+const PILL_HEIGHT      = 62;
+const PILL_PADDING_H   = 18;
+const CHIP_HEIGHT      = 74;
+const CHIP_RADIUS      = 14;
+const CHIP_WIDTH_INSET = 15;
+const CHIP_V_MARGIN    = (PILL_HEIGHT - CHIP_HEIGHT) / 2;
+const ICON_SIZE        = 22;
+const GRADIENT_LIGHT   = '#F1F1F1';
+const GRADIENT_DARK    = '#0f0f10';
+
+const BOTTOM_NAV_BOTTOM_GAP = 8;
+const BOTTOM_NAV_FADE_HEIGHT = 96;
+
+const SLIDE_SPRING = {
+  damping: 22,
+  stiffness: 280,
+  mass: 0.7,
+  useNativeDriver: true as const,
+};
+
+const SCALE_SPRING = {
+  damping: 16,
+  stiffness: 220,
+  mass: 0.6,
+  useNativeDriver: true as const,
+};
+
+// Local stubs (no external haptics/sounds modules in this demo)
+const hapticTap = () => {};
+const playUiSound = (_name?: string) => {};
+
+type NavTab = 'home' | 'customize' | 'themes' | 'settings';
+const NAV_TABS: NavTab[] = ['home', 'customize', 'themes', 'settings'];
+
+function getLayoutMetrics(width: number) {
+  const slotWidth = (width - PILL_PADDING_H * 2) / NAV_TABS.length;
+  const chipWidth = slotWidth - CHIP_WIDTH_INSET;
+  const chipBaseLeft = PILL_PADDING_H + (slotWidth - chipWidth) / 2;
+  return { slotWidth, chipWidth, chipBaseLeft };
+}
+
+function getChipTranslateX(tab: NavTab, width: number): number {
+  const { slotWidth } = getLayoutMetrics(width);
+  return NAV_TABS.indexOf(tab) * slotWidth;
+}
+
+function BottomNavGradient({
+  height,
+  bottom,
+  color,
+  width,
+}: {
+  height: number;
+  bottom: number;
+  color: string;
+  width: number;
+}) {
+  return (
+    <View style={[styles.gradientShell, { height, bottom }]} pointerEvents="none">
+      <Svg width={width} height={height}>
+        <Defs>
+          <LinearGradient id="bottomNavFade" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor={color} stopOpacity="0" />
+            <Stop offset="0.35" stopColor={color} stopOpacity="0.18" />
+            <Stop offset="0.65" stopColor={color} stopOpacity="0.42" />
+            <Stop offset="1" stopColor={color} stopOpacity="0.62" />
+          </LinearGradient>
+        </Defs>
+        <Rect x={0} y={0} width={width} height={height} fill="url(#bottomNavFade)" />
+      </Svg>
+    </View>
+  );
+}
+
+function BottomNavigation({
+  value,
+  onChange,
+}: {
+  value: NavTab;
+  onChange: (next: NavTab) => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
+
+  const navBottom = Math.max(insets.bottom + BOTTOM_NAV_BOTTOM_GAP, BOTTOM_NAV_BOTTOM_GAP);
+  const gradientBottom = navBottom + PILL_HEIGHT + 8;
+  const gradientColor = GRADIENT_LIGHT;
+
+  const pillBg = '#E3E3E3';
+  const chipBg = '#ffffff';
+
+  const [selectedOption, setSelectedOption] = useState<NavTab>(value);
+  const [pillWidth, setPillWidth] = useState(0);
+
+  const chipTranslateX = useRef(new Animated.Value(0)).current;
+  const chipScale = useRef(new Animated.Value(1)).current;
+
+  const pillWidthRef = useRef(0);
+  const selectedRef = useRef<NavTab>(value);
+  selectedRef.current = selectedOption;
+
+  const chipLayout = pillWidth > 0 ? getLayoutMetrics(pillWidth) : null;
+
+  const animateChip = useCallback((tab: NavTab, width: number) => {
+    Animated.parallel([
+      Animated.spring(chipTranslateX, {
+        ...SLIDE_SPRING,
+        toValue: getChipTranslateX(tab, width),
+      }),
+      Animated.sequence([
+        Animated.spring(chipScale, { ...SCALE_SPRING, toValue: 0.94 }),
+        Animated.spring(chipScale, { ...SCALE_SPRING, toValue: 1 }),
+      ]),
+    ]).start();
+  }, [chipScale, chipTranslateX]);
+
+  // Sync from controlled prop (e.g. top buttons or back actions)
+  useEffect(() => {
+    if (value === selectedRef.current) return;
+    setSelectedOption(value);
+    selectedRef.current = value;
+    if (pillWidthRef.current > 0) {
+      chipTranslateX.setValue(getChipTranslateX(value, pillWidthRef.current));
+    }
+  }, [value, chipTranslateX]);
+
+  const handlePillLayout = (e: { nativeEvent: { layout: { width: number } } }) => {
+    const w = e.nativeEvent.layout.width;
+    if (w === pillWidthRef.current) return;
+    pillWidthRef.current = w;
+    setPillWidth(w);
+    chipTranslateX.setValue(getChipTranslateX(selectedRef.current, w));
+  };
+
+  const handleSelect = (tab: NavTab) => {
+    void hapticTap();
+    if (tab !== selectedRef.current) void playUiSound('navigation');
+    setSelectedOption(tab);
+    selectedRef.current = tab;
+    if (pillWidthRef.current > 0) animateChip(tab, pillWidthRef.current);
+    onChange(tab);
+  };
+
+  const getIcon = (tab: NavTab) => {
+    switch (tab) {
+      case 'home':
+        return <HomeIcon width={ICON_SIZE} height={ICON_SIZE} />;
+      case 'customize':
+        return <CustomizeIcon width={ICON_SIZE} height={ICON_SIZE} />;
+      case 'themes':
+        return <ThemesIcon width={ICON_SIZE} height={ICON_SIZE} />;
+      case 'settings':
+        return <SettingsIcon width={ICON_SIZE} height={ICON_SIZE} />;
+    }
+  };
+
+  return (
+    <View style={styles.chromeRoot} pointerEvents="box-none">
+      <BottomNavGradient
+        height={BOTTOM_NAV_FADE_HEIGHT}
+        bottom={gradientBottom}
+        color={gradientColor}
+        width={windowWidth}
+      />
+      <View style={[styles.container, { bottom: navBottom }]}>
+        <View style={[styles.pill, { backgroundColor: pillBg }]} onLayout={handlePillLayout}>
+          {chipLayout && (
+            <>
+              <Animated.View
+                pointerEvents="none"
+                style={[
+                  styles.chip,
+                  {
+                    left: chipLayout.chipBaseLeft,
+                    width: chipLayout.chipWidth,
+                    backgroundColor: chipBg,
+                    transform: [
+                      { translateX: chipTranslateX },
+                      { scale: chipScale },
+                    ],
+                  },
+                ]}
+              />
+
+              {NAV_TABS.map((tab) => (
+                <TouchableOpacity
+                  key={tab}
+                  style={styles.slot}
+                  onPress={() => handleSelect(tab)}
+                  activeOpacity={0.65}
+                  testID={`bottom-nav-${tab}`}
+                >
+                  {getIcon(tab)}
+                </TouchableOpacity>
+              ))}
+            </>
+          )}
+        </View>
+      </View>
+    </View>
+  );
+}
 
 type LaunchpadCardProps = {
   icon: React.ReactNode;
@@ -447,388 +656,37 @@ function ApiKeysCard() {
   );
 }
 
-function LayoutStepperRow({
-  label,
-  hint,
-  value,
-  min,
-  max,
-  step,
-  disabled,
-  onChange,
-}: {
-  label: string;
-  hint: string;
-  value: number;
-  min: number;
-  max: number;
-  step: number;
-  disabled?: boolean;
-  onChange: (next: number) => void;
-}) {
-  const decrease = () => onChange(Math.max(min, value - step));
-  const increase = () => onChange(Math.min(max, value + step));
-
-  return (
-    <View style={styles.layoutStepperRow}>
-      <View style={styles.layoutStepperText}>
-        <Text style={styles.fieldLabel}>{label}</Text>
-        <Text style={styles.fieldHint}>{hint}</Text>
-      </View>
-      <View style={styles.stepper}>
-        <Pressable
-          style={[styles.stepperButton, disabled && styles.stepperButtonDisabled]}
-          onPress={decrease}
-          disabled={disabled || value <= min}>
-          <Text style={styles.stepperButtonText}>−</Text>
-        </Pressable>
-        <Text style={styles.stepperValue}>{value} dp</Text>
-        <Pressable
-          style={[styles.stepperButton, disabled && styles.stepperButtonDisabled]}
-          onPress={increase}
-          disabled={disabled || value >= max}>
-          <Text style={styles.stepperButtonText}>+</Text>
-        </Pressable>
-      </View>
-    </View>
-  );
-}
-
-function KeyboardLayoutCard() {
-  const [layout, setLayout] = useState<KeyboardLayoutSettings>(
-    DEFAULT_KEYBOARD_LAYOUT_SETTINGS,
-  );
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    void ensureLayoutLoaded().then(() => {
-      setLayout(getKeyboardLayoutSettings());
-      setLoading(false);
-    });
-  }, []);
-
-  const update = (key: keyof KeyboardLayoutSettings, value: number) => {
-    setLayout(current => ({...current, [key]: value}));
-    void updateKeyboardLayoutSetting(key, value);
-  };
-
-  const handleReset = () => {
-    setLayout(DEFAULT_KEYBOARD_LAYOUT_SETTINGS);
-    void setKeyboardLayoutSettings(DEFAULT_KEYBOARD_LAYOUT_SETTINGS);
-  };
-
-  return (
-    <View style={styles.card}>
-      <Text style={styles.cardTitle}>Keyboard layout</Text>
-      <Text style={styles.hint}>
-        Tune key size and spacing. Changes apply to the TypeBase keyboard
-        immediately.
-      </Text>
-
-      <LayoutStepperRow
-        label="Key height"
-        hint="How tall each letter key is."
-        value={layout.keyHeight}
-        min={40}
-        max={64}
-        step={2}
-        disabled={loading}
-        onChange={value => update('keyHeight', value)}
-      />
-
-      <View style={styles.themeDivider} />
-
-      <LayoutStepperRow
-        label="Key gap"
-        hint="Horizontal space between keys on a row."
-        value={layout.keyGap}
-        min={0}
-        max={12}
-        step={1}
-        disabled={loading}
-        onChange={value => update('keyGap', value)}
-      />
-
-      <View style={styles.themeDivider} />
-
-      <LayoutStepperRow
-        label="Row gap"
-        hint="Vertical space between keyboard rows."
-        value={layout.keyRowMargin}
-        min={0}
-        max={20}
-        step={1}
-        disabled={loading}
-        onChange={value => update('keyRowMargin', value)}
-      />
-
-      <Pressable
-        style={styles.linkButton}
-        onPress={handleReset}
-        disabled={loading}>
-        <Text style={styles.linkText}>Reset layout to defaults</Text>
-      </Pressable>
-    </View>
-  );
-}
-
-function KeyboardThemeCard() {
-  const [isDark, setIsDark] = useState(false);
-  const [isQuivox, setIsQuivox] = useState(false);
-  const [isCustom, setIsCustom] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [customThemeJson, setCustomThemeJson] = useState(
-    `{
-  "container": "#000000",
-  "pluginCard": "#07070D",
-  "pluginCardSecondary": "#0D0D16",
-  "borderSubtle": "#1A1A26",
-  "suggestionDivider": "#2A2A3A",
-
-  "letterKey": "#1A1A22",
-  "letterKeyPressed": "#252533",
-  "modifierKey": "#00C2A8",
-  "modifierKeyPressed": "#009A86",
-  "spaceKey": "#FFB020",
-  "spaceKeyPressed": "#E79A0E",
-  "enter": "#FF2D55",
-  "enterPressed": "#C81F41",
-
-  "label": "#E9EEF6",
-  "spaceLabel": "#111827",
-  "icon": "#E9EEF6",
-  "iconMuted": "#A9B4C2",
-  "iconOnEnter": "#FFFFFF",
-
-  "essentialsAccent": "#FFB020",
-  "swipeTrail": "#FFB020",
-  "launcherKey": "#00C2A8",
-
-  "chipSelectedBackground": "#00C2A8",
-  "chipSelectedText": "#FFFFFF",
-
-  "keyRipple": "rgba(255, 255, 255, 0.18)"
-}`,
-  );
-
-  useEffect(() => {
-    void ensureThemeLoaded().then(() => {
-      setIsDark(getKeyboardColorScheme() === 'dark');
-      setIsQuivox(getKeyboardDesign() === 'quivox');
-      setIsCustom(getKeyboardDesign() === 'custom');
-      setCustomThemeJson(getKeyboardCustomTheme());
-      setLoading(false);
-    });
-  }, []);
-
-  const handleDarkToggle = (enabled: boolean) => {
-    setIsDark(enabled);
-    void setKeyboardColorScheme(enabled ? 'dark' : 'light');
-  };
-
-  const handleQuivoxToggle = (enabled: boolean) => {
-    setIsQuivox(enabled);
-    if (enabled) {
-      setIsCustom(false);
-      void setKeyboardDesign('quivox');
-      return;
-    }
-    if (isCustom) {
-      // If custom is enabled, turning Quivox off should not change it.
-      return;
-    }
-    void setKeyboardDesign('typebase');
-  };
-
-  const handleCustomToggle = (enabled: boolean) => {
-    setIsCustom(enabled);
-    if (enabled) {
-      setIsQuivox(false);
-      void setKeyboardDesign('custom');
-    } else {
-      void setKeyboardDesign('typebase');
-    }
-  };
-
-  return (
-    <View style={styles.card}>
-      <View style={styles.themeToggleRow}>
-        <View style={styles.themeToggleText}>
-          <Text style={styles.cardTitle}>Dark keyboard</Text>
-          <Text style={styles.hint}>
-            Switch the TypeBase keyboard between light and dark.
-          </Text>
-        </View>
-        <Switch
-          value={isDark}
-          onValueChange={handleDarkToggle}
-          disabled={loading}
-          trackColor={{false: '#334155', true: '#2563EB'}}
-          thumbColor="#F8FAFC"
-        />
-      </View>
-
-      <View style={styles.themeDivider} />
-
-      <View style={styles.themeToggleRow}>
-        <View style={styles.themeToggleText}>
-          <Text style={styles.cardTitle}>Quivox Design</Text>
-          <Text style={styles.hint}>
-            Use the Quivox keyboard look — lilac keys, blue modifiers, gold space.
-          </Text>
-        </View>
-        <Switch
-          value={isQuivox}
-          onValueChange={handleQuivoxToggle}
-          disabled={loading || isCustom}
-          trackColor={{false: '#334155', true: '#2563EB'}}
-          thumbColor="#F8FAFC"
-        />
-      </View>
-
-      <View style={styles.themeDivider} />
-
-      <View style={styles.themeToggleRow}>
-        <View style={styles.themeToggleText}>
-          <Text style={styles.cardTitle}>Custom Theme JSON</Text>
-          <Text style={styles.hint}>
-            Paste a theme palette JSON (colors + keys) and apply it.
-          </Text>
-        </View>
-        <Switch
-          value={isCustom}
-          onValueChange={handleCustomToggle}
-          disabled={loading}
-          trackColor={{false: '#334155', true: '#2563EB'}}
-          thumbColor="#F8FAFC"
-        />
-      </View>
-
-      {isCustom ? (
-        <View style={{gap: 8}}>
-          <Text style={styles.fieldLabel}>Theme JSON</Text>
-          <TextInput
-            style={styles.input}
-            value={customThemeJson}
-            onChangeText={setCustomThemeJson}
-            multiline
-            editable={!loading}
-          />
-          <Pressable
-            style={[
-              styles.primaryButton,
-              {backgroundColor: '#2563EB', marginTop: 0},
-            ]}
-            onPress={() => {
-              try {
-                // Ensure it's valid JSON before sending to native.
-                JSON.parse(customThemeJson);
-                void setKeyboardCustomTheme(customThemeJson);
-                void setKeyboardDesign('custom');
-              } catch {
-                // No native-side error UI right now; we rely on this local guard.
-              }
-            }}
-            disabled={loading}
-          >
-            <Text style={styles.primaryButtonText}>Apply custom theme</Text>
-          </Pressable>
-          <Pressable
-            style={[styles.linkButton, {paddingVertical: 0}]}
-            onPress={() => {
-              setCustomThemeJson(`{
-  "container": "#000000",
-  "pluginCard": "#07070D",
-  "pluginCardSecondary": "#0D0D16",
-  "borderSubtle": "#1A1A26",
-  "suggestionDivider": "#2A2A3A",
-  "letterKey": "#1A1A22",
-  "letterKeyPressed": "#252533",
-  "modifierKey": "#00C2A8",
-  "modifierKeyPressed": "#009A86",
-  "spaceKey": "#FFB020",
-  "spaceKeyPressed": "#E79A0E",
-  "enter": "#FF2D55",
-  "enterPressed": "#C81F41",
-  "label": "#E9EEF6",
-  "spaceLabel": "#111827",
-  "icon": "#E9EEF6",
-  "iconMuted": "#A9B4C2",
-  "iconOnEnter": "#FFFFFF",
-  "essentialsAccent": "#FFB020",
-  "swipeTrail": "#FFB020",
-  "launcherKey": "#00C2A8",
-  "chipSelectedBackground": "#00C2A8",
-  "chipSelectedText": "#FFFFFF",
-  "keyRipple": "rgba(255, 255, 255, 0.18)"
-}`);
-            }}
-          >
-            <Text style={{color: '#64748B', fontSize: 13}}>
-              Reset template
-            </Text>
-          </Pressable>
-        </View>
-      ) : null}
-    </View>
-  );
-}
-
 function SetupScreen() {
-  const [route, setRoute] = useState<'launchpad' | 'settings' | 'keyboard'>(
-    'launchpad',
-  );
+  const [tab, setTab] = useState<NavTab>('home');
 
-  if (route === 'settings') {
+  const screenForTab = (): React.ReactNode => {
+    if (tab === 'settings') {
+      return (
+        <SettingsScreen
+          onBack={() => setTab('home')}
+          onOpenKeyboard={() => setTab('customize')}
+        />
+      );
+    }
+    if (tab === 'customize') {
+      return <CustomizeScreen onBack={() => setTab('home')} />;
+    }
+    if (tab === 'themes') {
+      return <ThemesScreen onBack={() => setTab('home')} />;
+    }
     return (
-      <SettingsScreen
-        onBack={() => setRoute('launchpad')}
-        onOpenKeyboard={() => setRoute('keyboard')}
+      <LaunchpadScreen
+        onOpenSettings={() => setTab('settings')}
+        onOpenKeyboard={() => setTab('customize')}
       />
     );
-  }
-  if (route === 'keyboard') {
-    return <KeyboardSettingsScreen onBack={() => setRoute('launchpad')} />;
-  }
+  };
+
   return (
-    <LaunchpadScreen
-      onOpenSettings={() => setRoute('settings')}
-      onOpenKeyboard={() => setRoute('keyboard')}
-    />
-  );
-}
-
-function KeyboardSettingsScreen({onBack}: {onBack: () => void}) {
-  return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor={C.bg} />
-      <View style={styles.topRightActions}>
-        <Pressable style={styles.topRightSettings} onPress={onBack}>
-          <BackIcon width={18} height={18} color={C.text} />
-        </Pressable>
-      </View>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.pageTitle}>Keyboard</Text>
-
-        <KeyboardLayoutCard />
-
-        <KeyboardThemeCard />
-
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Try it here</Text>
-          <Text style={styles.hint}>
-            Changes apply live. Tap below and use TypeBase Keyboard to feel the
-            new layout.
-          </Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Tap here to test your keyboard..."
-            placeholderTextColor="#64748B"
-            multiline
-          />
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+    <View style={{ flex: 1 }}>
+      {screenForTab()}
+      <BottomNavigation value={tab} onChange={setTab} />
+    </View>
   );
 }
 
@@ -851,107 +709,36 @@ function LaunchpadScreen({
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <Text style={styles.pageTitle}>Launchpad</Text>
 
-        <Pressable
-          style={styles.keyboardShortcut}
-          onPress={onOpenKeyboard}>
-          <View style={styles.keyboardShortcutIcon}>
-            <SymbolsIcon width={HOME_ICON} height={HOME_ICON} color={C.text} />
+        <View style={styles.testSection}>
+          <View style={styles.testInputBox}>
+            <TextInput
+              style={styles.testInputField}
+              placeholder="TEST KEYBOARD HERE"
+              placeholderTextColor="#000000"
+              multiline
+            />
           </View>
-          <View style={styles.keyboardShortcutText}>
-            <Text style={styles.keyboardShortcutTitle}>Customize keyboard</Text>
-            <Text style={styles.keyboardShortcutSub}>
-              Key height, gaps, themes, and more
-            </Text>
-          </View>
-          <Text style={styles.keyboardShortcutChevron}>›</Text>
-        </Pressable>
 
-        <Pressable
-          style={[styles.keyboardShortcut, styles.keyboardShortcutSpaced]}
-          onPress={onOpenSettings}>
-          <View style={styles.keyboardShortcutIcon}>
-            <ItemsIcon width={HOME_ICON} height={HOME_ICON} color={C.text} />
-          </View>
-          <View style={styles.keyboardShortcutText}>
-            <Text style={styles.keyboardShortcutTitle}>Settings</Text>
-            <Text style={styles.keyboardShortcutSub}>
-              AI provider, API keys, and keyboard setup
-            </Text>
-          </View>
-          <Text style={styles.keyboardShortcutChevron}>›</Text>
-        </Pressable>
+          <View style={styles.configRow}>
+            <View style={[styles.configCard, styles.configCardLeft]}>
+              <Text style={[styles.configLabel, styles.configLabelTopLeft]}>
+                AI CONFIG
+              </Text>
+              <View style={styles.configIconBottomLeft}>
+                <AiConfigIcon width={CONFIG_AI_W} height={CONFIG_AI_H} />
+              </View>
+            </View>
 
-        <View style={styles.stack}>
-          <LaunchpadCard
-            position="top"
-            icon={<ClipboardIcon width={HOME_ICON} height={HOME_ICON} />}
-            title="CLIPBOARD"
-            description="Swipe clipboard history and quick picks."
-          />
-          <View style={styles.divider} />
-          <LaunchpadCard
-            position="mid"
-            icon={<TranslateIcon width={HOME_ICON} height={HOME_ICON} />}
-            title="TRANSLATE"
-            description="Instant translate suggestions and quick replace."
-          />
-          <View style={styles.divider} />
-          <LaunchpadCard
-            position="mid"
-            icon={<ArtificialIcon width={HOME_ICON} height={HOME_ICON} />}
-            title="REWRITE"
-            description="AI rewrite tools for punctuation and phrasing."
-          />
-          <View style={styles.divider} />
-          <LaunchpadCard
-            position="mid"
-            icon={<EssentialsIcon width={HOME_ICON} height={HOME_ICON} />}
-            title="ESSENTIALS"
-            description="Custom keywords, snippets, and fast insert."
-          />
-          <View style={styles.divider} />
-          <LaunchpadCard
-            position="mid"
-            icon={<CalculatorIcon width={HOME_ICON} height={HOME_ICON} />}
-            title="CALCULATOR"
-            description="A built-in keypad for numbers and math."
-          />
-          <View style={styles.divider} />
-          <LaunchpadCard
-            position="mid"
-            icon={<AutocorrectIcon width={HOME_ICON} height={HOME_ICON} />}
-            title="AUTOCORRECT"
-            description="Smarter suggestions with learn-on-device."
-          />
-          <View style={styles.divider} />
-          <LaunchpadCard
-            position="mid"
-            icon={<GestureIcon width={HOME_ICON} height={HOME_ICON} />}
-            title="GESTURES"
-            description="Swipe typing + special long-press keys."
-          />
-          <View style={styles.divider} />
-          <LaunchpadCard
-            position="mid"
-            icon={<EmojiIcon width={HOME_ICON} height={HOME_ICON} />}
-            title="EMOJI"
-            description="Emoji panel with categories and fast insertion."
-          />
-          <View style={styles.divider} />
-          <LaunchpadCard
-            position="mid"
-            icon={<VoiceIcon width={HOME_ICON} height={HOME_ICON} />}
-            title="VOICE"
-            description="Speech-to-text with live preview."
-          />
-          <View style={styles.divider} />
-          <LaunchpadCard
-            position="bottom"
-            icon={<LinkIcon width={HOME_ICON} height={HOME_ICON} />}
-            title="THEMES"
-            description="Paste a theme JSON and instantly apply it."
-            onPress={onOpenKeyboard}
-          />
+            <View style={[styles.configCard, styles.configCardRight]}>
+              <View style={styles.configIconTopRight}>
+                <KeyboardPermIcon width={CONFIG_PERM_SIZE} height={CONFIG_PERM_SIZE} />
+              </View>
+              <View style={styles.configLabelBottomLeft}>
+                <Text style={styles.configLabel}>KEYBOARD</Text>
+                <Text style={styles.configLabel}>PERMS</Text>
+              </View>
+            </View>
+          </View>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -1064,6 +851,10 @@ function SettingsScreen({
 }
 
 export default function App() {
+  const [fontsLoaded] = useFonts({
+    FragmentMono: require('./assets/FragmentMono-Regular.ttf'),
+  });
+
   useEffect(() => {
     if (Platform.OS !== 'android') {
       return;
@@ -1079,6 +870,14 @@ export default function App() {
     );
   }, []);
 
+  if (!fontsLoaded) {
+    return (
+      <SafeAreaProvider>
+        <SafeAreaView style={styles.safeArea} />
+      </SafeAreaProvider>
+    );
+  }
+
   return (
     <SafeAreaProvider>
       <SetupScreen />
@@ -1093,14 +892,15 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 18,
-    paddingTop: 104,
-    paddingBottom: 24,
-    gap: 20,
+    paddingTop: 72,
+    paddingBottom: 110,
+    gap: 10,
   },
   pageTitle: {
     fontSize: 40,
     color: C.text,
-    marginBottom: 20,
+    marginBottom: 8,
+    letterSpacing: TEXT_KERNING,
   },
   keyboardShortcut: {
     flexDirection: 'row',
@@ -1166,6 +966,7 @@ const styles = StyleSheet.create({
     color: C.text,
     fontSize: 13,
     fontWeight: '600',
+    letterSpacing: TEXT_KERNING,
   },
   card: {
     backgroundColor: C.card,
@@ -1311,52 +1112,6 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 4,
   },
-  themeDivider: {
-    height: 1,
-    backgroundColor: C.border,
-    marginVertical: 4,
-  },
-  layoutStepperRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  layoutStepperText: {
-    flex: 1,
-    gap: 2,
-  },
-  stepper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stepperButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: C.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: C.bg,
-  },
-  stepperButtonDisabled: {
-    opacity: 0.4,
-  },
-  stepperButtonText: {
-    color: C.text,
-    fontSize: 20,
-    lineHeight: 22,
-    fontWeight: '500',
-  },
-  stepperValue: {
-    minWidth: 52,
-    textAlign: 'center',
-    color: C.text,
-    fontSize: 14,
-    fontWeight: '600',
-    fontVariant: ['tabular-nums'],
-  },
   providerOption: {
     borderWidth: 1,
     borderColor: C.border,
@@ -1449,5 +1204,118 @@ const styles = StyleSheet.create({
   },
   launchpadPressable: {
     // keep pressable layout identical to stack items
+  },
+
+  testSection: {
+    gap: 8,
+  },
+  testInputBox: {
+    backgroundColor: '#DDDCDC',
+    borderRadius: 24,
+    padding: 12,
+    minHeight: 64,
+  },
+  testInputField: {
+    fontFamily: 'FragmentMono',
+    fontSize: 15,
+    color: C.text,
+    textAlign: 'center',
+    textAlignVertical: 'center',
+    minHeight: 40,
+    letterSpacing: TEXT_KERNING,
+  },
+
+  configRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  configCard: {
+    backgroundColor: C.card,
+    borderRadius: CARD_R,
+    position: 'relative',
+  },
+  configCardLeft: {
+    flex: 1.65,
+    height: 192,
+  },
+  configCardRight: {
+    flex: 1,
+    height: 192,
+  },
+  configLabel: {
+    fontFamily: 'FragmentMono',
+    fontSize: 16,
+    fontWeight: '400',
+    color: C.text,
+    letterSpacing: TEXT_KERNING,
+    lineHeight: 18,
+  },
+  configLabelTopLeft: {
+    position: 'absolute',
+    top: 14,
+    left: 14,
+  },
+  configLabelBottomLeft: {
+    position: 'absolute',
+    bottom: 14,
+    left: 14,
+    flexDirection: 'column',
+    gap: 0,
+  },
+  configIconBottomLeft: {
+    position: 'absolute',
+    bottom: CONFIG_ICON_INSET,
+    left: CONFIG_ICON_INSET,
+  },
+  configIconTopRight: {
+    position: 'absolute',
+    top: CONFIG_ICON_INSET,
+    right: CONFIG_ICON_INSET,
+  },
+
+  // Bottom navigation (exact replica visuals)
+  chromeRoot: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 100,
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+  },
+  gradientShell: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 0,
+  },
+  container: {
+    position: 'absolute',
+    left: '50%',
+    marginLeft: -DOCK_WIDTH / 2,
+    width: DOCK_WIDTH,
+    alignItems: 'center',
+    zIndex: 1,
+  },
+  pill: {
+    width: '100%',
+    height: PILL_HEIGHT,
+    borderRadius: PILL_RADIUS,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: PILL_PADDING_H,
+    overflow: 'visible',
+  },
+  chip: {
+    position: 'absolute',
+    top: CHIP_V_MARGIN,
+    height: CHIP_HEIGHT,
+    borderRadius: CHIP_RADIUS,
+    zIndex: 0,
+  },
+  slot: {
+    flex: 1,
+    height: PILL_HEIGHT,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1,
   },
 });
