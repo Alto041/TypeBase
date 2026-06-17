@@ -14,6 +14,11 @@ export type KeyboardLayoutSettings = {
   keyGap: number;
   keyRowMargin: number;
   keyRadius: number;
+  /**
+   * When true, Enter key uses the "accent/red" palette.
+   * When false, Enter key uses the normal modifier key cap color.
+   */
+  enterKeyPreviewEnabled: boolean;
 };
 
 export const DEFAULT_KEYBOARD_LAYOUT_SETTINGS: KeyboardLayoutSettings = {
@@ -21,6 +26,7 @@ export const DEFAULT_KEYBOARD_LAYOUT_SETTINGS: KeyboardLayoutSettings = {
   keyGap: KEY_GAP,
   keyRowMargin: KEY_ROW_MARGIN,
   keyRadius: KEY_RADIUS,
+  enterKeyPreviewEnabled: true,
 };
 
 /** Touch slop into gaps — half the visual gap on each side of a key. */
@@ -169,11 +175,12 @@ const LIGHT_PALETTE: KeyboardPalette = {
 const DARK_PALETTE: KeyboardPalette = {
   container: '#1F1F1F',
   letterKey: '#353535',
-  modifierKey: '#353535',
-  spaceKey: '#353535',
+  // Non-alphanumeric keys use a slightly lighter neutral cap.
+  modifierKey: '#474747',
+  spaceKey: '#474747',
   letterKeyPressed: '#454545',
-  modifierKeyPressed: '#454545',
-  spaceKeyPressed: '#454545',
+  modifierKeyPressed: '#474747',
+  spaceKeyPressed: '#474747',
   pluginCard: '#353535',
   pluginCardSecondary: '#474747',
   enter: '#D71921',
@@ -264,10 +271,19 @@ export function createKeyboardTheme(
   customThemeJson?: string | null,
   layout: KeyboardLayoutSettings = DEFAULT_KEYBOARD_LAYOUT_SETTINGS,
 ) {
-  const palette =
+  let palette =
     design === 'custom'
       ? paletteForCustomTheme(scheme, customThemeJson)
       : paletteFor(scheme, design);
+
+  // "Enter key preview" override (dark theme only, as requested).
+  if (scheme === 'dark' && layout.enterKeyPreviewEnabled === false) {
+    palette = {
+      ...palette,
+      enter: '#474747',
+      enterPressed: '#474747',
+    };
+  }
 
   const numpadKeyHeight = Math.max(36, layout.keyHeight - 6);
 
@@ -289,6 +305,7 @@ export function createKeyboardTheme(
     keyRowMargin: layout.keyRowMargin,
     keyGap: layout.keyGap,
     keyRadius: layout.keyRadius,
+    enterKeyPreviewEnabled: layout.enterKeyPreviewEnabled,
     keyHitSlop: {
       horizontal: layout.keyGap / 2,
       vertical: layout.keyRowMargin / 2,

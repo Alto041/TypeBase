@@ -34,6 +34,7 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
 
   private var removePrefersNumpadListener: (() -> Unit)? = null
   private var removeKeyboardVisibilityListener: (() -> Unit)? = null
+  private var removeSupportsNewlineListener: (() -> Unit)? = null
   private var clipboardListener: ClipboardManager.OnPrimaryClipChangedListener? = null
   private val backspaceHandler = Handler(Looper.getMainLooper())
   private var backspaceHoldRunnable: Runnable? = null
@@ -60,6 +61,15 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
                 .emit(event, null)
           }
         }
+
+    removeSupportsNewlineListener =
+        KeyboardInputBridge.addSupportsNewlineListener { supports ->
+          if (reactApplicationContext.hasActiveReactInstance()) {
+            reactApplicationContext
+                .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                .emit("keyboardInputSupportsNewline", supports)
+          }
+        }
     val clipboardManager =
         reactApplicationContext.getSystemService(Context.CLIPBOARD_SERVICE) as
             ClipboardManager
@@ -79,6 +89,8 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     removePrefersNumpadListener = null
     removeKeyboardVisibilityListener?.invoke()
     removeKeyboardVisibilityListener = null
+    removeSupportsNewlineListener?.invoke()
+    removeSupportsNewlineListener = null
     clipboardListener?.let { listener ->
       val clipboardManager =
           reactApplicationContext.getSystemService(Context.CLIPBOARD_SERVICE) as
@@ -93,6 +105,11 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   @ReactMethod
   fun getPrefersNumpad(promise: Promise) {
     promise.resolve(KeyboardInputBridge.prefersNumpad())
+  }
+
+  @ReactMethod
+  fun getInputSupportsNewline(promise: Promise) {
+    promise.resolve(KeyboardInputBridge.currentInputSupportsNewline())
   }
 
   private fun learnedWordsPrefs() =
@@ -374,8 +391,17 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   @ReactMethod
   fun insertNewline() {
     val connection = KeyboardInputBridge.getInputConnection() ?: return
-    connection.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER))
-    connection.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER))
+    connection.commitText("\n", 1)
+  }
+
+  @ReactMethod
+  fun submitEnterKey() {
+    val connection = KeyboardInputBridge.getInputConnection() ?: return
+    if (KeyboardInputBridge.currentInputSupportsNewline()) {
+      connection.commitText("\n", 1)
+      return
+    }
+    KeyboardInputBridge.performEnterAction(connection)
   }
 
   @ReactMethod
@@ -954,7 +980,7 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     private const val DEFAULT_KEYBOARD_CUSTOM_THEME = "{}"
     private const val KEYBOARD_LAYOUT_KEY = "keyboard_layout"
     private const val DEFAULT_KEYBOARD_LAYOUT =
-        """{"keyHeight":52,"keyGap":4,"keyRowMargin":10,"keyRadius":6}"""
+        """{"keyHeight":52,"keyGap":4,"keyRowMargin":10,"keyRadius":6,"enterKeyPreviewEnabled":true}"""
     private const val DEFAULT_API_KEYS =
         """{"geminiApiKey":"","speechmaticsApiKey":""}"""
     private const val DEFAULT_GESTURE_SETTINGS =

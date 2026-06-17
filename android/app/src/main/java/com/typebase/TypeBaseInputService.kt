@@ -60,12 +60,17 @@ class TypeBaseInputService : InputMethodService() {
 
   override fun onStartInput(attribute: EditorInfo?, restarting: Boolean) {
     super.onStartInput(attribute, restarting)
+    KeyboardInputBridge.setCurrentEditorInfo(attribute)
     KeyboardInputBridge.setPrefersNumpad(KeyboardInputBridge.shouldPreferNumpad(attribute))
+    KeyboardInputBridge.setSupportsNewline(KeyboardInputBridge.shouldAllowNewline(attribute))
   }
 
   override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
     super.onStartInputView(info, restarting)
+    KeyboardInputBridge.setCurrentEditorInfo(info)
     KeyboardInputBridge.setPrefersNumpad(KeyboardInputBridge.shouldPreferNumpad(info))
+    // Always notify JS when the input view opens; onStartInput may fire before RN mounts.
+    KeyboardInputBridge.refreshSupportsNewline(info)
     resumeReactForKeyboard()
     container?.let { mountKeyboardSurface(it) }
   }
@@ -196,10 +201,12 @@ class TypeBaseInputService : InputMethodService() {
     val app = application as? ReactApplication
     app?.reactHost?.removeReactInstanceEventListener(reactInstanceListener)
     pauseReactForKeyboardIfNeeded()
-    reactSurface?.stop()
-    reactSurface = null
+    keyboardView?.let { view -> (view.parent as? ViewGroup)?.removeView(view) }
     keyboardView = null
     container = null
+    val surface = reactSurface
+    reactSurface = null
+    surface?.stop()
     mainHandler.removeCallbacksAndMessages(null)
     if (KeyboardInputBridge.inputService === this) {
       KeyboardInputBridge.inputService = null

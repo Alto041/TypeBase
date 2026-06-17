@@ -147,6 +147,7 @@ type LetterKeyboardRowsProps = {
   capsLocked: boolean;
   onKeyPress: (keyDef: KeyDefinition) => void;
   keyGestures?: KeyGesturesConfig;
+  enterKeyNextLineEnabled: boolean;
 };
 
 const LetterKeyboardRows = React.memo(function LetterKeyboardRows({
@@ -158,6 +159,7 @@ const LetterKeyboardRows = React.memo(function LetterKeyboardRows({
   capsLocked,
   onKeyPress,
   keyGestures,
+  enterKeyNextLineEnabled,
 }: LetterKeyboardRowsProps) {
   const theme = useKeyboardTheme();
   const styles = useThemedStyles(createKeyboardAppStyles);
@@ -180,6 +182,7 @@ const LetterKeyboardRows = React.memo(function LetterKeyboardRows({
           }
           variant={layout === 'numpad' ? 'numpad' : undefined}
           rowStyle={layout === 'numpad' ? styles.numpadRow : undefined}
+          enterKeyNextLineEnabled={enterKeyNextLineEnabled}
         />
       ))}
     </SwipeTypingKeysHost>
@@ -228,6 +231,8 @@ function KeyboardBody() {
   const [layout, setLayout] = useState<KeyboardLayout>('letters');
   const [shiftOn, setShiftOn] = useState(false);
   const [capsLocked, setCapsLocked] = useState(false);
+  const [enterKeyNextLineEnabled, setEnterKeyNextLineEnabled] =
+    useState(false);
   const lastShiftTapRef = useRef(0);
   const userChoseLettersRef = useRef(false);
   const suggestionRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
@@ -310,6 +315,19 @@ function KeyboardBody() {
     mode.type === 'typing';
 
   const rows = useMemo(() => LAYOUTS[layout], [layout]);
+
+  useEffect(() => {
+    void keyboardBridge.getInputSupportsNewline().then(supports => {
+      setEnterKeyNextLineEnabled(Boolean(supports));
+    });
+    const subscription = DeviceEventEmitter.addListener(
+      'keyboardInputSupportsNewline',
+      (supports: boolean) => {
+        setEnterKeyNextLineEnabled(Boolean(supports));
+      },
+    );
+    return () => subscription.remove();
+  }, []);
 
   useEffect(() => {
     initKeyPreview();
@@ -1009,7 +1027,7 @@ function KeyboardBody() {
           return;
         case 'enter':
           void commitTypedWordBoundary(() => {
-            keyboardBridge.insertNewline();
+            keyboardBridge.submitEnterKey();
           });
           return;
         case 'shift':
@@ -1486,6 +1504,9 @@ function KeyboardBody() {
               capsLocked={capsLocked}
               onKeyPress={handleKeyPress}
               keyGestures={keyGestures}
+            enterKeyNextLineEnabled={
+              mode.type === 'typing' ? enterKeyNextLineEnabled : false
+            }
             />
           ) : null}
         </View>

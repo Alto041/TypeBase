@@ -381,11 +381,6 @@ export function SettingsScreen({
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={C.bg} />
-      <View style={styles.topRightActions}>
-        <Pressable style={styles.topRightSettings} onPress={onBack}>
-          <BackIcon width={18} height={18} color={C.text} />
-        </Pressable>
-      </View>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <Text style={styles.pageTitle}>Settings</Text>
 

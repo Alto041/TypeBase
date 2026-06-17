@@ -17,6 +17,7 @@ type SharedRowProps = {
   keyHeight?: number;
   variant?: KeyVariant;
   rowStyle?: StyleProp<ViewStyle>;
+  enterKeyNextLineEnabled?: boolean;
 };
 
 type KeyboardRowProps = SharedRowProps & {
@@ -65,6 +66,7 @@ function renderRowKey(
       keyGestures={props.keyGestures}
       keyHeight={props.keyHeight}
       variant={props.variant}
+      enterKeyNextLineEnabled={props.enterKeyNextLineEnabled}
       style={style}
     />
   );
@@ -80,6 +82,7 @@ function KeyboardRowComponent({
   keyHeight,
   variant,
   rowStyle,
+  enterKeyNextLineEnabled,
 }: KeyboardRowProps) {
   const styles = useThemedStyles(createRowStyles);
   const shared: SharedRowProps = {
@@ -91,6 +94,7 @@ function KeyboardRowComponent({
     keyHeight,
     variant,
     rowStyle,
+    enterKeyNextLineEnabled,
   };
 
   return (

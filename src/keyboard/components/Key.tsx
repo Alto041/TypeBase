@@ -14,6 +14,7 @@ import {
 import ShiftArrowIcon from '../../../assets/arrow_forward_ios.svg';
 import EnterIcon from '../../../assets/enter.svg';
 import QuivoxEnterIcon from '../../../assets/quivox_enter.svg';
+import NextLineIcon from '../../../assets/next_line.svg';
 import NumbersIcon from '../../../assets/123.svg';
 import SymbolsIcon from '../../../assets/symbols.svg';
 import RocketLaunchIcon from '../../../assets/rocket_launch.svg';
@@ -70,6 +71,7 @@ type KeyProps = {
   keyHeight?: number;
   variant?: KeyVariant;
   style?: StyleProp<ViewStyle>;
+  enterKeyNextLineEnabled?: boolean;
 };
 
 function KeyComponent({
@@ -81,6 +83,7 @@ function KeyComponent({
   keyGestures,
   keyHeight: keyHeightProp,
   variant,
+  enterKeyNextLineEnabled,
   style,
 }: KeyProps) {
   const theme = useKeyboardTheme();
@@ -110,8 +113,11 @@ function KeyComponent({
     keyDef.type !== 'enter-backspace' &&
     keyDef.type !== 'essentials-save' &&
     keyDef.type !== 'essentials-back' &&
-    keyDef.type !== 'shift' &&
-    keyDef.type !== 'backspace';
+    // Numbers/symbols are "alpha-numeric" style keys and should keep the
+    // letterKey colors (not the modifierKey neutral caps).
+    keyDef.type !== 'numbers' &&
+    keyDef.type !== 'symbols' &&
+    keyDef.type !== 'shift';
   const isEnterKey = keyDef.type === 'enter';
   const isEnterAction =
     keyDef.type === 'enter' || keyDef.type === 'essentials-save';
@@ -280,6 +286,8 @@ function KeyComponent({
   const keyContent = isEnterAction ? (
     theme.design === 'quivox' && isEnterKey ? (
       <QuivoxEnterIcon width={22} height={19} />
+    ) : isEnterKey && enterKeyNextLineEnabled ? (
+      <NextLineIcon width={20} height={20} color={keyIconColor} />
     ) : (
       <EnterIcon width={20} height={20} color={keyIconColor} />
     )
@@ -595,6 +603,7 @@ function keyPropsAreEqual(prev: KeyProps, next: KeyProps): boolean {
     prev.keyGestures === next.keyGestures &&
     prev.keyHeight === next.keyHeight &&
     prev.variant === next.variant &&
+    prev.enterKeyNextLineEnabled === next.enterKeyNextLineEnabled &&
     prev.style === next.style
   );
 }

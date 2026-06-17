@@ -11,6 +11,7 @@ type KeyboardModuleType = {
   getEssentials: () => Promise<string>;
   setEssentials: (json: string) => Promise<boolean>;
   getPrefersNumpad: () => Promise<boolean>;
+  getInputSupportsNewline: () => Promise<boolean>;
   getClipboardText: () => Promise<string>;
   getClipboardContent: () => Promise<ClipboardContent>;
   insertClipboardImage: (imagePath: string) => Promise<boolean>;
@@ -20,6 +21,7 @@ type KeyboardModuleType = {
   recordLearnedWord: (word: string) => Promise<number>;
   replaceWordPrefix: (prefixLength: number, word: string) => void;
   insertNewline: () => void;
+  submitEnterKey: () => void;
   dismissKeyboard: () => void;
   openInputMethodSettings: () => void;
   performKeyHaptic: () => void;
@@ -106,6 +108,12 @@ export const keyboardBridge: KeyboardModuleType = {
     }
     return Promise.resolve(false);
   },
+  getInputSupportsNewline: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.getInputSupportsNewline) {
+      return KeyboardModule.getInputSupportsNewline() as Promise<boolean>;
+    }
+    return Promise.resolve(false);
+  },
   getClipboardText: () => {
     if (Platform.OS === 'android' && KeyboardModule?.getClipboardText) {
       return KeyboardModule.getClipboardText() as Promise<string>;
@@ -165,6 +173,11 @@ export const keyboardBridge: KeyboardModuleType = {
   insertNewline: () => {
     if (Platform.OS === 'android' && KeyboardModule?.insertNewline) {
       KeyboardModule.insertNewline();
+    }
+  },
+  submitEnterKey: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.submitEnterKey) {
+      KeyboardModule.submitEnterKey();
     }
   },
   dismissKeyboard: () => {
@@ -332,7 +345,7 @@ export const keyboardBridge: KeyboardModuleType = {
       return KeyboardModule.getKeyboardLayoutSettings() as Promise<string>;
     }
     return Promise.resolve(
-      '{"keyHeight":52,"keyGap":4,"keyRowMargin":10,"keyRadius":6}',
+      '{"keyHeight":52,"keyGap":4,"keyRowMargin":10,"keyRadius":6,"enterKeyPreviewEnabled":true}',
     );
   },
   setKeyboardLayoutSettings: (json: string) => {

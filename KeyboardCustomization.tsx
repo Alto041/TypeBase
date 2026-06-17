@@ -255,11 +255,6 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={C.bg} />
-      <View style={styles.topRightActions}>
-        <Pressable style={styles.topRightSettings} onPress={onBack}>
-          <BackIcon width={18} height={18} color={C.text} />
-        </Pressable>
-      </View>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <Text style={styles.pageTitle}>Customize</Text>
 
@@ -468,11 +463,6 @@ export function ThemesScreen({onBack}: {onBack: () => void}) {
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={C.bg} />
-      <View style={styles.topRightActions}>
-        <Pressable style={styles.topRightSettings} onPress={onBack}>
-          <BackIcon width={18} height={18} color={C.text} />
-        </Pressable>
-      </View>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <Text style={styles.pageTitle}>Themes</Text>
 

@@ -38,7 +38,7 @@ import ThemesIcon from './assets/themes.svg';
 import SettingsIcon from './assets/settings.svg';
 
 import { CustomizeScreen, ThemesScreen } from './KeyboardCustomization';
-import { SettingsScreen } from './SettingsScreen';
+import { GeneralSettingsScreen } from './GeneralSettingsScreen';
 
 const C = {
   bg: '#f2f2f4',
@@ -317,9 +317,8 @@ function SetupScreen() {
   const screenForTab = (): React.ReactNode => {
     if (tab === 'settings') {
       return (
-        <SettingsScreen
+        <GeneralSettingsScreen
           onBack={() => setTab('home')}
-          onOpenKeyboard={() => setTab('customize')}
         />
       );
     }
@@ -331,7 +330,6 @@ function SetupScreen() {
     }
     return (
       <LaunchpadScreen
-        onOpenSettings={() => setTab('settings')}
         onOpenKeyboard={() => setTab('customize')}
       />
     );
@@ -346,21 +344,13 @@ function SetupScreen() {
 }
 
 function LaunchpadScreen({
-  onOpenSettings,
   onOpenKeyboard,
 }: {
-  onOpenSettings: () => void;
   onOpenKeyboard: () => void;
 }) {
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={C.bg} />
-      <View style={styles.topRightActions}>
-        <Pressable style={styles.topRightSettings} onPress={onOpenSettings}>
-          <ItemsIcon width={18} height={18} color={C.text} />
-          <Text style={styles.topRightSettingsLabel}>Settings</Text>
-        </Pressable>
-      </View>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <Text style={styles.pageTitle}>Launchpad</Text>
 

@@ -34,6 +34,10 @@ function normalizeLayout(raw: unknown): KeyboardLayoutSettings {
     keyGap: read('keyGap', 0, 12),
     keyRowMargin: read('keyRowMargin', 0, 20),
     keyRadius: read('keyRadius', 0, 12),
+    enterKeyPreviewEnabled:
+      typeof obj['enterKeyPreviewEnabled'] === 'boolean'
+        ? obj['enterKeyPreviewEnabled']
+        : defaults.enterKeyPreviewEnabled,
   };
 }
 
