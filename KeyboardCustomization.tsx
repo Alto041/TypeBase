@@ -1,5 +1,7 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {
+  Animated,
+  Image,
   PanResponder,
   Pressable,
   ScrollView,
@@ -14,6 +16,8 @@ import {SafeAreaView} from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 
 import BackIcon from './assets/back.svg';
+import ResetIcon from './assets/reset.svg';
+import ThemeIcon from './assets/theme.svg';
 
 import {
   ensureLayoutLoaded,
@@ -44,216 +48,6 @@ const C = {
 const CARD_R = 25;
 const TEXT_KERNING = -0.7;
 
-/** Wrap angle delta to (-π, π] so small drags don't jump across the circle. */
-function normalizeAngleDelta(delta: number): number {
-  let d = delta;
-  while (d > Math.PI) d -= 2 * Math.PI;
-  while (d < -Math.PI) d += 2 * Math.PI;
-  return d;
-}
-
-function KeyboardThemeCard() {
-  const [isDark, setIsDark] = useState(false);
-  const [isQuivox, setIsQuivox] = useState(false);
-  const [isCustom, setIsCustom] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [customThemeJson, setCustomThemeJson] = useState(
-    `{
-  "container": "#000000",
-  "pluginCard": "#07070D",
-  "pluginCardSecondary": "#0D0D16",
-  "borderSubtle": "#1A1A26",
-  "suggestionDivider": "#2A2A3A",
-
-  "letterKey": "#1A1A22",
-  "letterKeyPressed": "#252533",
-  "modifierKey": "#00C2A8",
-  "modifierKeyPressed": "#009A86",
-  "spaceKey": "#FFB020",
-  "spaceKeyPressed": "#E79A0E",
-  "enter": "#FF2D55",
-  "enterPressed": "#C81F41",
-
-  "label": "#E9EEF6",
-  "spaceLabel": "#111827",
-  "icon": "#E9EEF6",
-  "iconMuted": "#A9B4C2",
-  "iconOnEnter": "#FFFFFF",
-
-  "essentialsAccent": "#FFB020",
-  "swipeTrail": "#FFB020",
-  "launcherKey": "#00C2A8",
-
-  "chipSelectedBackground": "#00C2A8",
-  "chipSelectedText": "#FFFFFF",
-
-  "keyRipple": "rgba(255, 255, 255, 0.18)"
-}`,
-  );
-
-  useEffect(() => {
-    void ensureThemeLoaded().then(() => {
-      setIsDark(getKeyboardColorScheme() === 'dark');
-      setIsQuivox(getKeyboardDesign() === 'quivox');
-      setIsCustom(getKeyboardDesign() === 'custom');
-      setCustomThemeJson(getKeyboardCustomTheme());
-      setLoading(false);
-    });
-  }, []);
-
-  const handleDarkToggle = (enabled: boolean) => {
-    setIsDark(enabled);
-    void setKeyboardColorScheme(enabled ? 'dark' : 'light');
-  };
-
-  const handleQuivoxToggle = (enabled: boolean) => {
-    setIsQuivox(enabled);
-    if (enabled) {
-      setIsCustom(false);
-      void setKeyboardDesign('quivox');
-      return;
-    }
-    if (isCustom) {
-      // If custom is enabled, turning Quivox off should not change it.
-      return;
-    }
-    void setKeyboardDesign('typebase');
-  };
-
-  const handleCustomToggle = (enabled: boolean) => {
-    setIsCustom(enabled);
-    if (enabled) {
-      setIsQuivox(false);
-      void setKeyboardDesign('custom');
-    } else {
-      void setKeyboardDesign('typebase');
-    }
-  };
-
-  return (
-    <View style={styles.card}>
-      <View style={styles.themeToggleRow}>
-        <View style={styles.themeToggleText}>
-          <Text style={styles.cardTitle}>Dark keyboard</Text>
-          <Text style={styles.hint}>
-            Switch the TypeBase keyboard between light and dark.
-          </Text>
-        </View>
-        <Switch
-          value={isDark}
-          onValueChange={handleDarkToggle}
-          disabled={loading}
-          trackColor={{false: '#334155', true: '#2563EB'}}
-          thumbColor="#F8FAFC"
-        />
-      </View>
-
-      <View style={styles.themeDivider} />
-
-      <View style={styles.themeToggleRow}>
-        <View style={styles.themeToggleText}>
-          <Text style={styles.cardTitle}>Quivox Design</Text>
-          <Text style={styles.hint}>
-            Use the Quivox keyboard look — lilac keys, blue modifiers, gold space.
-          </Text>
-        </View>
-        <Switch
-          value={isQuivox}
-          onValueChange={handleQuivoxToggle}
-          disabled={loading || isCustom}
-          trackColor={{false: '#334155', true: '#2563EB'}}
-          thumbColor="#F8FAFC"
-        />
-      </View>
-
-      <View style={styles.themeDivider} />
-
-      <View style={styles.themeToggleRow}>
-        <View style={styles.themeToggleText}>
-          <Text style={styles.cardTitle}>Custom Theme JSON</Text>
-          <Text style={styles.hint}>
-            Paste a theme palette JSON (colors + keys) and apply it.
-          </Text>
-        </View>
-        <Switch
-          value={isCustom}
-          onValueChange={handleCustomToggle}
-          disabled={loading}
-          trackColor={{false: '#334155', true: '#2563EB'}}
-          thumbColor="#F8FAFC"
-        />
-      </View>
-
-      {isCustom ? (
-        <View style={{gap: 8}}>
-          <Text style={styles.fieldLabel}>Theme JSON</Text>
-          <TextInput
-            style={styles.input}
-            value={customThemeJson}
-            onChangeText={setCustomThemeJson}
-            multiline
-            editable={!loading}
-          />
-          <Pressable
-            style={[
-              styles.primaryButton,
-              {backgroundColor: '#2563EB', marginTop: 0},
-            ]}
-            onPress={() => {
-              try {
-                // Ensure it's valid JSON before sending to native.
-                JSON.parse(customThemeJson);
-                void setKeyboardCustomTheme(customThemeJson);
-                void setKeyboardDesign('custom');
-              } catch {
-                // No native-side error UI right now; we rely on this local guard.
-              }
-            }}
-            disabled={loading}
-          >
-            <Text style={styles.primaryButtonText}>Apply custom theme</Text>
-          </Pressable>
-          <Pressable
-            style={[styles.linkButton, {paddingVertical: 0}]}
-            onPress={() => {
-              setCustomThemeJson(`{
-  "container": "#000000",
-  "pluginCard": "#07070D",
-  "pluginCardSecondary": "#0D0D16",
-  "borderSubtle": "#1A1A26",
-  "suggestionDivider": "#2A2A3A",
-  "letterKey": "#1A1A22",
-  "letterKeyPressed": "#252533",
-  "modifierKey": "#00C2A8",
-  "modifierKeyPressed": "#009A86",
-  "spaceKey": "#FFB020",
-  "spaceKeyPressed": "#E79A0E",
-  "enter": "#FF2D55",
-  "enterPressed": "#C81F41",
-  "label": "#E9EEF6",
-  "spaceLabel": "#111827",
-  "icon": "#E9EEF6",
-  "iconMuted": "#A9B4C2",
-  "iconOnEnter": "#FFFFFF",
-  "essentialsAccent": "#FFB020",
-  "swipeTrail": "#FFB020",
-  "launcherKey": "#00C2A8",
-  "chipSelectedBackground": "#00C2A8",
-  "chipSelectedText": "#FFFFFF",
-  "keyRipple": "rgba(255, 255, 255, 0.18)"
-}`);
-            }}
-          >
-            <Text style={{color: '#64748B', fontSize: 13}}>
-              Reset template
-            </Text>
-          </Pressable>
-        </View>
-      ) : null}
-    </View>
-  );
-}
-
 export function CustomizeScreen({onBack}: {onBack: () => void}) {
   const [layout, setLayout] = useState<KeyboardLayoutSettings>(
     DEFAULT_KEYBOARD_LAYOUT_SETTINGS,
@@ -272,18 +66,20 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
     if (key === 'keyHeight') next = Math.max(40, Math.min(64, value));
     if (key === 'keyGap') next = Math.max(0, Math.min(12, value));
     if (key === 'keyRowMargin') next = Math.max(0, Math.min(20, value));
+    if (key === 'keyRadius') next = Math.max(0, Math.min(12, value));
     setLayout(current => ({...current, [key]: next}));
     void updateKeyboardLayoutSetting(key, next);
-  };
-
-  const handleReset = () => {
-    setLayout(DEFAULT_KEYBOARD_LAYOUT_SETTINGS);
-    void setKeyboardLayoutSettings(DEFAULT_KEYBOARD_LAYOUT_SETTINGS);
   };
 
   const keyHeight = layout.keyHeight;
   const keyGap = layout.keyGap;
   const rowGap = layout.keyRowMargin;
+  const keyRadius = layout.keyRadius;
+
+  const handleReset = () => {
+    setLayout(DEFAULT_KEYBOARD_LAYOUT_SETTINGS);
+    void setKeyboardLayoutSettings(DEFAULT_KEYBOARD_LAYOUT_SETTINGS);
+  };
 
   // Knob geometry (for Key Height circular control)
   const KNOB_SIZE = 130;   // larger hit area for easier control (finger can land around the visual)
@@ -294,109 +90,163 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
   // Visual placement of the gray disk *inside* the knobWrap (must match the knobTrack left/top in styles)
   const KNOB_VISUAL_LEFT = 40;
   const KNOB_VISUAL_TOP  = 48;
-  const GRAY_CENTER_X = KNOB_VISUAL_LEFT + TRACK_R;
-  const GRAY_CENTER_Y = KNOB_VISUAL_TOP  + TRACK_R;
 
-  // How many full rotations to sweep the whole range (higher = less sensitive / easier to control)
+  // How many pixels of vertical drag to sweep the whole range. Lower = more
+  // sensitive, higher = finer control. This is a simple linear drag — no
+  // angle math, no center-of-circle dependency — so it tracks your finger
+  // 1:1 no matter where on the knob you grab it or how you move.
   const KEY_HEIGHT_MIN = 40;
   const KEY_HEIGHT_MAX = 64;
   const KEY_HEIGHT_RANGE = KEY_HEIGHT_MAX - KEY_HEIGHT_MIN;
-  const KEY_HEIGHT_TURNS = 1.5;
+  const KEY_HEIGHT_DRAG_PX = 140; // px of drag to cover the full range
 
-  const keyHeightDragRef = useRef({ startAngle: 0, startValue: KEY_HEIGHT_MIN });
+  const keyHeightDragRef = useRef({ startValue: KEY_HEIGHT_MIN });
 
   const knobPan = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
-      onPanResponderGrant: (evt) => {
-        const { locationX, locationY } = evt.nativeEvent;
-        keyHeightDragRef.current.startAngle = Math.atan2(
-          locationY - GRAY_CENTER_Y,
-          locationX - GRAY_CENTER_X,
-        );
+      onPanResponderGrant: () => {
         keyHeightDragRef.current.startValue = keyHeight;
-        Haptics.selectionAsync().catch(() => {});
+        // No haptic here — only fire when the value actually changes (in onPanResponderMove).
       },
-      onPanResponderMove: (evt) => {
-        const { locationX, locationY } = evt.nativeEvent;
-        const curAngle = Math.atan2(
-          locationY - GRAY_CENTER_Y,
-          locationX - GRAY_CENTER_X,
-        );
-        const delta = normalizeAngleDelta(
-          curAngle - keyHeightDragRef.current.startAngle,
-        );
-        const deltaTurns = delta / (2 * Math.PI);
-        let next = Math.round(
-          keyHeightDragRef.current.startValue +
-            (deltaTurns * KEY_HEIGHT_RANGE) / KEY_HEIGHT_TURNS,
-        );
+      onPanResponderMove: (evt, gestureState) => {
+        // Dragging up increases the value, dragging down decreases it —
+        // the natural feel for "more height". dy is negative when moving up.
+        const deltaValue =
+          (-gestureState.dy / KEY_HEIGHT_DRAG_PX) * KEY_HEIGHT_RANGE;
+        let next = Math.round(keyHeightDragRef.current.startValue + deltaValue);
         next = Math.max(KEY_HEIGHT_MIN, Math.min(KEY_HEIGHT_MAX, next));
 
         if (next !== keyHeight) {
           update('keyHeight', next);
           Haptics.selectionAsync().catch(() => {});
-          keyHeightDragRef.current.startValue = next;
-          keyHeightDragRef.current.startAngle = curAngle;
         }
       },
     })
   ).current;
 
-  // Thumb position derived from current keyHeight (source of truth)
-  const knobNorm = (keyHeight - 40) / 24;
-  const knobAngle = knobNorm * (2 * Math.PI);
-  // Position the black knob relative to the visual gray center (not the hit-area box center)
-  const kcx = GRAY_CENTER_X;
-  const kcy = GRAY_CENTER_Y;
+  // Thumb position derived from current keyHeight (source of truth).
+  // Still drawn as a dot orbiting the dial face, purely for visual flavor —
+  // the underlying gesture is a simple linear drag now, not an angle.
+  const knobNorm = (keyHeight - KEY_HEIGHT_MIN) / KEY_HEIGHT_RANGE;
+  const knobAngle = -Math.PI / 2 + knobNorm * (2 * Math.PI); // start at top, sweep clockwise
+  const kcx = KNOB_VISUAL_LEFT + TRACK_R;
+  const kcy = KNOB_VISUAL_TOP + TRACK_R;
   // Use the smaller ORBIT_R so the black knob sits inwards from the gray circle's edge
   const knobThumbLeft = kcx + ORBIT_R * Math.cos(knobAngle) - THUMB_R;
   const knobThumbTop = kcy + ORBIT_R * Math.sin(knobAngle) - THUMB_R;
 
   // ==================== KEY GAP rotary disk (big grey disk that spins) ====================
-  const GAP_HIT_SIZE = 110; // touch area (grey disk is centered inside this)
-  const GAP_HIT_CENTER = GAP_HIT_SIZE / 2;
-  const GAP_TURNS = 2; // need ~2 full spins to go 0→12 (less sensitive, easier to control)
+  const GAP_MIN = 0;
+  const GAP_MAX = 12;
+  const GAP_RANGE = GAP_MAX - GAP_MIN;
+  const GAP_DRAG_PX = 130; // px of drag to cover the full 0-12 range
 
-  // Rotation of the disk face (full 360° for the 0-12 range)
+  // Rotation of the disk face (full 360° for the 0-12 range) — purely visual,
+  // the gesture itself is a simple linear drag (see below).
   const gapRotation = (keyGap / 12) * (2 * Math.PI);
 
-  const gapDragRef = useRef({ startAngle: 0, startValue: 0 });
+  const gapDragRef = useRef({ startValue: GAP_MIN });
+  const rowGapDragRef = useRef({ anchorValue: 0, startDy: 0 });
 
   const gapDiskPan = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
-      onPanResponderGrant: (evt) => {
-        const { locationX, locationY } = evt.nativeEvent;
-        gapDragRef.current.startAngle = Math.atan2(
-          locationY - GAP_HIT_CENTER,
-          locationX - GAP_HIT_CENTER,
-        );
+      onPanResponderGrant: () => {
         gapDragRef.current.startValue = keyGap;
-        Haptics.selectionAsync().catch(() => {});
+        // No haptic here — only fire when the value actually changes (in onPanResponderMove).
       },
-      onPanResponderMove: (evt) => {
-        const { locationX, locationY } = evt.nativeEvent;
-        const curAngle = Math.atan2(
-          locationY - GAP_HIT_CENTER,
-          locationX - GAP_HIT_CENTER,
-        );
-        const delta = normalizeAngleDelta(
-          curAngle - gapDragRef.current.startAngle,
-        );
-        const deltaTurns = delta / (2 * Math.PI);
-        let next = Math.round(
-          gapDragRef.current.startValue + (deltaTurns * 12) / GAP_TURNS,
-        );
-        next = Math.max(0, Math.min(12, next));
+      onPanResponderMove: (evt, gestureState) => {
+        // Drag up/right to increase, down/left to decrease — combine both
+        // axes so it feels natural no matter which direction you drag in.
+        const drag = gestureState.dx - gestureState.dy;
+        const deltaValue = (drag / GAP_DRAG_PX) * GAP_RANGE;
+        let next = Math.round(gapDragRef.current.startValue + deltaValue);
+        next = Math.max(GAP_MIN, Math.min(GAP_MAX, next));
 
         if (next !== keyGap) {
           update('keyGap', next);
           Haptics.selectionAsync().catch(() => {});
-          gapDragRef.current.startValue = next;
-          gapDragRef.current.startAngle = curAngle;
+        }
+      },
+    })
+  ).current;
+
+  // ==================== ROW GAP vertical slider (right side of the small left card) ====================
+  const ROW_GAP_MIN = 0;
+  const ROW_GAP_MAX = 20;
+  const ROW_GAP_RANGE = ROW_GAP_MAX - ROW_GAP_MIN;
+  const ROW_GAP_TRACK_H = 140; // visible track length (just for drawing the knob position)
+  const ROW_GAP_KNOB_SIZE = 18;
+  // Drag distance needed to cover the full range. Tuned to feel as forgiving
+  // as Key Height (~5.8px/unit) and Key Gap (~10.8px/unit) — NOT tied to the
+  // visible track length, since that made every pixel of finger jitter swing
+  // the value way too fast for a 20-unit range crammed into 122px of travel.
+  const ROW_GAP_DRAG_PX = 180; // ~9px of drag per unit — comparable feel to the other knobs
+
+  const rowGapProgress = (rowGap - ROW_GAP_MIN) / ROW_GAP_RANGE;
+  // Clamp knob travel so it doesn't overshoot the top/bottom of the visual line.
+  const rowGapKnobTop =
+    (1 - rowGapProgress) * (ROW_GAP_TRACK_H - ROW_GAP_KNOB_SIZE);
+
+  const rowGapSliderPan = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: () => {
+        rowGapDragRef.current.anchorValue = rowGap;
+        rowGapDragRef.current.startDy = 0; // track how much drag we've "consumed"
+      },
+      onPanResponderMove: (evt, gestureState) => {
+        // Relative drag: compare cumulative dy to what we've already processed.
+        // This prevents jumps if the component re-renders mid-drag.
+        const rawDy = -gestureState.dy; // up = positive (increase value)
+        const consumedDy = rowGapDragRef.current.startDy;
+        const deltaDy = rawDy - consumedDy;
+
+        // Convert pixel delta to value delta
+        const deltaVal = (deltaDy / ROW_GAP_DRAG_PX) * ROW_GAP_RANGE;
+        let next = Math.round(rowGapDragRef.current.anchorValue + deltaVal);
+        next = Math.max(ROW_GAP_MIN, Math.min(ROW_GAP_MAX, next));
+
+        if (next !== rowGap) {
+          // Value changed: commit it, update anchor, and "consume" the drag distance
+          update('keyRowMargin', next);
+          Haptics.selectionAsync().catch(() => {});
+          rowGapDragRef.current.anchorValue = next;
+          rowGapDragRef.current.startDy = rawDy;
+        }
+      },
+    })
+  ).current;
+
+  // ==================== KEY RADIUS rotary disk (same face as Key Gap, no white center) ====================
+  const KEY_RADIUS_MIN = 0;
+  const KEY_RADIUS_MAX = 12;
+  const KEY_RADIUS_RANGE = KEY_RADIUS_MAX - KEY_RADIUS_MIN;
+  const RADIUS_DRAG_PX = 130;
+
+  const radiusRotation = (keyRadius / KEY_RADIUS_MAX) * (2 * Math.PI);
+  const radiusDragRef = useRef({ startValue: KEY_RADIUS_MIN });
+
+  const radiusDiskPan = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: () => {
+        radiusDragRef.current.startValue = keyRadius;
+      },
+      onPanResponderMove: (evt, gestureState) => {
+        const drag = gestureState.dx - gestureState.dy;
+        const deltaValue = (drag / RADIUS_DRAG_PX) * KEY_RADIUS_RANGE;
+        let next = Math.round(radiusDragRef.current.startValue + deltaValue);
+        next = Math.max(KEY_RADIUS_MIN, Math.min(KEY_RADIUS_MAX, next));
+
+        if (next !== keyRadius) {
+          update('keyRadius', next);
+          Haptics.selectionAsync().catch(() => {});
         }
       },
     })
@@ -468,10 +318,10 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
                   {/* Small white circle exactly in the center of the grey disk */}
                   <View style={styles.gapDiskWhiteCenter} />
 
-                  {/* Vertical line above the center (inside the grey) */}
+                  {/* Vertical line above the white center (inside the grey, with clearance) */}
                   <View style={[styles.gapDiskVLine, styles.gapDiskVLineTop]} />
 
-                  {/* Vertical line below the center (inside the grey) */}
+                  {/* Vertical line below the white center (inside the grey, with clearance) */}
                   <View style={[styles.gapDiskVLine, styles.gapDiskVLineBottom]} />
                 </View>
               </View>
@@ -499,11 +349,18 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
 
           {/* Second row: smaller left, bigger right (opposite) */}
           <View style={styles.configRow}>
-            <View style={[styles.configCard, styles.configCardSmall]}>
-              <Text style={[styles.configLabel, styles.configLabelTopLeft]}>
-                ROW GAP
-              </Text>
-              <View style={styles.cardInner}>
+            <View style={[styles.configCard, styles.configCardSmall, styles.rowGapCard]}>
+              {/* Label stays at the top-left */}
+              <Text style={[styles.configLabel, styles.configLabelTopLeft]}>ROW GAP</Text>
+
+              {/* Vertical line (#F2F2F2) + knob on the right side of the container */}
+              <View style={styles.rowGapSliderArea} {...rowGapSliderPan.panHandlers}>
+                <View style={styles.rowGapTrack} />
+                <View style={[styles.rowGapKnob, { top: rowGapKnobTop }]} />
+              </View>
+
+              {/* Value at the bottom-left edge */}
+              <View style={{ marginTop: 'auto', alignSelf: 'flex-start', marginBottom: 10 }}>
                 <View style={styles.valueBox}>
                   <TextInput
                     style={styles.valueInput}
@@ -519,17 +376,46 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
               </View>
             </View>
 
-            <View style={[styles.configCard, styles.configCardBig]}>
+            <View style={[styles.configCard, styles.configCardBig, styles.keyRadiusCard]}>
               <Text style={[styles.configLabel, styles.configLabelTopLeft]}>
-                DEFAULTS
+                KEY RADIUS
               </Text>
-              <View style={styles.cardInner}>
-                <Pressable style={styles.resetBtn} onPress={handleReset} disabled={loading}>
-                  <Text style={styles.resetText}>Reset</Text>
-                </Pressable>
+
+              {/* Grey spinning disk — single vertical line, no white center */}
+              <View style={styles.radiusDiskHit} {...radiusDiskPan.panHandlers}>
+                <View
+                  style={[
+                    styles.gapDiskGrey,
+                    { transform: [{ rotate: `${radiusRotation}rad` }] },
+                  ]}
+                >
+                  <View style={styles.radiusDiskVLine} />
+                </View>
+              </View>
+
+              {/* Value at the bottom-right */}
+              <View style={styles.keyRadiusValueWrap}>
+                <View style={styles.valueBox}>
+                  <TextInput
+                    style={styles.valueInput}
+                    value={String(keyRadius)}
+                    onChangeText={(t) => {
+                      const n = parseInt(t.replace(/[^0-9]/g, ''), 10);
+                      if (!isNaN(n)) update('keyRadius', n);
+                    }}
+                    keyboardType="number-pad"
+                    editable={!loading}
+                  />
+                </View>
               </View>
             </View>
           </View>
+
+          {/* Reset all settings row */}
+          <Pressable style={styles.resetAllContainer} onPress={handleReset} disabled={loading}>
+            <ResetIcon width={20} height={20} color="#D71921" />
+            <Text style={styles.resetAllText}>RESET ALL SETTINGS</Text>
+          </Pressable>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -537,6 +423,48 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
 }
 
 export function ThemesScreen({onBack}: {onBack: () => void}) {
+  const [design, setDesign] = useState<'typebase' | 'quivox'>('typebase');
+  const [isDark, setIsDark] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  const toggleAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    void ensureThemeLoaded().then(() => {
+      const current = getKeyboardDesign();
+      const dark = getKeyboardColorScheme() === 'dark';
+      setDesign(current === 'quivox' ? 'quivox' : 'typebase');
+      setIsDark(dark);
+      toggleAnim.setValue(dark ? 1 : 0);
+      setLoading(false);
+    });
+  }, []);
+
+  const select = (which: 'typebase' | 'quivox') => {
+    if (loading) return;
+    setDesign(which);
+    void setKeyboardDesign(which);
+  };
+
+  const toggleDark = () => {
+    if (loading) return;
+    const next = !isDark;
+    setIsDark(next);
+    void setKeyboardColorScheme(next ? 'dark' : 'light');
+    Haptics.selectionAsync().catch(() => {});
+
+    Animated.spring(toggleAnim, {
+      toValue: next ? 1 : 0,
+      useNativeDriver: true,
+      stiffness: 700,
+      damping: 28,
+      mass: 0.8,
+    }).start();
+  };
+
+  const isNothing = design === 'typebase';
+  const isQuivox = design === 'quivox';
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={C.bg} />
@@ -548,7 +476,89 @@ export function ThemesScreen({onBack}: {onBack: () => void}) {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <Text style={styles.pageTitle}>Themes</Text>
 
-        <KeyboardThemeCard />
+        {/* Nothing Theme card */}
+        <View style={styles.themeCard}>
+          <View style={styles.themeImageWrap}>
+            <Image source={require('./assets/nothing.png')} style={styles.themeImage} resizeMode="cover" />
+          </View>
+
+          <View style={styles.themeBottomArea}>
+            <View style={styles.themeBottomRow}>
+              <View style={styles.themeTextCol}>
+                <Text style={styles.themeTitle}>Nothing Theme</Text>
+                <Text style={styles.themeSubtitle}>
+                  Choose Nothing Tech’s Design Style
+                </Text>
+              </View>
+
+              <Pressable
+                style={[styles.themeBtn, isNothing && styles.themeBtnActive]}
+                onPress={() => select('typebase')}
+                disabled={loading}
+              >
+                <Text style={styles.themeBtnText}>
+                  {isNothing ? 'Selected' : 'Choose'}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+
+        {/* Quivox Theme card */}
+        <View style={styles.themeCard}>
+          <View style={styles.themeImageWrap}>
+            <Image source={require('./assets/quivox.png')} style={styles.themeImage} resizeMode="cover" />
+          </View>
+
+          <View style={styles.themeBottomArea}>
+            <View style={styles.themeBottomRow}>
+              <View style={styles.themeTextCol}>
+                <Text style={styles.themeTitle}>Quivox Theme</Text>
+                <Text style={styles.themeSubtitle}>
+                  Choose Quivox Design Style
+                </Text>
+              </View>
+
+              <Pressable
+                style={[styles.themeBtn, isQuivox && styles.themeBtnActive]}
+                onPress={() => select('quivox')}
+                disabled={loading}
+              >
+                <Text style={styles.themeBtnText}>
+                  {isQuivox ? 'Selected' : 'Choose'}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+
+        {/* Light / Dark theme toggle row (same container style as reset) */}
+        <View style={styles.themeToggleContainer}>
+          <ThemeIcon width={20} height={20} color={C.text} />
+          <Text style={styles.themeToggleLabel}>Light / Dark Theme</Text>
+          <View style={{flex: 1}} />
+          <Pressable
+            onPress={toggleDark}
+            style={[styles.toggleTrack, isDark && styles.toggleTrackOn]}
+            disabled={loading}
+          >
+            <Animated.View
+              style={[
+                styles.toggleThumb,
+                {
+                  transform: [
+                    {
+                      translateX: toggleAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0, 18],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            />
+          </Pressable>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -602,22 +612,26 @@ const styles = StyleSheet.create({
     color: C.text,
     fontSize: 18,
     fontWeight: '700',
+    letterSpacing: TEXT_KERNING,
   },
   hint: {
     color: C.sub,
     fontSize: 14,
     lineHeight: 20,
+    letterSpacing: TEXT_KERNING,
   },
   fieldLabel: {
     color: C.text,
     fontSize: 14,
     fontWeight: '600',
     marginTop: 4,
+    letterSpacing: TEXT_KERNING,
   },
   fieldHint: {
     color: C.sub,
     fontSize: 12,
     lineHeight: 18,
+    letterSpacing: TEXT_KERNING,
   },
   input: {
     minHeight: 120,
@@ -629,6 +643,7 @@ const styles = StyleSheet.create({
     padding: 14,
     textAlignVertical: 'top',
     fontSize: 16,
+    letterSpacing: TEXT_KERNING,
   },
   primaryButton: {
     marginTop: 8,
@@ -641,6 +656,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+    letterSpacing: TEXT_KERNING,
   },
   linkButton: {
     alignItems: 'center',
@@ -649,6 +665,7 @@ const styles = StyleSheet.create({
   linkText: {
     color: C.sub,
     fontSize: 13,
+    letterSpacing: TEXT_KERNING,
   },
   themeToggleRow: {
     flexDirection: 'row',
@@ -774,14 +791,18 @@ const styles = StyleSheet.create({
 
   // ===== Key Gap rotary disk styles (big spinning grey disk in the small right card) =====
   gapCard: {
+    position: 'relative',
     flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    alignItems: 'stretch',
     paddingTop: 12,
     paddingBottom: 10,
+    paddingHorizontal: 14,
   },
-  // The touchable area for the spinning disk (slightly larger than the visual grey for easy control)
+  // The touchable area for the spinning disk — now on the right side of the card
   gapDiskHit: {
+    position: 'absolute',
+    right: 8,
+    top: 12,
     width: 110,
     height: 110,
     alignItems: 'center',
@@ -811,20 +832,23 @@ const styles = StyleSheet.create({
   // Vertical parallel lines inside the grey disk (above and below the white center)
   gapDiskVLine: {
     position: 'absolute',
-    width: 3,
-    height: 20,
-    backgroundColor: '#111111',
-    left: (96 - 3) / 2,
+    width: 2,
+    height: 18,
+    backgroundColor: '#AEAEAE',
+    borderRadius: 1,
+    left: (96 - 2) / 2,
     zIndex: 1,
   },
   gapDiskVLineTop: {
-    top: (96 / 2) - 20 - 5, // a little space above the white center
+    top: 16, // ~7px clearance from the white center circle (not touching)
   },
   gapDiskVLineBottom: {
-    top: (96 / 2) + 5, // a little space below the white center
+    top: 62, // ~7px clearance from the white center circle (not touching)
   },
   gapValueWrap: {
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    alignSelf: 'stretch',
+    marginTop: 'auto',
     marginBottom: 2,
   },
   gapBottomLabel: {
@@ -833,5 +857,199 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     color: C.text,
     letterSpacing: TEXT_KERNING,
+    alignSelf: 'flex-start',
+  },
+
+  // Row Gap card (second row, small left) — positions the vertical slider on the right
+  rowGapCard: {
+    position: 'relative',
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    paddingTop: 12,
+    paddingBottom: 10,
+    paddingHorizontal: 14,
+  },
+  // The right-side hit area containing the vertical track line and draggable knob
+  rowGapSliderArea: {
+    position: 'absolute',
+    right: 8,
+    top: 26,
+    width: 40,
+    height: 140,
+    alignItems: 'center',
+  },
+  // Thin vertical guide line (#F2F2F2) on the right side of the row gap card
+  rowGapTrack: {
+    position: 'absolute',
+    top: 0,
+    height: 140,
+    width: 4,
+    backgroundColor: '#F2F2F2',
+    borderRadius: 2,
+  },
+  // Draggable knob that travels along the vertical line
+  rowGapKnob: {
+    position: 'absolute',
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#111111',
+    left: (40 - 18) / 2,
+  },
+
+  // Key Radius card (second row, big right) — spinning disk + value bottom-right
+  keyRadiusCard: {
+    position: 'relative',
+    paddingHorizontal: 14,
+    paddingBottom: 12,
+  },
+  radiusDiskHit: {
+    position: 'absolute',
+    left: 14,
+    bottom: 10,
+    width: 110,
+    height: 110,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // Single vertical tick inside the grey disk (no white center circle)
+  radiusDiskVLine: {
+    position: 'absolute',
+    width: 5,
+    height: 70,          // Increased from 38 to 70
+    backgroundColor: '#AEAEAE',
+    borderRadius: 1.5,
+    left: (96 - 3) / 2,
+    top: (96 - 70) / 2,  // Recenter vertically
+    zIndex: 1,
+  },
+  keyRadiusValueWrap: {
+    position: 'absolute',
+    right: 14,
+    bottom: 12,
+  },
+
+  // Reset all settings container (white rounded card with red text/icon)
+  resetAllContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 18,
+    marginTop: 4,
+  },
+  resetAllText: {
+    fontFamily: 'FragmentMono',
+    fontSize: 14,
+    fontWeight: '400',
+    color: '#D71921',
+    letterSpacing: TEXT_KERNING,
+  },
+
+  // Theme cards (Themes page)
+  themeCard: {
+    backgroundColor: C.card,
+    borderRadius: CARD_R,
+    marginBottom: 8,
+    overflow: 'hidden',
+    height: 240,
+    flexDirection: 'column',
+  },
+  themeImageWrap: {
+    height: 165, // taller image area (top portion of fixed 240px card)
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  themeImage: {
+    width: '100%',
+    height: '100%',
+  },
+  themeBottomArea: {
+    height: 75,
+    justifyContent: 'flex-start',
+    paddingTop: 14, // small gap between image and content
+  },
+  themeBottomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingBottom: 6,
+  },
+  themeTextCol: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  themeTitle: {
+    fontFamily: 'FragmentMono',
+    fontSize: 16,
+    fontWeight: '400',
+    color: C.text,
+    letterSpacing: TEXT_KERNING,
+  },
+  themeSubtitle: {
+    fontFamily: 'FragmentMono',
+    fontSize: 12,
+    color: C.sub,
+    letterSpacing: TEXT_KERNING,
+    marginTop: 2,
+  },
+  themeBtn: {
+    backgroundColor: '#111111',
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  themeBtnActive: {
+    backgroundColor: '#222222',
+  },
+  themeBtnText: {
+    fontFamily: 'FragmentMono',
+    fontSize: 13,
+    color: '#FFFFFF',
+    letterSpacing: TEXT_KERNING,
+  },
+
+  // Toggle row under theme cards (styled like the reset container)
+  themeToggleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 22,
+    marginTop: 4,
+  },
+  themeToggleLabel: {
+    fontFamily: 'FragmentMono',
+    fontSize: 14,
+    color: C.text,
+    letterSpacing: TEXT_KERNING,
+    marginLeft: 10,
+  },
+
+  // Custom toggle matching GesturesPanel FeatureToggle design
+  toggleTrack: {
+    width: 44,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#D1D1D6',
+    padding: 2,
+    justifyContent: 'center',
+  },
+  toggleTrackOn: {
+    backgroundColor: '#2CC642',
+  },
+  toggleThumb: {
+    width: 22,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+  },
+  toggleThumbOn: {
+    // transform is now driven by Animated.Value for smooth slide
   },
 });

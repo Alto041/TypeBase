@@ -30,7 +30,6 @@ import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
 import type {KeyDefinition} from '../layouts/qwerty';
 import type {KeyboardTheme} from '../theme';
 
-const KEY_BORDER_RADIUS = 6;
 const COMMA_HOLD_DELAY_MS = 400;
 const PERIOD_HOLD_DELAY_MS = 400;
 const CURSOR_STEP_PX = 10;
@@ -311,7 +310,7 @@ function KeyComponent({
     </Text>
   );
 
-  const borderRadius = isEnterKey ? keyHeight / 2 : KEY_BORDER_RADIUS;
+  const borderRadius = isEnterKey ? keyHeight / 2 : theme.keyRadius;
 
   const handlePressIn = useCallback(() => {
     onPress(keyDef);

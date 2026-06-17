@@ -7,17 +7,20 @@ const KEYBOARD_HEIGHT_BUFFER = 6;
 const KEY_HEIGHT = 52;
 const KEY_ROW_MARGIN = 10;
 const KEY_GAP = 4;
+const KEY_RADIUS = 6;
 
 export type KeyboardLayoutSettings = {
   keyHeight: number;
   keyGap: number;
   keyRowMargin: number;
+  keyRadius: number;
 };
 
 export const DEFAULT_KEYBOARD_LAYOUT_SETTINGS: KeyboardLayoutSettings = {
   keyHeight: KEY_HEIGHT,
   keyGap: KEY_GAP,
   keyRowMargin: KEY_ROW_MARGIN,
+  keyRadius: KEY_RADIUS,
 };
 
 /** Touch slop into gaps — half the visual gap on each side of a key. */
@@ -285,6 +288,7 @@ export function createKeyboardTheme(
     keyHeight: layout.keyHeight,
     keyRowMargin: layout.keyRowMargin,
     keyGap: layout.keyGap,
+    keyRadius: layout.keyRadius,
     keyHitSlop: {
       horizontal: layout.keyGap / 2,
       vertical: layout.keyRowMargin / 2,

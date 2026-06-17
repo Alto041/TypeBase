@@ -33,6 +33,7 @@ function normalizeLayout(raw: unknown): KeyboardLayoutSettings {
     keyHeight: read('keyHeight', 40, 64),
     keyGap: read('keyGap', 0, 12),
     keyRowMargin: read('keyRowMargin', 0, 20),
+    keyRadius: read('keyRadius', 0, 12),
   };
 }
 

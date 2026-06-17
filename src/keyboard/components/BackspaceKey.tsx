@@ -17,7 +17,6 @@ import type {KeyDefinition} from '../layouts/qwerty';
 import type {KeyboardTheme} from '../theme';
 import type {KeyGesturesConfig} from './Key';
 
-const KEY_BORDER_RADIUS = 6;
 const BACKSPACE_HOLD_DELAY_MS = 280;
 const BACKSPACE_SENTENCE_ESCALATE_MS = 700;
 const BACKSPACE_INITIAL_INTERVAL_MS = 75;
@@ -212,7 +211,7 @@ function BackspaceKeyComponent({
     <BackspaceIcon width={24} height={16} color={iconColor} />
   );
 
-  const borderRadius = isEnterBackspace ? keyHeight / 2 : KEY_BORDER_RADIUS;
+  const borderRadius = isEnterBackspace ? keyHeight / 2 : theme.keyRadius;
 
   return (
     <View

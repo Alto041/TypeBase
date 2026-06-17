@@ -16,7 +16,6 @@ import type {KeyDefinition} from '../layouts/qwerty';
 import type {KeyboardTheme} from '../theme';
 import type {KeyGesturesConfig} from './Key';
 
-const KEY_BORDER_RADIUS = 6;
 const LAUNCHER_HOLD_DELAY_MS = 400;
 const REWRITE_HOLD_DELAY_MS = 400;
 
@@ -269,7 +268,7 @@ function PunctuationKeyComponent({
       <View
         style={[
           styles.key,
-          {borderRadius: KEY_BORDER_RADIUS, minHeight: keyHeight},
+          {borderRadius: theme.keyRadius, minHeight: keyHeight},
           showRewrite && styles.rewriteKey,
           pressed && styles.keyPressed,
         ]}>

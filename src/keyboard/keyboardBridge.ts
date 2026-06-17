@@ -332,7 +332,7 @@ export const keyboardBridge: KeyboardModuleType = {
       return KeyboardModule.getKeyboardLayoutSettings() as Promise<string>;
     }
     return Promise.resolve(
-      '{"keyHeight":52,"keyGap":4,"keyRowMargin":10}',
+      '{"keyHeight":52,"keyGap":4,"keyRowMargin":10,"keyRadius":6}',
     );
   },
   setKeyboardLayoutSettings: (json: string) => {
