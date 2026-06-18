@@ -1,50 +1,96 @@
-# Gemma 2B — On-Device AI Integration
-**Developer Notes · Side+ (React Native + Expo)**
+# Gemma 3 1B — On-Device AI Integration
+**Developer Notes · TypeBase (React Native + Expo)**
 
 ---
 
 ## Overview
 
-Integrating `google/gemma-2-2b-it` (instruct-tuned) as on-device AI for Side+'s Summarizer and Audio refinement features. All inference runs locally — no network required after model download.
+TypeBase runs **Gemma 3 1B Instruct** (`google/gemma-3-1b-it`) on-device for Translate, Rewrite, and voice cleanup when the user selects **On-device (Gemma 3)** in settings. All inference runs locally on Android — no network required after the model is downloaded.
 
 | | |
 |---|---|
-| **Model** | `google/gemma-2-2b-it` |
-| **Type** | Instruction-tuned (use `-it`, NOT base `gemma-2b`) |
-| **Size (quantized)** | ~600MB (int4) / ~1.2GB (int8) |
+| **Model** | `google/gemma-3-1b-it` |
+| **Type** | Instruction-tuned (use `-it`, NOT base) |
+| **Deployed file** | `gemma3-1B-it-int4.task` (~550 MB, int4) |
 | **License** | Gemma License (free for commercial use) |
 | **Runtime** | MediaPipe LLM Inference API (Android) |
-| **RN Integration** | Native Module (Kotlin) bridged to JS |
+| **RN Integration** | Native Module (`GemmaModule.kt`) bridged to JS |
 
-> ⚠ Do NOT use `google/gemma-2b` — that is the base model, it completes text instead of following instructions. Always use `google/gemma-2-2b-it`.
+> Do NOT use the base (non-instruct) Gemma weights. Instruct models follow prompts; base models only complete text.
+
+### Gemma 2 → Gemma 3 upgrade (what changed)
+
+| | Gemma 2 (Side+) | Gemma 3 (TypeBase) |
+|---|---|---|
+| Model | `google/gemma-2-2b-it` | `google/gemma-3-1b-it` |
+| Size (int4) | ~600 MB | ~550 MB |
+| Params | 2B | 1B |
+| MediaPipe | `tasks-genai:0.10.14` | `tasks-genai:0.10.27` |
+| Inference API | `LlmInference.generateResponse()` | `LlmInferenceSession` per request |
+| Generation | `temperature: 0.7`, `topK: 40` | `temperature: 0`, `topK: 1`, `topP: 1` (deterministic) |
+| Model download | JS (`react-native-fs`) | Native Kotlin (`HttpURLConnection`) |
+| Prompt tags | `<start_of_turn>` / `<end_of_turn>` | Same — still required |
 
 ---
 
 ## Architecture
 
-Expo/React Native cannot run MediaPipe directly from JS. The correct path:
+Expo/React Native cannot run MediaPipe directly from JS. The stack:
 
 ```
-React Native (JS)  →  Native Module (Kotlin)  →  MediaPipe LLM Inference API  →  Gemma model (.task file)
+AI Settings UI (AiConfigPanel)
+        ↓
+Settings stores (aiProviderStore, apiKeysStore)
+        ↓
+Feature services (translate / rewrite / voice cleanup)
+        ↓
+src/keyboard/ai/onDeviceTextAi.ts
+        ↓
+src/keyboard/ai/gemmaModelManager.ts  (download + load lifecycle)
+        ↓
+src/keyboard/ai/gemmaBridge.ts        (RN NativeModules wrapper)
+        ↓
+GemmaModule.kt                        (Kotlin native module)
+        ↓
+MediaPipe LLM Inference API
+        ↓
+gemma3-1b-it-int4.task (app filesDir)
 ```
+
+### File map (`src/keyboard/ai/`)
+
+| File | Role |
+|---|---|
+| `gemmaBridge.ts` | Thin RN bridge — download, load, unload, `askGemma()` |
+| `gemmaModelManager.ts` | `ensureGemmaModelDownloaded()`, `ensureGemmaModelLoaded()` with deduped load promise |
+| `onDeviceTextAi.ts` | `generateOnDeviceText()` — loads model then runs inference; `extractJsonPayload()` for JSON parsing |
+| `gemmaPrompts.ts` | `wrapGemmaPrompt()` + feature-specific prompts (translate, rewrite, voice) |
+| `generationConfig.ts` | Cloud Gemini settings only — on-device generation is configured in Kotlin |
+| `aiDebugService.ts` | Debug runner that respects the selected AI provider |
+| `AiConfigPanel.tsx` | UI panel for AI provider selection, API key input, and model download |
+
+Provider selection lives in `src/keyboard/settings/aiProviderStore.ts` (`'gemini' | 'on_device'`).
+API keys are managed in `src/keyboard/settings/apiKeysStore.ts` (`geminiApiKey`, `speechmaticsApiKey`).
 
 ---
 
 ## Step 1 — Get the Model File
 
-Download the quantized `.task` file (MediaPipe-compatible) from Kaggle:
+Download a MediaPipe-compatible `.task` bundle. TypeBase hosts a pre-quantized int4 build:
 
 ```
-https://www.kaggle.com/models/google/gemma/tfLite/gemma-2-2b-it-cpu-int4
+https://pub-8e31d16ca4f04d94b8e3e5f258fcbc2b.r2.dev/gemma3-1B-it-int4.task
 ```
 
-- File: `gemma-2-2b-it-cpu-int4.task`
-- Size: ~600MB
-- Requires a free Kaggle account
+Alternative sources:
 
-> ⚠ Do not use HuggingFace `.safetensors` — MediaPipe requires the `.task` format from Kaggle.
+- [litert-community/Gemma3-1B-IT on Hugging Face](https://huggingface.co/litert-community/Gemma3-1B-IT) — pre-built `.task` variants for MediaPipe / LiteRT
+- [Google AI Edge LLM Inference guide](https://developers.google.com/edge/mediapipe/solutions/genai/llm_inference) — Gemma 3 1B configuration notes
+- [HF → MediaPipe conversion guide](https://ai.google.dev/gemma/docs/conversions/hf-to-mediapipe-task) — if you need a custom fine-tune
 
-> ✓ For production, host the model on your server and download on first launch. Do not bundle it inside the APK.
+> Do not use raw HuggingFace `.safetensors` directly — MediaPipe requires a `.task` bundle (model + tokenizer + metadata).
+
+> For production, host the model on your CDN and download on first launch. Do not bundle it inside the APK.
 
 ---
 
@@ -53,16 +99,14 @@ https://www.kaggle.com/models/google/gemma/tfLite/gemma-2-2b-it-cpu-int4
 **`android/app/build.gradle`**
 ```gradle
 dependencies {
-    implementation 'com.google.mediapipe:tasks-genai:0.10.14'
+    implementation("com.google.mediapipe:tasks-genai:0.10.27")
 }
 ```
 
 **`android/build.gradle`**
 ```gradle
-android {
-    defaultConfig {
-        minSdkVersion 24   // MediaPipe GenAI requires API 24+
-    }
+ext {
+    minSdkVersion = 24   // MediaPipe GenAI requires API 24+
 }
 ```
 
@@ -70,171 +114,184 @@ android {
 
 ## Step 3 — Kotlin Native Module
 
-**`GemmaModule.kt`**
+TypeBase registers `GemmaModule` inside `KeyboardModulePackage.kt` (alongside keyboard/voice modules):
+
 ```kotlin
-package com.yourapp
-
-import com.facebook.react.bridge.*
-import com.google.mediapipe.tasks.genai.llminference.LlmInference
-import java.io.File
-
-class GemmaModule(reactContext: ReactApplicationContext) :
-    ReactContextBaseJavaModule(reactContext) {
-
-    override fun getName() = "GemmaModule"
-
-    private var llmInference: LlmInference? = null
-
-    @ReactMethod
-    fun loadModel(modelPath: String, promise: Promise) {
-        try {
-            val options = LlmInference.LlmInferenceOptions.builder()
-                .setModelPath(modelPath)
-                .setMaxTokens(1024)
-                .setTopK(40)
-                .setTemperature(0.7f)
-                .build()
-            llmInference = LlmInference.createFromOptions(
-                reactApplicationContext, options
-            )
-            promise.resolve("loaded")
-        } catch (e: Exception) {
-            promise.reject("LOAD_ERROR", e.message)
-        }
-    }
-
-    @ReactMethod
-    fun generateResponse(prompt: String, promise: Promise) {
-        try {
-            val result = llmInference?.generateResponse(prompt)
-            promise.resolve(result)
-        } catch (e: Exception) {
-            promise.reject("INFERENCE_ERROR", e.message)
-        }
-    }
-}
+// android/app/src/main/java/com/typebase/KeyboardModulePackage.kt
+listOf(
+    KeyboardModule(reactContext),
+    VoiceRecorderModule(reactContext),
+    // ...
+    GemmaModule(reactContext),
+)
 ```
 
-**`GemmaPackage.kt`**
-```kotlin
-package com.yourapp
+### Key design choices in `GemmaModule.kt`
 
-import com.facebook.react.ReactPackage
-import com.facebook.react.bridge.NativeModule
-import com.facebook.react.bridge.ReactApplicationContext
-import com.facebook.react.uimanager.ViewManager
+1. **Native download** — model is fetched in Kotlin, saved to `context.filesDir/gemma3-1b-it-int4.task`, with progress events emitted to JS.
+2. **Background executor** — load, download, and inference run off the UI thread; promises resolve on the main thread.
+3. **`LlmInferenceSession` per request** — Gemma 3 path uses a session with per-request generation config instead of calling `generateResponse()` directly on `LlmInference`.
+4. **Deterministic decoding** — `temperature: 0`, `topK: 1`, `topP: 1` for consistent keyboard output.
+5. **Validation** — rejects downloads smaller than 100 MB (`MIN_MODEL_BYTES`).
 
-class GemmaPackage : ReactPackage {
-    override fun createNativeModules(ctx: ReactApplicationContext):
-        List<NativeModule> = listOf(GemmaModule(ctx))
-    override fun createViewManagers(ctx: ReactApplicationContext):
-        List<ViewManager<*, *>> = emptyList()
-}
+### Native module API
+
+| Method | Description |
+|---|---|
+| `isModelDownloaded()` | `true` if valid `.task` exists in `filesDir` |
+| `getModelPath()` | Absolute path to the model file |
+| `downloadModel()` | Downloads from CDN; resolves with path |
+| `cancelModelDownload()` | Cancels in-progress download |
+| `loadModel()` | Loads model into `LlmInference` (3–30 s first time) |
+| `isModelLoaded()` | `true` if instance is in memory |
+| `unloadModel()` | Closes and clears the instance |
+| `generateResponse(prompt)` | Runs inference via `LlmInferenceSession` |
+
+### Download progress event
+
+Kotlin emits `gemmaDownloadProgress` (0.0–1.0) via `DeviceEventEmitter`. JS subscribes in `gemmaModelManager.ts`:
+
+```typescript
+DeviceEventEmitter.addListener(GEMMA_DOWNLOAD_PROGRESS_EVENT, onProgress);
 ```
 
-**Register in `MainApplication.kt`**
+### Inference snippet (Gemma 3 pattern)
+
 ```kotlin
-override fun getPackages(): List<ReactPackage> =
-    PackageList(this).packages.apply {
-        add(GemmaPackage())   // add this line
-    }
+val options = LlmInference.LlmInferenceOptions.builder()
+    .setModelPath(file.absolutePath)
+    .setMaxTokens(1024)
+    .setMaxTopK(MODEL_TOP_K)   // note: setMaxTopK, not setTopK
+    .build()
+
+val inference = LlmInference.createFromOptions(context, options)
+
+// Per request:
+val sessionOptions = LlmInferenceSession.LlmInferenceSessionOptions.builder()
+    .setTemperature(0f)
+    .setTopK(1)
+    .setTopP(1f)
+    .build()
+
+LlmInferenceSession.createFromOptions(inference, sessionOptions).use { session ->
+    session.addQueryChunk(prompt)
+    val result = session.generateResponse()
+}
 ```
 
 ---
 
-## Step 4 — JS Bridge (`gemma.ts`)
+## Step 4 — JS Bridge (`gemmaBridge.ts`)
 
 ```typescript
-import { NativeModules } from 'react-native';
-const { GemmaModule } = NativeModules;
+import {NativeModules, Platform} from 'react-native';
 
-// Call once on app start
-export const loadGemma = (modelPath: string) =>
-    GemmaModule.loadModel(modelPath);
+const GemmaModule =
+  Platform.OS === 'android' ? NativeModules.GemmaModule : undefined;
 
-// Call for each summarize/refine request
-export const askGemma = (prompt: string): Promise<string> =>
-    GemmaModule.generateResponse(prompt);
+export const GEMMA_MODEL_URL =
+  'https://pub-8e31d16ca4f04d94b8e3e5f258fcbc2b.r2.dev/gemma3-1B-it-int4.task';
+
+export const GEMMA_DOWNLOAD_PROGRESS_EVENT = 'gemmaDownloadProgress';
+
+// Download (native — no react-native-fs needed)
+export const downloadGemmaModel = () => GemmaModule.downloadModel();
+
+// Load once, reuse instance
+export const loadGemmaModel = () => GemmaModule.loadModel();
+
+// Inference
+export const askGemma = (prompt: string) => GemmaModule.generateResponse(prompt);
 ```
+
+`gemmaModelManager.ts` wraps this with:
+
+- `ensureGemmaModelDownloaded(onProgress?)` — skips if already present
+- `ensureGemmaModelLoaded()` — dedupes concurrent load calls via a shared promise
+- `isOnDeviceAiSupported()` — `Platform.OS === 'android'`
 
 ---
 
-## Step 5 — Model Download on First Launch
+## Step 5 — Model Download in AI Settings
+
+Users download the model from **Plugins → AI Settings → On-Device AI (Gemma) → Download model**.
+
+The AI config panel (`src/keyboard/ai/AiConfigPanel.tsx`) provides:
+- **AI Provider selector** — choose between Cloud AI (Gemini) and On-Device AI (Gemma)
+- **Gemini API Key input** — for cloud AI authentication
+- **Speechmatics API Key input** — for speech-to-text functionality
+- **Model download progress** — shows download status for the on-device model
 
 ```typescript
-import RNFS from 'react-native-fs';
-
-const MODEL_URL = 'https://your-server.com/gemma-2-2b-it-cpu-int4.task';
-const MODEL_PATH = `${RNFS.DocumentDirectoryPath}/gemma.task`;
-
-export async function ensureModelDownloaded(
-    onProgress: (pct: number) => void
-) {
-    const exists = await RNFS.exists(MODEL_PATH);
-    if (exists) return MODEL_PATH;
-
-    await RNFS.downloadFile({
-        fromUrl: MODEL_URL,
-        toFile: MODEL_PATH,
-        progress: (r) => onProgress(r.bytesWritten / r.contentLength),
-    }).promise;
-
-    return MODEL_PATH;
-}
+// AiConfigPanel.tsx (simplified)
+await ensureGemmaModelDownloaded(progress => {
+  setDownloadProgress(progress);
+});
 ```
 
-> ⚠ `react-native-fs` must be installed: `npx expo install react-native-fs`
+The model is **not** auto-downloaded on provider switch — the user must explicitly tap Download. Inference auto-loads the model on first use via `ensureGemmaModelLoaded()`.
 
 ---
 
-## Step 6 — Prompts
+## Step 6 — Prompts (`gemmaPrompts.ts`)
 
-**Summarizer**
+Gemma 3 instruct models still require the turn-delimiter format:
+
 ```typescript
-const summarizePrompt = (text: string) => `
-<start_of_turn>user
-Summarize the following text in 3-5 concise bullet points.
-Be direct. No preamble.
-
-${text}
+export function wrapGemmaPrompt(instruction: string): string {
+  return `<start_of_turn>user
+${instruction.trim()}
 <end_of_turn>
 <start_of_turn>model
 `;
+}
 ```
 
-**Audio Refinement**
-```typescript
-const refinePrompt = (raw: string) => `
-<start_of_turn>user
-Fix grammar and punctuation in this transcribed speech.
-Return only the corrected text, nothing else.
+Without `<start_of_turn>` / `<end_of_turn>`, output quality degrades significantly.
 
-${raw}
-<end_of_turn>
-<start_of_turn>model
-`;
-```
+### Feature prompts
 
-> ⚠ The `<start_of_turn>` / `<end_of_turn>` tags are required for `-it` models. Without them output quality degrades significantly.
+| Feature | Builder | Output format |
+|---|---|---|
+| Translate | `buildGemmaTranslatePrompt(text, targetLanguage)` | JSON (`detectedLanguage`, `detectedLanguageCode`, `translation`) |
+| Rewrite | `buildGemmaRewritePrompt(text, toneInstruction)` | Plain rewritten text |
+| Voice cleanup | `buildGemmaVoiceCleanupPrompt(transcript)` | Plain polished text |
+
+On-device parsers are more lenient than cloud Gemini:
+
+- **Translate** — `extractJsonPayload()` strips markdown fences and finds `{...}` in the response
+- **Rewrite / voice** — `parseOnDeviceRewriteResult()` / `parseOnDeviceCleanupResult()` accept plain text (and optional surrounding quotes) instead of requiring JSON
+
+Cloud Gemini uses richer JSON-schema prompts in the respective `gemini*Service.ts` files; on-device uses simpler plain-text prompts because the 1B model follows them more reliably.
 
 ---
 
-## Step 7 — Usage in Components
+## Step 7 — Usage in Feature Services
+
+Each feature checks `getAiProvider()` and branches:
 
 ```typescript
-import { loadGemma, askGemma } from './gemma';
-import { ensureModelDownloaded } from './modelDownload';
+import {ensureAiProviderLoaded, getAiProvider} from '../settings/aiProviderStore';
+import {buildGemmaTranslatePrompt} from '../ai/gemmaPrompts';
+import {extractJsonPayload, generateOnDeviceText} from '../ai/onDeviceTextAi';
 
-// In app init (e.g. App.tsx useEffect)
-const modelPath = await ensureModelDownloaded(setProgress);
-await loadGemma(modelPath);
-
-// In Summarizer screen
-const summary = await askGemma(summarizePrompt(screenshotText));
-
-// In Audio Flow
-const refined = await askGemma(refinePrompt(rawTranscript));
+await ensureAiProviderLoaded();
+if (getAiProvider() === 'on_device') {
+  const raw = await generateOnDeviceText(
+    buildGemmaTranslatePrompt(input, targetLanguage),
+  );
+  return parseTranslateResult(extractJsonPayload(raw));
+}
+// else: cloud Gemini fetch(...)
 ```
+
+Same pattern in:
+
+- `src/keyboard/translate/geminiTranslateService.ts`
+- `src/keyboard/rewrite/geminiRewriteService.ts`
+- `src/keyboard/voice/geminiVoiceCleanupService.ts`
+
+`generateOnDeviceText()` always calls `ensureGemmaModelLoaded()` before `askGemma()`, so feature code does not manage load state.
 
 ---
 
@@ -242,25 +299,29 @@ const refined = await askGemma(refinePrompt(rawTranscript));
 
 | | |
 |---|---|
-| **First load time** | 3–8 sec (model loads into memory) |
-| **Inference speed** | 10–30 tokens/sec on mid-range devices |
-| **RAM usage** | ~800MB–1.2GB while active |
-| **Recommended** | Load model once, keep instance alive |
-| **Nothing Phone 2a** | Should run int4 fine (Dimensity 7200) |
-| **CMF Phone 1** | Borderline — test int4 specifically |
+| **Model size** | ~550 MB download |
+| **First load time** | 3–30 sec (device-dependent; show a status message) |
+| **Inference speed** | Faster than 2B on mid-range devices (1B params) |
+| **RAM usage** | ~500 MB–1 GB while model is loaded |
+| **Recommended** | Load once, keep `LlmInference` instance alive |
+| **Decoding** | Deterministic (`temperature: 0`) for repeatable keyboard output |
 
-> ⚠ Do not reload the model on every request. Load once at startup and reuse the instance.
+> Do not reload the model on every request. `ensureGemmaModelLoaded()` dedupes loads; `unloadModel()` is only for explicit teardown.
 
-> ✓ Show a one-time download progress screen on first launch so users understand the 600MB download.
+> Show download progress on first launch so users understand the ~550 MB download.
 
 ---
 
 ## Pre-Submission Checklist
 
-- [ ] Using `gemma-2-2b-it` (not base `gemma-2b`)
-- [ ] Model downloaded to `DocumentDirectoryPath` (not bundled in APK)
-- [ ] `GemmaPackage` registered in `MainApplication.kt`
+- [ ] Using `google/gemma-3-1b-it` (instruct, not base)
+- [ ] `.task` file from Hugging Face / LiteRT community or your own MediaPipe bundle
+- [ ] Model downloaded to `filesDir` (not bundled in APK)
+- [ ] `GemmaModule` registered in `KeyboardModulePackage.kt`
+- [ ] MediaPipe `tasks-genai:0.10.27` (or newer compatible release)
 - [ ] Prompts use `<start_of_turn>/<end_of_turn>` format
-- [ ] Model loaded once on startup, not per request
-- [ ] Fallback handled if model not yet downloaded
-- [ ] Tested on target devices (Nothing/CMF) with int4 quantization
+- [ ] Using `LlmInferenceSession` with per-request generation config
+- [ ] Model loaded once and reused — not per request
+- [ ] Fallback / error handling when model not downloaded
+- [ ] On-device parsers tolerate plain-text responses (not strict JSON)
+- [ ] Tested on target Android devices with int4 quantization

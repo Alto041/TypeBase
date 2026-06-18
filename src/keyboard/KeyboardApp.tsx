@@ -75,6 +75,7 @@ import type {AutocorrectSettings} from './autocorrect/types';
 import {GesturesPanel} from './gestures/GesturesPanel';
 import {TranslatePanel} from './translate/TranslatePanel';
 import {RewritePanel} from './rewrite/RewritePanel';
+import {AiConfigPanel} from './ai/AiConfigPanel';
 import {
   endsWithRewriteCommand,
   REWRITE_COMMAND,
@@ -309,6 +310,7 @@ function KeyboardBody() {
   const isTranslateMode = mode.type === 'translate';
   const isRewriteMode = mode.type === 'rewrite';
   const isEmojiMode = mode.type === 'emoji';
+  const isAiConfigMode = mode.type === 'ai-config';
   const gestureEnabled =
     gestureSettings.swipeTyping &&
     layout === 'letters' &&
@@ -448,6 +450,12 @@ function KeyboardBody() {
   const openCalculator = useCallback(() => {
     setCalculatorDisplay('0');
     setMode({type: 'calculator'});
+    setLayout('letters');
+    resetCase();
+  }, [resetCase]);
+
+  const openAiConfig = useCallback(() => {
+    setMode({type: 'ai-config'});
     setLayout('letters');
     resetCase();
   }, [resetCase]);
@@ -1138,7 +1146,8 @@ function KeyboardBody() {
     mode.type === 'clipboard' ||
     mode.type === 'gestures' ||
     mode.type === 'autocorrect' ||
-    mode.type === 'calculator';
+    mode.type === 'calculator' ||
+    mode.type === 'ai-config';
 
   const handleCalculatorInsert = useCallback((value: string) => {
     if (!value || value === 'Error' || value === '0') {
@@ -1366,7 +1375,9 @@ function KeyboardBody() {
                           ? 'Translate'
                           : mode.type === 'rewrite'
                             ? 'Rewrite'
-                            : undefined
+                            : mode.type === 'ai-config'
+                              ? 'AI Settings'
+                              : undefined
           }
           trailingAction={
             isEssentialsListMode
@@ -1412,6 +1423,9 @@ function KeyboardBody() {
               }}
               onSelectCalculator={() => {
                 openCalculator();
+              }}
+              onSelectAiConfig={() => {
+                openAiConfig();
               }}
             />
           ) : null}
@@ -1471,6 +1485,8 @@ function KeyboardBody() {
               onToggleAutoApply={handleAutoApplyToggle}
             />
           ) : null}
+
+          {mode.type === 'ai-config' ? <AiConfigPanel /> : null}
 
           {mode.type === 'essentials-list' ? (
             <EssentialsListPanel

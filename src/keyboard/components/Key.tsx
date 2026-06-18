@@ -126,6 +126,7 @@ function KeyComponent({
     variant === 'numpad' &&
     (keyDef.type === 'space' || keyDef.type === 'letters');
   const isSpaceKey = keyDef.type === 'space';
+  const isAbcKey = keyDef.id === 'abc';
   const isNumbersIcon = keyDef.id === 'numbers';
   const isSymbolsIcon = keyDef.type === 'symbols';
   const isTextKey =
@@ -311,7 +312,8 @@ function KeyComponent({
     <Text
       style={[
         styles.keyLabel,
-        isSpecial && styles.specialKeyLabel,
+        (isSpecial || isAbcKey) && styles.specialKeyLabel,
+        isAbcKey && styles.abcLabel,
         keyDef.type === 'space' && styles.spaceLabel,
       ]}>
       {displayLabel}
@@ -532,7 +534,9 @@ function KeyComponent({
       <Pressable
           unstable_pressDelay={0}
           android_ripple={
-            Platform.OS === 'android' && !isTextKey
+            Platform.OS === 'android' &&
+            !isTextKey &&
+            !(isEnterAction || isShift || isModifierKey || isNumpadActionKey || isAbcKey)
               ? {color: theme.keyRipple}
               : undefined
           }
@@ -567,7 +571,14 @@ function KeyComponent({
           }
           style={({pressed}) => [
             styles.key,
-            {borderRadius, minHeight: keyHeight},
+            {
+              borderRadius:
+                pressed &&
+                (isEnterAction || isShift || isModifierKey || isNumpadActionKey || isAbcKey)
+                  ? 0
+                  : borderRadius,
+              minHeight: keyHeight,
+            },
             showRewrite && styles.rewriteKey,
             isShift && styles.shiftKey,
             isSpaceKey && styles.spaceKey,
@@ -576,14 +587,13 @@ function KeyComponent({
             isShift && isCapsLocked && styles.shiftKeyLocked,
             isEnterAction && styles.enterKey,
             pressed &&
-              !isShift &&
               !showLauncher &&
               !showRewrite &&
               (isEnterAction
                 ? styles.enterKeyPressed
                 : isSpaceKey
                   ? styles.spaceKeyPressed
-                  : isModifierKey || isNumpadActionKey
+                  : isModifierKey || isNumpadActionKey || isShift
                     ? styles.modifierKeyPressed
                     : styles.letterKeyPressed),
           ]}>
@@ -668,8 +678,12 @@ function createKeyStyles(theme: KeyboardTheme) {
       fontWeight: '500',
     },
     specialKeyLabel: {
-      fontSize: 17,
+      fontSize: 15,
       fontWeight: '500',
+    },
+    abcLabel: {
+      fontSize: 13,
+      fontWeight: '600',
     },
     spaceLabel: {
       fontSize: 16,

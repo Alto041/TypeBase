@@ -6615,3 +6615,282 @@
 {"_e":"metro:client_log","_t":1781706127094,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":11,\"initialProps\":{},\"fabric\":true}"]}
 {"_e":"metro:client_log","_t":1781706127281,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
 {"_e":"metro:client_log","_t":1781706133806,"level":"error","data":["[Error: Uncaught (in promise, id: 0): \"java.lang.IllegalStateException: Tried to use permissions API while not attached to an Activity.\"]"]}
+{"_e":"root:init","_t":1781712181699,"format":"v0-jsonl","version":"56.1.14"}
+{"_e":"devserver:start","_t":1781712181752,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../..\\..\\app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1781712182484,"serverRoot":"../..\\..","projectRoot":"../..\\..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"metro:instantiate","_t":1781712202632,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"metro:bundling:started","_t":1781712207296,"id":"1","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781712207296,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781712207301,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781712207401,"id":"1","progress":0.005604964397037375,"total":187,"current":14}
+{"_e":"metro:bundling:progress","_t":1781712207501,"id":"1","progress":0.0810526715720419,"total":281,"current":80}
+{"_e":"metro:bundling:progress","_t":1781712207605,"id":"1","progress":0.18570861695308447,"total":362,"current":156}
+{"_e":"metro:bundling:progress","_t":1781712207705,"id":"1","progress":0.3216752060592559,"total":469,"current":266}
+{"_e":"metro:bundling:progress","_t":1781712207807,"id":"1","progress":0.47646644216461737,"total":565,"current":390}
+{"_e":"metro:bundling:progress","_t":1781712207907,"id":"1","progress":0.6674783203041565,"total":612,"current":500}
+{"_e":"metro:bundling:progress","_t":1781712208007,"id":"1","progress":0.6674783203041565,"total":732,"current":593}
+{"_e":"metro:bundling:progress","_t":1781712208117,"id":"1","progress":0.8382634484583094,"total":758,"current":694}
+{"_e":"metro:bundling:progress","_t":1781712208217,"id":"1","progress":0.8807448915300455,"total":829,"current":778}
+{"_e":"metro:bundling:progress","_t":1781712208317,"id":"1","progress":0.9269760247289865,"total":887,"current":854}
+{"_e":"metro:bundling:progress","_t":1781712208417,"id":"1","progress":0.9662827322099514,"total":941,"current":925}
+{"_e":"metro:bundling:progress","_t":1781712208527,"id":"1","progress":0.9958115229267477,"total":954,"current":952}
+{"_e":"metro:bundling:progress","_t":1781712209232,"id":"1","progress":0.9979046627023369,"total":954,"current":953}
+{"_e":"metro:bundling:done","_t":1781712209366,"id":"1","total":954,"ms":2069.659}
+{"_e":"metro:client_log","_t":1781712213530,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781712213531,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"root:init","_t":1781803784773,"format":"v0-jsonl","version":"56.1.14"}
+{"_e":"devserver:start","_t":1781803784811,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../..\\..\\app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1781803785809,"serverRoot":"../..\\..","projectRoot":"../..\\..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"metro:instantiate","_t":1781803807859,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"metro:bundling:started","_t":1781803813650,"id":"1","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781803813650,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781803813655,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781803814694,"id":"1","progress":0.010000000000000002,"total":1,"current":1}
+{"_e":"metro:bundling:progress","_t":1781803814811,"id":"1","progress":0.010000000000000002,"total":6,"current":1}
+{"_e":"metro:bundling:progress","_t":1781803815462,"id":"1","progress":0.04000000000000001,"total":6,"current":2}
+{"_e":"metro:bundling:progress","_t":1781803815575,"id":"1","progress":0.09,"total":8,"current":3}
+{"_e":"metro:bundling:progress","_t":1781803816742,"id":"1","progress":0.16000000000000003,"total":8,"current":4}
+{"_e":"metro:bundling:progress","_t":1781803816846,"id":"1","progress":0.16000000000000003,"total":20,"current":5}
+{"_e":"metro:bundling:progress","_t":1781803816965,"id":"1","progress":0.16000000000000003,"total":22,"current":8}
+{"_e":"metro:bundling:progress","_t":1781803817065,"id":"1","progress":0.16000000000000003,"total":136,"current":11}
+{"_e":"metro:bundling:progress","_t":1781803817172,"id":"1","progress":0.16000000000000003,"total":142,"current":16}
+{"_e":"metro:bundling:progress","_t":1781803817309,"id":"1","progress":0.16000000000000003,"total":157,"current":21}
+{"_e":"metro:bundling:progress","_t":1781803817354,"id":"1","progress":0.16000000000000003,"total":157,"current":22}
+{"_e":"metro:bundling:progress","_t":1781803817456,"id":"1","progress":0.16000000000000003,"total":159,"current":23}
+{"_e":"metro:bundling:progress","_t":1781803817561,"id":"1","progress":0.16000000000000003,"total":162,"current":26}
+{"_e":"metro:bundling:progress","_t":1781803817673,"id":"1","progress":0.16000000000000003,"total":168,"current":29}
+{"_e":"metro:bundling:progress","_t":1781803817773,"id":"1","progress":0.16000000000000003,"total":177,"current":32}
+{"_e":"metro:bundling:progress","_t":1781803817910,"id":"1","progress":0.16000000000000003,"total":184,"current":38}
+{"_e":"metro:bundling:progress","_t":1781803818014,"id":"1","progress":0.16000000000000003,"total":224,"current":42}
+{"_e":"metro:bundling:progress","_t":1781803818130,"id":"1","progress":0.16000000000000003,"total":228,"current":45}
+{"_e":"metro:bundling:progress","_t":1781803818233,"id":"1","progress":0.16000000000000003,"total":242,"current":50}
+{"_e":"metro:bundling:progress","_t":1781803818334,"id":"1","progress":0.16000000000000003,"total":250,"current":59}
+{"_e":"metro:bundling:progress","_t":1781803818440,"id":"1","progress":0.16000000000000003,"total":264,"current":74}
+{"_e":"metro:bundling:progress","_t":1781803818542,"id":"1","progress":0.16000000000000003,"total":276,"current":83}
+{"_e":"metro:bundling:progress","_t":1781803818644,"id":"1","progress":0.16000000000000003,"total":291,"current":97}
+{"_e":"metro:bundling:progress","_t":1781803818745,"id":"1","progress":0.16000000000000003,"total":299,"current":113}
+{"_e":"metro:bundling:progress","_t":1781803818848,"id":"1","progress":0.17814977230561643,"total":308,"current":130}
+{"_e":"metro:bundling:progress","_t":1781803818951,"id":"1","progress":0.19511460724904964,"total":326,"current":144}
+{"_e":"metro:bundling:progress","_t":1781803819052,"id":"1","progress":0.19511460724904964,"total":342,"current":148}
+{"_e":"metro:bundling:progress","_t":1781803819885,"id":"1","progress":0.19511460724904964,"total":342,"current":149}
+{"_e":"metro:bundling:progress","_t":1781803819986,"id":"1","progress":0.2177777777777778,"total":345,"current":161}
+{"_e":"metro:bundling:progress","_t":1781803820094,"id":"1","progress":0.23466202280734136,"total":353,"current":171}
+{"_e":"metro:bundling:progress","_t":1781803820206,"id":"1","progress":0.2377569838125811,"total":363,"current":177}
+{"_e":"metro:bundling:progress","_t":1781803820314,"id":"1","progress":0.2433777777777778,"total":375,"current":185}
+{"_e":"metro:bundling:progress","_t":1781803820413,"id":"1","progress":0.24741603801444334,"total":386,"current":192}
+{"_e":"metro:bundling:progress","_t":1781803820526,"id":"1","progress":0.2538510344647144,"total":391,"current":197}
+{"_e":"metro:bundling:progress","_t":1781803820647,"id":"1","progress":0.2601,"total":400,"current":204}
+{"_e":"metro:bundling:progress","_t":1781803820754,"id":"1","progress":0.2601,"total":413,"current":208}
+{"_e":"metro:bundling:progress","_t":1781803820863,"id":"1","progress":0.2601,"total":421,"current":214}
+{"_e":"metro:bundling:progress","_t":1781803820964,"id":"1","progress":0.27998652474176944,"total":429,"current":227}
+{"_e":"metro:bundling:progress","_t":1781803821064,"id":"1","progress":0.28938636001275514,"total":448,"current":241}
+{"_e":"metro:bundling:progress","_t":1781803821168,"id":"1","progress":0.29187464090778514,"total":472,"current":255}
+{"_e":"metro:bundling:progress","_t":1781803821268,"id":"1","progress":0.30788964901844146,"total":492,"current":273}
+{"_e":"metro:bundling:progress","_t":1781803821368,"id":"1","progress":0.32273009432391103,"total":514,"current":292}
+{"_e":"metro:bundling:progress","_t":1781803821470,"id":"1","progress":0.3340224667119663,"total":526,"current":304}
+{"_e":"metro:bundling:progress","_t":1781803821572,"id":"1","progress":0.3555279937112412,"total":535,"current":319}
+{"_e":"metro:bundling:progress","_t":1781803821675,"id":"1","progress":0.3762385815563632,"total":538,"current":330}
+{"_e":"metro:bundling:progress","_t":1781803821775,"id":"1","progress":0.3780137275227347,"total":553,"current":340}
+{"_e":"metro:bundling:progress","_t":1781803821895,"id":"1","progress":0.3923190710161738,"total":554,"current":347}
+{"_e":"metro:bundling:progress","_t":1781803822007,"id":"1","progress":0.4057826015374678,"total":562,"current":358}
+{"_e":"metro:bundling:progress","_t":1781803822116,"id":"1","progress":0.4160136644005918,"total":569,"current":367}
+{"_e":"metro:bundling:progress","_t":1781803822216,"id":"1","progress":0.42385525173611105,"total":576,"current":375}
+{"_e":"metro:bundling:progress","_t":1781803822317,"id":"1","progress":0.4277745355654238,"total":581,"current":380}
+{"_e":"metro:bundling:progress","_t":1781803822424,"id":"1","progress":0.44367980898267273,"total":581,"current":387}
+{"_e":"metro:bundling:progress","_t":1781803822524,"id":"1","progress":0.44367980898267273,"total":594,"current":395}
+{"_e":"metro:bundling:progress","_t":1781803822630,"id":"1","progress":0.4670589126537208,"total":597,"current":408}
+{"_e":"metro:bundling:progress","_t":1781803822740,"id":"1","progress":0.48626133935862015,"total":598,"current":417}
+{"_e":"metro:bundling:progress","_t":1781803822839,"id":"1","progress":0.5007560622951182,"total":602,"current":426}
+{"_e":"metro:bundling:progress","_t":1781803822941,"id":"1","progress":0.5234666242708653,"total":604,"current":437}
+{"_e":"metro:bundling:progress","_t":1781803823047,"id":"1","progress":0.5306784790140783,"total":604,"current":440}
+{"_e":"metro:bundling:progress","_t":1781803823153,"id":"1","progress":0.5502321026662049,"total":608,"current":451}
+{"_e":"metro:bundling:progress","_t":1781803823257,"id":"1","progress":0.5625,"total":612,"current":459}
+{"_e":"metro:bundling:progress","_t":1781803823358,"id":"1","progress":0.5909452620186951,"total":614,"current":472}
+{"_e":"metro:bundling:progress","_t":1781803823459,"id":"1","progress":0.6186087615200101,"total":623,"current":490}
+{"_e":"metro:bundling:progress","_t":1781803823571,"id":"1","progress":0.6497806747205787,"total":624,"current":503}
+{"_e":"metro:bundling:progress","_t":1781803823689,"id":"1","progress":0.6741826496136533,"total":626,"current":514}
+{"_e":"metro:bundling:progress","_t":1781803823790,"id":"1","progress":0.7006113803877584,"total":632,"current":529}
+{"_e":"metro:bundling:progress","_t":1781803823889,"id":"1","progress":0.7079010954192658,"total":643,"current":541}
+{"_e":"metro:bundling:progress","_t":1781803823998,"id":"1","progress":0.7079010954192658,"total":720,"current":551}
+{"_e":"metro:bundling:progress","_t":1781803824097,"id":"1","progress":0.7079010954192658,"total":729,"current":561}
+{"_e":"metro:bundling:progress","_t":1781803824223,"id":"1","progress":0.7079010954192658,"total":733,"current":573}
+{"_e":"metro:bundling:progress","_t":1781803824324,"id":"1","progress":0.7079010954192658,"total":743,"current":586}
+{"_e":"metro:bundling:progress","_t":1781803824425,"id":"1","progress":0.7079010954192658,"total":745,"current":606}
+{"_e":"metro:bundling:progress","_t":1781803824525,"id":"1","progress":0.7079010954192658,"total":755,"current":620}
+{"_e":"metro:bundling:progress","_t":1781803824626,"id":"1","progress":0.7079010954192658,"total":765,"current":634}
+{"_e":"metro:bundling:progress","_t":1781803824729,"id":"1","progress":0.7079010954192658,"total":770,"current":640}
+{"_e":"metro:bundling:progress","_t":1781803824834,"id":"1","progress":0.7079010954192658,"total":778,"current":649}
+{"_e":"metro:bundling:progress","_t":1781803824942,"id":"1","progress":0.7196621751111874,"total":778,"current":660}
+{"_e":"metro:bundling:progress","_t":1781803825043,"id":"1","progress":0.7508144637557449,"total":779,"current":675}
+{"_e":"metro:bundling:progress","_t":1781803825145,"id":"1","progress":0.7595144675588705,"total":786,"current":685}
+{"_e":"metro:bundling:progress","_t":1781803825245,"id":"1","progress":0.7678361901846751,"total":792,"current":694}
+{"_e":"metro:bundling:progress","_t":1781803825376,"id":"1","progress":0.7700505688195082,"total":792,"current":695}
+{"_e":"metro:bundling:progress","_t":1781803825479,"id":"1","progress":0.792369719926538,"total":792,"current":705}
+{"_e":"metro:bundling:progress","_t":1781803825577,"id":"1","progress":0.8195735766758494,"total":792,"current":717}
+{"_e":"metro:bundling:progress","_t":1781803825677,"id":"1","progress":0.8295639630312367,"total":796,"current":725}
+{"_e":"metro:bundling:progress","_t":1781803825786,"id":"1","progress":0.8295639630312367,"total":808,"current":732}
+{"_e":"metro:bundling:progress","_t":1781803825888,"id":"1","progress":0.830323191748477,"total":811,"current":739}
+{"_e":"metro:bundling:progress","_t":1781803825988,"id":"1","progress":0.8440449901720499,"total":812,"current":746}
+{"_e":"metro:bundling:progress","_t":1781803826099,"id":"1","progress":0.8525893760988865,"total":822,"current":759}
+{"_e":"metro:bundling:progress","_t":1781803826207,"id":"1","progress":0.8644947206116,"total":826,"current":768}
+{"_e":"metro:bundling:progress","_t":1781803826309,"id":"1","progress":0.8783402179747486,"total":828,"current":776}
+{"_e":"metro:bundling:progress","_t":1781803826411,"id":"1","progress":0.8862105377624139,"total":836,"current":787}
+{"_e":"metro:bundling:progress","_t":1781803826526,"id":"1","progress":0.9045417262376041,"total":838,"current":797}
+{"_e":"metro:bundling:progress","_t":1781803826658,"id":"1","progress":0.9161224489795919,"total":840,"current":804}
+{"_e":"metro:bundling:progress","_t":1781803826745,"id":"1","progress":0.9184027777777779,"total":840,"current":805}
+{"_e":"metro:bundling:progress","_t":1781803826859,"id":"1","progress":0.920685941043084,"total":840,"current":806}
+{"_e":"metro:bundling:progress","_t":1781803826990,"id":"1","progress":0.9256944784846469,"total":845,"current":813}
+{"_e":"metro:bundling:progress","_t":1781803827091,"id":"1","progress":0.9304162618534199,"total":847,"current":817}
+{"_e":"metro:bundling:progress","_t":1781803827193,"id":"1","progress":0.9376959328430516,"total":853,"current":826}
+{"_e":"metro:bundling:progress","_t":1781803827304,"id":"1","progress":0.949141387272458,"total":854,"current":832}
+{"_e":"metro:bundling:progress","_t":1781803827404,"id":"1","progress":0.9583379501385042,"total":855,"current":837}
+{"_e":"metro:bundling:progress","_t":1781803827505,"id":"1","progress":0.96751957867378,"total":855,"current":841}
+{"_e":"metro:bundling:progress","_t":1781803827611,"id":"1","progress":0.9744345268629665,"total":855,"current":844}
+{"_e":"metro:bundling:progress","_t":1781803827721,"id":"1","progress":0.983692760165521,"total":855,"current":848}
+{"_e":"metro:bundling:progress","_t":1781803827843,"id":"1","progress":0.983692760165521,"total":857,"current":849}
+{"_e":"metro:bundling:progress","_t":1781803827945,"id":"1","progress":0.9883654276879675,"total":857,"current":852}
+{"_e":"metro:bundling:progress","_t":1781803828056,"id":"1","progress":0.9953434289098624,"total":858,"current":856}
+{"_e":"metro:bundling:progress","_t":1781803829038,"id":"1","progress":0.9976703560619644,"total":858,"current":857}
+{"_e":"metro:bundling:progress","_t":1781803829154,"id":"1","progress":0.9976703560619644,"total":880,"current":861}
+{"_e":"metro:bundling:progress","_t":1781803829269,"id":"1","progress":0.9976703560619644,"total":900,"current":871}
+{"_e":"metro:bundling:progress","_t":1781803829505,"id":"1","progress":0.9976703560619644,"total":908,"current":879}
+{"_e":"metro:bundling:progress","_t":1781803829606,"id":"1","progress":0.9976703560619644,"total":921,"current":891}
+{"_e":"metro:bundling:progress","_t":1781803829709,"id":"1","progress":0.9976703560619644,"total":933,"current":904}
+{"_e":"metro:bundling:progress","_t":1781803829820,"id":"1","progress":0.9976703560619644,"total":936,"current":910}
+{"_e":"metro:bundling:progress","_t":1781803829911,"id":"1","progress":0.9976703560619644,"total":944,"current":918}
+{"_e":"metro:bundling:progress","_t":1781803830020,"id":"1","progress":0.9976703560619644,"total":948,"current":932}
+{"_e":"metro:bundling:progress","_t":1781803830134,"id":"1","progress":0.9976703560619644,"total":951,"current":946}
+{"_e":"metro:bundling:progress","_t":1781803830241,"id":"1","progress":0.9978980562825561,"total":951,"current":950}
+{"_e":"metro:bundling:progress","_t":1781803831417,"id":"1","progress":0.999,"total":951,"current":951}
+{"_e":"metro:bundling:progress","_t":1781803831529,"id":"1","progress":0.999,"total":962,"current":962}
+{"_e":"metro:bundling:done","_t":1781803831993,"id":"1","total":962,"ms":18342.8629}
+{"_e":"metro:client_log","_t":1781803833255,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781803833256,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1781803939810,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":11,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781803940026,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"metro:bundling:started","_t":1781804367772,"id":"2","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781804367772,"id":"2","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1781804367832,"id":"2","total":1,"ms":59.7304}
+{"_e":"metro:client_log","_t":1781804369404,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781804369404,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1781804369405,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":11,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781804369921,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"metro:bundling:started","_t":1781804383691,"id":"3","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781804383691,"id":"3","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1781804383771,"id":"3","total":1,"ms":79.6349}
+{"_e":"metro:client_log","_t":1781804384923,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781804384924,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1781804384924,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":11,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781804385269,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"metro:bundling:failed","_t":1781804682159,"id":null,"message":"Unable to resolve \"./assets/cloud.svg\" from \"AiConfigScreen.tsx\"\n  14 |\n  15 | import BackIcon from './assets/back.svg';\n> 16 | import CloudIcon from './assets/cloud.svg';\n     |                        ^\n  17 | import DeviceIcon from './assets/device.svg';\n  18 | import KeyIcon from './assets/key.svg';\n  19 | import DownloadIcon from './assets/download.svg';","importStack":"\u001b[1mImport stack:\u001b[22m\n\n\u001b[90m \u001b[39mAiConfigScreen.tsx\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./assets/cloud.svg\"\u001b[39m\n\n\u001b[90m \u001b[39mApp.tsx\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./AiConfigScreen\"\u001b[39m\n\n\u001b[90m \u001b[39mindex.js\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./App\"\u001b[39m\n\n\u001b[90m \u001b[39m\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./index\"\u001b[39m\n","filename":null,"targetModuleName":"./assets/cloud.svg","originModulePath":"AiConfigScreen.tsx"}
+{"_e":"metro:bundling:failed","_t":1781804682360,"id":null,"message":"Unable to resolve \"./assets/cloud.svg\" from \"AiConfigScreen.tsx\"\n  14 |\n  15 | import BackIcon from './assets/back.svg';\n> 16 | import CloudIcon from './assets/cloud.svg';\n     |                        ^\n  17 | import DeviceIcon from './assets/device.svg';\n  18 | import KeyIcon from './assets/key.svg';\n  19 | import DownloadIcon from './assets/download.svg';","importStack":"\u001b[1mImport stack:\u001b[22m\n\n\u001b[90m \u001b[39mAiConfigScreen.tsx\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./assets/cloud.svg\"\u001b[39m\n\n\u001b[90m \u001b[39mApp.tsx\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./AiConfigScreen\"\u001b[39m\n\n\u001b[90m \u001b[39mindex.js\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./App\"\u001b[39m\n\n\u001b[90m \u001b[39m\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./index\"\u001b[39m\n","filename":null,"targetModuleName":"./assets/cloud.svg","originModulePath":"AiConfigScreen.tsx"}
+{"_e":"metro:bundling:failed","_t":1781804690541,"id":null,"message":"Unable to resolve \"./assets/cloud.svg\" from \"AiConfigScreen.tsx\"\n  14 |\n  15 | import BackIcon from './assets/back.svg';\n> 16 | import CloudIcon from './assets/cloud.svg';\n     |                        ^\n  17 | import DeviceIcon from './assets/device.svg';\n  18 | import KeyIcon from './assets/key.svg';\n  19 | import DownloadIcon from './assets/download.svg';","importStack":"\u001b[1mImport stack:\u001b[22m\n\n\u001b[90m \u001b[39mAiConfigScreen.tsx\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./assets/cloud.svg\"\u001b[39m\n\n\u001b[90m \u001b[39mApp.tsx\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./AiConfigScreen\"\u001b[39m\n\n\u001b[90m \u001b[39mindex.js\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./App\"\u001b[39m\n\n\u001b[90m \u001b[39m\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./index\"\u001b[39m\n","filename":null,"targetModuleName":"./assets/cloud.svg","originModulePath":"AiConfigScreen.tsx"}
+{"_e":"metro:bundling:started","_t":1781804928625,"id":"7","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781804928625,"id":"7","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781804928625,"id":"7","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:failed","_t":1781804928637,"id":"7","message":"Unable to resolve \"./assets/cloud.svg\" from \"AiConfigScreen.tsx\"\n  14 |\n  15 | import BackIcon from './assets/back.svg';\n> 16 | import CloudIcon from './assets/cloud.svg';\n     |                        ^\n  17 | import DeviceIcon from './assets/device.svg';\n  18 | import KeyIcon from './assets/key.svg';\n  19 | import DownloadIcon from './assets/download.svg';","importStack":"\u001b[1mImport stack:\u001b[22m\n\n\u001b[90m \u001b[39mAiConfigScreen.tsx\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./assets/cloud.svg\"\u001b[39m\n\n\u001b[90m \u001b[39mApp.tsx\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./AiConfigScreen\"\u001b[39m\n\n\u001b[90m \u001b[39mindex.js\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./App\"\u001b[39m\n\n\u001b[90m \u001b[39m\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./index\"\u001b[39m\n","filename":null,"targetModuleName":"./assets/cloud.svg","originModulePath":"AiConfigScreen.tsx"}
+{"_e":"metro:bundling:started","_t":1781804984014,"id":"8","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781804984014,"id":"8","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781804984015,"id":"8","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:failed","_t":1781804984032,"id":"8","message":"Unable to resolve \"./assets/device.svg\" from \"AiConfigScreen.tsx\"\n  15 | import BackIcon from './assets/back.svg';\n  16 | import CloudIcon from './assets/cloud.svg';\n> 17 | import DeviceIcon from './assets/device.svg';\n     |                         ^\n  18 | import KeyIcon from './assets/key.svg';\n  19 | import DownloadIcon from './assets/download.svg';\n  20 |","importStack":"\u001b[1mImport stack:\u001b[22m\n\n\u001b[90m \u001b[39mAiConfigScreen.tsx\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./assets/device.svg\"\u001b[39m\n\n\u001b[90m \u001b[39mApp.tsx\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./AiConfigScreen\"\u001b[39m\n\n\u001b[90m \u001b[39mindex.js\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./App\"\u001b[39m\n\n\u001b[90m \u001b[39m\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./index\"\u001b[39m\n","filename":null,"targetModuleName":"./assets/device.svg","originModulePath":"AiConfigScreen.tsx"}
+{"_e":"metro:bundling:started","_t":1781804986403,"id":"9","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781804986403,"id":"9","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781804986404,"id":"9","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:failed","_t":1781804986413,"id":"9","message":"Unable to resolve \"./assets/device.svg\" from \"AiConfigScreen.tsx\"\n  15 | import BackIcon from './assets/back.svg';\n  16 | import CloudIcon from './assets/cloud.svg';\n> 17 | import DeviceIcon from './assets/device.svg';\n     |                         ^\n  18 | import KeyIcon from './assets/key.svg';\n  19 | import DownloadIcon from './assets/download.svg';\n  20 |","importStack":"\u001b[1mImport stack:\u001b[22m\n\n\u001b[90m \u001b[39mAiConfigScreen.tsx\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./assets/device.svg\"\u001b[39m\n\n\u001b[90m \u001b[39mApp.tsx\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./AiConfigScreen\"\u001b[39m\n\n\u001b[90m \u001b[39mindex.js\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./App\"\u001b[39m\n\n\u001b[90m \u001b[39m\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./index\"\u001b[39m\n","filename":null,"targetModuleName":"./assets/device.svg","originModulePath":"AiConfigScreen.tsx"}
+{"_e":"root:init","_t":1781805015424,"format":"v0-jsonl","version":"56.1.14"}
+{"_e":"devserver:start","_t":1781805015470,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../..\\..\\app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1781805016244,"serverRoot":"../..\\..","projectRoot":"../..\\..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"metro:instantiate","_t":1781805036283,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"metro:bundling:started","_t":1781805042476,"id":"1","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781805042477,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781805042482,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781805042583,"id":"1","progress":0.013918697134200226,"total":178,"current":21}
+{"_e":"metro:bundling:progress","_t":1781805042685,"id":"1","progress":0.15187067474048443,"total":272,"current":106}
+{"_e":"metro:bundling:progress","_t":1781805042785,"id":"1","progress":0.2174787352071006,"total":416,"current":194}
+{"_e":"metro:bundling:progress","_t":1781805042888,"id":"1","progress":0.44850884437103733,"total":548,"current":367}
+{"_e":"metro:bundling:progress","_t":1781805042988,"id":"1","progress":0.5809884288025843,"total":593,"current":452}
+{"_e":"metro:bundling:progress","_t":1781805043088,"id":"1","progress":0.7667828448251729,"total":756,"current":662}
+{"_e":"metro:bundling:progress","_t":1781805043197,"id":"1","progress":0.8622448979591837,"total":812,"current":754}
+{"_e":"metro:bundling:progress","_t":1781805043297,"id":"1","progress":0.9380825894852745,"total":922,"current":893}
+{"_e":"metro:bundling:failed","_t":1781805043370,"id":"1","message":"Unable to resolve \"./assets/device.svg\" from \"AiConfigScreen.tsx\"\n  15 | import BackIcon from './assets/back.svg';\n  16 | import CloudIcon from './assets/cloud.svg';\n> 17 | import DeviceIcon from './assets/device.svg';\n     |                         ^\n  18 | import KeyIcon from './assets/key.svg';\n  19 | import DownloadIcon from './assets/download.svg';\n  20 |","importStack":"\u001b[1mImport stack:\u001b[22m\n\n\u001b[90m \u001b[39mAiConfigScreen.tsx\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./assets/device.svg\"\u001b[39m\n\n\u001b[90m \u001b[39mApp.tsx\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./AiConfigScreen\"\u001b[39m\n\n\u001b[90m \u001b[39mindex.js\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./App\"\u001b[39m\n\n\u001b[90m \u001b[39m\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./index\"\u001b[39m\n","filename":null,"targetModuleName":"./assets/device.svg","originModulePath":"AiConfigScreen.tsx"}
+{"_e":"metro:bundling:started","_t":1781805043499,"id":"2","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781805043499,"id":"2","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781805043501,"id":"2","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781805043600,"id":"2","progress":0.08748264233287045,"total":284,"current":84}
+{"_e":"metro:bundling:progress","_t":1781805043700,"id":"2","progress":0.31772874072201573,"total":479,"current":270}
+{"_e":"metro:bundling:progress","_t":1781805043800,"id":"2","progress":0.6180689819170605,"total":622,"current":489}
+{"_e":"metro:bundling:progress","_t":1781805043906,"id":"2","progress":0.859659328227597,"total":769,"current":713}
+{"_e":"metro:bundling:progress","_t":1781805044006,"id":"2","progress":0.9550114477486957,"total":879,"current":859}
+{"_e":"metro:bundling:failed","_t":1781805044075,"id":"2","message":"Unable to resolve \"./assets/device.svg\" from \"AiConfigScreen.tsx\"\n  15 | import BackIcon from './assets/back.svg';\n  16 | import CloudIcon from './assets/cloud.svg';\n> 17 | import DeviceIcon from './assets/device.svg';\n     |                         ^\n  18 | import KeyIcon from './assets/key.svg';\n  19 | import DownloadIcon from './assets/download.svg';\n  20 |","importStack":"\u001b[1mImport stack:\u001b[22m\n\n\u001b[90m \u001b[39mAiConfigScreen.tsx\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./assets/device.svg\"\u001b[39m\n\n\u001b[90m \u001b[39mApp.tsx\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./AiConfigScreen\"\u001b[39m\n\n\u001b[90m \u001b[39mindex.js\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./App\"\u001b[39m\n\n\u001b[90m \u001b[39m\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./index\"\u001b[39m\n","filename":null,"targetModuleName":"./assets/device.svg","originModulePath":"AiConfigScreen.tsx"}
+{"_e":"metro:bundling:started","_t":1781805068694,"id":"3","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781805068695,"id":"3","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781805068696,"id":"3","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781805068798,"id":"3","progress":0.0839159737969262,"total":252,"current":73}
+{"_e":"metro:bundling:progress","_t":1781805068897,"id":"3","progress":0.18333536827325175,"total":362,"current":155}
+{"_e":"metro:bundling:progress","_t":1781805068997,"id":"3","progress":0.3871604938271605,"total":540,"current":336}
+{"_e":"metro:bundling:progress","_t":1781805069097,"id":"3","progress":0.5477672444061412,"total":708,"current":524}
+{"_e":"metro:bundling:progress","_t":1781805069211,"id":"3","progress":0.8576057169677058,"total":771,"current":714}
+{"_e":"metro:bundling:progress","_t":1781805069311,"id":"3","progress":0.9814604251905117,"total":859,"current":851}
+{"_e":"metro:bundling:failed","_t":1781805069403,"id":"3","message":"Unable to resolve \"./assets/key.svg\" from \"AiConfigScreen.tsx\"\n  16 | import CloudIcon from './assets/cloud.svg';\n  17 | import DeviceIcon from './assets/device.svg';\n> 18 | import KeyIcon from './assets/key.svg';\n     |                      ^\n  19 | import DownloadIcon from './assets/download.svg';\n  20 |\n  21 | import {","importStack":"\u001b[1mImport stack:\u001b[22m\n\n\u001b[90m \u001b[39mAiConfigScreen.tsx\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./assets/key.svg\"\u001b[39m\n\n\u001b[90m \u001b[39mApp.tsx\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./AiConfigScreen\"\u001b[39m\n\n\u001b[90m \u001b[39mindex.js\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./App\"\u001b[39m\n\n\u001b[90m \u001b[39m\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./index\"\u001b[39m\n","filename":null,"targetModuleName":"./assets/key.svg","originModulePath":"AiConfigScreen.tsx"}
+{"_e":"root:init","_t":1781805088935,"format":"v0-jsonl","version":"56.1.14"}
+{"_e":"devserver:start","_t":1781805088975,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../..\\..\\app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1781805089552,"serverRoot":"../..\\..","projectRoot":"../..\\..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"metro:instantiate","_t":1781805110429,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"metro:bundling:started","_t":1781805115913,"id":"1","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781805115914,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781805115917,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781805116045,"id":"1","progress":0.0014239943040227838,"total":159,"current":6}
+{"_e":"metro:bundling:progress","_t":1781805116145,"id":"1","progress":0.13956568173727302,"total":265,"current":99}
+{"_e":"metro:bundling:progress","_t":1781805116257,"id":"1","progress":0.21633315305570577,"total":387,"current":180}
+{"_e":"metro:bundling:progress","_t":1781805116357,"id":"1","progress":0.4010312999167385,"total":529,"current":335}
+{"_e":"metro:bundling:progress","_t":1781805116457,"id":"1","progress":0.4994101015331476,"total":583,"current":412}
+{"_e":"metro:bundling:progress","_t":1781805116557,"id":"1","progress":0.6708180896865499,"total":746,"current":611}
+{"_e":"metro:bundling:progress","_t":1781805116658,"id":"1","progress":0.8576057169677058,"total":771,"current":714}
+{"_e":"metro:bundling:progress","_t":1781805116758,"id":"1","progress":0.9674440530559684,"total":853,"current":839}
+{"_e":"metro:bundling:progress","_t":1781805116871,"id":"1","progress":0.9674440530559684,"total":947,"current":922}
+{"_e":"metro:bundling:failed","_t":1781805116893,"id":"1","message":"Unable to resolve \"./assets/key.svg\" from \"AiConfigScreen.tsx\"\n  16 | import CloudIcon from './assets/cloud.svg';\n  17 | import DeviceIcon from './assets/device.svg';\n> 18 | import KeyIcon from './assets/key.svg';\n     |                      ^\n  19 | import DownloadIcon from './assets/download.svg';\n  20 |\n  21 | import {","importStack":"\u001b[1mImport stack:\u001b[22m\n\n\u001b[90m \u001b[39mAiConfigScreen.tsx\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./assets/key.svg\"\u001b[39m\n\n\u001b[90m \u001b[39mApp.tsx\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./AiConfigScreen\"\u001b[39m\n\n\u001b[90m \u001b[39mindex.js\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./App\"\u001b[39m\n\n\u001b[90m \u001b[39m\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./index\"\u001b[39m\n","filename":null,"targetModuleName":"./assets/key.svg","originModulePath":"AiConfigScreen.tsx"}
+{"_e":"metro:bundling:started","_t":1781805116999,"id":"2","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781805116999,"id":"2","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781805117001,"id":"2","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781805117100,"id":"2","progress":0.10958382877526754,"total":290,"current":96}
+{"_e":"metro:bundling:progress","_t":1781805117200,"id":"2","progress":0.265225,"total":400,"current":206}
+{"_e":"metro:bundling:progress","_t":1781805117300,"id":"2","progress":0.4713395575341949,"total":587,"current":403}
+{"_e":"metro:bundling:progress","_t":1781805117400,"id":"2","progress":0.7906386146944785,"total":767,"current":682}
+{"_e":"metro:bundling:progress","_t":1781805117500,"id":"2","progress":0.9078853684585262,"total":848,"current":808}
+{"_e":"metro:bundling:failed","_t":1781805117599,"id":"2","message":"Unable to resolve \"./assets/key.svg\" from \"AiConfigScreen.tsx\"\n  16 | import CloudIcon from './assets/cloud.svg';\n  17 | import DeviceIcon from './assets/device.svg';\n> 18 | import KeyIcon from './assets/key.svg';\n     |                      ^\n  19 | import DownloadIcon from './assets/download.svg';\n  20 |\n  21 | import {","importStack":"\u001b[1mImport stack:\u001b[22m\n\n\u001b[90m \u001b[39mAiConfigScreen.tsx\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./assets/key.svg\"\u001b[39m\n\n\u001b[90m \u001b[39mApp.tsx\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./AiConfigScreen\"\u001b[39m\n\n\u001b[90m \u001b[39mindex.js\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./App\"\u001b[39m\n\n\u001b[90m \u001b[39m\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./index\"\u001b[39m\n","filename":null,"targetModuleName":"./assets/key.svg","originModulePath":"AiConfigScreen.tsx"}
+{"_e":"root:init","_t":1781805308253,"format":"v0-jsonl","version":"56.1.14"}
+{"_e":"devserver:start","_t":1781805308287,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../..\\..\\app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1781805308819,"serverRoot":"../..\\..","projectRoot":"../..\\..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"metro:instantiate","_t":1781805328393,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"metro:bundling:started","_t":1781805333882,"id":"1","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781805333883,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781805333887,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781805333988,"id":"1","progress":0.0034234947940244456,"total":188,"current":11}
+{"_e":"metro:bundling:progress","_t":1781805334088,"id":"1","progress":0.0775000335439896,"total":273,"current":76}
+{"_e":"metro:bundling:progress","_t":1781805334188,"id":"1","progress":0.2461588279220994,"total":389,"current":193}
+{"_e":"metro:bundling:progress","_t":1781805334288,"id":"1","progress":0.32201121189216425,"total":504,"current":286}
+{"_e":"metro:bundling:progress","_t":1781805334388,"id":"1","progress":0.46864346452246575,"total":577,"current":395}
+{"_e":"metro:bundling:progress","_t":1781805334488,"id":"1","progress":0.6171673599999999,"total":625,"current":491}
+{"_e":"metro:bundling:progress","_t":1781805334599,"id":"1","progress":0.6171673599999999,"total":718,"current":548}
+{"_e":"metro:bundling:progress","_t":1781805334698,"id":"1","progress":0.649587881488082,"total":737,"current":594}
+{"_e":"metro:bundling:progress","_t":1781805334798,"id":"1","progress":0.7624828057584689,"total":765,"current":668}
+{"_e":"metro:bundling:progress","_t":1781805334901,"id":"1","progress":0.8507854848885995,"total":773,"current":713}
+{"_e":"metro:bundling:progress","_t":1781805335006,"id":"1","progress":0.8708087207250833,"total":823,"current":768}
+{"_e":"metro:bundling:progress","_t":1781805335106,"id":"1","progress":0.9564522690928328,"total":863,"current":844}
+{"_e":"metro:bundling:progress","_t":1781805335206,"id":"1","progress":0.9564522690928328,"total":896,"current":866}
+{"_e":"metro:bundling:progress","_t":1781805335321,"id":"1","progress":0.9564522690928328,"total":944,"current":913}
+{"_e":"metro:bundling:progress","_t":1781805335420,"id":"1","progress":0.9917611061588288,"total":969,"current":965}
+{"_e":"metro:bundling:progress","_t":1781805336648,"id":"1","progress":0.993817634598242,"total":969,"current":966}
+{"_e":"metro:bundling:done","_t":1781805336766,"id":"1","total":969,"ms":2883.8956}
+{"_e":"metro:client_log","_t":1781805338346,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781805338347,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1781805339734,"level":"error","data":["[Error: Uncaught (in promise, id: 0): \"TypeError: undefined is not a function\"]"]}
+{"_e":"metro:client_log","_t":1781805353935,"level":"error","data":["[Error: Uncaught (in promise, id: 1): \"TypeError: undefined is not a function\"]"]}
+{"_e":"metro:client_log","_t":1781805488999,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":11,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1781805489290,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"metro:client_log","_t":1781805491434,"level":"error","data":["[Error: Uncaught (in promise, id: 2): \"java.lang.IllegalStateException: Tried to use permissions API while not attached to an Activity.\"]"]}
+{"_e":"metro:bundling:started","_t":1781805514906,"id":"5","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781805514906,"id":"5","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1781805514961,"id":"5","total":1,"ms":55.1182}
+{"_e":"metro:client_log","_t":1781805516468,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781805516468,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}

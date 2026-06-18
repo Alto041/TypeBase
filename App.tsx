@@ -39,6 +39,7 @@ import SettingsIcon from './assets/settings.svg';
 
 import { CustomizeScreen, ThemesScreen } from './KeyboardCustomization';
 import { GeneralSettingsScreen } from './GeneralSettingsScreen';
+import { AiConfigScreen } from './AiConfigScreen';
 
 const C = {
   bg: '#f2f2f4',
@@ -313,6 +314,15 @@ function LaunchpadCard({
 
 function SetupScreen() {
   const [tab, setTab] = useState<NavTab>('home');
+  const [showAiConfig, setShowAiConfig] = useState(false);
+
+  if (showAiConfig) {
+    return (
+      <View style={{ flex: 1 }}>
+        <AiConfigScreen onBack={() => setShowAiConfig(false)} />
+      </View>
+    );
+  }
 
   const screenForTab = (): React.ReactNode => {
     if (tab === 'settings') {
@@ -331,6 +341,7 @@ function SetupScreen() {
     return (
       <LaunchpadScreen
         onOpenKeyboard={() => setTab('customize')}
+        onOpenAiConfig={() => setShowAiConfig(true)}
       />
     );
   };
@@ -345,8 +356,10 @@ function SetupScreen() {
 
 function LaunchpadScreen({
   onOpenKeyboard,
+  onOpenAiConfig,
 }: {
   onOpenKeyboard: () => void;
+  onOpenAiConfig: () => void;
 }) {
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -365,14 +378,17 @@ function LaunchpadScreen({
           </View>
 
           <View style={styles.configRow}>
-            <View style={[styles.configCard, styles.configCardLeft]}>
+            <Pressable
+              onPress={onOpenAiConfig}
+              style={[styles.configCard, styles.configCardLeft]}
+            >
               <Text style={[styles.configLabel, styles.configLabelTopLeft]}>
                 AI CONFIG
               </Text>
               <View style={styles.configIconBottomLeft}>
                 <AiConfigIcon width={CONFIG_AI_W} height={CONFIG_AI_H} />
               </View>
-            </View>
+            </Pressable>
 
             <View style={[styles.configCard, styles.configCardRight]}>
               <View style={styles.configIconTopRight}>

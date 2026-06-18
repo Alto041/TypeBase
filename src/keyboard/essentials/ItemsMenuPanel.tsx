@@ -14,6 +14,7 @@ import EssentialsIcon from '../../../assets/plugins/essentials.svg';
 import CalculatorIcon from '../../../assets/plugins/calculator.svg';
 import AutocorrectIcon from '../../../assets/plugins/autocorrect.svg';
 import GesturesIcon from '../../../assets/gesture.svg';
+import AiIcon from '../../../assets/plugins/ai.svg';
 import {
   PLUGIN_INNER_RADIUS,
   PLUGIN_OUTER_RADIUS,
@@ -31,6 +32,7 @@ type ItemsMenuPanelProps = {
   onSelectGestures: () => void;
   onSelectAutocorrect: () => void;
   onSelectCalculator: () => void;
+  onSelectAiConfig: () => void;
 };
 
 type PluginTileProps = {
@@ -106,6 +108,7 @@ const PLUGINS = [
   {id: 'autocorrect', title: 'Autocorrect', Icon: AutocorrectIcon},
   {id: 'gestures', title: 'Gestures', Icon: GesturesIcon},
   {id: 'calculator', title: 'Calculator', Icon: CalculatorIcon},
+  {id: 'ai', title: 'AI Settings', Icon: AiIcon},
 ] as const;
 
 const PLUGIN_FADE_HEIGHT = Math.round(PLUGIN_PANEL_HEIGHT * 0.52);
@@ -116,6 +119,7 @@ export function ItemsMenuPanel({
   onSelectGestures,
   onSelectAutocorrect,
   onSelectCalculator,
+  onSelectAiConfig,
 }: ItemsMenuPanelProps) {
   const theme = useKeyboardTheme();
   const panelStyles = usePluginPanelStyles();
@@ -126,6 +130,7 @@ export function ItemsMenuPanel({
     autocorrect: onSelectAutocorrect,
     gestures: onSelectGestures,
     calculator: onSelectCalculator,
+    ai: onSelectAiConfig,
   };
 
   return (

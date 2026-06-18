@@ -227,7 +227,10 @@ function BackspaceKeyComponent({
           styles.key,
           styles.modifierKey,
           isEnterBackspace && styles.enterKey,
-          {borderRadius, minHeight: keyHeight},
+          {
+            borderRadius: pressed ? 0 : borderRadius,
+            minHeight: keyHeight,
+          },
           pressed && styles.modifierKeyPressed,
         ]}>
         {icon}
