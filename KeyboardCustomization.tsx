@@ -1,6 +1,7 @@
-import React, {useEffect, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {
   Animated,
+  DeviceEventEmitter,
   Image,
   PanResponder,
   Pressable,
@@ -19,9 +20,13 @@ import BackIcon from './assets/back.svg';
 import ResetIcon from './assets/reset.svg';
 import ThemeIcon from './assets/theme.svg';
 
+import {playSwitchOffSound, playSwitchOnSound} from './src/app/switchSound';
+
 import {
   ensureLayoutLoaded,
   getKeyboardLayoutSettings,
+  KEYBOARD_LAYOUT_CHANGED_EVENT,
+  parseLayoutEventPayload,
   setKeyboardLayoutSettings,
   updateKeyboardLayoutSetting,
 } from './src/keyboard/settings/layoutStore';
@@ -421,8 +426,15 @@ export function ThemesScreen({onBack}: {onBack: () => void}) {
   const [design, setDesign] = useState<'typebase' | 'quivox'>('typebase');
   const [isDark, setIsDark] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [developerEyeEnabled, setDeveloperEyeEnabled] = useState(false);
+  const [themeJson, setThemeJson] = useState('{}');
+  const [jsonError, setJsonError] = useState<string | null>(null);
 
   const toggleAnim = useRef(new Animated.Value(0)).current;
+
+  const syncDeveloperEye = useCallback((enabled: boolean) => {
+    setDeveloperEyeEnabled(enabled);
+  }, []);
 
   useEffect(() => {
     void ensureThemeLoaded().then(() => {
@@ -431,9 +443,48 @@ export function ThemesScreen({onBack}: {onBack: () => void}) {
       setDesign(current === 'quivox' ? 'quivox' : 'typebase');
       setIsDark(dark);
       toggleAnim.setValue(dark ? 1 : 0);
+      setThemeJson(getKeyboardCustomTheme());
       setLoading(false);
     });
-  }, []);
+
+    void ensureLayoutLoaded().then(() => {
+      syncDeveloperEye(getKeyboardLayoutSettings().developerEyeEnabled);
+    });
+
+    const layoutSubscription = DeviceEventEmitter.addListener(
+      KEYBOARD_LAYOUT_CHANGED_EVENT,
+      payload => {
+        syncDeveloperEye(parseLayoutEventPayload(payload).developerEyeEnabled);
+      },
+    );
+
+    return () => layoutSubscription.remove();
+  }, [syncDeveloperEye, toggleAnim]);
+
+  const applyThemeJson = async () => {
+    const trimmed = themeJson.trim();
+    if (!trimmed) {
+      setJsonError('JSON required');
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        setJsonError('Use a JSON object');
+        return;
+      }
+
+      const normalized = JSON.stringify(parsed, null, 2);
+      setThemeJson(normalized);
+      setJsonError(null);
+      await setKeyboardCustomTheme(normalized);
+      await setKeyboardDesign('custom');
+      void Haptics.selectionAsync().catch(() => {});
+    } catch {
+      setJsonError('Invalid JSON');
+    }
+  };
 
   const select = (which: 'typebase' | 'quivox') => {
     if (loading) return;
@@ -447,6 +498,8 @@ export function ThemesScreen({onBack}: {onBack: () => void}) {
     setIsDark(next);
     void setKeyboardColorScheme(next ? 'dark' : 'light');
     Haptics.selectionAsync().catch(() => {});
+    if (next) playSwitchOnSound();
+    else playSwitchOffSound();
 
     Animated.spring(toggleAnim, {
       toValue: next ? 1 : 0,
@@ -549,6 +602,34 @@ export function ThemesScreen({onBack}: {onBack: () => void}) {
             />
           </Pressable>
         </View>
+
+        {developerEyeEnabled && (
+          <View style={styles.jsonCard}>
+            <Text style={styles.jsonLabel}>THEME JSON</Text>
+            <TextInput
+              style={styles.jsonInput}
+              value={themeJson}
+              onChangeText={text => {
+                setThemeJson(text);
+                if (jsonError) setJsonError(null);
+              }}
+              multiline
+              autoCapitalize="none"
+              autoCorrect={false}
+              spellCheck={false}
+              placeholder='{"letterKey":"#FFFFFF"}'
+              placeholderTextColor={C.sub}
+              editable={!loading}
+            />
+            {jsonError ? <Text style={styles.jsonError}>{jsonError}</Text> : null}
+            <Pressable
+              style={styles.jsonApplyBtn}
+              onPress={() => void applyThemeJson()}
+              disabled={loading}>
+              <Text style={styles.jsonApplyText}>Apply</Text>
+            </Pressable>
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -1019,6 +1100,57 @@ const styles = StyleSheet.create({
     color: C.text,
     letterSpacing: TEXT_KERNING,
     marginLeft: 10,
+  },
+
+  jsonCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 14,
+    marginTop: 4,
+    gap: 8,
+  },
+  jsonLabel: {
+    fontFamily: 'FragmentMono',
+    fontSize: 12,
+    color: C.sub,
+    letterSpacing: TEXT_KERNING,
+  },
+  jsonInput: {
+    minHeight: 88,
+    maxHeight: 120,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: C.border,
+    backgroundColor: '#F8F8F8',
+    color: C.text,
+    fontFamily: 'FragmentMono',
+    fontSize: 12,
+    lineHeight: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    textAlignVertical: 'top',
+    letterSpacing: TEXT_KERNING,
+  },
+  jsonError: {
+    fontFamily: 'FragmentMono',
+    fontSize: 11,
+    color: '#D71921',
+    letterSpacing: TEXT_KERNING,
+  },
+  jsonApplyBtn: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#111111',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  jsonApplyText: {
+    fontFamily: 'FragmentMono',
+    fontSize: 12,
+    color: '#FFFFFF',
+    letterSpacing: TEXT_KERNING,
   },
 
   // Custom toggle matching GesturesPanel FeatureToggle design

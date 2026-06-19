@@ -38,6 +38,10 @@ function normalizeLayout(raw: unknown): KeyboardLayoutSettings {
       typeof obj['enterKeyPreviewEnabled'] === 'boolean'
         ? obj['enterKeyPreviewEnabled']
         : defaults.enterKeyPreviewEnabled,
+    developerEyeEnabled:
+      typeof obj['developerEyeEnabled'] === 'boolean'
+        ? obj['developerEyeEnabled']
+        : defaults.developerEyeEnabled,
   };
 }
 

@@ -980,7 +980,7 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     private const val DEFAULT_KEYBOARD_CUSTOM_THEME = "{}"
     private const val KEYBOARD_LAYOUT_KEY = "keyboard_layout"
     private const val DEFAULT_KEYBOARD_LAYOUT =
-        """{"keyHeight":52,"keyGap":4,"keyRowMargin":10,"keyRadius":6,"enterKeyPreviewEnabled":true}"""
+        """{"keyHeight":52,"keyGap":4,"keyRowMargin":10,"keyRadius":6,"enterKeyPreviewEnabled":true,"developerEyeEnabled":false}"""
     private const val DEFAULT_API_KEYS =
         """{"geminiApiKey":"","speechmaticsApiKey":""}"""
     private const val DEFAULT_GESTURE_SETTINGS =

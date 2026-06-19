@@ -17,6 +17,9 @@ import EnterIcon from './assets/enter-icon.svg';
 import DiscordIcon from './assets/discord.svg';
 import FeedbackIcon from './assets/feedback.svg';
 import GraphicEqIcon from './assets/graphic_eq.svg';
+import DevIcon from './assets/dev.svg';
+
+import {playSwitchOffSound, playSwitchOnSound} from './src/app/switchSound';
 
 import {
   ensureLayoutLoaded,
@@ -56,9 +59,11 @@ export function GeneralSettingsScreen({
 }) {
   const [uiSoundsEnabled, setUiSoundsEnabledState] = useState(true);
   const [enterKeyPreviewEnabled, setEnterKeyPreviewEnabledState] = useState(true);
+  const [developerEyeEnabled, setDeveloperEyeEnabledState] = useState(false);
 
   const uiSoundsAnim = useRef(new Animated.Value(0)).current;
   const enterKeyAnim = useRef(new Animated.Value(0)).current;
+  const developerEyeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     void getUiSoundsEnabled()
@@ -72,6 +77,8 @@ export function GeneralSettingsScreen({
       const layout = getKeyboardLayoutSettings();
       setEnterKeyPreviewEnabledState(layout.enterKeyPreviewEnabled);
       enterKeyAnim.setValue(layout.enterKeyPreviewEnabled ? 1 : 0);
+      setDeveloperEyeEnabledState(layout.developerEyeEnabled);
+      developerEyeAnim.setValue(layout.developerEyeEnabled ? 1 : 0);
     });
   }, []);
 
@@ -99,6 +106,8 @@ export function GeneralSettingsScreen({
     setUiSoundsEnabledState(next);
     await setUiSoundsEnabled(next);
     animateToggle(uiSoundsAnim, next ? 1 : 0);
+    if (next) playSwitchOnSound();
+    else playSwitchOffSound();
     void Haptics.selectionAsync().catch(() => {});
   };
 
@@ -107,6 +116,18 @@ export function GeneralSettingsScreen({
     setEnterKeyPreviewEnabledState(next);
     void updateKeyboardLayoutSetting('enterKeyPreviewEnabled', next);
     animateToggle(enterKeyAnim, next ? 1 : 0);
+    if (next) playSwitchOnSound();
+    else playSwitchOffSound();
+    void Haptics.selectionAsync().catch(() => {});
+  };
+
+  const toggleDeveloperEye = async () => {
+    const next = !developerEyeEnabled;
+    setDeveloperEyeEnabledState(next);
+    void updateKeyboardLayoutSetting('developerEyeEnabled', next);
+    animateToggle(developerEyeAnim, next ? 1 : 0);
+    if (next) playSwitchOnSound();
+    else playSwitchOffSound();
     void Haptics.selectionAsync().catch(() => {});
   };
 
@@ -165,6 +186,36 @@ export function GeneralSettingsScreen({
                         transform: [
                           {
                             translateX: uiSoundsAnim.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [0, 18],
+                            }),
+                          },
+                        ],
+                      },
+                    ]}
+                  />
+                </Pressable>
+              </View>
+            </View>
+          </View>
+
+          {/* Developer Eye Toggle */}
+          <View style={styles.rowCard}>
+            <View style={styles.rowInner}>
+              <DevIcon width={ROW_ICON} height={ROW_ICON} color={C.text} />
+              <Text style={styles.rowTitle}>Developer Eye</Text>
+              <View style={styles.toggleWrap}>
+                <Pressable
+                  onPress={toggleDeveloperEye}
+                  style={[styles.toggleTrack, developerEyeEnabled && styles.toggleTrackOn]}
+                >
+                  <Animated.View
+                    style={[
+                      styles.toggleThumb,
+                      {
+                        transform: [
+                          {
+                            translateX: developerEyeAnim.interpolate({
                               inputRange: [0, 1],
                               outputRange: [0, 18],
                             }),

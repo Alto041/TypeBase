@@ -29,44 +29,22 @@ class KeyPreviewManager(private val fallbackContext: Context) {
         KeyboardInputBridge.inputService ?: fallbackContext
 
     fun init() {
-        // Preview view is created lazily on first show when the container exists.
+        runOnMainThread {
+            val container =
+                KeyboardInputBridge.getPopupAnchorView() as? FrameLayout ?: return@runOnMainThread
+            if (!ensurePreviewView(container)) return@runOnMainThread
+            previewView?.context?.let { loadGeistTypeface(it) }
+        }
     }
 
     fun show(anchor: View, label: String) {
-        handler.post {
-            val container = KeyboardInputBridge.getPopupAnchorView() as? FrameLayout ?: return@post
-            if (!ensurePreviewView(container)) return@post
-            cancelDismiss()
-
-            val tv = previewView ?: return@post
-            tv.text = label
-
-            val previewWidth = anchor.width.coerceAtLeast(dpToPx(MIN_PREVIEW_WIDTH_DP))
-            val previewHeight = anchor.height.coerceAtLeast(dpToPx(MIN_PREVIEW_HEIGHT_DP))
-            val gapAboveKey = dpToPx(PREVIEW_GAP_ABOVE_KEY_DP)
-
-            val keyLoc = IntArray(2)
-            val containerLoc = IntArray(2)
-            anchor.getLocationInWindow(keyLoc)
-            container.getLocationInWindow(containerLoc)
-
-            val centerX = keyLoc[0] - containerLoc[0] + anchor.width / 2f
-            val topY = keyLoc[1] - containerLoc[1]
-
-            val params = tv.layoutParams as FrameLayout.LayoutParams
-            params.width = previewWidth
-            params.height = previewHeight
-            params.leftMargin = (centerX - previewWidth / 2f).toInt()
-            params.topMargin = (topY - gapAboveKey - previewHeight).toInt()
-            tv.layoutParams = params
-            tv.visibility = View.VISIBLE
-            tv.bringToFront()
-            container.invalidate()
+        runOnMainThread {
+            showAtAnchor(anchor, label)
         }
     }
 
     fun hide() {
-        handler.post {
+        runOnMainThread {
             cancelDismiss()
             previewView?.visibility = View.GONE
         }
@@ -84,6 +62,37 @@ class KeyPreviewManager(private val fallbackContext: Context) {
         (previewView?.parent as? ViewGroup)?.removeView(previewView)
         previewView = null
         geistTypeface = null
+    }
+
+    private fun showAtAnchor(anchor: View, label: String) {
+        val container = KeyboardInputBridge.getPopupAnchorView() as? FrameLayout ?: return
+        if (!ensurePreviewView(container)) return
+        cancelDismiss()
+
+        val tv = previewView ?: return
+        tv.text = label
+
+        val previewWidth = anchor.width.coerceAtLeast(dpToPx(MIN_PREVIEW_WIDTH_DP))
+        val previewHeight = anchor.height.coerceAtLeast(dpToPx(MIN_PREVIEW_HEIGHT_DP))
+        val gapAboveKey = dpToPx(PREVIEW_GAP_ABOVE_KEY_DP)
+
+        val keyLoc = IntArray(2)
+        val containerLoc = IntArray(2)
+        anchor.getLocationInWindow(keyLoc)
+        container.getLocationInWindow(containerLoc)
+
+        val centerX = keyLoc[0] - containerLoc[0] + anchor.width / 2f
+        val topY = keyLoc[1] - containerLoc[1]
+
+        val params = tv.layoutParams as FrameLayout.LayoutParams
+        params.width = previewWidth
+        params.height = previewHeight
+        params.leftMargin = (centerX - previewWidth / 2f).toInt()
+        params.topMargin = (topY - gapAboveKey - previewHeight).toInt()
+        tv.layoutParams = params
+        tv.visibility = View.VISIBLE
+        tv.bringToFront()
+        container.invalidate()
     }
 
     private fun ensurePreviewView(container: FrameLayout): Boolean {
@@ -153,6 +162,14 @@ class KeyPreviewManager(private val fallbackContext: Context) {
     private fun cancelDismiss() {
         dismissRunnable?.let { handler.removeCallbacks(it) }
         dismissRunnable = null
+    }
+
+    private fun runOnMainThread(action: () -> Unit) {
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            action()
+        } else {
+            handler.postAtFrontOfQueue(action)
+        }
     }
 
     private fun dpToPx(dp: Int): Int =

@@ -228,10 +228,11 @@ function BackspaceKeyComponent({
           styles.modifierKey,
           isEnterBackspace && styles.enterKey,
           {
-            borderRadius: pressed ? 0 : borderRadius,
+            borderRadius,
             minHeight: keyHeight,
           },
           pressed && styles.modifierKeyPressed,
+          pressed && styles.symbolKeyPressedFade,
         ]}>
         {icon}
       </Pressable>
@@ -255,6 +256,9 @@ function createBackspaceKeyStyles(theme: KeyboardTheme) {
     },
     modifierKeyPressed: {
       backgroundColor: theme.modifierKeyPressed,
+    },
+    symbolKeyPressedFade: {
+      opacity: 0.82,
     },
     enterKey: {
       backgroundColor: theme.enter,

@@ -19,6 +19,8 @@ export type KeyboardLayoutSettings = {
    * When false, Enter key uses the normal modifier key cap color.
    */
   enterKeyPreviewEnabled: boolean;
+  /** When true, show JSON theme editor on the Themes page. */
+  developerEyeEnabled: boolean;
 };
 
 export const DEFAULT_KEYBOARD_LAYOUT_SETTINGS: KeyboardLayoutSettings = {
@@ -27,6 +29,7 @@ export const DEFAULT_KEYBOARD_LAYOUT_SETTINGS: KeyboardLayoutSettings = {
   keyRowMargin: KEY_ROW_MARGIN,
   keyRadius: KEY_RADIUS,
   enterKeyPreviewEnabled: true,
+  developerEyeEnabled: false,
 };
 
 /** Touch slop into gaps — half the visual gap on each side of a key. */
@@ -179,8 +182,8 @@ const DARK_PALETTE: KeyboardPalette = {
   modifierKey: '#474747',
   spaceKey: '#474747',
   letterKeyPressed: '#454545',
-  modifierKeyPressed: '#474747',
-  spaceKeyPressed: '#474747',
+  modifierKeyPressed: '#353535',
+  spaceKeyPressed: '#353535',
   pluginCard: '#353535',
   pluginCardSecondary: '#474747',
   enter: '#D71921',

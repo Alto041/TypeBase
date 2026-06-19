@@ -11,12 +11,15 @@ class VoiceActivationSoundModule(reactContext: ReactApplicationContext) :
 
   override fun getName(): String = "VoiceActivationSoundModule"
 
-  private var player: MediaPlayer? = null
+  private var voicePlayer: MediaPlayer? = null
+  private var switchPlayer: MediaPlayer? = null
+  private var switchOffPlayer: MediaPlayer? = null
+  private var navigationPlayer: MediaPlayer? = null
 
   @ReactMethod
   fun preload(promise: Promise) {
     try {
-      ensurePlayer()
+      ensureVoicePlayer()
       promise.resolve(true)
     } catch (_: Exception) {
       promise.resolve(false)
@@ -26,7 +29,7 @@ class VoiceActivationSoundModule(reactContext: ReactApplicationContext) :
   @ReactMethod
   fun play(promise: Promise) {
     try {
-      val mediaPlayer = ensurePlayer()
+      val mediaPlayer = ensureVoicePlayer()
       if (mediaPlayer.isPlaying) {
         mediaPlayer.pause()
         mediaPlayer.seekTo(0)
@@ -38,8 +41,53 @@ class VoiceActivationSoundModule(reactContext: ReactApplicationContext) :
     }
   }
 
-  private fun ensurePlayer(): MediaPlayer {
-    player?.let { return it }
+  @ReactMethod
+  fun playSwitch(promise: Promise) {
+    try {
+      val mediaPlayer = ensureSwitchPlayer()
+      if (mediaPlayer.isPlaying) {
+        mediaPlayer.pause()
+        mediaPlayer.seekTo(0)
+      }
+      mediaPlayer.start()
+      promise.resolve(true)
+    } catch (_: Exception) {
+      promise.resolve(false)
+    }
+  }
+
+  @ReactMethod
+  fun playSwitchOff(promise: Promise) {
+    try {
+      val mediaPlayer = ensureSwitchOffPlayer()
+      if (mediaPlayer.isPlaying) {
+        mediaPlayer.pause()
+        mediaPlayer.seekTo(0)
+      }
+      mediaPlayer.start()
+      promise.resolve(true)
+    } catch (_: Exception) {
+      promise.resolve(false)
+    }
+  }
+
+  @ReactMethod
+  fun playNavigation(promise: Promise) {
+    try {
+      val mediaPlayer = ensureNavigationPlayer()
+      if (mediaPlayer.isPlaying) {
+        mediaPlayer.pause()
+        mediaPlayer.seekTo(0)
+      }
+      mediaPlayer.start()
+      promise.resolve(true)
+    } catch (_: Exception) {
+      promise.resolve(false)
+    }
+  }
+
+  private fun ensureVoicePlayer(): MediaPlayer {
+    voicePlayer?.let { return it }
 
     val mediaPlayer =
         MediaPlayer.create(reactApplicationContext, R.raw.voice)
@@ -48,13 +96,61 @@ class VoiceActivationSoundModule(reactContext: ReactApplicationContext) :
     mediaPlayer.setOnCompletionListener { completed ->
       completed.seekTo(0)
     }
-    player = mediaPlayer
+    voicePlayer = mediaPlayer
+    return mediaPlayer
+  }
+
+  private fun ensureSwitchPlayer(): MediaPlayer {
+    switchPlayer?.let { return it }
+
+    val mediaPlayer =
+        MediaPlayer.create(reactApplicationContext, R.raw.switch_on)
+            ?: throw IllegalStateException("switch_on sound resource missing")
+
+    mediaPlayer.setOnCompletionListener { completed ->
+      completed.seekTo(0)
+    }
+    switchPlayer = mediaPlayer
+    return mediaPlayer
+  }
+
+  private fun ensureSwitchOffPlayer(): MediaPlayer {
+    switchOffPlayer?.let { return it }
+
+    val mediaPlayer =
+        MediaPlayer.create(reactApplicationContext, R.raw.switch_off)
+            ?: throw IllegalStateException("switch_off sound resource missing")
+
+    mediaPlayer.setOnCompletionListener { completed ->
+      completed.seekTo(0)
+    }
+    switchOffPlayer = mediaPlayer
+    return mediaPlayer
+  }
+
+  private fun ensureNavigationPlayer(): MediaPlayer {
+    navigationPlayer?.let { return it }
+
+    val mediaPlayer =
+        MediaPlayer.create(reactApplicationContext, R.raw.navigation)
+            ?: throw IllegalStateException("navigation sound resource missing")
+
+    mediaPlayer.setOnCompletionListener { completed ->
+      completed.seekTo(0)
+    }
+    navigationPlayer = mediaPlayer
     return mediaPlayer
   }
 
   override fun invalidate() {
-    player?.release()
-    player = null
+    voicePlayer?.release()
+    voicePlayer = null
+    switchPlayer?.release()
+    switchPlayer = null
+    switchOffPlayer?.release()
+    switchOffPlayer = null
+    navigationPlayer?.release()
+    navigationPlayer = null
     super.invalidate()
   }
 }

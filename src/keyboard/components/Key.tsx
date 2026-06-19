@@ -91,6 +91,7 @@ function KeyComponent({
   const keyHeight = keyHeightProp ?? theme.keyHeight;
   const layoutContext = useKeyLayoutContext();
   const keyRef = useRef<View>(null);
+  const reactTagRef = useRef<number | null>(null);
   const spaceCursorAccumRef = useRef(0);
   const lastSpaceDxRef = useRef(0);
   const spaceSwipingRef = useRef(false);
@@ -143,6 +144,15 @@ function KeyComponent({
       ? keyDef.value!.toUpperCase()
       : keyDef.value!.toLowerCase()
     : keyDef.label;
+
+  const borderRadius = isEnterKey ? keyHeight / 2 : theme.keyRadius;
+  const isNonAlphaSymbolKey =
+    isEnterAction ||
+    isShift ||
+    isModifierKey ||
+    isNumpadActionKey ||
+    isAbcKey ||
+    isSpaceKey;
 
   const measureKey = useCallback(() => {
     if (!usesMultiTouchRouter) {
@@ -206,7 +216,7 @@ function KeyComponent({
     return registerMultiTouchKeyVisual(keyDef.id, pressed => {
       setMultiTouchPressed(pressed);
       if (pressed) {
-        const tag = findNodeHandle(keyRef.current);
+        const tag = reactTagRef.current ?? findNodeHandle(keyRef.current);
         const label = isUppercase
           ? (keyDef.value ?? '').toUpperCase()
           : (keyDef.value ?? '').toLowerCase();
@@ -214,7 +224,7 @@ function KeyComponent({
           showKeyPreview(tag, label);
         }
       } else {
-        hideKeyPreview(80);
+        hideKeyPreview();
       }
     });
   }, [keyDef.id, keyDef.value, isUppercase, usesMultiTouchRouter]);
@@ -319,8 +329,6 @@ function KeyComponent({
       {displayLabel}
     </Text>
   );
-
-  const borderRadius = isEnterKey ? keyHeight / 2 : theme.keyRadius;
 
   const handlePressIn = useCallback(() => {
     onPress(keyDef);
@@ -509,7 +517,10 @@ function KeyComponent({
       <View
         ref={keyRef}
         style={style}
-        onLayout={measureKey}
+        onLayout={() => {
+          measureKey();
+          reactTagRef.current = findNodeHandle(keyRef.current);
+        }}
         collapsable={false}
         pointerEvents="box-none">
         <View
@@ -572,11 +583,7 @@ function KeyComponent({
           style={({pressed}) => [
             styles.key,
             {
-              borderRadius:
-                pressed &&
-                (isEnterAction || isShift || isModifierKey || isNumpadActionKey || isAbcKey)
-                  ? 0
-                  : borderRadius,
+              borderRadius,
               minHeight: keyHeight,
             },
             showRewrite && styles.rewriteKey,
@@ -596,6 +603,12 @@ function KeyComponent({
                   : isModifierKey || isNumpadActionKey || isShift
                     ? styles.modifierKeyPressed
                     : styles.letterKeyPressed),
+            pressed &&
+              !showLauncher &&
+              !showRewrite &&
+              isNonAlphaSymbolKey &&
+              !isEnterAction &&
+              styles.symbolKeyPressedFade,
           ]}>
         {keyContent}
       </Pressable>
@@ -670,6 +683,9 @@ function createKeyStyles(theme: KeyboardTheme) {
     },
     enterKeyPressed: {
       backgroundColor: theme.enterPressed,
+    },
+    symbolKeyPressedFade: {
+      opacity: 0.82,
     },
     keyLabel: {
       color: theme.label,

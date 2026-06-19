@@ -13,9 +13,9 @@ import { useSettingsNav } from '../context/SettingsNavContext';
 import { useSideBarToolsNav } from '../context/SideBarToolsNavContext';
 import { useThemeMode } from '../context/ThemeContext';
 import { useVolumeSliderNav } from '../context/VolumeSliderNavContext';
-import { BOTTOM_NAV_BOTTOM_GAP, BOTTOM_NAV_FADE_HEIGHT } from '../lib/bottomNavLayout';
-import { hapticTap } from '../lib/haptics';
-import { playUiSound } from '../lib/uiSounds';
+import { BOTTOM_NAV_BOTTOM_GAP, BOTTOM_NAV_FADE_HEIGHT } from './lib/bottomNavLayout';
+import { hapticTap } from './lib/haptics';
+import { playUiSound } from './lib/uiSounds';
 
 import HomeIcon from '../assets/home.svg';
 import HomeIconW from '../assets/home_w.svg';

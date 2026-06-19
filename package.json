@@ -15,6 +15,7 @@
     "test": "jest"
   },
   "dependencies": {
+    "@react-native-async-storage/async-storage": "^3.1.1",
     "@react-native/new-app-screen": "0.85.3",
     "@speechmatics/auth": "^0.1.0",
     "@speechmatics/real-time-client": "^8.4.0",
@@ -26,6 +27,7 @@
     "expo-haptics": "~56.0.3",
     "react": "19.2.3",
     "react-native": "0.85.3",
+    "react-native-reanimated": "4.3.1",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-svg": "15.15.4"
   },

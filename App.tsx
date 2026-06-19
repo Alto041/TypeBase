@@ -1,7 +1,6 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {
   Animated,
-  PermissionsAndroid,
   Platform,
   Pressable,
   ScrollView,
@@ -16,6 +15,7 @@ import {
 import {SafeAreaProvider, SafeAreaView, useSafeAreaInsets} from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import {useFonts} from 'expo-font';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import ClipboardIcon from './assets/plugins/clipboard.svg';
 import TranslateIcon from './assets/plugins/translate.svg';
 import EssentialsIcon from './assets/plugins/essentials.svg';
@@ -39,7 +39,9 @@ import SettingsIcon from './assets/settings.svg';
 
 import { CustomizeScreen, ThemesScreen } from './KeyboardCustomization';
 import { GeneralSettingsScreen } from './GeneralSettingsScreen';
+import { keyboardBridge } from './src/keyboard/keyboardBridge';
 import { AiConfigScreen } from './AiConfigScreen';
+import { OnboardingScreen } from './OnboardingScreen';
 
 const C = {
   bg: '#f2f2f4',
@@ -59,6 +61,8 @@ const CONFIG_PERM_SIZE = 68;
 const CONFIG_ICON_INSET = 16;
 
 const TEXT_KERNING = -0.7;
+
+const ONBOARDING_COMPLETE_KEY = 'typebase:onboardingComplete';
 
 // Bottom nav (exact replica of BottomNavigation.tsx visuals)
 const DOCK_WIDTH       = 308;
@@ -90,9 +94,8 @@ const SCALE_SPRING = {
   useNativeDriver: true as const,
 };
 
-// Local stubs (no external haptics/sounds modules in this demo)
-const hapticTap = () => {};
-const playUiSound = (_name?: string) => {};
+import { playUiSound } from './lib/uiSounds';
+import { hapticTap } from './lib/haptics';
 
 type NavTab = 'home' | 'customize' | 'themes' | 'settings';
 const NAV_TABS: NavTab[] = ['home', 'customize', 'themes', 'settings'];
@@ -390,7 +393,10 @@ function LaunchpadScreen({
               </View>
             </Pressable>
 
-            <View style={[styles.configCard, styles.configCardRight]}>
+            <Pressable
+              onPress={() => keyboardBridge.openInputMethodSettings()}
+              style={[styles.configCard, styles.configCardRight]}
+            >
               <View style={styles.configIconTopRight}>
                 <KeyboardPermIcon width={CONFIG_PERM_SIZE} height={CONFIG_PERM_SIZE} />
               </View>
@@ -398,7 +404,7 @@ function LaunchpadScreen({
                 <Text style={styles.configLabel}>KEYBOARD</Text>
                 <Text style={styles.configLabel}>PERMS</Text>
               </View>
-            </View>
+            </Pressable>
           </View>
         </View>
       </ScrollView>
@@ -407,36 +413,47 @@ function LaunchpadScreen({
 }
 
 export default function App() {
+  const [onboardingComplete, setOnboardingComplete] = useState(false);
+  const [hydratingOnboarding, setHydratingOnboarding] = useState(true);
   const [fontsLoaded] = useFonts({
     FragmentMono: require('./assets/FragmentMono-Regular.ttf'),
+    Geist: require('./assets/Geist-VariableFont_wght.ttf'),
+    Inter: require('./assets/Inter_24pt-Regular.ttf'),
   });
 
   useEffect(() => {
-    if (Platform.OS !== 'android') {
-      return;
-    }
-    void PermissionsAndroid.request(
-      PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
-      {
-        title: 'Microphone permission',
-        message: 'TypeBase needs microphone access for voice typing.',
-        buttonPositive: 'Allow',
-        buttonNegative: 'Cancel',
-      },
-    );
+    const hydrate = async () => {
+      try {
+        const v = await AsyncStorage.getItem(ONBOARDING_COMPLETE_KEY);
+        setOnboardingComplete(v === '1');
+      } catch (e) {
+        // If storage fails for any reason, fall back to showing onboarding.
+        setOnboardingComplete(false);
+      } finally {
+        setHydratingOnboarding(false);
+      }
+    };
+    void hydrate();
   }, []);
-
-  if (!fontsLoaded) {
-    return (
-      <SafeAreaProvider>
-        <SafeAreaView style={styles.safeArea} />
-      </SafeAreaProvider>
-    );
-  }
 
   return (
     <SafeAreaProvider>
-      <SetupScreen />
+      {hydratingOnboarding ? (
+        <View style={styles.safeArea} />
+      ) : onboardingComplete ? (
+        <SetupScreen />
+      ) : (
+        <OnboardingScreen
+          fontsLoaded={fontsLoaded}
+          onComplete={async () => {
+            try {
+              await AsyncStorage.setItem(ONBOARDING_COMPLETE_KEY, '1');
+            } finally {
+              setOnboardingComplete(true);
+            }
+          }}
+        />
+      )}
     </SafeAreaProvider>
   );
 }

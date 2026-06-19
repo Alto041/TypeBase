@@ -10,8 +10,8 @@ export function showKeyPreview(reactTag: number, label: string): void {
   KeyPreview?.show(reactTag, label);
 }
 
-export function hideKeyPreview(delayMs = 80): void {
-  KeyPreview?.hideDelayed(delayMs);
+export function hideKeyPreview(): void {
+  KeyPreview?.hide();
 }
 
 export function destroyKeyPreview(): void {
