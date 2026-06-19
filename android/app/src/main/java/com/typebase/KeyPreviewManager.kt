@@ -24,6 +24,8 @@ class KeyPreviewManager(private val fallbackContext: Context) {
     private val handler = Handler(Looper.getMainLooper())
     private var dismissRunnable: Runnable? = null
     private var geistTypeface: Typeface? = null
+    private var backgroundColorArgb = Color.parseColor(DARK_PREVIEW_BACKGROUND)
+    private var textColorArgb = Color.parseColor(DARK_PREVIEW_TEXT)
 
     private fun popupContext(): Context =
         KeyboardInputBridge.inputService ?: fallbackContext
@@ -34,6 +36,15 @@ class KeyPreviewManager(private val fallbackContext: Context) {
                 KeyboardInputBridge.getPopupAnchorView() as? FrameLayout ?: return@runOnMainThread
             if (!ensurePreviewView(container)) return@runOnMainThread
             previewView?.context?.let { loadGeistTypeface(it) }
+            applyThemeToPreviewView()
+        }
+    }
+
+    fun setTheme(backgroundColor: String, textColor: String) {
+        runOnMainThread {
+            backgroundColorArgb = parseColorOrFallback(backgroundColor, backgroundColorArgb)
+            textColorArgb = parseColorOrFallback(textColor, textColorArgb)
+            applyThemeToPreviewView()
         }
     }
 
@@ -70,6 +81,7 @@ class KeyPreviewManager(private val fallbackContext: Context) {
         cancelDismiss()
 
         val tv = previewView ?: return
+        applyThemeToPreviewView()
         tv.text = label
 
         val previewWidth = anchor.width.coerceAtLeast(dpToPx(MIN_PREVIEW_WIDTH_DP))
@@ -117,13 +129,13 @@ class KeyPreviewManager(private val fallbackContext: Context) {
         val cornerRadius = dpToPx(KEY_CORNER_RADIUS_DP).toFloat()
         val keyBackground = GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
-            setColor(Color.parseColor("#454545"))
+            setColor(backgroundColorArgb)
             this.cornerRadius = cornerRadius
         }
 
         return TextView(context).apply {
             gravity = Gravity.CENTER
-            setTextColor(Color.WHITE)
+            setTextColor(textColorArgb)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, LABEL_TEXT_SIZE_SP)
             typeface = loadGeistTypeface(context)
             background = keyBackground
@@ -131,6 +143,31 @@ class KeyPreviewManager(private val fallbackContext: Context) {
             includeFontPadding = false
         }
     }
+
+    private fun applyThemeToPreviewView() {
+        val tv = previewView ?: return
+        tv.setTextColor(textColorArgb)
+        val background = tv.background
+        if (background is GradientDrawable) {
+            background.setColor(backgroundColorArgb)
+            return
+        }
+
+        val cornerRadius = dpToPx(KEY_CORNER_RADIUS_DP).toFloat()
+        tv.background =
+            GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                setColor(backgroundColorArgb)
+                this.cornerRadius = cornerRadius
+            }
+    }
+
+    private fun parseColorOrFallback(value: String, fallback: Int): Int =
+        try {
+            Color.parseColor(value.trim())
+        } catch (_: IllegalArgumentException) {
+            fallback
+        }
 
     private fun loadGeistTypeface(context: Context): Typeface {
         geistTypeface?.let { return it }
@@ -186,5 +223,7 @@ class KeyPreviewManager(private val fallbackContext: Context) {
         private const val LABEL_TEXT_SIZE_SP = 22f
         private const val GEIST_FONT_PATH = "fonts/Geist-VariableFont_wght.ttf"
         private const val GEIST_WEIGHT = 500
+        private const val DARK_PREVIEW_BACKGROUND = "#454545"
+        private const val DARK_PREVIEW_TEXT = "#FFFFFF"
     }
 }

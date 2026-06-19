@@ -6,6 +6,13 @@ export function initKeyPreview(): void {
   KeyPreview?.init();
 }
 
+export function setKeyPreviewTheme(
+  backgroundColor: string,
+  textColor: string,
+): void {
+  KeyPreview?.setTheme(backgroundColor, textColor);
+}
+
 export function showKeyPreview(reactTag: number, label: string): void {
   KeyPreview?.show(reactTag, label);
 }

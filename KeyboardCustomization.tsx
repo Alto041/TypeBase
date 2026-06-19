@@ -39,6 +39,10 @@ import {
   setKeyboardDesign,
   setKeyboardCustomTheme,
 } from './src/keyboard/settings/themeStore';
+import {
+  formatCustomThemeJsonForEditor,
+  parseCustomThemeJsonFromEditor,
+} from './src/keyboard/theme';
 import {DEFAULT_KEYBOARD_LAYOUT_SETTINGS} from './src/keyboard/theme';
 import type {KeyboardLayoutSettings} from './src/keyboard/theme';
 
@@ -427,7 +431,7 @@ export function ThemesScreen({onBack}: {onBack: () => void}) {
   const [isDark, setIsDark] = useState(false);
   const [loading, setLoading] = useState(true);
   const [developerEyeEnabled, setDeveloperEyeEnabled] = useState(false);
-  const [themeJson, setThemeJson] = useState('{}');
+  const [themeJson, setThemeJson] = useState(() => formatCustomThemeJsonForEditor('{}'));
   const [jsonError, setJsonError] = useState<string | null>(null);
 
   const toggleAnim = useRef(new Animated.Value(0)).current;
@@ -443,7 +447,7 @@ export function ThemesScreen({onBack}: {onBack: () => void}) {
       setDesign(current === 'quivox' ? 'quivox' : 'typebase');
       setIsDark(dark);
       toggleAnim.setValue(dark ? 1 : 0);
-      setThemeJson(getKeyboardCustomTheme());
+      setThemeJson(formatCustomThemeJsonForEditor(getKeyboardCustomTheme()));
       setLoading(false);
     });
 
@@ -462,28 +466,17 @@ export function ThemesScreen({onBack}: {onBack: () => void}) {
   }, [syncDeveloperEye, toggleAnim]);
 
   const applyThemeJson = async () => {
-    const trimmed = themeJson.trim();
-    if (!trimmed) {
-      setJsonError('JSON required');
+    const result = parseCustomThemeJsonFromEditor(themeJson);
+    if (!result.ok) {
+      setJsonError(result.error);
       return;
     }
 
-    try {
-      const parsed = JSON.parse(trimmed);
-      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-        setJsonError('Use a JSON object');
-        return;
-      }
-
-      const normalized = JSON.stringify(parsed, null, 2);
-      setThemeJson(normalized);
-      setJsonError(null);
-      await setKeyboardCustomTheme(normalized);
-      await setKeyboardDesign('custom');
-      void Haptics.selectionAsync().catch(() => {});
-    } catch {
-      setJsonError('Invalid JSON');
-    }
+    setThemeJson(result.editorJson);
+    setJsonError(null);
+    await setKeyboardCustomTheme(result.storageJson);
+    await setKeyboardDesign('custom');
+    void Haptics.selectionAsync().catch(() => {});
   };
 
   const select = (which: 'typebase' | 'quivox') => {
@@ -606,6 +599,10 @@ export function ThemesScreen({onBack}: {onBack: () => void}) {
         {developerEyeEnabled && (
           <View style={styles.jsonCard}>
             <Text style={styles.jsonLabel}>THEME JSON</Text>
+            <Text style={styles.jsonHint}>
+              All keys are listed below. Use hex (#RRGGBB) or rgb/rgba. Leave blank
+              to keep the default.
+            </Text>
             <TextInput
               style={styles.jsonInput}
               value={themeJson}
@@ -617,8 +614,6 @@ export function ThemesScreen({onBack}: {onBack: () => void}) {
               autoCapitalize="none"
               autoCorrect={false}
               spellCheck={false}
-              placeholder='{"letterKey":"#FFFFFF"}'
-              placeholderTextColor={C.sub}
               editable={!loading}
             />
             {jsonError ? <Text style={styles.jsonError}>{jsonError}</Text> : null}
@@ -1117,9 +1112,16 @@ const styles = StyleSheet.create({
     color: C.sub,
     letterSpacing: TEXT_KERNING,
   },
+  jsonHint: {
+    fontFamily: 'FragmentMono',
+    fontSize: 11,
+    color: C.sub,
+    lineHeight: 15,
+    letterSpacing: TEXT_KERNING,
+  },
   jsonInput: {
-    minHeight: 88,
-    maxHeight: 120,
+    minHeight: 220,
+    maxHeight: 320,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: C.border,

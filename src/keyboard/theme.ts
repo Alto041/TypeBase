@@ -148,6 +148,88 @@ function paletteForCustomTheme(
   return {...base, ...overlay} as KeyboardPalette;
 }
 
+export const CUSTOM_THEME_PROPERTY_KEYS = CUSTOM_THEME_KEYS;
+
+function parseSavedCustomThemeObject(
+  savedJson?: string | null,
+): Partial<Record<keyof KeyboardPalette, string>> {
+  if (!savedJson?.trim()) {
+    return {};
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(savedJson);
+  } catch {
+    return {};
+  }
+
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return {};
+  }
+
+  const obj = parsed as Record<string, unknown>;
+  const saved: Partial<Record<keyof KeyboardPalette, string>> = {};
+
+  for (const key of CUSTOM_THEME_KEYS) {
+    const raw = obj[key as string];
+    if (isCssColor(raw)) {
+      saved[key] = raw;
+    }
+  }
+
+  return saved;
+}
+
+/** Always show every custom-theme key in the editor (blank = use default). */
+export function formatCustomThemeJsonForEditor(savedJson?: string | null): string {
+  const saved = parseSavedCustomThemeObject(savedJson);
+  const template: Record<string, string> = {};
+
+  for (const key of CUSTOM_THEME_KEYS) {
+    template[key] = saved[key] ?? '';
+  }
+
+  return JSON.stringify(template, null, 2);
+}
+
+export function parseCustomThemeJsonFromEditor(editorJson: string):
+  | {ok: true; storageJson: string; editorJson: string}
+  | {ok: false; error: string} {
+  const trimmed = editorJson.trim();
+  if (!trimmed) {
+    return {ok: false, error: 'JSON required'};
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    return {ok: false, error: 'Invalid JSON'};
+  }
+
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return {ok: false, error: 'Use a JSON object'};
+  }
+
+  const obj = parsed as Record<string, unknown>;
+  const filtered: Record<string, string> = {};
+
+  for (const key of CUSTOM_THEME_KEYS) {
+    const raw = obj[key as string];
+    if (typeof raw === 'string' && raw.trim() && isCssColor(raw.trim())) {
+      filtered[key] = raw.trim();
+    }
+  }
+
+  const storageJson = JSON.stringify(filtered);
+  return {
+    ok: true,
+    storageJson,
+    editorJson: formatCustomThemeJsonForEditor(storageJson),
+  };
+}
+
 const LIGHT_PALETTE: KeyboardPalette = {
   container: '#EEEEEE',
   letterKey: '#FFFFFF',

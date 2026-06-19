@@ -171,14 +171,14 @@ export function BottomNavigation() {
     if (option === selectedRef.current) return;
     setSelectedOption(option);
     if (pillWidthRef.current > 0) {
-      chipTranslateX.setValue(getChipTranslateX(option, pillWidthRef.current));
+      animateChip(option, pillWidthRef.current);
     }
   }, [
+    animateChip,
     generalSettingsOpen,
     settingsOpen,
     volumeSliderOpen,
     sideBarToolsOpen,
-    chipTranslateX,
   ]);
 
   const handlePillLayout = (e: { nativeEvent: { layout: { width: number } } }) => {

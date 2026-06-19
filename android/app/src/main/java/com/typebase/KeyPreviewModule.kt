@@ -27,6 +27,11 @@ class KeyPreviewModule(private val reactContext: ReactApplicationContext) :
     }
 
     @ReactMethod
+    fun setTheme(backgroundColor: String, textColor: String) {
+        manager.setTheme(backgroundColor, textColor)
+    }
+
+    @ReactMethod
     fun show(reactTag: Int, label: String) {
         UiThreadUtil.runOnUiThread {
             resolveAnchorView(reactTag)?.let { view ->

@@ -96,6 +96,7 @@ const SCALE_SPRING = {
 
 import { playUiSound } from './lib/uiSounds';
 import { hapticTap } from './lib/haptics';
+import { useScreenTransition } from './lib/screenTransition';
 
 type NavTab = 'home' | 'customize' | 'themes' | 'settings';
 const NAV_TABS: NavTab[] = ['home', 'customize', 'themes', 'settings'];
@@ -188,9 +189,9 @@ function BottomNavigation({
     setSelectedOption(value);
     selectedRef.current = value;
     if (pillWidthRef.current > 0) {
-      chipTranslateX.setValue(getChipTranslateX(value, pillWidthRef.current));
+      animateChip(value, pillWidthRef.current);
     }
-  }, [value, chipTranslateX]);
+  }, [animateChip, value, chipTranslateX]);
 
   const handlePillLayout = (e: { nativeEvent: { layout: { width: number } } }) => {
     const w = e.nativeEvent.layout.width;
@@ -318,10 +319,18 @@ function LaunchpadCard({
 function SetupScreen() {
   const [tab, setTab] = useState<NavTab>('home');
   const [showAiConfig, setShowAiConfig] = useState(false);
+  const { animatedStyle, transitionTo } = useScreenTransition();
+
+  const changeTab = (next: NavTab) => {
+    if (next === tab) {
+      return;
+    }
+    transitionTo(() => setTab(next));
+  };
 
   if (showAiConfig) {
     return (
-      <View style={{ flex: 1 }}>
+      <View style={styles.setupRoot}>
         <AiConfigScreen onBack={() => setShowAiConfig(false)} />
       </View>
     );
@@ -331,28 +340,30 @@ function SetupScreen() {
     if (tab === 'settings') {
       return (
         <GeneralSettingsScreen
-          onBack={() => setTab('home')}
+          onBack={() => changeTab('home')}
         />
       );
     }
     if (tab === 'customize') {
-      return <CustomizeScreen onBack={() => setTab('home')} />;
+      return <CustomizeScreen onBack={() => changeTab('home')} />;
     }
     if (tab === 'themes') {
-      return <ThemesScreen onBack={() => setTab('home')} />;
+      return <ThemesScreen onBack={() => changeTab('home')} />;
     }
     return (
       <LaunchpadScreen
-        onOpenKeyboard={() => setTab('customize')}
+        onOpenKeyboard={() => changeTab('customize')}
         onOpenAiConfig={() => setShowAiConfig(true)}
       />
     );
   };
 
   return (
-    <View style={{ flex: 1 }}>
-      {screenForTab()}
-      <BottomNavigation value={tab} onChange={setTab} />
+    <View style={styles.setupRoot}>
+      <Animated.View style={[styles.setupScreen, animatedStyle]}>
+        {screenForTab()}
+      </Animated.View>
+      <BottomNavigation value={tab} onChange={changeTab} />
     </View>
   );
 }
@@ -459,6 +470,14 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
+  setupRoot: {
+    flex: 1,
+    backgroundColor: C.bg,
+  },
+  setupScreen: {
+    flex: 1,
+    backgroundColor: C.bg,
+  },
   safeArea: {
     flex: 1,
     backgroundColor: C.bg,

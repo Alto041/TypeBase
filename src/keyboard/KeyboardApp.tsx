@@ -49,7 +49,11 @@ import type {KeyGesturesConfig} from './components/Key';
 import {GestureTypingLayer} from './gesture/GestureTypingLayer';
 import {SwipeTypingKeysHost} from './gesture/SwipeTypingContext';
 import {KeyLayoutProvider} from './gesture/KeyLayoutContext';
-import {destroyKeyPreview, initKeyPreview} from './KeyPreview';
+import {
+  destroyKeyPreview,
+  initKeyPreview,
+  setKeyPreviewTheme,
+} from './KeyPreview';
 import {AutocorrectPanel} from './autocorrect/AutocorrectPanel';
 import {
   ensureAutocorrectLoaded,
@@ -167,7 +171,9 @@ const LetterKeyboardRows = React.memo(function LetterKeyboardRows({
 
   return (
     <SwipeTypingKeysHost
-      multiTouchEnabled={modeType === 'typing'}
+      multiTouchEnabled={
+        modeType === 'typing' || modeType === 'essentials-form'
+      }
       onMultiTouchKeyPress={onKeyPress}>
       {rows.map((row, index) => (
         <KeyboardRow
@@ -335,6 +341,10 @@ function KeyboardBody() {
     initKeyPreview();
     return () => destroyKeyPreview();
   }, []);
+
+  useEffect(() => {
+    setKeyPreviewTheme(theme.letterKey, theme.label);
+  }, [theme.label, theme.letterKey]);
 
   useEffect(() => {
     void keyboardBridge.getPrefersNumpad().then(setPrefersNumpad);

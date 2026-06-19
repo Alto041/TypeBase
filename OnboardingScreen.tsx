@@ -1,5 +1,6 @@
 import React, {useState} from 'react';
 import {
+  Animated,
   Image,
   Pressable,
   StatusBar,
@@ -11,6 +12,7 @@ import {
 import {SafeAreaView} from 'react-native-safe-area-context';
 
 import {AiConfigScreen} from './AiConfigScreen';
+import {useScreenTransition} from './lib/screenTransition';
 import {keyboardBridge} from './src/keyboard/keyboardBridge';
 
 const C = {
@@ -42,7 +44,6 @@ type BlurBlobVariant = 'center' | 'top' | 'bottomRight';
 function BlurBlobImage({variant = 'center'}: {variant?: BlurBlobVariant}) {
   const {width} = useWindowDimensions();
   const isBottomRight = variant === 'bottomRight';
-  // Keep this blob fully inside the viewport to avoid Android clipping.
   const blobScale = isBottomRight ? 1.0 : 1.22;
   const blobWidth = width * blobScale;
   const blobHeight = blobWidth / BLUR_ASPECT_RATIO;
@@ -83,17 +84,31 @@ function BlurBlobImage({variant = 'center'}: {variant?: BlurBlobVariant}) {
   );
 }
 
+function blurVariantForPage(pageIndex: number): BlurBlobVariant {
+  if (pageIndex === 1) {
+    return 'top';
+  }
+  if (pageIndex === 2) {
+    return 'bottomRight';
+  }
+  return 'center';
+}
+
 export function OnboardingScreen({
   onComplete,
   fontsLoaded = false,
 }: OnboardingScreenProps) {
   const [pageIndex, setPageIndex] = useState(0);
+  const {animatedStyle, transitionTo} = useScreenTransition();
   const titleFont = fontsLoaded ? {fontFamily: 'Geist' as const} : {fontWeight: '600' as const};
   const monoFont = fontsLoaded ? {fontFamily: 'FragmentMono' as const} : undefined;
   const interFont = fontsLoaded ? {fontFamily: 'Inter' as const} : undefined;
 
   const goToPage = (nextIndex: number) => {
-    setPageIndex(nextIndex);
+    if (nextIndex === pageIndex) {
+      return;
+    }
+    transitionTo(() => setPageIndex(nextIndex));
   };
 
   const welcomePage: OnboardingPage = {
@@ -110,58 +125,51 @@ export function OnboardingScreen({
     eyebrow: '',
     title: 'Lets Launch',
     cta: 'Get Started',
-    onPress: onComplete,
+    onPress: () => transitionTo(onComplete),
   };
-
-  if (pageIndex === 1) {
-    return (
-      <View style={styles.root}>
-        <StatusBar barStyle="dark-content" backgroundColor={C.bg} />
-        <BlurBlobImage variant="top" />
-        <SafeAreaView style={styles.safeArea}>
-          <AiConfigScreen
-            variant="wizard"
-            title="AI setup wizard"
-            onContinue={() => goToPage(2)}
-          />
-        </SafeAreaView>
-      </View>
-    );
-  }
 
   const page = pageIndex === 0 ? welcomePage : finishPage;
 
   return (
     <View style={styles.root}>
       <StatusBar barStyle="dark-content" backgroundColor={C.bg} />
-
-      <BlurBlobImage variant={pageIndex === 2 ? 'bottomRight' : 'center'} />
+      <BlurBlobImage variant={blurVariantForPage(pageIndex)} />
 
       <SafeAreaView style={styles.safeArea}>
-        <View style={styles.content}>
-          <View
-            style={[
-              styles.header,
-              pageIndex === 2 ? styles.headerLastPage : null,
-            ]}>
-            {page.eyebrow ? (
-              <Text style={[styles.eyebrow, interFont]}>{page.eyebrow}</Text>
-            ) : null}
-            <Text style={[styles.title, titleFont]}>{page.title}</Text>
-          </View>
+        <Animated.View style={animatedStyle}>
+          {pageIndex === 1 ? (
+            <AiConfigScreen
+              variant="wizard"
+              title="AI setup wizard"
+              onContinue={() => goToPage(2)}
+            />
+          ) : (
+            <View style={styles.content}>
+              <View
+                style={[
+                  styles.header,
+                  pageIndex === 2 ? styles.headerLastPage : null,
+                ]}>
+                {page.eyebrow ? (
+                  <Text style={[styles.eyebrow, interFont]}>{page.eyebrow}</Text>
+                ) : null}
+                <Text style={[styles.title, titleFont]}>{page.title}</Text>
+              </View>
 
-          <View style={styles.bottom}>
-            <Pressable style={styles.ctaButton} onPress={page.onPress}>
-              <Text style={[styles.ctaLabel, monoFont]}>{page.cta}</Text>
-            </Pressable>
-            <Text style={[styles.footerCompany, interFont]}>
-              Quivox Engineering Technologies
-            </Text>
-            <Text style={[styles.footerRights, interFont]}>
-              All Rights Reserved 2026 ©
-            </Text>
-          </View>
-        </View>
+              <View style={styles.bottom}>
+                <Pressable style={styles.ctaButton} onPress={page.onPress}>
+                  <Text style={[styles.ctaLabel, monoFont]}>{page.cta}</Text>
+                </Pressable>
+                <Text style={[styles.footerCompany, interFont]}>
+                  Quivox Engineering Technologies
+                </Text>
+                <Text style={[styles.footerRights, interFont]}>
+                  All Rights Reserved 2026 ©
+                </Text>
+              </View>
+            </View>
+          )}
+        </Animated.View>
       </SafeAreaView>
     </View>
   );
