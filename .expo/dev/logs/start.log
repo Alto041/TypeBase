@@ -8245,3 +8245,168 @@
 {"_e":"metro:bundling:done","_t":1781928654926,"id":"3","total":1,"ms":303.8936}
 {"_e":"metro:client_log","_t":1781928655929,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
 {"_e":"metro:client_log","_t":1781928655929,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"root:init","_t":1781929241175,"format":"v0-jsonl","version":"56.1.14"}
+{"_e":"devserver:start","_t":1781929241219,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../..\\..\\src\\app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1781929242014,"serverRoot":"../..\\..","projectRoot":"../..\\..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"metro:instantiate","_t":1781929264918,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"metro:bundling:started","_t":1781929269460,"id":"1","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781929269461,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781929269468,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781929269568,"id":"1","progress":0.0042871315192743766,"total":168,"current":11}
+{"_e":"metro:bundling:progress","_t":1781929269668,"id":"1","progress":0.09069632235655402,"total":259,"current":78}
+{"_e":"metro:bundling:progress","_t":1781929269768,"id":"1","progress":0.20930625000000003,"total":400,"current":183}
+{"_e":"metro:bundling:progress","_t":1781929269870,"id":"1","progress":0.27941754295873555,"total":507,"current":268}
+{"_e":"metro:bundling:progress","_t":1781929269970,"id":"1","progress":0.5034127552598795,"total":599,"current":425}
+{"_e":"metro:bundling:progress","_t":1781929270071,"id":"1","progress":0.6854865916955016,"total":680,"current":563}
+{"_e":"metro:bundling:progress","_t":1781929270188,"id":"1","progress":0.862413891030062,"total":785,"current":729}
+{"_e":"metro:bundling:progress","_t":1781929270288,"id":"1","progress":0.9178443933688688,"total":858,"current":822}
+{"_e":"metro:bundling:progress","_t":1781929270388,"id":"1","progress":0.933559988804751,"total":947,"current":915}
+{"_e":"metro:bundling:done","_t":1781929270538,"id":"1","total":947,"ms":1076.7377}
+{"_e":"metro:client_log","_t":1781929274981,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781929274982,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:server_log","_t":1781929802988,"level":"error","data":["[timeout] connection terminated with Device for app='%s' on device='%s' after not responding for %s seconds.","com.typebase","AIN065 - 16 - API 36","60"]}
+{"_e":"root:init","_t":1781930370892,"format":"v0-jsonl","version":"56.1.14"}
+{"_e":"devserver:start","_t":1781930370937,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../..\\..\\src\\app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1781930371696,"serverRoot":"../..\\..","projectRoot":"../..\\..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"metro:instantiate","_t":1781930393812,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"metro:bundling:started","_t":1781930398390,"id":"1","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781930398392,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781930398400,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781930398502,"id":"1","progress":0.0015500031000062,"total":127,"current":5}
+{"_e":"metro:bundling:progress","_t":1781930398609,"id":"1","progress":0.02189192003331945,"total":196,"current":29}
+{"_e":"metro:bundling:progress","_t":1781930398709,"id":"1","progress":0.14644517961362005,"total":358,"current":137}
+{"_e":"metro:bundling:progress","_t":1781930398809,"id":"1","progress":0.235542601490963,"total":443,"current":215}
+{"_e":"metro:bundling:progress","_t":1781930398909,"id":"1","progress":0.39936953866088204,"total":557,"current":352}
+{"_e":"metro:bundling:progress","_t":1781930399010,"id":"1","progress":0.5163758490947198,"total":597,"current":429}
+{"_e":"metro:bundling:progress","_t":1781930399110,"id":"1","progress":0.6225858510039407,"total":730,"current":576}
+{"_e":"metro:bundling:progress","_t":1781930399224,"id":"1","progress":0.8603917858336468,"total":787,"current":730}
+{"_e":"metro:bundling:progress","_t":1781930399324,"id":"1","progress":0.9612572683176172,"total":869,"current":852}
+{"_e":"metro:bundling:progress","_t":1781930399424,"id":"1","progress":0.9612572683176172,"total":957,"current":933}
+{"_e":"metro:bundling:done","_t":1781930399537,"id":"1","total":957,"ms":1145.8074}
+{"_e":"metro:client_log","_t":1781930400600,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781930400600,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:server_log","_t":1781930493745,"level":"error","data":["[timeout] connection terminated with Device for app='%s' on device='%s' after not responding for %s seconds.","com.typebase","AIN065 - 16 - API 36","60"]}
+{"_e":"root:init","_t":1781931310635,"format":"v0-jsonl","version":"56.1.14"}
+{"_e":"devserver:start","_t":1781931310728,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../..\\..\\src\\app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1781931312247,"serverRoot":"../..\\..","projectRoot":"../..\\..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"metro:instantiate","_t":1781931356761,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"metro:bundling:started","_t":1781931361808,"id":"1","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781931361809,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781931361816,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781931361916,"id":"1","progress":0.002183596820683029,"total":107,"current":5}
+{"_e":"metro:bundling:progress","_t":1781931362016,"id":"1","progress":0.02283456790123457,"total":225,"current":34}
+{"_e":"metro:bundling:progress","_t":1781931362116,"id":"1","progress":0.12332076822406908,"total":299,"current":105}
+{"_e":"metro:bundling:progress","_t":1781931362216,"id":"1","progress":0.24875467192368209,"total":401,"current":200}
+{"_e":"metro:bundling:progress","_t":1781931362326,"id":"1","progress":0.3308988662131519,"total":525,"current":302}
+{"_e":"metro:bundling:progress","_t":1781931362426,"id":"1","progress":0.4950291249774533,"total":614,"current":432}
+{"_e":"metro:bundling:progress","_t":1781931362526,"id":"1","progress":0.612476370510397,"total":736,"current":576}
+{"_e":"metro:bundling:progress","_t":1781931362633,"id":"1","progress":0.862413891030062,"total":785,"current":729}
+{"_e":"metro:bundling:progress","_t":1781931362733,"id":"1","progress":0.8673668166642473,"total":830,"current":773}
+{"_e":"metro:bundling:progress","_t":1781931362839,"id":"1","progress":0.9186791345889058,"total":867,"current":831}
+{"_e":"metro:bundling:progress","_t":1781931362938,"id":"1","progress":0.942280422261515,"total":956,"current":928}
+{"_e":"metro:bundling:done","_t":1781931363111,"id":"1","total":956,"ms":1302.538}
+{"_e":"metro:client_log","_t":1781931364350,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781931364351,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"root:init","_t":1781931608619,"format":"v0-jsonl","version":"56.1.14"}
+{"_e":"devserver:start","_t":1781931608662,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../..\\..\\src\\app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1781931609491,"serverRoot":"../..\\..","projectRoot":"../..\\..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"metro:instantiate","_t":1781931632597,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"metro:bundling:started","_t":1781931638340,"id":"1","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781931638341,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781931638348,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781931638448,"id":"1","progress":0.0048674959437533805,"total":172,"current":12}
+{"_e":"metro:bundling:progress","_t":1781931638560,"id":"1","progress":0.10643327800412455,"total":282,"current":92}
+{"_e":"metro:bundling:progress","_t":1781931638659,"id":"1","progress":0.2288392932294803,"total":393,"current":188}
+{"_e":"metro:bundling:progress","_t":1781931638759,"id":"1","progress":0.3691135635457458,"total":530,"current":322}
+{"_e":"metro:bundling:progress","_t":1781931638859,"id":"1","progress":0.5282311120380566,"total":571,"current":415}
+{"_e":"metro:bundling:progress","_t":1781931638959,"id":"1","progress":0.5948001501219741,"total":730,"current":563}
+{"_e":"metro:bundling:progress","_t":1781931639076,"id":"1","progress":0.8603917858336468,"total":787,"current":730}
+{"_e":"metro:bundling:progress","_t":1781931639176,"id":"1","progress":0.9681838638865597,"total":873,"current":859}
+{"_e":"metro:bundling:progress","_t":1781931639294,"id":"1","progress":0.9681838638865597,"total":955,"current":927}
+{"_e":"metro:bundling:done","_t":1781931639418,"id":"1","total":955,"ms":1077.655}
+{"_e":"metro:client_log","_t":1781931641078,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781931641079,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:server_log","_t":1781931722621,"level":"error","data":["[timeout] connection terminated with Device for app='%s' on device='%s' after not responding for %s seconds.","com.typebase","AIN065 - 16 - API 36","60"]}
+{"_e":"root:init","_t":1781931766640,"format":"v0-jsonl","version":"56.1.14"}
+{"_e":"devserver:start","_t":1781931766681,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../..\\..\\src\\app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1781931767435,"serverRoot":"../..\\..","projectRoot":"../..\\..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"metro:instantiate","_t":1781931790029,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"metro:bundling:started","_t":1781931795237,"id":"1","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781931795239,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781931795245,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781931795345,"id":"1","progress":0.0010749798441279227,"total":122,"current":4}
+{"_e":"metro:bundling:progress","_t":1781931795448,"id":"1","progress":0.03780864197530864,"total":216,"current":42}
+{"_e":"metro:bundling:progress","_t":1781931795547,"id":"1","progress":0.1507521612933429,"total":358,"current":139}
+{"_e":"metro:bundling:progress","_t":1781931795649,"id":"1","progress":0.2831411497348708,"total":436,"current":232}
+{"_e":"metro:bundling:progress","_t":1781931795748,"id":"1","progress":0.4611469493486243,"total":564,"current":383}
+{"_e":"metro:bundling:progress","_t":1781931795849,"id":"1","progress":0.5523818632847715,"total":701,"current":521}
+{"_e":"metro:bundling:progress","_t":1781931795955,"id":"1","progress":0.799307047936494,"total":755,"current":675}
+{"_e":"metro:bundling:progress","_t":1781931796055,"id":"1","progress":0.879477989292088,"total":820,"current":769}
+{"_e":"metro:bundling:progress","_t":1781931796155,"id":"1","progress":0.9512809427094855,"total":892,"current":870}
+{"_e":"metro:bundling:progress","_t":1781931796255,"id":"1","progress":0.9979434452742638,"total":972,"current":971}
+{"_e":"metro:bundling:done","_t":1781931796363,"id":"1","total":972,"ms":1124.6654}
+{"_e":"metro:client_log","_t":1781931797843,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781931797844,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"root:init","_t":1781931897633,"format":"v0-jsonl","version":"56.1.14"}
+{"_e":"devserver:start","_t":1781931897677,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../..\\..\\src\\app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1781931898721,"serverRoot":"../..\\..","projectRoot":"../..\\..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"metro:instantiate","_t":1781931928819,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"metro:bundling:started","_t":1781931933833,"id":"1","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781931933834,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781931933841,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781931933941,"id":"1","progress":0.00152587890625,"total":128,"current":5}
+{"_e":"metro:bundling:progress","_t":1781931934042,"id":"1","progress":0.036864,"total":250,"current":48}
+{"_e":"metro:bundling:progress","_t":1781931934143,"id":"1","progress":0.1833538983836552,"total":383,"current":164}
+{"_e":"metro:bundling:progress","_t":1781931934243,"id":"1","progress":0.29647102125825914,"total":472,"current":257}
+{"_e":"metro:bundling:progress","_t":1781931934343,"id":"1","progress":0.4611469493486243,"total":564,"current":383}
+{"_e":"metro:bundling:progress","_t":1781931934446,"id":"1","progress":0.6840990479517862,"total":642,"current":531}
+{"_e":"metro:bundling:progress","_t":1781931934546,"id":"1","progress":0.7845547680529167,"total":779,"current":690}
+{"_e":"metro:bundling:progress","_t":1781931934646,"id":"1","progress":0.8527613611701256,"total":823,"current":760}
+{"_e":"metro:bundling:progress","_t":1781931934746,"id":"1","progress":0.9298469387755103,"total":868,"current":837}
+{"_e":"metro:bundling:progress","_t":1781931934870,"id":"1","progress":0.9338346596255421,"total":951,"current":919}
+{"_e":"metro:bundling:progress","_t":1781931934970,"id":"1","progress":0.9692483863807118,"total":968,"current":953}
+{"_e":"metro:bundling:done","_t":1781931935086,"id":"1","total":968,"ms":1252.5222}
+{"_e":"metro:client_log","_t":1781931939453,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781931939453,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:server_log","_t":1781932131132,"level":"error","data":["[timeout] connection terminated with Device for app='%s' on device='%s' after not responding for %s seconds.","com.typebase","AIN065 - 16 - API 36","60"]}
+{"_e":"root:init","_t":1781932453784,"format":"v0-jsonl","version":"56.1.14"}
+{"_e":"root:init","_t":1781932594712,"format":"v0-jsonl","version":"56.1.14"}
+{"_e":"devserver:start","_t":1781932594772,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../..\\..\\src\\app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1781932595729,"serverRoot":"../..\\..","projectRoot":"../..\\..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"metro:instantiate","_t":1781932622349,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"metro:bundling:started","_t":1781932627336,"id":"1","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781932627337,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781932627345,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781932627450,"id":"1","progress":0.002183596820683029,"total":107,"current":5}
+{"_e":"metro:bundling:progress","_t":1781932627551,"id":"1","progress":0.023073225444640282,"total":237,"current":36}
+{"_e":"metro:bundling:progress","_t":1781932627654,"id":"1","progress":0.12179631548128463,"total":298,"current":104}
+{"_e":"metro:bundling:progress","_t":1781932627754,"id":"1","progress":0.1833538983836552,"total":383,"current":164}
+{"_e":"metro:bundling:progress","_t":1781932627854,"id":"1","progress":0.3367948227743611,"total":529,"current":307}
+{"_e":"metro:bundling:progress","_t":1781932627954,"id":"1","progress":0.5391957805316344,"total":621,"current":456}
+{"_e":"metro:bundling:progress","_t":1781932628054,"id":"1","progress":0.6115495697495712,"total":734,"current":574}
+{"_e":"metro:bundling:progress","_t":1781932628161,"id":"1","progress":0.862413891030062,"total":785,"current":729}
+{"_e":"metro:bundling:progress","_t":1781932628261,"id":"1","progress":0.9276264095648666,"total":868,"current":836}
+{"_e":"metro:bundling:progress","_t":1781932628361,"id":"1","progress":0.942161219009445,"total":954,"current":926}
+{"_e":"metro:bundling:done","_t":1781932628541,"id":"1","total":954,"ms":1204.7815}
+{"_e":"metro:client_log","_t":1781932632886,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781932632887,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"root:init","_t":1781933387223,"format":"v0-jsonl","version":"56.1.14"}
+{"_e":"devserver:start","_t":1781933387270,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../..\\..\\src\\app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1781933388072,"serverRoot":"../..\\..","projectRoot":"../..\\..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"metro:instantiate","_t":1781933411142,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"metro:bundling:started","_t":1781933415873,"id":"1","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1781933415875,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781933415881,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1781933415988,"id":"1","progress":0.04000000000000001,"total":7,"current":2}
+{"_e":"metro:bundling:progress","_t":1781933416088,"id":"1","progress":0.04000000000000001,"total":188,"current":22}
+{"_e":"metro:bundling:progress","_t":1781933416188,"id":"1","progress":0.12249999999999998,"total":300,"current":105}
+{"_e":"metro:bundling:progress","_t":1781933416288,"id":"1","progress":0.20722878146580528,"total":402,"current":183}
+{"_e":"metro:bundling:progress","_t":1781933416391,"id":"1","progress":0.379564117389517,"total":547,"current":337}
+{"_e":"metro:bundling:progress","_t":1781933416491,"id":"1","progress":0.6151971542018394,"total":626,"current":491}
+{"_e":"metro:bundling:progress","_t":1781933416593,"id":"1","progress":0.6425254825848138,"total":761,"current":610}
+{"_e":"metro:bundling:progress","_t":1781933416695,"id":"1","progress":0.8264462809917354,"total":781,"current":710}
+{"_e":"metro:bundling:progress","_t":1781933416795,"id":"1","progress":0.9298469387755103,"total":868,"current":837}
+{"_e":"metro:bundling:progress","_t":1781933416895,"id":"1","progress":0.9712835530359948,"total":968,"current":954}
+{"_e":"metro:bundling:done","_t":1781933417012,"id":"1","total":968,"ms":1137.4235}
+{"_e":"metro:client_log","_t":1781933421242,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1781933421243,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
