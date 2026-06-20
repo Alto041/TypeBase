@@ -1,4 +1,4 @@
-package com.typebase
+package com.typebase.app
 
 import android.content.Context
 import android.graphics.Color

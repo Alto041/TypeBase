@@ -8,7 +8,7 @@ const config: ExpoConfig = {
   orientation: 'portrait',
   userInterfaceStyle: 'automatic',
   android: {
-    package: 'com.typebase',
+    package: 'com.typebase.app',
   },
   plugins: [
     [

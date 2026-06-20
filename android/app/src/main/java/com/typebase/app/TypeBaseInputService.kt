@@ -1,4 +1,4 @@
-package com.typebase
+package com.typebase.app
 
 import android.inputmethodservice.InputMethodService
 import android.os.Handler

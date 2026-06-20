@@ -1,4 +1,4 @@
-package com.typebase
+package com.typebase.app
 
 import android.media.MediaPlayer
 import com.facebook.react.bridge.Promise

@@ -8,6 +8,7 @@
     "android:build": "expo run:android",
     "android:reverse": "adb reverse tcp:8081 tcp:8081",
     "android:release": "cd android && .\\gradlew.bat assembleRelease",
+    "android:bundle": "cd android && .\\gradlew.bat bundleRelease",
     "android:apk": "cd android && .\\gradlew.bat assembleRelease",
     "ios": "expo run:ios",
     "lint": "eslint .",

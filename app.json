@@ -2,10 +2,10 @@
   "expo": {
     "name": "TypeBase",
     "slug": "typebase",
-    "version": "1.0.0",
+    "version": "0.7",
     "scheme": "typebase",
     "android": {
-      "package": "com.typebase"
+      "package": "com.typebase.app"
     },
     "plugins": ["expo-dev-client"]
   }

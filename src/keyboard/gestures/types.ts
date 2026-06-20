@@ -20,7 +20,7 @@ export type LaunchableApp = {
   label: string;
 };
 
-export const DEFAULT_LAUNCHER_APP_PACKAGE = 'com.typebase';
+export const DEFAULT_LAUNCHER_APP_PACKAGE = 'com.typebase.app';
 
 export const GESTURE_FEATURES: GestureFeature[] = [
   {
