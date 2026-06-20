@@ -18,7 +18,6 @@ import {keyboardBridge} from '../keyboardBridge';
 import type {KeyboardTheme} from '../theme';
 import {translateText} from './geminiTranslateService';
 import {
-  DEFAULT_TARGET_LANGUAGE,
   TARGET_LANGUAGES,
   type TargetLanguage,
 } from './languages';
@@ -33,7 +32,7 @@ const FIELD_SNIPPET_LENGTH = 600;
 export function TranslatePanel({onResultChange}: TranslatePanelProps) {
   const [sourceText, setSourceText] = useState('');
   const [sourceReplaceLength, setSourceReplaceLength] = useState(0);
-  const [targetCode, setTargetCode] = useState(DEFAULT_TARGET_LANGUAGE);
+  const [targetCode, setTargetCode] = useState<string | null>(null);
   const [detectedLanguage, setDetectedLanguage] = useState<string | null>(null);
   const [translation, setTranslation] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -43,9 +42,22 @@ export function TranslatePanel({onResultChange}: TranslatePanelProps) {
   const targetLanguage = useMemo(
     () =>
       TARGET_LANGUAGES.find(language => language.code === targetCode)?.label ??
-      'English',
+      null,
     [targetCode],
   );
+
+  const syncSourceText = useCallback(async () => {
+    const beforeCursor = await keyboardBridge.getTextBeforeCursor(
+      FIELD_SNIPPET_LENGTH,
+    );
+    requestIdRef.current += 1;
+    setSourceText(beforeCursor);
+    setSourceReplaceLength(beforeCursor.length);
+    setTranslation(null);
+    setDetectedLanguage(null);
+    setError(null);
+    setLoading(false);
+  }, []);
 
   const runTranslate = useCallback(async (input: string, language: string) => {
     const requestId = ++requestIdRef.current;
@@ -73,44 +85,36 @@ export function TranslatePanel({onResultChange}: TranslatePanelProps) {
     }
   }, []);
 
-  const syncSourceFromField = useCallback(async () => {
+  const refreshAndTranslate = useCallback(async () => {
     const beforeCursor = await keyboardBridge.getTextBeforeCursor(
       FIELD_SNIPPET_LENGTH,
     );
-    requestIdRef.current += 1;
     setSourceText(beforeCursor);
     setSourceReplaceLength(beforeCursor.length);
-    setTranslation(null);
-    setDetectedLanguage(null);
-    setError(null);
-    setLoading(false);
-  }, []);
 
-  const loadSourceText = useCallback(
-    async (language = targetLanguage) => {
-      const beforeCursor = await keyboardBridge.getTextBeforeCursor(
-        FIELD_SNIPPET_LENGTH,
-      );
-      setSourceText(beforeCursor);
-      setSourceReplaceLength(beforeCursor.length);
+    const input = beforeCursor.trim();
+    if (!input) {
+      requestIdRef.current += 1;
+      setLoading(false);
+      setTranslation(null);
+      setDetectedLanguage(null);
+      setError(null);
+      return;
+    }
 
-      const input = beforeCursor.trim();
-      if (input) {
-        await runTranslate(input, language);
-      } else {
-        requestIdRef.current += 1;
-        setLoading(false);
-        setTranslation(null);
-        setDetectedLanguage(null);
-        setError(null);
-      }
-    },
-    [runTranslate, targetLanguage],
-  );
+    if (!targetLanguage) {
+      setError(null);
+      setTranslation(null);
+      setDetectedLanguage(null);
+      return;
+    }
+
+    await runTranslate(input, targetLanguage);
+  }, [runTranslate, targetLanguage]);
 
   useEffect(() => {
-    void loadSourceText();
-  }, [loadSourceText]);
+    void syncSourceText();
+  }, [syncSourceText]);
 
   useEffect(() => {
     onResultChange?.(translation);
@@ -135,8 +139,8 @@ export function TranslatePanel({onResultChange}: TranslatePanelProps) {
     }
     triggerKeyHaptic();
     keyboardBridge.replaceWordPrefix(sourceReplaceLength, translation);
-    void syncSourceFromField();
-  }, [sourceReplaceLength, syncSourceFromField, translation]);
+    void syncSourceText();
+  }, [sourceReplaceLength, syncSourceText, translation]);
 
   const handleInsert = useCallback(() => {
     if (!translation) {
@@ -190,7 +194,7 @@ export function TranslatePanel({onResultChange}: TranslatePanelProps) {
         <Pressable
           onPress={() => {
             triggerKeyHaptic();
-            void loadSourceText();
+            void refreshAndTranslate();
           }}
           style={({pressed}) => [
             styles.sourceCard,
@@ -252,6 +256,8 @@ export function TranslatePanel({onResultChange}: TranslatePanelProps) {
           </View>
         ) : loading ? (
           <Text style={styles.placeholder}>Translating…</Text>
+        ) : !targetCode ? (
+          <Text style={styles.placeholder}>Select a language to translate</Text>
         ) : null}
       </ScrollView>
 

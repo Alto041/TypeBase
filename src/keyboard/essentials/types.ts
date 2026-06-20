@@ -19,5 +19,4 @@ export type KeyboardMode =
   | {type: 'autocorrect'}
   | {type: 'calculator'}
   | {type: 'translate'}
-  | {type: 'rewrite'}
-  | {type: 'ai-config'};
+  | {type: 'rewrite'};

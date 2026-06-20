@@ -11,20 +11,12 @@ export function buildGemmaTranslatePrompt(
   text: string,
   targetLanguage: string,
 ): string {
-  return wrapGemmaPrompt(`You are a professional translator built into a mobile keyboard.
+  return wrapGemmaPrompt(`Hey, I want you to translate the message into ${targetLanguage}.
 
-TASK:
-- Auto-detect the source language of the input text.
-- Translate the text into ${targetLanguage}.
-- Return ONLY a single JSON object — no markdown, no code fences, no explanation.
+Return only the translated text and nothing else.
 
-OUTPUT SCHEMA (strict):
-{"detectedLanguage":"<language name in English>","detectedLanguageCode":"<ISO 639-1 code>","translation":"<translated text>"}
-
-TARGET LANGUAGE: ${targetLanguage}
-
-TEXT:
-${text}`);
+Text:
+"${text}"`);
 }
 
 export function buildGemmaRewritePrompt(text: string, _toneInstruction: string): string {

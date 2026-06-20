@@ -361,12 +361,13 @@ export function createKeyboardTheme(
       ? paletteForCustomTheme(scheme, customThemeJson)
       : paletteFor(scheme, design);
 
-  // "Enter key preview" override (dark theme only, as requested).
-  if (scheme === 'dark' && layout.enterKeyPreviewEnabled === false) {
+  // When disabled, Enter uses the same cap colors as other action keys.
+  if (layout.enterKeyPreviewEnabled === false) {
     palette = {
       ...palette,
-      enter: '#474747',
-      enterPressed: '#474747',
+      enter: palette.modifierKey,
+      enterPressed: palette.modifierKeyPressed,
+      iconOnEnter: palette.icon,
     };
   }
 

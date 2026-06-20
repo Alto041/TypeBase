@@ -71,6 +71,23 @@ function parseTranslateResult(raw: string): TranslateResult {
   };
 }
 
+function parseOnDeviceTranslateResult(raw: string): TranslateResult {
+  try {
+    return parseTranslateResult(extractJsonPayload(raw));
+  } catch {
+    const trimmed = raw.trim();
+    const unquoted =
+      trimmed.startsWith('"') && trimmed.endsWith('"') && trimmed.length >= 2
+        ? trimmed.slice(1, -1)
+        : trimmed;
+    return {
+      detectedLanguage: 'Unknown',
+      detectedLanguageCode: 'und',
+      translation: unquoted.trim(),
+    };
+  }
+}
+
 export async function translateText(
   text: string,
   targetLanguage: string,
@@ -89,7 +106,7 @@ export async function translateText(
     const raw = await generateOnDeviceText(
       buildGemmaTranslatePrompt(input, targetLanguage),
     );
-    return parseTranslateResult(extractJsonPayload(raw));
+    return parseOnDeviceTranslateResult(raw);
   }
 
   const apiKey = await requireGeminiApiKey();
