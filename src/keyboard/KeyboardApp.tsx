@@ -95,10 +95,16 @@ import {
 import type {GestureSettings, LaunchableApp} from './gestures/types';
 import {keyboardBridge} from './keyboardBridge';
 import {
-  LAYOUTS,
+  CUSTOM_LAYOUTS_CHANGED_EVENT,
+  ensureCustomLayoutsLoaded,
+  isSwipeTypingDisabledForLayout,
+} from './settings/customLayoutStore';
+import {
+  getKeyboardRows,
   type KeyDefinition,
   type KeyboardLayout,
-} from './layouts/qwerty';
+} from './layouts/index';
+import {shouldAutoCapitalize} from './autoCapitalize';
 import {
   ensureLearnedDictionaryLoaded,
   recordLearnedWord,
@@ -150,6 +156,7 @@ type LetterKeyboardRowsProps = {
   shiftOn: boolean;
   capsLocked: boolean;
   onKeyPress: (keyDef: KeyDefinition) => void;
+  onMultiTouchKeyCommit: (keyDef: KeyDefinition, text: string) => void;
   keyGestures?: KeyGesturesConfig;
   enterKeyNextLineEnabled: boolean;
 };
@@ -162,6 +169,7 @@ const LetterKeyboardRows = React.memo(function LetterKeyboardRows({
   shiftOn,
   capsLocked,
   onKeyPress,
+  onMultiTouchKeyCommit,
   keyGestures,
   enterKeyNextLineEnabled,
 }: LetterKeyboardRowsProps) {
@@ -173,7 +181,9 @@ const LetterKeyboardRows = React.memo(function LetterKeyboardRows({
       multiTouchEnabled={
         modeType === 'typing' || modeType === 'essentials-form'
       }
-      onMultiTouchKeyPress={onKeyPress}>
+      keyboardLayout={layout}
+      isUppercase={layout === 'letters' && isUppercase}
+      onMultiTouchKeyCommit={onMultiTouchKeyCommit}>
       {rows.map((row, index) => (
         <KeyboardRow
           key={`${layout}-${modeType}-${index}`}
@@ -235,7 +245,7 @@ function KeyboardBody() {
   const styles = useThemedStyles(createKeyboardAppStyles);
   const [mode, setMode] = useState<KeyboardMode>({type: 'typing'});
   const [layout, setLayout] = useState<KeyboardLayout>('letters');
-  const [shiftOn, setShiftOn] = useState(false);
+  const [shiftOn, setShiftOn] = useState(true);
   const [capsLocked, setCapsLocked] = useState(false);
   const [enterKeyNextLineEnabled, setEnterKeyNextLineEnabled] =
     useState(false);
@@ -248,7 +258,7 @@ function KeyboardBody() {
   const lastTypingAtRef = useRef(0);
   const typingIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [stoppedTyping, setStoppedTyping] = useState(true);
-  const shiftOnRef = useRef(false);
+  const shiftOnRef = useRef(true);
   const capsLockedRef = useRef(false);
   const layoutRef = useRef<KeyboardLayout>('letters');
   const modeRef = useRef<KeyboardMode>({type: 'typing'});
@@ -318,9 +328,26 @@ function KeyboardBody() {
   const gestureEnabled =
     gestureSettings.swipeTyping &&
     layout === 'letters' &&
-    mode.type === 'typing';
+    mode.type === 'typing' &&
+    !isSwipeTypingDisabledForLayout(theme.letterLayoutId);
 
-  const rows = useMemo(() => LAYOUTS[layout], [layout]);
+  const [customLayoutsTick, setCustomLayoutsTick] = useState(0);
+
+  const rows = useMemo(
+    () => getKeyboardRows(layout, theme.letterLayoutId),
+    [layout, theme.letterLayoutId, customLayoutsTick],
+  );
+
+  useEffect(() => {
+    void ensureCustomLayoutsLoaded();
+    const subscription = DeviceEventEmitter.addListener(
+      CUSTOM_LAYOUTS_CHANGED_EVENT,
+      () => {
+        setCustomLayoutsTick(tick => tick + 1);
+      },
+    );
+    return () => subscription.remove();
+  }, []);
 
   useEffect(() => {
     void keyboardBridge.getInputSupportsNewline().then(supports => {
@@ -381,6 +408,20 @@ function KeyboardBody() {
   const resetCase = useCallback(() => {
     setShiftOn(false);
     setCapsLocked(false);
+  }, []);
+
+  const syncAutoCapitalizeShift = useCallback((context: string) => {
+    if (capsLockedRef.current) {
+      return;
+    }
+    if (layoutRef.current !== 'letters' || modeRef.current.type !== 'typing') {
+      return;
+    }
+    const shouldCap = shouldAutoCapitalize(context);
+    if (shouldCap !== shiftOnRef.current) {
+      shiftOnRef.current = shouldCap;
+      startTransition(() => setShiftOn(shouldCap));
+    }
   }, []);
 
   const closeItemsFlow = useCallback(() => {
@@ -632,6 +673,7 @@ function KeyboardBody() {
 
     await ensureEssentialsLoaded();
     const context = await keyboardBridge.getTextBeforeCursor(96);
+    syncAutoCapitalizeShift(context);
     const essentialTrigger = extractEssentialTrigger(context);
     if (essentialTrigger) {
       startTransition(() => {
@@ -672,6 +714,7 @@ function KeyboardBody() {
     isRewriteMode,
     isTranslateMode,
     layout,
+    syncAutoCapitalizeShift,
   ]);
 
   const applyInstantSuggestionBar = useCallback((prefix: string) => {
@@ -799,6 +842,13 @@ function KeyboardBody() {
     },
     [openRewritePanel, refreshSuggestions],
   );
+
+  useEffect(() => {
+    if (layout !== 'letters' || mode.type !== 'typing') {
+      return;
+    }
+    void keyboardBridge.getTextBeforeCursor(96).then(syncAutoCapitalizeShift);
+  }, [layout, mode.type, syncAutoCapitalizeShift]);
 
   useEffect(() => {
     const interaction = InteractionManager.runAfterInteractions(() => {
@@ -1026,6 +1076,7 @@ function KeyboardBody() {
           keyboardBridge.deleteBackward();
           livePrefixRef.current = livePrefixRef.current.slice(0, -1);
           lastTypingAtRef.current = Date.now();
+          void keyboardBridge.getTextBeforeCursor(96).then(syncAutoCapitalizeShift);
           scheduleRefreshSuggestions();
           return;
         case 'space':
@@ -1098,6 +1149,7 @@ function KeyboardBody() {
       handleShiftPress,
       resetCase,
       scheduleRefreshSuggestions,
+      syncAutoCapitalizeShift,
     ],
   );
 
@@ -1108,6 +1160,26 @@ function KeyboardBody() {
     markTyping();
     handleKeyPressRef.current(keyDef);
   }, [markTyping]);
+
+  const handleMultiTouchKeyCommit = useCallback(
+    (keyDef: KeyDefinition, text: string) => {
+      markTyping();
+      if (!text) {
+        return;
+      }
+      keyboardBridge.insertText(text);
+      if (layout === 'letters' && mode.type === 'typing') {
+        livePrefixRef.current += text;
+        lastTypingAtRef.current = Date.now();
+        scheduleRefreshSuggestions();
+      }
+      if (shiftOn && !capsLocked && layout === 'letters') {
+        shiftOnRef.current = false;
+        startTransition(() => setShiftOn(false));
+      }
+    },
+    [capsLocked, layout, markTyping, mode.type, scheduleRefreshSuggestions, shiftOn],
+  );
 
   const handleWordCommitted = useCallback(
     (word: string) => {
@@ -1513,6 +1585,7 @@ function KeyboardBody() {
               shiftOn={shiftOn}
               capsLocked={capsLocked}
               onKeyPress={handleKeyPress}
+              onMultiTouchKeyCommit={handleMultiTouchKeyCommit}
               keyGestures={keyGestures}
             enterKeyNextLineEnabled={
               mode.type === 'typing' ? enterKeyNextLineEnabled : false
@@ -1543,7 +1616,11 @@ export default function KeyboardApp() {
   const [themeReady, setThemeReady] = useState(false);
 
   useEffect(() => {
-    void Promise.all([ensureThemeLoaded(), ensureLayoutLoaded()]).then(() => {
+    void Promise.all([
+      ensureThemeLoaded(),
+      ensureLayoutLoaded(),
+      ensureCustomLayoutsLoaded(),
+    ]).then(() => {
       setColorScheme(getKeyboardColorScheme());
       setKeyboardDesign(getKeyboardDesign());
       setCustomThemeJson(getKeyboardCustomTheme());

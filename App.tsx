@@ -42,6 +42,7 @@ import { GeneralSettingsScreen } from './GeneralSettingsScreen';
 import { keyboardBridge } from './src/keyboard/keyboardBridge';
 import { AiConfigScreen } from './AiConfigScreen';
 import { OnboardingScreen } from './OnboardingScreen';
+import { LanguageLayoutScreen } from './LanguageLayoutScreen';
 
 const C = {
   bg: '#f2f2f4',
@@ -319,6 +320,7 @@ function LaunchpadCard({
 function SetupScreen() {
   const [tab, setTab] = useState<NavTab>('home');
   const [showAiConfig, setShowAiConfig] = useState(false);
+  const [showLanguageLayout, setShowLanguageLayout] = useState(false);
   const { animatedStyle, transitionTo } = useScreenTransition();
 
   const changeTab = (next: NavTab) => {
@@ -332,6 +334,14 @@ function SetupScreen() {
     return (
       <View style={styles.setupRoot}>
         <AiConfigScreen onBack={() => setShowAiConfig(false)} />
+      </View>
+    );
+  }
+
+  if (showLanguageLayout) {
+    return (
+      <View style={styles.setupRoot}>
+        <LanguageLayoutScreen onBack={() => setShowLanguageLayout(false)} />
       </View>
     );
   }
@@ -354,6 +364,7 @@ function SetupScreen() {
       <LaunchpadScreen
         onOpenKeyboard={() => changeTab('customize')}
         onOpenAiConfig={() => setShowAiConfig(true)}
+        onOpenLanguageLayout={() => setShowLanguageLayout(true)}
       />
     );
   };
@@ -371,9 +382,11 @@ function SetupScreen() {
 function LaunchpadScreen({
   onOpenKeyboard,
   onOpenAiConfig,
+  onOpenLanguageLayout,
 }: {
   onOpenKeyboard: () => void;
   onOpenAiConfig: () => void;
+  onOpenLanguageLayout: () => void;
 }) {
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -417,6 +430,16 @@ function LaunchpadScreen({
               </View>
             </Pressable>
           </View>
+        </View>
+
+        <View style={styles.stack}>
+          <LaunchpadCard
+            icon={<SymbolsIcon width={HOME_ICON} height={HOME_ICON} color={C.text} />}
+            title="Language & layout"
+            description="QWERTY, AZERTY, Arabic, Cyrillic, and more"
+            onPress={onOpenLanguageLayout}
+            position="solo"
+          />
         </View>
       </ScrollView>
     </SafeAreaView>

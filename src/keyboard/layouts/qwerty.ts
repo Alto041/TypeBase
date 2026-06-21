@@ -1,3 +1,6 @@
+import {buildLetterLayout} from './buildLetterLayout';
+import {BOTTOM_ROW_EDGE_FLEX, BOTTOM_ROW_SPACE_FLEX, SIDE_KEY_FLEX} from './sharedRows';
+
 export type KeyType =
   | 'char'
   | 'backspace'
@@ -25,58 +28,16 @@ export type KeyDefinition = {
 };
 
 /** Gboard-style ASDF row inset: half a key width on each side via flex spacers. */
-const ASDF_ROW_STAGGER_FLEX = 0.5;
-/** Shift, backspace, and row-3 mode keys (=\\<, ?123 on symbols row). */
-const SIDE_KEY_FLEX = 1.5;
+const SIDE_KEY_FLEX_LOCAL = SIDE_KEY_FLEX;
 /** Bottom-row ?123 / ABC and enter — kept narrower than shift/backspace. */
-const BOTTOM_ROW_EDGE_FLEX = 1.15;
-const BOTTOM_ROW_SPACE_FLEX = 3.5;
+const BOTTOM_ROW_EDGE_FLEX_LOCAL = BOTTOM_ROW_EDGE_FLEX;
+const BOTTOM_ROW_SPACE_FLEX_LOCAL = BOTTOM_ROW_SPACE_FLEX;
 
-export const QWERTY_ROWS: KeyDefinition[][] = [
-  [
-    {id: 'q', label: 'q', value: 'q'},
-    {id: 'w', label: 'w', value: 'w'},
-    {id: 'e', label: 'e', value: 'e'},
-    {id: 'r', label: 'r', value: 'r'},
-    {id: 't', label: 't', value: 't'},
-    {id: 'y', label: 'y', value: 'y'},
-    {id: 'u', label: 'u', value: 'u'},
-    {id: 'i', label: 'i', value: 'i'},
-    {id: 'o', label: 'o', value: 'o'},
-    {id: 'p', label: 'p', value: 'p'},
-  ],
-  [
-    {id: 'asdf-stagger-start', type: 'spacer', flex: ASDF_ROW_STAGGER_FLEX},
-    {id: 'a', label: 'a', value: 'a'},
-    {id: 's', label: 's', value: 's'},
-    {id: 'd', label: 'd', value: 'd'},
-    {id: 'f', label: 'f', value: 'f'},
-    {id: 'g', label: 'g', value: 'g'},
-    {id: 'h', label: 'h', value: 'h'},
-    {id: 'j', label: 'j', value: 'j'},
-    {id: 'k', label: 'k', value: 'k'},
-    {id: 'l', label: 'l', value: 'l'},
-    {id: 'asdf-stagger-end', type: 'spacer', flex: ASDF_ROW_STAGGER_FLEX},
-  ],
-  [
-    {id: 'shift', label: '⇧', type: 'shift', flex: SIDE_KEY_FLEX},
-    {id: 'z', label: 'z', value: 'z'},
-    {id: 'x', label: 'x', value: 'x'},
-    {id: 'c', label: 'c', value: 'c'},
-    {id: 'v', label: 'v', value: 'v'},
-    {id: 'b', label: 'b', value: 'b'},
-    {id: 'n', label: 'n', value: 'n'},
-    {id: 'm', label: 'm', value: 'm'},
-    {id: 'backspace', label: '⌫', type: 'backspace', flex: SIDE_KEY_FLEX},
-  ],
-  [
-    {id: 'numbers', label: '?123', type: 'numbers', flex: BOTTOM_ROW_EDGE_FLEX},
-    {id: 'comma', label: ',', value: ',', type: 'comma'},
-    {id: 'space', label: 'space', type: 'space', flex: BOTTOM_ROW_SPACE_FLEX},
-    {id: 'period', label: '.', value: '.', type: 'period'},
-    {id: 'enter', label: '↵', type: 'enter', flex: BOTTOM_ROW_EDGE_FLEX},
-  ],
-];
+export const QWERTY_ROWS: KeyDefinition[][] = buildLetterLayout(
+  'qwertyuiop',
+  'asdfghjkl',
+  'zxcvbnm',
+);
 
 export const NUMBER_ROWS: KeyDefinition[][] = [
   [
@@ -104,7 +65,7 @@ export const NUMBER_ROWS: KeyDefinition[][] = [
     {id: 'slash', label: '/', value: '/'},
   ],
   [
-    {id: 'symbols', label: '=\\<', type: 'symbols', flex: SIDE_KEY_FLEX},
+    {id: 'symbols', label: '=\\<', type: 'symbols', flex: SIDE_KEY_FLEX_LOCAL},
     {id: 'star', label: '*', value: '*'},
     {id: 'quote', label: '"', value: '"'},
     {id: 'single_quote', label: "'", value: "'"},
@@ -112,14 +73,14 @@ export const NUMBER_ROWS: KeyDefinition[][] = [
     {id: 'semicolon', label: ';', value: ';'},
     {id: 'exclamation', label: '!', value: '!'},
     {id: 'question', label: '?', value: '?'},
-    {id: 'backspace', label: '⌫', type: 'backspace', flex: SIDE_KEY_FLEX},
+    {id: 'backspace', label: '⌫', type: 'backspace', flex: SIDE_KEY_FLEX_LOCAL},
   ],
   [
-    {id: 'abc', label: 'ABC', type: 'numbers', flex: BOTTOM_ROW_EDGE_FLEX},
+    {id: 'abc', label: 'ABC', type: 'numbers', flex: BOTTOM_ROW_EDGE_FLEX_LOCAL},
     {id: 'comma', label: ',', value: ',', type: 'comma'},
     {id: 'space', label: 'space', type: 'space', flex: BOTTOM_ROW_SPACE_FLEX},
     {id: 'period', label: '.', value: '.', type: 'period'},
-    {id: 'enter', label: '↵', type: 'enter', flex: BOTTOM_ROW_EDGE_FLEX},
+    {id: 'enter', label: '↵', type: 'enter', flex: BOTTOM_ROW_EDGE_FLEX_LOCAL},
   ],
 ];
 
@@ -149,20 +110,20 @@ export const SYMBOL_ROWS: KeyDefinition[][] = [
     {id: 'backslash', label: '\\', value: '\\'},
   ],
   [
-    {id: 'numbers', label: '?123', type: 'numbers', flex: SIDE_KEY_FLEX},
+    {id: 'numbers', label: '?123', type: 'numbers', flex: SIDE_KEY_FLEX_LOCAL},
     {id: 'underscore', label: '_', value: '_'},
     {id: 'open_bracket', label: '[', value: '['},
     {id: 'close_bracket', label: ']', value: ']'},
     {id: 'less', label: '<', value: '<'},
     {id: 'greater', label: '>', value: '>'},
-    {id: 'backspace', label: '⌫', type: 'backspace', flex: SIDE_KEY_FLEX},
+    {id: 'backspace', label: '⌫', type: 'backspace', flex: SIDE_KEY_FLEX_LOCAL},
   ],
   [
-    {id: 'abc', label: 'ABC', type: 'numbers', flex: BOTTOM_ROW_EDGE_FLEX},
+    {id: 'abc', label: 'ABC', type: 'numbers', flex: BOTTOM_ROW_EDGE_FLEX_LOCAL},
     {id: 'comma', label: ',', value: ',', type: 'comma'},
     {id: 'space', label: 'space', type: 'space', flex: BOTTOM_ROW_SPACE_FLEX},
     {id: 'period', label: '.', value: '.', type: 'period'},
-    {id: 'enter', label: '↵', type: 'enter', flex: BOTTOM_ROW_EDGE_FLEX},
+    {id: 'enter', label: '↵', type: 'enter', flex: BOTTOM_ROW_EDGE_FLEX_LOCAL},
   ],
 ];
 

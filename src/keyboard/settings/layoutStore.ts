@@ -1,5 +1,7 @@
 import {DeviceEventEmitter} from 'react-native';
 import {keyboardBridge} from '../keyboardBridge';
+import {normalizeLetterLayoutId} from '../layouts/resolveLetterLayout';
+import {ensureCustomLayoutsLoaded} from './customLayoutStore';
 import {
   DEFAULT_KEYBOARD_LAYOUT_SETTINGS,
   type KeyboardLayoutSettings,
@@ -21,7 +23,11 @@ function normalizeLayout(raw: unknown): KeyboardLayoutSettings {
   }
 
   const obj = raw as Record<string, unknown>;
-  const read = (key: keyof KeyboardLayoutSettings, min: number, max: number) => {
+  const readNumber = (
+    key: 'keyHeight' | 'keyGap' | 'keyRowMargin' | 'keyRadius',
+    min: number,
+    max: number,
+  ) => {
     const value = obj[key];
     if (typeof value !== 'number' || !Number.isFinite(value)) {
       return defaults[key];
@@ -30,10 +36,10 @@ function normalizeLayout(raw: unknown): KeyboardLayoutSettings {
   };
 
   return {
-    keyHeight: read('keyHeight', 40, 64),
-    keyGap: read('keyGap', 0, 12),
-    keyRowMargin: read('keyRowMargin', 0, 20),
-    keyRadius: read('keyRadius', 0, 12),
+    keyHeight: readNumber('keyHeight', 40, 64),
+    keyGap: readNumber('keyGap', 0, 12),
+    keyRowMargin: readNumber('keyRowMargin', 0, 20),
+    keyRadius: readNumber('keyRadius', 0, 12),
     enterKeyPreviewEnabled:
       typeof obj['enterKeyPreviewEnabled'] === 'boolean'
         ? obj['enterKeyPreviewEnabled']
@@ -42,10 +48,12 @@ function normalizeLayout(raw: unknown): KeyboardLayoutSettings {
       typeof obj['developerEyeEnabled'] === 'boolean'
         ? obj['developerEyeEnabled']
         : defaults.developerEyeEnabled,
+    letterLayoutId: normalizeLetterLayoutId(obj['letterLayoutId']),
   };
 }
 
 async function loadFromStorage(): Promise<void> {
+  await ensureCustomLayoutsLoaded();
   try {
     const raw = await keyboardBridge.getKeyboardLayoutSettings();
     cachedLayout = normalizeLayout(JSON.parse(raw));

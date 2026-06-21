@@ -27,11 +27,20 @@ import {
 } from './KeyLayoutContext';
 import {measureKeysArea} from './measureKeysArea';
 import {
+  cancelMultiTouchPointer,
   dispatchMultiTouchEnd,
+  dispatchMultiTouchMove,
   dispatchMultiTouchStart,
   hitTestKey,
+  isPointerInAlternatePopup,
+  notifySwipeStarted,
+  setAlternatePopupListener,
+  setSwipeStartCancelHandler,
   touchHitsPressableOnlyKey,
+  type AlternatePopupState,
 } from './multiTouchKeys';
+import {KeyAlternatePopup} from '../components/KeyAlternatePopup';
+import type {KeyboardLayout} from '../layouts/qwerty';
 import {SwipeTrail} from './SwipeTrail';
 import type {Point, TrailPoint} from './types';
 import type {KeyDefinition} from '../layouts/qwerty';
@@ -377,6 +386,10 @@ export function SwipeTypingProvider({
           continue;
         }
 
+        if (isPointerInAlternatePopup(id)) {
+          continue;
+        }
+
         const dx = touch.pageX - session.rawStartX;
         const dy = touch.pageY - session.rawStartY;
         if (Math.hypot(dx, dy) < dp(SWIPE_TAP_SLOP_DP)) {
@@ -385,6 +398,7 @@ export function SwipeTypingProvider({
 
         session.isSwiping = true;
         activeSwipePointerIdRef.current = id;
+        notifySwipeStarted(id);
         if (session.tapCommitted) {
           keyboardBridge.deleteBackward();
           session.tapCommitted = false;
@@ -457,19 +471,44 @@ export function useSwipeTypingContext() {
 type SwipeTypingKeysHostProps = {
   children: React.ReactNode;
   multiTouchEnabled?: boolean;
-  onMultiTouchKeyPress?: (keyDef: KeyDefinition) => void;
+  keyboardLayout?: KeyboardLayout;
+  isUppercase?: boolean;
+  onMultiTouchKeyCommit?: (keyDef: KeyDefinition, text: string) => void;
 };
 
 export function SwipeTypingKeysHost({
   children,
   multiTouchEnabled = false,
-  onMultiTouchKeyPress,
+  keyboardLayout = 'letters',
+  isUppercase = false,
+  onMultiTouchKeyCommit,
 }: SwipeTypingKeysHostProps) {
   const ctx = useContext(SwipeTypingContext);
   const layoutContext = useKeyLayoutContext();
   const theme = useKeyboardTheme();
   const pointerToKeyRef = useRef(new Map<number, string>());
   const keyHitSlop = theme.keyHitSlop;
+  const [alternatePopup, setAlternatePopup] = useState<AlternatePopupState | null>(
+    null,
+  );
+
+  useEffect(() => {
+    if (!multiTouchEnabled) {
+      setAlternatePopupListener(null);
+      setSwipeStartCancelHandler(null);
+      setAlternatePopup(null);
+      return;
+    }
+    setAlternatePopupListener(setAlternatePopup);
+    setSwipeStartCancelHandler(pointerId => {
+      cancelMultiTouchPointer(pointerId, pointerToKeyRef.current);
+    });
+    return () => {
+      setAlternatePopupListener(null);
+      setSwipeStartCancelHandler(null);
+      setAlternatePopup(null);
+    };
+  }, [multiTouchEnabled]);
 
   const handleTouchStartCapture = useCallback(
     (event: GestureResponderEvent) => {
@@ -495,32 +534,55 @@ export function SwipeTypingKeysHost({
 
       if (
         multiTouchEnabled &&
-        onMultiTouchKeyPress &&
+        onMultiTouchKeyCommit &&
         passThroughTouches.length > 0
       ) {
         dispatchMultiTouchStart(passThroughTouches, pointerToKeyRef.current, {
-          onKeyPress: onMultiTouchKeyPress,
+          onKeyCommit: onMultiTouchKeyCommit,
           getLayouts: layoutContext.getLayouts,
           areaOrigin: origin,
-          swipeTypingEnabled: Boolean(ctx?.enabled),
+          areaWidth: layoutContext.areaBounds.width,
+          keyboardLayout,
+          isUppercase,
           hitSlop: keyHitSlop,
         });
       }
     },
-    [ctx, keyHitSlop, layoutContext, multiTouchEnabled, onMultiTouchKeyPress],
+    [
+      ctx,
+      isUppercase,
+      keyHitSlop,
+      keyboardLayout,
+      layoutContext,
+      multiTouchEnabled,
+      onMultiTouchKeyCommit,
+    ],
+  );
+
+  const handleTouchMoveCapture = useCallback(
+    (event: GestureResponderEvent) => {
+      if (multiTouchEnabled && layoutContext) {
+        dispatchMultiTouchMove(event.nativeEvent.touches, {
+          areaOrigin: layoutContext.areaOriginRef.current,
+        });
+      }
+      ctx?.onTouchMoveCapture?.(event);
+    },
+    [ctx, layoutContext, multiTouchEnabled],
   );
 
   const handleTouchEndCapture = useCallback(
     (event: GestureResponderEvent) => {
-      if (multiTouchEnabled) {
+      if (multiTouchEnabled && onMultiTouchKeyCommit) {
         dispatchMultiTouchEnd(
           event.nativeEvent.changedTouches,
           pointerToKeyRef.current,
+          {onKeyCommit: onMultiTouchKeyCommit},
         );
       }
       ctx?.onTouchEndCapture?.(event);
     },
-    [ctx, multiTouchEnabled],
+    [ctx, multiTouchEnabled, onMultiTouchKeyCommit],
   );
 
   const usesTouchCapture = multiTouchEnabled || Boolean(ctx?.enabled);
@@ -532,11 +594,12 @@ export function SwipeTypingKeysHost({
       onStartShouldSetResponderCapture={() => false}
       onMoveShouldSetResponderCapture={() => false}
       onTouchStartCapture={usesTouchCapture ? handleTouchStartCapture : undefined}
-      onTouchMoveCapture={ctx?.enabled ? ctx.onTouchMoveCapture : undefined}
+      onTouchMoveCapture={usesTouchCapture ? handleTouchMoveCapture : undefined}
       onTouchEndCapture={usesTouchCapture ? handleTouchEndCapture : undefined}
       onTouchCancelCapture={usesTouchCapture ? handleTouchEndCapture : undefined}
       collapsable={false}>
       {children}
+      <KeyAlternatePopup popup={alternatePopup} />
       {ctx?.enabled && ctx.trailWidth > 0 && ctx.trailHeight > 0 ? (
         <SwipeTrail
           points={ctx.trailPoints}

@@ -1,7 +1,14 @@
+import {hideKeyPreview} from '../KeyPreview';
+import {
+  computeAlternatePopupGeometry,
+  getKeyAlternates,
+  hitTestAlternateIndex,
+  type AlternatePopupGeometry,
+} from '../keyAlternates';
+import type {KeyboardLayout} from '../layouts/qwerty';
 import type {KeyDefinition} from '../layouts/qwerty';
 import {triggerKeyHaptic} from '../haptics';
 import {KEY_HIT_SLOP} from '../theme';
-import {markSwipeTypingTapCommitted} from './gestureState';
 import type {KeyBounds} from './types';
 
 /** Half the visual gap between keys — matches theme keyGap / keyRowMargin. */
@@ -12,7 +19,47 @@ export type KeyHitSlop = {
 
 export const DEFAULT_KEY_HIT_SLOP: KeyHitSlop = KEY_HIT_SLOP;
 
+const LONG_PRESS_MS = 350;
+const POPUP_CELL_SIZE = 44;
+
 const pressVisualHandlers = new Map<string, (pressed: boolean) => void>();
+
+type MultiTouchSession = {
+  keyId: string;
+  keyDef: KeyDefinition;
+  alternates: string[];
+  phase: 'holding' | 'popup';
+  selectedIndex: number;
+  geometry: AlternatePopupGeometry | null;
+  longPressTimer: ReturnType<typeof setTimeout> | null;
+};
+
+const activeSessions = new Map<number, MultiTouchSession>();
+
+export type AlternatePopupState = {
+  alternates: string[];
+  selectedIndex: number;
+  geometry: AlternatePopupGeometry;
+};
+
+type PopupListener = (popup: AlternatePopupState | null) => void;
+let popupListener: PopupListener | null = null;
+
+export function setAlternatePopupListener(listener: PopupListener | null): void {
+  popupListener = listener;
+}
+
+function notifyPopup(session: MultiTouchSession | null) {
+  if (!session || session.phase !== 'popup' || !session.geometry) {
+    popupListener?.(null);
+    return;
+  }
+  popupListener?.({
+    alternates: session.alternates,
+    selectedIndex: session.selectedIndex,
+    geometry: session.geometry,
+  });
+}
 
 export function pointerIdFromTouch(touch: {identifier: number | string}): number {
   return typeof touch.identifier === 'number'
@@ -160,11 +207,53 @@ export function setMultiTouchKeyPressed(id: string, pressed: boolean): void {
   pressVisualHandlers.get(id)?.(pressed);
 }
 
+export function hasActiveAlternatePopup(): boolean {
+  for (const session of activeSessions.values()) {
+    if (session.phase === 'popup') {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function isPointerInAlternatePopup(pointerId: number): boolean {
+  const session = activeSessions.get(pointerId);
+  return session?.phase === 'popup';
+}
+
+function clearSessionTimer(session: MultiTouchSession) {
+  if (session.longPressTimer) {
+    clearTimeout(session.longPressTimer);
+    session.longPressTimer = null;
+  }
+}
+
+function finishSession(
+  pointerId: number,
+  session: MultiTouchSession,
+  onKeyCommit: (keyDef: KeyDefinition, text: string) => void,
+) {
+  clearSessionTimer(session);
+  const text =
+    session.alternates[session.selectedIndex] ??
+    session.alternates[0] ??
+    session.keyDef.value ??
+    '';
+  onKeyCommit(session.keyDef, text);
+  triggerKeyHaptic();
+  setMultiTouchKeyPressed(session.keyId, false);
+  hideKeyPreview();
+  activeSessions.delete(pointerId);
+  notifyPopup(null);
+}
+
 type DispatchMultiTouchOptions = {
-  onKeyPress: (keyDef: KeyDefinition) => void;
+  onKeyCommit: (keyDef: KeyDefinition, text: string) => void;
   getLayouts: () => KeyBounds[];
   areaOrigin: {pageX: number; pageY: number};
-  swipeTypingEnabled: boolean;
+  areaWidth: number;
+  keyboardLayout: KeyboardLayout;
+  isUppercase: boolean;
   hitSlop?: KeyHitSlop;
 };
 
@@ -174,6 +263,25 @@ type TouchLike = {
   pageY: number;
   timestamp?: number;
 };
+
+function openAlternatePopup(
+  pointerId: number,
+  session: MultiTouchSession,
+  hit: KeyBounds,
+  areaWidth: number,
+) {
+  session.phase = 'popup';
+  session.selectedIndex = 0;
+  session.geometry = computeAlternatePopupGeometry(
+    hit,
+    session.alternates.length,
+    POPUP_CELL_SIZE,
+    areaWidth,
+  );
+  hideKeyPreview();
+  triggerKeyHaptic();
+  notifyPopup(session);
+}
 
 export function dispatchMultiTouchStart(
   changedTouches: ReadonlyArray<TouchLike>,
@@ -193,7 +301,7 @@ export function dispatchMultiTouchStart(
 
   for (const touch of touches) {
     const pid = pointerIdFromTouch(touch);
-    if (pointerToKeyId.has(pid)) {
+    if (pointerToKeyId.has(pid) || activeSessions.has(pid)) {
       continue;
     }
 
@@ -207,27 +315,131 @@ export function dispatchMultiTouchStart(
       continue;
     }
 
+    const alternates = getKeyAlternates(
+      hit.keyDef,
+      options.keyboardLayout,
+      options.isUppercase,
+    );
+    const resolvedAlternates =
+      alternates.length > 0
+        ? alternates
+        : [
+            options.isUppercase
+              ? (hit.keyDef.value ?? '').toUpperCase()
+              : (hit.keyDef.value ?? '').toLowerCase(),
+          ];
+
     pointerToKeyId.set(pid, hit.id);
-    if (options.swipeTypingEnabled) {
-      markSwipeTypingTapCommitted(pid);
-    }
     setMultiTouchKeyPressed(hit.id, true);
-    options.onKeyPress(hit.keyDef);
-    triggerKeyHaptic();
+
+    const session: MultiTouchSession = {
+      keyId: hit.id,
+      keyDef: hit.keyDef,
+      alternates: resolvedAlternates,
+      phase: 'holding',
+      selectedIndex: 0,
+      geometry: null,
+      longPressTimer: null,
+    };
+
+    if (alternates.length > 1) {
+      session.longPressTimer = setTimeout(() => {
+        session.longPressTimer = null;
+        openAlternatePopup(pid, session, hit, options.areaWidth);
+      }, LONG_PRESS_MS);
+    }
+
+    activeSessions.set(pid, session);
+  }
+}
+
+export function dispatchMultiTouchMove(
+  touches: ReadonlyArray<TouchLike>,
+  options: Pick<DispatchMultiTouchOptions, 'areaOrigin'>,
+): void {
+  for (const touch of touches) {
+    const pid = pointerIdFromTouch(touch);
+    const session = activeSessions.get(pid);
+    if (!session || session.phase !== 'popup' || !session.geometry) {
+      continue;
+    }
+
+    const localX = touch.pageX - options.areaOrigin.pageX;
+    const localY = touch.pageY - options.areaOrigin.pageY;
+    const nextIndex = hitTestAlternateIndex(
+      localX,
+      localY,
+      session.geometry,
+      session.alternates.length,
+    );
+    if (nextIndex !== session.selectedIndex) {
+      session.selectedIndex = nextIndex;
+      triggerKeyHaptic();
+      notifyPopup(session);
+    }
   }
 }
 
 export function dispatchMultiTouchEnd(
-  changedTouches: ReadonlyArray<{identifier: number | string}>,
+  changedTouches: ReadonlyArray<TouchLike>,
   pointerToKeyId: Map<number, string>,
+  options: Pick<DispatchMultiTouchOptions, 'onKeyCommit'>,
 ): void {
   for (const touch of changedTouches) {
     const pid = pointerIdFromTouch(touch);
     const keyId = pointerToKeyId.get(pid);
-    if (!keyId) {
-      continue;
+    const session = activeSessions.get(pid);
+
+    if (session) {
+      finishSession(pid, session, options.onKeyCommit);
+    } else if (keyId) {
+      setMultiTouchKeyPressed(keyId, false);
+      hideKeyPreview();
     }
+
     pointerToKeyId.delete(pid);
-    setMultiTouchKeyPressed(keyId, false);
   }
+}
+
+type SwipeStartCancelHandler = (pointerId: number) => void;
+let swipeStartCancelHandler: SwipeStartCancelHandler | null = null;
+
+export function setSwipeStartCancelHandler(
+  handler: SwipeStartCancelHandler | null,
+): void {
+  swipeStartCancelHandler = handler;
+}
+
+export function notifySwipeStarted(pointerId: number): void {
+  swipeStartCancelHandler?.(pointerId);
+}
+
+export function cancelMultiTouchPointer(
+  pointerId: number,
+  pointerToKeyId: Map<number, string>,
+): void {
+  const session = activeSessions.get(pointerId);
+  if (session) {
+    clearSessionTimer(session);
+    setMultiTouchKeyPressed(session.keyId, false);
+    hideKeyPreview();
+    activeSessions.delete(pointerId);
+    notifyPopup(null);
+  }
+  const keyId = pointerToKeyId.get(pointerId);
+  if (keyId) {
+    setMultiTouchKeyPressed(keyId, false);
+    hideKeyPreview();
+    pointerToKeyId.delete(pointerId);
+  }
+}
+
+export function cancelAllMultiTouchSessions(): void {
+  for (const session of activeSessions.values()) {
+    clearSessionTimer(session);
+    setMultiTouchKeyPressed(session.keyId, false);
+  }
+  activeSessions.clear();
+  hideKeyPreview();
+  notifyPopup(null);
 }

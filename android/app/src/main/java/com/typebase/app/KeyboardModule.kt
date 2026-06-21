@@ -577,6 +577,34 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   }
 
   @ReactMethod
+  fun getCustomLetterLayouts(promise: Promise) {
+    try {
+      val raw =
+          learnedWordsPrefs().getString(CUSTOM_LETTER_LAYOUTS_KEY, "[]")
+              ?: "[]"
+      promise.resolve(raw)
+    } catch (error: Exception) {
+      promise.reject("GET_CUSTOM_LETTER_LAYOUTS_FAILED", error)
+    }
+  }
+
+  @ReactMethod
+  fun setCustomLetterLayouts(json: String, promise: Promise) {
+    try {
+      val saved =
+          learnedWordsPrefs().edit().putString(CUSTOM_LETTER_LAYOUTS_KEY, json).commit()
+      if (saved && reactApplicationContext.hasActiveReactInstance()) {
+        reactApplicationContext
+            .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+            .emit("customLetterLayoutsChanged", json)
+      }
+      promise.resolve(saved)
+    } catch (error: Exception) {
+      promise.reject("SET_CUSTOM_LETTER_LAYOUTS_FAILED", error)
+    }
+  }
+
+  @ReactMethod
   fun getGestureSettings(promise: Promise) {
     try {
       val raw = learnedWordsPrefs().getString(GESTURE_SETTINGS_KEY, DEFAULT_GESTURE_SETTINGS) ?: DEFAULT_GESTURE_SETTINGS
@@ -979,8 +1007,9 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     private const val KEYBOARD_CUSTOM_THEME_KEY = "keyboard_custom_theme"
     private const val DEFAULT_KEYBOARD_CUSTOM_THEME = "{}"
     private const val KEYBOARD_LAYOUT_KEY = "keyboard_layout"
+    private const val CUSTOM_LETTER_LAYOUTS_KEY = "custom_letter_layouts"
     private const val DEFAULT_KEYBOARD_LAYOUT =
-        """{"keyHeight":52,"keyGap":4,"keyRowMargin":10,"keyRadius":6,"enterKeyPreviewEnabled":true,"developerEyeEnabled":false}"""
+        """{"keyHeight":52,"keyGap":4,"keyRowMargin":10,"keyRadius":6,"enterKeyPreviewEnabled":true,"developerEyeEnabled":false,"letterLayoutId":"en-us"}"""
     private const val DEFAULT_API_KEYS =
         """{"geminiApiKey":"","speechmaticsApiKey":""}"""
     private const val DEFAULT_GESTURE_SETTINGS =

@@ -1,3 +1,8 @@
+import {
+  DEFAULT_LETTER_LAYOUT_ID,
+  type LetterLayoutId,
+} from './layouts/letterLayouts';
+
 const KEY_ROW_COUNT = 4;
 const KEYS_PADDING_TOP = 6;
 const IME_STRIP_CLEARANCE = 46;
@@ -14,6 +19,8 @@ export type KeyboardLayoutSettings = {
   keyGap: number;
   keyRowMargin: number;
   keyRadius: number;
+  /** Letter key arrangement (QWERTY, AZERTY, QWERTZ, Cyrillic, …). */
+  letterLayoutId: LetterLayoutId;
   /**
    * When true, Enter key uses the "accent/red" palette.
    * When false, Enter key uses the normal modifier key cap color.
@@ -30,6 +37,7 @@ export const DEFAULT_KEYBOARD_LAYOUT_SETTINGS: KeyboardLayoutSettings = {
   keyRadius: KEY_RADIUS,
   enterKeyPreviewEnabled: true,
   developerEyeEnabled: false,
+  letterLayoutId: DEFAULT_LETTER_LAYOUT_ID,
 };
 
 /** Touch slop into gaps — half the visual gap on each side of a key. */
@@ -392,6 +400,7 @@ export function createKeyboardTheme(
     keyGap: layout.keyGap,
     keyRadius: layout.keyRadius,
     enterKeyPreviewEnabled: layout.enterKeyPreviewEnabled,
+    letterLayoutId: layout.letterLayoutId,
     keyHitSlop: {
       horizontal: layout.keyGap / 2,
       vertical: layout.keyRowMargin / 2,

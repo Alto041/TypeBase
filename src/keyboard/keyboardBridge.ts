@@ -51,6 +51,8 @@ type KeyboardModuleType = {
   setKeyboardCustomTheme: (json: string) => Promise<boolean>;
   getKeyboardLayoutSettings: () => Promise<string>;
   setKeyboardLayoutSettings: (json: string) => Promise<boolean>;
+  getCustomLetterLayouts: () => Promise<string>;
+  setCustomLetterLayouts: (json: string) => Promise<boolean>;
   undo: () => Promise<boolean>;
   redo: () => Promise<boolean>;
 };
@@ -345,12 +347,24 @@ export const keyboardBridge: KeyboardModuleType = {
       return KeyboardModule.getKeyboardLayoutSettings() as Promise<string>;
     }
     return Promise.resolve(
-      '{"keyHeight":52,"keyGap":4,"keyRowMargin":10,"keyRadius":6,"enterKeyPreviewEnabled":true,"developerEyeEnabled":false}',
+      '{"keyHeight":52,"keyGap":4,"keyRowMargin":10,"keyRadius":6,"enterKeyPreviewEnabled":true,"developerEyeEnabled":false,"letterLayoutId":"en-us"}',
     );
   },
   setKeyboardLayoutSettings: (json: string) => {
     if (Platform.OS === 'android' && KeyboardModule?.setKeyboardLayoutSettings) {
       return KeyboardModule.setKeyboardLayoutSettings(json) as Promise<boolean>;
+    }
+    return Promise.resolve(false);
+  },
+  getCustomLetterLayouts: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.getCustomLetterLayouts) {
+      return KeyboardModule.getCustomLetterLayouts() as Promise<string>;
+    }
+    return Promise.resolve('[]');
+  },
+  setCustomLetterLayouts: (json: string) => {
+    if (Platform.OS === 'android' && KeyboardModule?.setCustomLetterLayouts) {
+      return KeyboardModule.setCustomLetterLayouts(json) as Promise<boolean>;
     }
     return Promise.resolve(false);
   },
