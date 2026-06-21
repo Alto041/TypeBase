@@ -65,6 +65,14 @@ type EssentialsFormBarState = {
   onConfirm: () => void;
 };
 
+type GifSearchBarState = {
+  visible: boolean;
+  active: boolean;
+  query: string;
+  onActivate: () => void;
+  onClear: () => void;
+};
+
 type SuggestionBarProps = {
   suggestions: string[];
   prefix: string;
@@ -99,6 +107,7 @@ type SuggestionBarProps = {
   showUndoRedo?: boolean;
   onUndo?: () => void;
   onRedo?: () => void;
+  gifSearch?: GifSearchBarState;
 };
 
 function SuggestionBarComponent({
@@ -130,12 +139,59 @@ function SuggestionBarComponent({
   showUndoRedo = false,
   onUndo,
   onRedo,
+  gifSearch,
 }: SuggestionBarProps) {
   const theme = useKeyboardTheme();
   const styles = useThemedStyles(createSuggestionBarStyles);
 
   if (!visible) {
     return null;
+  }
+
+  if (gifSearch?.visible) {
+    return (
+      <View style={styles.container}>
+        {gifSearch.active ? (
+          <View style={styles.gifSearchOnly}>
+            <Text
+              style={[
+                styles.gifSearchOnlyText,
+                !gifSearch.query && styles.gifSearchPlaceholder,
+              ]}
+              numberOfLines={1}>
+              {gifSearch.query || 'Search GIFs'}
+            </Text>
+            <View style={styles.cursor} />
+            {gifSearch.query ? (
+              <Pressable
+                onPressIn={() => {
+                  triggerKeyHaptic();
+                  gifSearch.onClear();
+                }}
+                hitSlop={6}
+                style={({pressed}) => [
+                  styles.gifSearchClear,
+                  pressed && styles.toolbarButtonPressed,
+                ]}>
+                <Text style={styles.gifSearchClearLabel}>✕</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : (
+          <Pressable
+            onPressIn={() => {
+              triggerKeyHaptic();
+              gifSearch.onActivate();
+            }}
+            style={({pressed}) => [
+              styles.gifSearchOnly,
+              pressed && styles.gifSearchTriggerPressed,
+            ]}>
+            <Text style={styles.gifSearchPlaceholder}>Search GIFs</Text>
+          </Pressable>
+        )}
+      </View>
+    );
   }
 
   const isFormMode = Boolean(essentialsForm);
@@ -155,12 +211,13 @@ function SuggestionBarComponent({
         autocorrectPreview,
         suggestions,
       );
+  const showEssentials = hasEssentials;
   const showWordSuggestions = wordSuggestionChips.length > 0;
   const hasClipboardPaste =
     !isFormMode &&
     !centerTitle &&
     Boolean(clipboardPasteSuggestion) &&
-    !hasEssentials &&
+    !showEssentials &&
     !showPartial;
   const toolbarIconMuted = theme.icon;
   const toolbarIconActive = theme.icon;
@@ -302,7 +359,7 @@ function SuggestionBarComponent({
               )}
             </Pressable>
           </View>
-        ) : hasEssentials ? (
+        ) : showEssentials ? (
           <View style={styles.row}>
             {essentialSuggestions.map((item, index) => (
               <Fragment key={item.keyword}>
@@ -549,6 +606,57 @@ function createSuggestionBarStyles(theme: KeyboardTheme) {
   formPlaceholder: {
     color: theme.spaceLabel,
     fontWeight: '400',
+  },
+  gifSearchTrigger: {
+    flex: 1,
+    minHeight: 36,
+    marginHorizontal: 8,
+    borderRadius: theme.keyRadius,
+    backgroundColor: theme.letterKey,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  gifSearchTriggerPressed: {
+    opacity: 0.85,
+  },
+  gifSearchPlaceholder: {
+    color: theme.iconMuted,
+    fontSize: 14,
+    fontFamily: theme.fontFamily,
+  },
+  gifSearchClear: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.modifierKey,
+    marginLeft: 6,
+  },
+  gifSearchClearLabel: {
+    color: theme.iconMuted,
+    fontSize: 11,
+    lineHeight: 12,
+    fontWeight: '600',
+  },
+  gifSearchOnly: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: 36,
+    marginHorizontal: 8,
+    borderRadius: theme.keyRadius,
+    backgroundColor: theme.letterKey,
+    paddingHorizontal: 12,
+    gap: 6,
+  },
+  gifSearchOnlyText: {
+    flex: 1,
+    color: theme.label,
+    fontSize: 16,
+    fontFamily: theme.fontFamily,
+    fontWeight: '500',
   },
   cursor: {
     width: 2,

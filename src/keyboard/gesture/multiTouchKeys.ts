@@ -3,6 +3,7 @@ import {
   computeAlternatePopupGeometry,
   getKeyAlternates,
   hitTestAlternateIndex,
+  shouldShowAlternatePopup,
   type AlternatePopupGeometry,
 } from '../keyAlternates';
 import type {KeyboardLayout} from '../layouts/qwerty';
@@ -28,6 +29,8 @@ type MultiTouchSession = {
   keyId: string;
   keyDef: KeyDefinition;
   alternates: string[];
+  defaultCommit: string;
+  committedOnDown: boolean;
   phase: 'holding' | 'popup';
   selectedIndex: number;
   geometry: AlternatePopupGeometry | null;
@@ -234,13 +237,20 @@ function finishSession(
   onKeyCommit: (keyDef: KeyDefinition, text: string) => void,
 ) {
   clearSessionTimer(session);
+
+  if (session.committedOnDown && session.phase !== 'popup') {
+    activeSessions.delete(pointerId);
+    notifyPopup(null);
+    return;
+  }
+
   const text =
-    session.alternates[session.selectedIndex] ??
-    session.alternates[0] ??
-    session.keyDef.value ??
-    '';
+    session.phase === 'popup'
+      ? (session.alternates[session.selectedIndex] ??
+        session.alternates[0] ??
+        session.defaultCommit)
+      : session.defaultCommit;
   onKeyCommit(session.keyDef, text);
-  triggerKeyHaptic();
   setMultiTouchKeyPressed(session.keyId, false);
   hideKeyPreview();
   activeSessions.delete(pointerId);
@@ -320,29 +330,30 @@ export function dispatchMultiTouchStart(
       options.keyboardLayout,
       options.isUppercase,
     );
-    const resolvedAlternates =
-      alternates.length > 0
-        ? alternates
-        : [
-            options.isUppercase
-              ? (hit.keyDef.value ?? '').toUpperCase()
-              : (hit.keyDef.value ?? '').toLowerCase(),
-          ];
+    const defaultCommit = options.isUppercase
+      ? (hit.keyDef.value ?? '').toUpperCase()
+      : (hit.keyDef.value ?? '').toLowerCase();
+    const opensAlternatePopup = shouldShowAlternatePopup(alternates);
 
     pointerToKeyId.set(pid, hit.id);
-    setMultiTouchKeyPressed(hit.id, true);
 
     const session: MultiTouchSession = {
       keyId: hit.id,
       keyDef: hit.keyDef,
-      alternates: resolvedAlternates,
+      alternates,
+      defaultCommit,
+      committedOnDown: false,
       phase: 'holding',
       selectedIndex: 0,
       geometry: null,
       longPressTimer: null,
     };
 
-    if (alternates.length > 1) {
+    if (!opensAlternatePopup) {
+      session.committedOnDown = true;
+      options.onKeyCommit(hit.keyDef, defaultCommit);
+    } else {
+      setMultiTouchKeyPressed(hit.id, true);
       session.longPressTimer = setTimeout(() => {
         session.longPressTimer = null;
         openAlternatePopup(pid, session, hit, options.areaWidth);

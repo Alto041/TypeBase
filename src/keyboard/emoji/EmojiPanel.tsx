@@ -4,18 +4,22 @@ import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import {useKeyboardTheme} from '../KeyboardThemeContext';
 import type {KeyboardTheme} from '../theme';
 import {EmojiCategoryGrid} from './EmojiCategoryGrid';
+import {GifCategoryGrid} from './GifCategoryGrid';
 import type {EmojiCategoryId} from './emojis';
+import type {GiphyGif} from './giphyService';
 
 type EmojiPanelProps = {
   category: EmojiCategoryId;
-  onCategoryChange: (category: EmojiCategoryId) => void;
   onSelect: (emoji: string) => void;
+  onGifSelect: (gif: GiphyGif) => void;
+  gifSearchQuery: string;
 };
 
 export function EmojiPanel({
   category,
-  onCategoryChange,
   onSelect,
+  onGifSelect,
+  gifSearchQuery,
 }: EmojiPanelProps) {
   const theme = useKeyboardTheme();
   const emojiScrollHeight = theme.emojiPanelHeight - theme.emojiPanelGap;
@@ -37,11 +41,20 @@ export function EmojiPanel({
           setPanelWidth(width);
         }
       }}>
-      <EmojiCategoryGrid
-        category={category}
-        width={panelWidth}
-        onSelect={onSelect}
-      />
+      {category === 'gif' ? (
+        <GifCategoryGrid
+          width={panelWidth}
+          height={emojiScrollHeight}
+          query={gifSearchQuery}
+          onSelect={onGifSelect}
+        />
+      ) : (
+        <EmojiCategoryGrid
+          category={category}
+          width={panelWidth}
+          onSelect={onSelect}
+        />
+      )}
       <View style={styles.fade} pointerEvents="none">
         <Svg width="100%" height="100%" preserveAspectRatio="none">
           <Defs>

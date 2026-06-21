@@ -1,7 +1,12 @@
 import {keyboardBridge} from './keyboardBridge';
 
 let lastHapticAt = 0;
-const MIN_HAPTIC_GAP_MS = 45;
+/** Minimum gap so rapid taps still get feedback without stacking native calls. */
+const MIN_HAPTIC_GAP_MS = 8;
+
+export function deferKeyboardSideEffect(run: () => void) {
+  Promise.resolve().then(run);
+}
 
 export function triggerKeyHaptic() {
   const now = Date.now();

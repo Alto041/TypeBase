@@ -342,7 +342,6 @@ export function SwipeTypingProvider({
         return;
       }
 
-      layoutContext?.refreshAreaBounds();
       const layouts = layoutContext?.getLayouts() ?? [];
       const origin = layoutContext?.areaOriginRef.current ?? {pageX: 0, pageY: 0};
 
@@ -517,7 +516,6 @@ export function SwipeTypingKeysHost({
         return;
       }
 
-      layoutContext.refreshAreaBounds();
       const layouts = layoutContext.getLayouts();
       const origin = layoutContext.areaOriginRef.current;
       const passThroughTouches = event.nativeEvent.changedTouches.filter(

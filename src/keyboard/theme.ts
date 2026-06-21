@@ -406,6 +406,7 @@ export function createKeyboardTheme(
     keyGap: layout.keyGap,
     keyRadius: layout.keyRadius,
     enterKeyPreviewEnabled: layout.enterKeyPreviewEnabled,
+    letterSymbolAlternatesEnabled: layout.letterSymbolAlternatesEnabled,
     letterLayoutId: layout.letterLayoutId,
     keyHitSlop: {
       horizontal: layout.keyGap / 2,

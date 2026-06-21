@@ -3,6 +3,7 @@ import type {ClipboardContent} from './clipboard/types';
 
 type KeyboardModuleType = {
   insertText: (text: string) => void;
+  insertKeyText: (text: string) => void;
   deleteBackward: () => void;
   startBackspaceRepeat: (holdDelayMs: number, intervalMs: number) => void;
   stopBackspaceRepeat: () => void;
@@ -12,6 +13,7 @@ type KeyboardModuleType = {
   setEssentials: (json: string) => Promise<boolean>;
   getPrefersNumpad: () => Promise<boolean>;
   getInputSupportsNewline: () => Promise<boolean>;
+  getInputInitialCapsMode: () => Promise<boolean>;
   getClipboardText: () => Promise<string>;
   getClipboardContent: () => Promise<ClipboardContent>;
   insertClipboardImage: (imagePath: string) => Promise<boolean>;
@@ -65,6 +67,16 @@ export const keyboardBridge: KeyboardModuleType = {
       KeyboardModule.insertText(text);
     }
   },
+  insertKeyText: (text: string) => {
+    if (Platform.OS === 'android' && KeyboardModule?.insertKeyText) {
+      KeyboardModule.insertKeyText(text);
+      return;
+    }
+    if (Platform.OS === 'android' && KeyboardModule?.insertText) {
+      KeyboardModule.insertText(text);
+      KeyboardModule.performKeyHaptic?.();
+    }
+  },
   deleteBackward: () => {
     if (Platform.OS === 'android' && KeyboardModule?.deleteBackward) {
       KeyboardModule.deleteBackward();
@@ -113,6 +125,12 @@ export const keyboardBridge: KeyboardModuleType = {
   getInputSupportsNewline: () => {
     if (Platform.OS === 'android' && KeyboardModule?.getInputSupportsNewline) {
       return KeyboardModule.getInputSupportsNewline() as Promise<boolean>;
+    }
+    return Promise.resolve(false);
+  },
+  getInputInitialCapsMode: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.getInputInitialCapsMode) {
+      return KeyboardModule.getInputInitialCapsMode() as Promise<boolean>;
     }
     return Promise.resolve(false);
   },

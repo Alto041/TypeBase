@@ -35,6 +35,7 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   private var removePrefersNumpadListener: (() -> Unit)? = null
   private var removeKeyboardVisibilityListener: (() -> Unit)? = null
   private var removeSupportsNewlineListener: (() -> Unit)? = null
+  private var removeInitialCapsModeListener: (() -> Unit)? = null
   private var clipboardListener: ClipboardManager.OnPrimaryClipChangedListener? = null
   private val backspaceHandler = Handler(Looper.getMainLooper())
   private var backspaceHoldRunnable: Runnable? = null
@@ -70,6 +71,14 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
                 .emit("keyboardInputSupportsNewline", supports)
           }
         }
+    removeInitialCapsModeListener =
+        KeyboardInputBridge.addInitialCapsModeListener { mode ->
+          if (reactApplicationContext.hasActiveReactInstance()) {
+            reactApplicationContext
+                .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                .emit("keyboardInputInitialCapsMode", mode)
+          }
+        }
     val clipboardManager =
         reactApplicationContext.getSystemService(Context.CLIPBOARD_SERVICE) as
             ClipboardManager
@@ -91,6 +100,8 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     removeKeyboardVisibilityListener = null
     removeSupportsNewlineListener?.invoke()
     removeSupportsNewlineListener = null
+    removeInitialCapsModeListener?.invoke()
+    removeInitialCapsModeListener = null
     clipboardListener?.let { listener ->
       val clipboardManager =
           reactApplicationContext.getSystemService(Context.CLIPBOARD_SERVICE) as
@@ -110,6 +121,11 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   @ReactMethod
   fun getInputSupportsNewline(promise: Promise) {
     promise.resolve(KeyboardInputBridge.currentInputSupportsNewline())
+  }
+
+  @ReactMethod
+  fun getInputInitialCapsMode(promise: Promise) {
+    promise.resolve(KeyboardInputBridge.getInitialCapsMode())
   }
 
   private fun learnedWordsPrefs() =
@@ -307,6 +323,12 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   @ReactMethod
   fun insertText(text: String) {
     KeyboardInputBridge.getInputConnection()?.commitText(text, 1)
+  }
+
+  @ReactMethod
+  fun insertKeyText(text: String) {
+    KeyboardInputBridge.getInputConnection()?.commitText(text, 1)
+    performKeyHapticInternal()
   }
 
   @ReactMethod
@@ -917,8 +939,12 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
 
   @ReactMethod
   fun performKeyHaptic() {
+    performKeyHapticInternal()
+  }
+
+  private fun performKeyHapticInternal() {
     val view =
-        KeyboardInputBridge.inputService?.window?.window?.decorView
+        KeyboardInputBridge.inputService?.popupAnchorView
             ?: reactApplicationContext.currentActivity?.window?.decorView
             ?: return
 

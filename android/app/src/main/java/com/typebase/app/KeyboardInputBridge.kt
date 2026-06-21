@@ -22,6 +22,10 @@ object KeyboardInputBridge {
   private val prefersNumpadListeners = CopyOnWriteArrayList<(Boolean) -> Unit>()
   private val keyboardVisibilityListeners = CopyOnWriteArrayList<(Boolean) -> Unit>()
   private val supportsNewlineListeners = CopyOnWriteArrayList<(Boolean) -> Unit>()
+  private val initialCapsModeListeners = CopyOnWriteArrayList<(Boolean) -> Unit>()
+
+  @Volatile
+  private var initialCapsMode: Boolean = false
 
   fun prefersNumpad(): Boolean = numpadPreferred
 
@@ -29,6 +33,41 @@ object KeyboardInputBridge {
 
   fun setCurrentEditorInfo(info: EditorInfo?) {
     currentEditorInfo = info
+    refreshInitialCapsMode(info)
+  }
+
+  fun getInitialCapsMode(): Boolean = initialCapsMode
+
+  fun refreshInitialCapsMode(info: EditorInfo?) {
+    val mode = shouldCapitalizeInitial(info)
+    if (initialCapsMode != mode) {
+      initialCapsMode = mode
+      notifyInitialCapsModeListeners(mode)
+    }
+  }
+
+  /**
+   * Check if the input field expects initial capitalization.
+   * This checks TYPE_TEXT_FLAG_CAP_SENTENCES and TYPE_TEXT_FLAG_CAP_WORDS.
+   */
+  fun shouldCapitalizeInitial(info: EditorInfo?): Boolean {
+    if (info == null) {
+      return false
+    }
+    val inputType = info.inputType
+    val textFlags = inputType and android.text.InputType.TYPE_MASK_FLAGS
+    return (textFlags and android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES) != 0 ||
+           (textFlags and android.text.InputType.TYPE_TEXT_FLAG_CAP_WORDS) != 0
+  }
+
+  private fun notifyInitialCapsModeListeners(mode: Boolean) {
+    initialCapsModeListeners.forEach { listener -> listener(mode) }
+  }
+
+  fun addInitialCapsModeListener(listener: (Boolean) -> Unit): () -> Unit {
+    initialCapsModeListeners.add(listener)
+    listener(initialCapsMode)
+    return { initialCapsModeListeners.remove(listener) }
   }
 
   fun performEnterAction(connection: InputConnection): Boolean {

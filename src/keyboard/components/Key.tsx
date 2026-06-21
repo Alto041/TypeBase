@@ -1,4 +1,4 @@
-import React, {memo, useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import React, {memo, useCallback, useEffect, useMemo, useRef, useState, startTransition} from 'react';
 import {
   findNodeHandle,
   PanResponder,
@@ -27,6 +27,7 @@ import {
 } from '../gesture/multiTouchKeys';
 import {hideKeyPreview, showKeyPreview} from '../KeyPreview';
 import {triggerKeyHaptic} from '../haptics';
+import {getLetterSymbolHint} from '../keyAlternates';
 import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
 import type {KeyDefinition} from '../layouts/qwerty';
 import type {KeyboardTheme} from '../theme';
@@ -144,6 +145,7 @@ function KeyComponent({
       ? keyDef.value!.toUpperCase()
       : keyDef.value!.toLowerCase()
     : keyDef.label;
+  const symbolHint = isTextKey ? getLetterSymbolHint(keyDef) : null;
 
   const borderRadius = isEnterKey ? keyHeight / 2 : theme.keyRadius;
   const isNonAlphaSymbolKey =
@@ -214,18 +216,26 @@ function KeyComponent({
       return;
     }
     return registerMultiTouchKeyVisual(keyDef.id, pressed => {
-      setMultiTouchPressed(pressed);
       if (pressed) {
         const tag = reactTagRef.current ?? findNodeHandle(keyRef.current);
-        const label = isUppercase
-          ? (keyDef.value ?? '').toUpperCase()
-          : (keyDef.value ?? '').toLowerCase();
         if (tag) {
-          showKeyPreview(tag, label);
+          reactTagRef.current = tag;
+          const label = isUppercase
+            ? (keyDef.value ?? '').toUpperCase()
+            : (keyDef.value ?? '').toLowerCase();
+          requestAnimationFrame(() => {
+            showKeyPreview(tag, label);
+          });
         }
-      } else {
-        hideKeyPreview();
+        startTransition(() => {
+          setMultiTouchPressed(true);
+        });
+        return;
       }
+      hideKeyPreview();
+      startTransition(() => {
+        setMultiTouchPressed(false);
+      });
     });
   }, [keyDef.id, keyDef.value, isUppercase, usesMultiTouchRouter]);
 
@@ -319,15 +329,20 @@ function KeyComponent({
   ) : showRewrite ? (
     <ArtificialIcon width={18} height={17} />
   ) : (
-    <Text
-      style={[
-        styles.keyLabel,
-        (isSpecial || isAbcKey) && styles.specialKeyLabel,
-        isAbcKey && styles.abcLabel,
-        keyDef.type === 'space' && styles.spaceLabel,
-      ]}>
-      {displayLabel}
-    </Text>
+    <>
+      <Text
+        style={[
+          styles.keyLabel,
+          (isSpecial || isAbcKey) && styles.specialKeyLabel,
+          isAbcKey && styles.abcLabel,
+          keyDef.type === 'space' && styles.spaceLabel,
+        ]}>
+        {displayLabel}
+      </Text>
+      {symbolHint ? (
+        <Text style={styles.symbolHint}>{symbolHint}</Text>
+      ) : null}
+    </>
   );
 
   const handlePressIn = useCallback(() => {
@@ -642,6 +657,7 @@ function createKeyStyles(theme: KeyboardTheme) {
       justifyContent: 'center',
       paddingHorizontal: 5,
       overflow: 'hidden',
+      position: 'relative',
     },
     modifierKey: {
       backgroundColor: theme.modifierKey,
@@ -692,6 +708,16 @@ function createKeyStyles(theme: KeyboardTheme) {
       fontSize: 22,
       fontFamily: theme.fontFamily,
       fontWeight: '500',
+    },
+    symbolHint: {
+      position: 'absolute',
+      right: 3,
+      bottom: 2,
+      color: theme.iconMuted,
+      fontSize: 9,
+      fontFamily: theme.fontFamily,
+      fontWeight: '500',
+      lineHeight: 10,
     },
     specialKeyLabel: {
       fontSize: 15,

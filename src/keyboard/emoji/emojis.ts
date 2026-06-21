@@ -1,5 +1,6 @@
 import type {FC} from 'react';
 import type {SvgProps} from 'react-native-svg';
+import GifIcon from '../../../assets/gif.svg';
 import ForkSpoonIcon from '../../../assets/emojiCategories/fork_spoon.svg';
 import GlyphsIcon from '../../../assets/emojiCategories/glyphs.svg';
 import MoodIcon from '../../../assets/emojiCategories/mood.svg';
@@ -15,7 +16,8 @@ export type EmojiCategoryId =
   | 'park'
   | 'food'
   | 'travel'
-  | 'etc';
+  | 'etc'
+  | 'gif';
 
 type EmojiCategoryConfig = {
   id: EmojiCategoryId;
@@ -29,9 +31,13 @@ export const EMOJI_CATEGORIES: EmojiCategoryConfig[] = [
   {id: 'food', Icon: ForkSpoonIcon},
   {id: 'travel', Icon: TravelIcon},
   {id: 'etc', Icon: GlyphsIcon},
+  {id: 'gif', Icon: GifIcon},
 ];
 
-export const EMOJIS_BY_CATEGORY: Record<EmojiCategoryId, readonly string[]> = {
+export const EMOJIS_BY_CATEGORY: Record<
+  Exclude<EmojiCategoryId, 'gif'>,
+  readonly string[]
+> = {
   mood: [
     '😀',
     '😁',
@@ -570,7 +576,9 @@ export const EMOJIS_BY_CATEGORY: Record<EmojiCategoryId, readonly string[]> = {
   ],
 };
 
-export function getEmojisForCategory(category: EmojiCategoryId): readonly string[] {
+export function getEmojisForCategory(
+  category: Exclude<EmojiCategoryId, 'gif'>,
+): readonly string[] {
   return EMOJIS_BY_CATEGORY[category];
 }
 
@@ -586,14 +594,14 @@ export function chunkEmojis(
 }
 
 export const EMOJI_ROWS_BY_CATEGORY = Object.fromEntries(
-  EMOJI_CATEGORIES.map(({id}) => [
+  EMOJI_CATEGORIES.filter(({id}) => id !== 'gif').map(({id}) => [
     id,
     chunkEmojis(EMOJIS_BY_CATEGORY[id], EMOJI_COLUMNS),
   ]),
-) as Record<EmojiCategoryId, readonly (readonly string[])[]>;
+) as Record<Exclude<EmojiCategoryId, 'gif'>, readonly (readonly string[])[]>;
 
 export function getEmojiRowsForCategory(
-  category: EmojiCategoryId,
+  category: Exclude<EmojiCategoryId, 'gif'>,
 ): readonly (readonly string[])[] {
   return EMOJI_ROWS_BY_CATEGORY[category];
 }

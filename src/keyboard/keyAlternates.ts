@@ -124,17 +124,61 @@ function resolveLetterAlternates(
     getKeyboardLayoutSettings().letterSymbolAlternatesEnabled;
 
   if (useSymbolAlternates) {
-    return PHONE_LETTER_SYMBOL_ALTERNATES[lookupKey] ?? [base.toLowerCase()];
+    const phone = PHONE_LETTER_SYMBOL_ALTERNATES[lookupKey];
+    if (!phone || phone.length < 2) {
+      return [];
+    }
+    return phone.slice(1);
   }
 
   return LETTER_ALTERNATES[lookupKey] ?? [base.toLowerCase()];
 }
+
+/** Small symbol/number shown in the key corner when symbol long-press is on. */
+export function getLetterSymbolHint(keyDef: KeyDefinition): string | null {
+  if (!getKeyboardLayoutSettings().letterSymbolAlternatesEnabled) {
+    return null;
+  }
+
+  const base = keyDef.value;
+  if (!base || base.length !== 1 || !/[a-z]/i.test(base)) {
+    return null;
+  }
+
+  const lookupKey = (keyDef.id.length === 1 && /[a-z]/i.test(keyDef.id)
+    ? keyDef.id
+    : base
+  ).toLowerCase();
+
+  const phone = PHONE_LETTER_SYMBOL_ALTERNATES[lookupKey];
+  return phone && phone.length >= 2 ? phone[1] : null;
+}
+
+/** Whether a long-press should open the alternate popup for these alternates. */
+export function shouldShowAlternatePopup(alternates: readonly string[]): boolean {
+  if (alternates.length > 1) {
+    return true;
+  }
+  return (
+    alternates.length === 1 &&
+    getKeyboardLayoutSettings().letterSymbolAlternatesEnabled
+  );
+}
+
+const keyAlternatesCache = new Map<string, string[]>();
 
 export function getKeyAlternates(
   keyDef: KeyDefinition,
   layout: KeyboardLayout,
   uppercase: boolean,
 ): string[] {
+  const settings = getKeyboardLayoutSettings();
+  const cacheKey = `${keyDef.id}|${layout}|${uppercase ? 1 : 0}|${settings.letterSymbolAlternatesEnabled ? 1 : 0}`;
+  const cached = keyAlternatesCache.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
   const base = keyDef.value;
   if (!base) {
     return [];
@@ -151,9 +195,11 @@ export function getKeyAlternates(
   }
 
   const resolved = applyCase(alternates, uppercase);
-  if (resolved.length <= 1) {
+  if (!shouldShowAlternatePopup(resolved)) {
+    keyAlternatesCache.set(cacheKey, []);
     return [];
   }
+  keyAlternatesCache.set(cacheKey, resolved);
   return resolved;
 }
 

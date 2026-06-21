@@ -46,7 +46,17 @@ export function KeyLayoutProvider({children}: {children: React.ReactNode}) {
 
   const applyAreaBounds = useCallback((bounds: AreaBounds) => {
     areaOriginRef.current = {pageX: bounds.pageX, pageY: bounds.pageY};
-    setAreaBounds(bounds);
+    setAreaBounds(current => {
+      if (
+        current.pageX === bounds.pageX &&
+        current.pageY === bounds.pageY &&
+        current.width === bounds.width &&
+        current.height === bounds.height
+      ) {
+        return current;
+      }
+      return bounds;
+    });
   }, []);
 
   const refreshAreaBounds = useCallback(() => {

@@ -19,7 +19,7 @@ import {
 } from './emojis';
 
 type EmojiCategoryGridProps = {
-  category: EmojiCategoryId;
+  category: Exclude<EmojiCategoryId, 'gif'>;
   width: number;
   selectionLockedRef?: RefObject<boolean>;
   onSelect: (emoji: string) => void;

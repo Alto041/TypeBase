@@ -63,6 +63,7 @@ class TypeBaseInputService : InputMethodService() {
     KeyboardInputBridge.setCurrentEditorInfo(attribute)
     KeyboardInputBridge.setPrefersNumpad(KeyboardInputBridge.shouldPreferNumpad(attribute))
     KeyboardInputBridge.setSupportsNewline(KeyboardInputBridge.shouldAllowNewline(attribute))
+    KeyboardInputBridge.refreshInitialCapsMode(attribute)
   }
 
   override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
@@ -71,6 +72,7 @@ class TypeBaseInputService : InputMethodService() {
     KeyboardInputBridge.setPrefersNumpad(KeyboardInputBridge.shouldPreferNumpad(info))
     // Always notify JS when the input view opens; onStartInput may fire before RN mounts.
     KeyboardInputBridge.refreshSupportsNewline(info)
+    KeyboardInputBridge.refreshInitialCapsMode(info)
     resumeReactForKeyboard()
     container?.let { mountKeyboardSurface(it) }
   }
