@@ -47,6 +47,9 @@ function buildWordSuggestionChips(
     chips.push({kind: 'autocorrect', text: autocorrectPreview});
   }
   for (const word of suggestions) {
+    if (!word) {
+      continue;
+    }
     chips.push({
       kind: 'word',
       text: word.includes(' ') ? word : applyCaseToWord(word, prefix),
@@ -406,7 +409,7 @@ function SuggestionBarComponent({
                         : styles.suggestionText
                     }
                     numberOfLines={1}>
-                    {chip.text}
+                    {chip.text ?? ''}
                   </Text>
                 </Pressable>
               </Fragment>

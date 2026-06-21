@@ -39,6 +39,12 @@ type KeyboardModuleType = {
   getLearnedPhraseCounts: () => Promise<Record<string, number>>;
   recordLearnedPhrase: (phrase: string) => Promise<number>;
   moveCursor: (offset: number) => Promise<boolean>;
+  moveCursorDirection: (
+    direction: 'left' | 'right' | 'up' | 'down',
+    extendSelection: boolean,
+  ) => Promise<boolean>;
+  copySelection: () => Promise<boolean>;
+  cutSelection: () => Promise<boolean>;
   deleteWordBackward: () => Promise<boolean>;
   deleteSentenceBackward: () => Promise<boolean>;
   getLaunchableApps: () => Promise<Array<{packageName: string; label: string}>>;
@@ -283,6 +289,27 @@ export const keyboardBridge: KeyboardModuleType = {
   moveCursor: (offset: number) => {
     if (Platform.OS === 'android' && KeyboardModule?.moveCursor) {
       return KeyboardModule.moveCursor(offset) as Promise<boolean>;
+    }
+    return Promise.resolve(false);
+  },
+  moveCursorDirection: (direction, extendSelection) => {
+    if (Platform.OS === 'android' && KeyboardModule?.moveCursorDirection) {
+      return KeyboardModule.moveCursorDirection(
+        direction,
+        extendSelection,
+      ) as Promise<boolean>;
+    }
+    return Promise.resolve(false);
+  },
+  copySelection: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.copySelection) {
+      return KeyboardModule.copySelection() as Promise<boolean>;
+    }
+    return Promise.resolve(false);
+  },
+  cutSelection: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.cutSelection) {
+      return KeyboardModule.cutSelection() as Promise<boolean>;
     }
     return Promise.resolve(false);
   },

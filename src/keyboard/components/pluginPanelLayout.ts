@@ -7,6 +7,14 @@ import {keyboardTheme, type KeyboardTheme} from '../theme';
 export const PLUGIN_PANEL_HEIGHT =
   keyboardTheme.keyHeight * 4 + keyboardTheme.keyRowMargin * 3;
 
+/** Bottom fade overlay height on the plugins menu. */
+export const PLUGIN_MENU_FADE_HEIGHT = Math.round(PLUGIN_PANEL_HEIGHT * 0.52);
+
+/** Modest scroll padding so the last row clears the fade (not full fade height). */
+export const PLUGIN_MENU_FADE_SCROLL_INSET = Math.round(
+  keyboardTheme.keyHeight * 0.85,
+);
+
 export const PLUGIN_OUTER_RADIUS = 12;
 export const PLUGIN_INNER_RADIUS = 2;
 
@@ -50,16 +58,26 @@ export function createPluginPanelStyles(theme: KeyboardTheme) {
 
 type PluginScrollViewProps = {
   children: React.ReactNode;
+  /** Add bottom inset so the last item can scroll clear of the plugins-menu fade. */
+  fadeScrollInset?: boolean;
 };
 
-export function PluginScrollView({children}: PluginScrollViewProps) {
+export function PluginScrollView({
+  children,
+  fadeScrollInset = false,
+}: PluginScrollViewProps) {
   const styles = useThemedStyles(createPluginPanelStyles);
 
   return React.createElement(
     ScrollView,
     {
       style: styles.list,
-      contentContainerStyle: styles.listContent,
+      contentContainerStyle: [
+        styles.listContent,
+        fadeScrollInset && {
+          paddingBottom: PLUGIN_MENU_FADE_SCROLL_INSET,
+        },
+      ],
       keyboardShouldPersistTaps: 'handled' as const,
       nestedScrollEnabled: true,
       showsVerticalScrollIndicator: false,

@@ -2,6 +2,7 @@ import React, {memo} from 'react';
 import {StyleSheet, Text, View} from 'react-native';
 import type {AlternatePopupGeometry} from '../keyAlternates';
 import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
+import type {KeyboardTheme} from '../theme';
 
 export type AlternatePopupState = {
   alternates: string[];
@@ -62,7 +63,9 @@ function KeyAlternatePopupComponent({popup}: KeyAlternatePopupProps) {
                     backgroundColor: selected ? theme.modifierKeyPressed : 'transparent',
                   },
                 ]}>
-                <Text style={[styles.cellLabel, {color: theme.label}]}>{char}</Text>
+                <Text style={[styles.cellLabel, {color: theme.label}]}>
+                  {char ?? ''}
+                </Text>
               </View>
             );
           })}
@@ -74,7 +77,7 @@ function KeyAlternatePopupComponent({popup}: KeyAlternatePopupProps) {
 
 export const KeyAlternatePopup = memo(KeyAlternatePopupComponent);
 
-function createStyles() {
+function createStyles(theme: KeyboardTheme) {
   return StyleSheet.create({
     container: {
       position: 'absolute',
@@ -93,7 +96,7 @@ function createStyles() {
       justifyContent: 'center',
     },
     cellLabel: {
-      fontFamily: 'Geist',
+      fontFamily: theme.fontFamily,
       fontSize: 22,
       fontWeight: '500',
     },

@@ -9,8 +9,10 @@ import {
 import type {KeyboardLayout} from '../layouts/qwerty';
 import type {KeyDefinition} from '../layouts/qwerty';
 import {triggerKeyHaptic} from '../haptics';
+import {keyboardBridge} from '../keyboardBridge';
 import {KEY_HIT_SLOP} from '../theme';
 import type {KeyBounds} from './types';
+import {markSwipeTypingTapCommitted} from './gestureState';
 
 /** Half the visual gap between keys — matches theme keyGap / keyRowMargin. */
 export type KeyHitSlop = {
@@ -75,6 +77,16 @@ export function isGesturePunctuationKey(keyDef: KeyDefinition): boolean {
   return keyDef.type === 'comma' || keyDef.type === 'period';
 }
 
+/** Spacebar — touch-dispatched like letter keys for reliable multi-touch taps. */
+export function isMultiTouchSpaceKey(keyDef: KeyDefinition): boolean {
+  return keyDef.type === 'space';
+}
+
+/** Keys committed via the parent touch dispatcher (not Pressable). */
+export function isMultiTouchDispatchKey(keyDef: KeyDefinition): boolean {
+  return isMultiTouchTextKey(keyDef) || isMultiTouchSpaceKey(keyDef);
+}
+
 /** Letter/digit keys handled by the multi-touch router (not Pressable). */
 export function isMultiTouchTextKey(keyDef: KeyDefinition): boolean {
   if (!keyDef.value || keyDef.type === 'spacer') {
@@ -112,6 +124,32 @@ function expandedBounds(layout: KeyBounds, slop: KeyHitSlop) {
   };
 }
 
+function distanceToKeyBounds(
+  localX: number,
+  localY: number,
+  layout: KeyBounds,
+): number {
+  const right = layout.x + layout.width;
+  const bottom = layout.y + layout.height;
+  const dx =
+    localX < layout.x
+      ? layout.x - localX
+      : localX > right
+        ? localX - right
+        : 0;
+  const dy =
+    localY < layout.y
+      ? layout.y - localY
+      : localY > bottom
+        ? localY - bottom
+        : 0;
+  return Math.hypot(dx, dy);
+}
+
+function dispatchKeyLayouts(layouts: readonly KeyBounds[]): KeyBounds[] {
+  return layouts.filter(layout => isMultiTouchDispatchKey(layout.keyDef));
+}
+
 /** Nearest-key hit test with gap slop (Gboard-style taps between keys/rows). */
 export function hitTestKey(
   localX: number,
@@ -119,11 +157,16 @@ export function hitTestKey(
   layouts: readonly KeyBounds[],
   slop: KeyHitSlop = DEFAULT_KEY_HIT_SLOP,
 ): KeyBounds | null {
+  const candidates = dispatchKeyLayouts(layouts);
+  if (candidates.length === 0) {
+    return null;
+  }
+
   let strictMatch: KeyBounds | null = null;
   let smallestArea = Infinity;
 
-  for (let index = layouts.length - 1; index >= 0; index -= 1) {
-    const layout = layouts[index];
+  for (let index = candidates.length - 1; index >= 0; index -= 1) {
+    const layout = candidates[index];
     const inside =
       localX >= layout.x &&
       localX <= layout.x + layout.width &&
@@ -148,7 +191,7 @@ export function hitTestKey(
   let gapMatch: KeyBounds | null = null;
   let nearestCenter = Infinity;
 
-  for (const layout of layouts) {
+  for (const layout of candidates) {
     const bounds = expandedBounds(layout, slop);
     if (
       localX < bounds.left ||
@@ -169,7 +212,27 @@ export function hitTestKey(
     }
   }
 
-  return gapMatch;
+  if (gapMatch) {
+    return gapMatch;
+  }
+
+  const maxSnap = Math.max(slop.horizontal, slop.vertical) + 4;
+  let snapMatch: KeyBounds | null = null;
+  let nearestEdge = Infinity;
+
+  for (const layout of candidates) {
+    const edgeDistance = distanceToKeyBounds(localX, localY, layout);
+    if (edgeDistance < nearestEdge) {
+      nearestEdge = edgeDistance;
+      snapMatch = layout;
+    }
+  }
+
+  if (snapMatch && nearestEdge <= maxSnap) {
+    return snapMatch;
+  }
+
+  return null;
 }
 
 /** True when a touch lies in a Pressable-only key zone (blocks multi-touch dispatch). */
@@ -239,6 +302,8 @@ function finishSession(
   clearSessionTimer(session);
 
   if (session.committedOnDown && session.phase !== 'popup') {
+    setMultiTouchKeyPressed(session.keyId, false);
+    hideKeyPreview();
     activeSessions.delete(pointerId);
     notifyPopup(null);
     return;
@@ -263,7 +328,7 @@ type DispatchMultiTouchOptions = {
   areaOrigin: {pageX: number; pageY: number};
   areaWidth: number;
   keyboardLayout: KeyboardLayout;
-  isUppercase: boolean;
+  getIsUppercase: () => boolean;
   hitSlop?: KeyHitSlop;
 };
 
@@ -280,6 +345,11 @@ function openAlternatePopup(
   hit: KeyBounds,
   areaWidth: number,
 ) {
+  if (session.committedOnDown) {
+    keyboardBridge.deleteBackward();
+    session.committedOnDown = false;
+  }
+
   session.phase = 'popup';
   session.selectedIndex = 0;
   session.geometry = computeAlternatePopupGeometry(
@@ -321,39 +391,60 @@ export function dispatchMultiTouchStart(
       continue;
     }
     const hit = hitTestKey(localX, localY, layouts, hitSlop);
-    if (!hit || !isMultiTouchTextKey(hit.keyDef)) {
+    if (!hit || !isMultiTouchDispatchKey(hit.keyDef)) {
       continue;
     }
 
+    pointerToKeyId.set(pid, hit.id);
+
+    if (isMultiTouchSpaceKey(hit.keyDef)) {
+      const session: MultiTouchSession = {
+        keyId: hit.id,
+        keyDef: hit.keyDef,
+        alternates: [],
+        defaultCommit: ' ',
+        committedOnDown: true,
+        phase: 'holding',
+        selectedIndex: 0,
+        geometry: null,
+        longPressTimer: null,
+      };
+      triggerKeyHaptic();
+      options.onKeyCommit(hit.keyDef, ' ');
+      markSwipeTypingTapCommitted(pid);
+      setMultiTouchKeyPressed(hit.id, true);
+      activeSessions.set(pid, session);
+      continue;
+    }
+
+    const isUppercase = options.getIsUppercase();
     const alternates = getKeyAlternates(
       hit.keyDef,
       options.keyboardLayout,
-      options.isUppercase,
+      isUppercase,
     );
-    const defaultCommit = options.isUppercase
+    const defaultCommit = isUppercase
       ? (hit.keyDef.value ?? '').toUpperCase()
       : (hit.keyDef.value ?? '').toLowerCase();
     const opensAlternatePopup = shouldShowAlternatePopup(alternates);
-
-    pointerToKeyId.set(pid, hit.id);
 
     const session: MultiTouchSession = {
       keyId: hit.id,
       keyDef: hit.keyDef,
       alternates,
       defaultCommit,
-      committedOnDown: false,
+      committedOnDown: true,
       phase: 'holding',
       selectedIndex: 0,
       geometry: null,
       longPressTimer: null,
     };
 
-    if (!opensAlternatePopup) {
-      session.committedOnDown = true;
-      options.onKeyCommit(hit.keyDef, defaultCommit);
-    } else {
-      setMultiTouchKeyPressed(hit.id, true);
+    options.onKeyCommit(hit.keyDef, defaultCommit);
+    markSwipeTypingTapCommitted(pid);
+    setMultiTouchKeyPressed(hit.id, true);
+
+    if (opensAlternatePopup) {
       session.longPressTimer = setTimeout(() => {
         session.longPressTimer = null;
         openAlternatePopup(pid, session, hit, options.areaWidth);

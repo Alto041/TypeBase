@@ -6,7 +6,7 @@ export type AutocorrectSettings = {
 
 export const DEFAULT_AUTOCORRECT_SETTINGS: AutocorrectSettings = {
   enabled: true,
-  autoApplyOnSpace: false,
+  autoApplyOnSpace: true,
 };
 
 export const AUTOCORRECT_REMEMBERS = [

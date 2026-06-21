@@ -1,5 +1,6 @@
-import React, {memo, useCallback, useEffect, useMemo, useRef, useState, startTransition} from 'react';
+import React, {memo, useCallback, useEffect, useMemo, useRef} from 'react';
 import {
+  Animated,
   findNodeHandle,
   PanResponder,
   PixelRatio,
@@ -20,13 +21,13 @@ import SymbolsIcon from '../../../assets/symbols.svg';
 import RocketLaunchIcon from '../../../assets/rocket_launch.svg';
 import ArtificialIcon from '../../../assets/Artificial.svg';
 import {useKeyLayoutContext} from '../gesture/KeyLayoutContext';
-import {gestureSwipeActiveRef} from '../gesture/gestureState';
 import {
   isMultiTouchTextKey,
   registerMultiTouchKeyVisual,
 } from '../gesture/multiTouchKeys';
 import {hideKeyPreview, showKeyPreview} from '../KeyPreview';
 import {triggerKeyHaptic} from '../haptics';
+import {keyboardBridge} from '../keyboardBridge';
 import {getLetterSymbolHint} from '../keyAlternates';
 import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
 import type {KeyDefinition} from '../layouts/qwerty';
@@ -38,6 +39,9 @@ const CURSOR_STEP_PX = 10;
 const SPACE_SWIPE_THRESHOLD_PX = 8;
 const KEY_PRESS_RETENTION = {top: 18, left: 10, bottom: 18, right: 10};
 const KEY_HIT_SLOP = {top: 3, left: 2, bottom: 3, right: 2};
+const KEY_PRESS_OPACITY = 0.55;
+const KEY_PRESS_IN_MS = 0;
+const KEY_PRESS_OUT_MS = 55;
 
 export type KeyGesturesConfig = {
   spaceCursorSwipe: boolean;
@@ -73,6 +77,7 @@ type KeyProps = {
   variant?: KeyVariant;
   style?: StyleProp<ViewStyle>;
   enterKeyNextLineEnabled?: boolean;
+  multiTouchDispatchEnabled?: boolean;
 };
 
 function KeyComponent({
@@ -85,6 +90,7 @@ function KeyComponent({
   keyHeight: keyHeightProp,
   variant,
   enterKeyNextLineEnabled,
+  multiTouchDispatchEnabled = false,
   style,
 }: KeyProps) {
   const theme = useKeyboardTheme();
@@ -97,8 +103,15 @@ function KeyComponent({
   const lastSpaceDxRef = useRef(0);
   const spaceSwipingRef = useRef(false);
   const spaceDidSwipeRef = useRef(false);
-  const [multiTouchPressed, setMultiTouchPressed] = useState(false);
+  const spaceTapCommittedRef = useRef(false);
+  const pressOpacity = useRef(new Animated.Value(1)).current;
+  const previewRafRef = useRef<number | null>(null);
+  const isSpaceKey = keyDef.type === 'space';
   const usesMultiTouchRouter = isMultiTouchTextKey(keyDef);
+  const usesMultiTouchDispatch =
+    usesMultiTouchRouter ||
+    (isSpaceKey && multiTouchDispatchEnabled);
+  const usesTouchDispatchView = usesMultiTouchDispatch;
   const launcherHoldDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const launcherDidHoldRef = useRef(false);
   const launcherSuppressPressRef = useRef(false);
@@ -127,7 +140,6 @@ function KeyComponent({
   const isNumpadActionKey =
     variant === 'numpad' &&
     (keyDef.type === 'space' || keyDef.type === 'letters');
-  const isSpaceKey = keyDef.type === 'space';
   const isAbcKey = keyDef.id === 'abc';
   const isNumbersIcon = keyDef.id === 'numbers';
   const isSymbolsIcon = keyDef.type === 'symbols';
@@ -157,7 +169,7 @@ function KeyComponent({
     isSpaceKey;
 
   const measureKey = useCallback(() => {
-    if (!usesMultiTouchRouter) {
+    if (!usesMultiTouchDispatch) {
       return;
     }
 
@@ -209,45 +221,65 @@ function KeyComponent({
       );
       return;
     }
-  }, [keyDef, layoutContext, usesMultiTouchRouter]);
+  }, [keyDef, layoutContext, usesMultiTouchDispatch]);
+
+  const animateMultiTouchPress = useCallback(
+    (pressed: boolean) => {
+      Animated.timing(pressOpacity, {
+        toValue: pressed ? KEY_PRESS_OPACITY : 1,
+        duration: pressed ? KEY_PRESS_IN_MS : KEY_PRESS_OUT_MS,
+        useNativeDriver: true,
+      }).start();
+    },
+    [pressOpacity],
+  );
 
   useEffect(() => {
-    if (!usesMultiTouchRouter) {
+    if (!usesMultiTouchDispatch) {
       return;
     }
     return registerMultiTouchKeyVisual(keyDef.id, pressed => {
-      if (pressed) {
-        const tag = reactTagRef.current ?? findNodeHandle(keyRef.current);
-        if (tag) {
-          reactTagRef.current = tag;
-          const label = isUppercase
-            ? (keyDef.value ?? '').toUpperCase()
-            : (keyDef.value ?? '').toLowerCase();
-          requestAnimationFrame(() => {
-            showKeyPreview(tag, label);
-          });
+      if (usesMultiTouchRouter) {
+        if (pressed) {
+          const tag = reactTagRef.current ?? findNodeHandle(keyRef.current);
+          if (tag) {
+            reactTagRef.current = tag;
+            const label = isUppercase
+              ? (keyDef.value ?? '').toUpperCase()
+              : (keyDef.value ?? '').toLowerCase();
+            previewRafRef.current = requestAnimationFrame(() => {
+              previewRafRef.current = null;
+              showKeyPreview(tag, label);
+            });
+          }
+        } else {
+          if (previewRafRef.current !== null) {
+            cancelAnimationFrame(previewRafRef.current);
+            previewRafRef.current = null;
+          }
+          hideKeyPreview();
         }
-        startTransition(() => {
-          setMultiTouchPressed(true);
-        });
-        return;
       }
-      hideKeyPreview();
-      startTransition(() => {
-        setMultiTouchPressed(false);
-      });
+      animateMultiTouchPress(pressed);
     });
-  }, [keyDef.id, keyDef.value, isUppercase, usesMultiTouchRouter]);
+  }, [
+    animateMultiTouchPress,
+    keyDef.id,
+    keyDef.value,
+    isUppercase,
+    usesMultiTouchDispatch,
+    usesMultiTouchRouter,
+  ]);
 
   useEffect(() => {
-    if (!usesMultiTouchRouter) {
+    if (!usesMultiTouchDispatch) {
       return;
     }
     measureKey();
     return () => {
       layoutContext?.unregisterKey(keyDef.id);
     };
-  }, [keyDef.id, layoutContext, measureKey, usesMultiTouchRouter]);
+  }, [keyDef.id, layoutContext, measureKey, usesMultiTouchDispatch]);
 
   const clearLauncherHold = useCallback(() => {
     if (launcherHoldDelayRef.current) {
@@ -264,7 +296,7 @@ function KeyComponent({
   }, []);
 
   useEffect(() => {
-    if (!usesMultiTouchRouter) {
+    if (!usesMultiTouchDispatch) {
       return;
     }
     const timer = setTimeout(measureKey, 0);
@@ -272,7 +304,7 @@ function KeyComponent({
   }, [
     measureKey,
     keyDef.id,
-    usesMultiTouchRouter,
+    usesMultiTouchDispatch,
     layoutContext?.areaBounds.pageX,
     layoutContext?.areaBounds.pageY,
     layoutContext?.areaBounds.width,
@@ -281,6 +313,10 @@ function KeyComponent({
 
   useEffect(() => {
     return () => {
+      if (previewRafRef.current !== null) {
+        cancelAnimationFrame(previewRafRef.current);
+        previewRafRef.current = null;
+      }
       clearLauncherHold();
       clearRewriteHold();
       layoutContext?.unregisterKey(keyDef.id);
@@ -337,7 +373,7 @@ function KeyComponent({
           isAbcKey && styles.abcLabel,
           keyDef.type === 'space' && styles.spaceLabel,
         ]}>
-        {displayLabel}
+        {displayLabel ?? ''}
       </Text>
       {symbolHint ? (
         <Text style={styles.symbolHint}>{symbolHint}</Text>
@@ -462,14 +498,23 @@ function KeyComponent({
     keyGestures?.onPeriodRewritePress();
   }, [keyGestures, showRewrite]);
 
+  const handleSpacePressIn = useCallback(() => {
+    spaceSwipingRef.current = false;
+    spaceDidSwipeRef.current = false;
+    spaceTapCommittedRef.current = true;
+    triggerKeyHaptic();
+    onPress(keyDef);
+  }, [keyDef, onPress]);
+
   const handleSpacePress = useCallback(() => {
-    if (
-      gestureSwipeActiveRef.current ||
-      spaceSwipingRef.current ||
-      spaceDidSwipeRef.current
-    ) {
+    if (spaceSwipingRef.current || spaceDidSwipeRef.current) {
       spaceSwipingRef.current = false;
       spaceDidSwipeRef.current = false;
+      spaceTapCommittedRef.current = false;
+      return;
+    }
+    if (spaceTapCommittedRef.current) {
+      spaceTapCommittedRef.current = false;
       return;
     }
     triggerKeyHaptic();
@@ -495,6 +540,9 @@ function KeyComponent({
             return;
           }
           if (Math.abs(gesture.dx) > SPACE_SWIPE_THRESHOLD_PX) {
+            if (!spaceDidSwipeRef.current) {
+              keyboardBridge.deleteBackward();
+            }
             spaceSwipingRef.current = true;
             spaceDidSwipeRef.current = true;
           }
@@ -510,6 +558,7 @@ function KeyComponent({
         },
         onPanResponderRelease: () => {
           spaceSwipingRef.current = false;
+          spaceDidSwipeRef.current = false;
           spaceCursorAccumRef.current = 0;
           lastSpaceDxRef.current = 0;
         },
@@ -527,26 +576,29 @@ function KeyComponent({
 
   const handlePressOut = useCallback(() => {}, []);
 
-  if (usesMultiTouchRouter) {
+  if (usesTouchDispatchView) {
     return (
       <View
         ref={keyRef}
         style={style}
+        {...gestureHandlers}
         onLayout={() => {
           measureKey();
-          reactTagRef.current = findNodeHandle(keyRef.current);
+          if (usesMultiTouchRouter) {
+            reactTagRef.current = findNodeHandle(keyRef.current);
+          }
         }}
         collapsable={false}
         pointerEvents="box-none">
-        <View
+        <Animated.View
           pointerEvents="none"
           style={[
             styles.key,
-            {borderRadius, minHeight: keyHeight},
-            multiTouchPressed && {opacity: 0.6},
+            {borderRadius, minHeight: keyHeight, opacity: pressOpacity},
+            isSpaceKey && styles.spaceKey,
           ]}>
           {keyContent}
-        </View>
+        </Animated.View>
       </View>
     );
   }
@@ -582,8 +634,8 @@ function KeyComponent({
               ? handleLauncherPressIn
               : isRewriteGesture
                 ? handleRewritePressIn
-                : isSpaceGesture
-                  ? undefined
+                : isSpaceKey
+                  ? handleSpacePressIn
                   : handlePressIn
           }
           onPressOut={

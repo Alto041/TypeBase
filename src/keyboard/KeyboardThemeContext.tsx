@@ -20,6 +20,7 @@ type KeyboardThemeProviderProps = {
   design: KeyboardDesign;
   customThemeJson?: string | null;
   layoutSettings?: KeyboardLayoutSettings;
+  customFontLoaded?: boolean;
   children: ReactNode;
 };
 
@@ -28,11 +29,19 @@ export function KeyboardThemeProvider({
   design,
   customThemeJson,
   layoutSettings = DEFAULT_KEYBOARD_LAYOUT_SETTINGS,
+  customFontLoaded = false,
   children,
 }: KeyboardThemeProviderProps) {
   const theme = useMemo(
-    () => createKeyboardTheme(scheme, design, customThemeJson, layoutSettings),
-    [customThemeJson, design, layoutSettings, scheme],
+    () =>
+      createKeyboardTheme(
+        scheme,
+        design,
+        customThemeJson,
+        layoutSettings,
+        customFontLoaded,
+      ),
+    [customFontLoaded, customThemeJson, design, layoutSettings, scheme],
   );
 
   return (

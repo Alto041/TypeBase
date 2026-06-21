@@ -39,6 +39,7 @@ import {
   touchHitsPressableOnlyKey,
   type AlternatePopupState,
 } from './multiTouchKeys';
+import {markSwipeTypingTapCommitted} from './gestureState';
 import {KeyAlternatePopup} from '../components/KeyAlternatePopup';
 import type {KeyboardLayout} from '../layouts/qwerty';
 import {SwipeTrail} from './SwipeTrail';
@@ -398,10 +399,6 @@ export function SwipeTypingProvider({
         session.isSwiping = true;
         activeSwipePointerIdRef.current = id;
         notifySwipeStarted(id);
-        if (session.tapCommitted) {
-          keyboardBridge.deleteBackward();
-          session.tapCommitted = false;
-        }
         beginSwipeTrail(session, touch.pageX, touch.pageY);
       }
     },
@@ -472,6 +469,7 @@ type SwipeTypingKeysHostProps = {
   multiTouchEnabled?: boolean;
   keyboardLayout?: KeyboardLayout;
   isUppercase?: boolean;
+  getIsUppercase?: () => boolean;
   onMultiTouchKeyCommit?: (keyDef: KeyDefinition, text: string) => void;
 };
 
@@ -480,6 +478,7 @@ export function SwipeTypingKeysHost({
   multiTouchEnabled = false,
   keyboardLayout = 'letters',
   isUppercase = false,
+  getIsUppercase,
   onMultiTouchKeyCommit,
 }: SwipeTypingKeysHostProps) {
   const ctx = useContext(SwipeTypingContext);
@@ -541,13 +540,14 @@ export function SwipeTypingKeysHost({
           areaOrigin: origin,
           areaWidth: layoutContext.areaBounds.width,
           keyboardLayout,
-          isUppercase,
+          getIsUppercase: getIsUppercase ?? (() => isUppercase),
           hitSlop: keyHitSlop,
         });
       }
     },
     [
       ctx,
+      getIsUppercase,
       isUppercase,
       keyHitSlop,
       keyboardLayout,

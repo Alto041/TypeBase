@@ -1,5 +1,6 @@
 package com.typebase.app
 
+import android.content.ClipData
 import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.Context
@@ -9,6 +10,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.provider.Settings
 import android.view.HapticFeedbackConstants
 import android.view.KeyEvent
@@ -800,6 +802,97 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   }
 
   @ReactMethod
+  fun moveCursorDirection(direction: String, extendSelection: Boolean, promise: Promise) {
+    UiThreadUtil.runOnUiThread {
+      try {
+        val connection = KeyboardInputBridge.getInputConnection()
+        if (connection == null) {
+          promise.resolve(false)
+          return@runOnUiThread
+        }
+        val keyCode =
+            when (direction) {
+              "left" -> KeyEvent.KEYCODE_DPAD_LEFT
+              "right" -> KeyEvent.KEYCODE_DPAD_RIGHT
+              "up" -> KeyEvent.KEYCODE_DPAD_UP
+              "down" -> KeyEvent.KEYCODE_DPAD_DOWN
+              else -> {
+                promise.resolve(false)
+                return@runOnUiThread
+              }
+            }
+        val metaState =
+            if (extendSelection) {
+              KeyEvent.META_SHIFT_ON or KeyEvent.META_SHIFT_LEFT_ON
+            } else {
+              0
+            }
+        val eventTime = SystemClock.uptimeMillis()
+        connection.sendKeyEvent(
+            KeyEvent(eventTime, eventTime, KeyEvent.ACTION_DOWN, keyCode, 0, metaState),
+        )
+        connection.sendKeyEvent(
+            KeyEvent(eventTime, eventTime, KeyEvent.ACTION_UP, keyCode, 0, metaState),
+        )
+        promise.resolve(true)
+      } catch (error: Exception) {
+        promise.reject("MOVE_CURSOR_DIRECTION_FAILED", error)
+      }
+    }
+  }
+
+  @ReactMethod
+  fun copySelection(promise: Promise) {
+    UiThreadUtil.runOnUiThread {
+      try {
+        val connection = KeyboardInputBridge.getInputConnection()
+        if (connection == null) {
+          promise.resolve(false)
+          return@runOnUiThread
+        }
+        val selected = connection.getSelectedText(0)?.toString().orEmpty()
+        if (selected.isEmpty()) {
+          promise.resolve(false)
+          return@runOnUiThread
+        }
+        val manager =
+            reactApplicationContext.getSystemService(Context.CLIPBOARD_SERVICE) as
+                ClipboardManager
+        manager.setPrimaryClip(ClipData.newPlainText("text", selected))
+        promise.resolve(true)
+      } catch (error: Exception) {
+        promise.reject("COPY_SELECTION_FAILED", error)
+      }
+    }
+  }
+
+  @ReactMethod
+  fun cutSelection(promise: Promise) {
+    UiThreadUtil.runOnUiThread {
+      try {
+        val connection = KeyboardInputBridge.getInputConnection()
+        if (connection == null) {
+          promise.resolve(false)
+          return@runOnUiThread
+        }
+        val selected = connection.getSelectedText(0)?.toString().orEmpty()
+        if (selected.isEmpty()) {
+          promise.resolve(false)
+          return@runOnUiThread
+        }
+        val manager =
+            reactApplicationContext.getSystemService(Context.CLIPBOARD_SERVICE) as
+                ClipboardManager
+        manager.setPrimaryClip(ClipData.newPlainText("text", selected))
+        connection.commitText("", 1)
+        promise.resolve(true)
+      } catch (error: Exception) {
+        promise.reject("CUT_SELECTION_FAILED", error)
+      }
+    }
+  }
+
+  @ReactMethod
   fun deleteWordBackward(promise: Promise) {
     UiThreadUtil.runOnUiThread {
       try {
@@ -1041,6 +1134,6 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     private const val DEFAULT_GESTURE_SETTINGS =
         """{"swipeTyping":true,"spaceCursorSwipe":true,"backspaceWordSwipe":true,"backspaceSentenceHold":false,"commaLauncher":true,"trackpadMode":true,"launcherAppPackage":"com.typebase.app"}"""
     private const val DEFAULT_AUTOCORRECT_SETTINGS =
-        """{"enabled":true,"autoApplyOnSpace":false}"""
+        """{"enabled":true,"autoApplyOnSpace":true}"""
   }
 }

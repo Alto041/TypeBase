@@ -12,12 +12,13 @@ import ArrowIcon from '../../../assets/plugins/arrow.svg';
 import ClipboardIcon from '../../../assets/plugins/clipboard.svg';
 import EssentialsIcon from '../../../assets/plugins/essentials.svg';
 import CalculatorIcon from '../../../assets/plugins/calculator.svg';
+import TouchpadIcon from '../../../assets/plugins/touchpad.svg';
 import AutocorrectIcon from '../../../assets/plugins/autocorrect.svg';
 import GesturesIcon from '../../../assets/gesture.svg';
 import {
   PLUGIN_INNER_RADIUS,
   PLUGIN_OUTER_RADIUS,
-  PLUGIN_PANEL_HEIGHT,
+  PLUGIN_MENU_FADE_HEIGHT,
   PluginScrollView,
   usePluginPanelStyles,
 } from '../components/pluginPanelLayout';
@@ -31,6 +32,7 @@ type ItemsMenuPanelProps = {
   onSelectGestures: () => void;
   onSelectAutocorrect: () => void;
   onSelectCalculator: () => void;
+  onSelectTouchpad: () => void;
 };
 
 type PluginTileProps = {
@@ -106,9 +108,10 @@ const PLUGINS = [
   {id: 'autocorrect', title: 'Autocorrect', Icon: AutocorrectIcon},
   {id: 'gestures', title: 'Gestures', Icon: GesturesIcon},
   {id: 'calculator', title: 'Calculator', Icon: CalculatorIcon},
+  {id: 'touchpad', title: 'Touchpad', Icon: TouchpadIcon},
 ] as const;
 
-const PLUGIN_FADE_HEIGHT = Math.round(PLUGIN_PANEL_HEIGHT * 0.52);
+const PLUGIN_FADE_HEIGHT = PLUGIN_MENU_FADE_HEIGHT;
 
 export function ItemsMenuPanel({
   onSelectEssentials,
@@ -116,6 +119,7 @@ export function ItemsMenuPanel({
   onSelectGestures,
   onSelectAutocorrect,
   onSelectCalculator,
+  onSelectTouchpad,
 }: ItemsMenuPanelProps) {
   const theme = useKeyboardTheme();
   const panelStyles = usePluginPanelStyles();
@@ -126,11 +130,12 @@ export function ItemsMenuPanel({
     autocorrect: onSelectAutocorrect,
     gestures: onSelectGestures,
     calculator: onSelectCalculator,
+    touchpad: onSelectTouchpad,
   };
 
   return (
     <View style={[panelStyles.container, styles.container]}>
-      <PluginScrollView>
+      <PluginScrollView fadeScrollInset>
         {PLUGINS.map((plugin, index) => (
           <PluginTile
             key={plugin.id}

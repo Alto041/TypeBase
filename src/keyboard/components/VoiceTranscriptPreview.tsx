@@ -103,8 +103,7 @@ export function VoiceTranscriptPreview({
               },
             ]}
             numberOfLines={1}>
-            {index > 0 ? ' ' : ''}
-            {word}
+            {(index > 0 ? ' ' : '') + word}
           </Animated.Text>
         );
       })}

@@ -18,6 +18,7 @@ type SharedRowProps = {
   variant?: KeyVariant;
   rowStyle?: StyleProp<ViewStyle>;
   enterKeyNextLineEnabled?: boolean;
+  multiTouchDispatchEnabled?: boolean;
 };
 
 type KeyboardRowProps = SharedRowProps & {
@@ -67,6 +68,7 @@ function renderRowKey(
       keyHeight={props.keyHeight}
       variant={props.variant}
       enterKeyNextLineEnabled={props.enterKeyNextLineEnabled}
+      multiTouchDispatchEnabled={props.multiTouchDispatchEnabled}
       style={style}
     />
   );
@@ -83,6 +85,7 @@ function KeyboardRowComponent({
   variant,
   rowStyle,
   enterKeyNextLineEnabled,
+  multiTouchDispatchEnabled,
 }: KeyboardRowProps) {
   const styles = useThemedStyles(createRowStyles);
   const shared: SharedRowProps = {
@@ -95,6 +98,7 @@ function KeyboardRowComponent({
     variant,
     rowStyle,
     enterKeyNextLineEnabled,
+    multiTouchDispatchEnabled,
   };
 
   return (

@@ -17,6 +17,7 @@ import {useFonts} from 'expo-font';
 import {KeyboardRow} from './components/KeyboardRows';
 import {SuggestionBar} from './components/SuggestionBar';
 import {CalculatorPanel} from './calculator/CalculatorPanel';
+import {TouchpadPanel} from './touchpad/TouchpadPanel';
 import {ClipboardProPanel} from './clipboard/ClipboardProPanel';
 import {EmojiBottomRow} from './emoji/EmojiBottomRow';
 import {EmojiPanel} from './emoji/EmojiPanel';
@@ -156,6 +157,7 @@ type LetterKeyboardRowsProps = {
   layout: KeyboardLayout;
   modeType: KeyboardMode['type'];
   isUppercase: boolean;
+  getIsUppercase: () => boolean;
   shiftOn: boolean;
   capsLocked: boolean;
   onKeyPress: (keyDef: KeyDefinition) => void;
@@ -170,6 +172,7 @@ const LetterKeyboardRows = React.memo(function LetterKeyboardRows({
   layout,
   modeType,
   isUppercase,
+  getIsUppercase,
   shiftOn,
   capsLocked,
   onKeyPress,
@@ -189,6 +192,7 @@ const LetterKeyboardRows = React.memo(function LetterKeyboardRows({
       multiTouchEnabled={multiTouchActive}
       keyboardLayout={layout}
       isUppercase={layout === 'letters' && isUppercase}
+      getIsUppercase={getIsUppercase}
       onMultiTouchKeyCommit={onMultiTouchKeyCommit}>
       {rows.map((row, index) => (
         <KeyboardRow
@@ -205,6 +209,7 @@ const LetterKeyboardRows = React.memo(function LetterKeyboardRows({
           variant={layout === 'numpad' ? 'numpad' : undefined}
           rowStyle={layout === 'numpad' ? styles.numpadRow : undefined}
           enterKeyNextLineEnabled={enterKeyNextLineEnabled}
+          multiTouchDispatchEnabled={multiTouchActive}
         />
       ))}
     </SwipeTypingKeysHost>
@@ -332,6 +337,12 @@ function KeyboardBody() {
 
   const isUppercase = shiftOn || capsLocked;
   isUppercaseRef.current = isUppercase;
+  const getIsUppercase = useCallback(
+    () =>
+      layoutRef.current === 'letters' &&
+      (shiftOnRef.current || capsLockedRef.current),
+    [],
+  );
   const isFormMode = mode.type === 'essentials-form';
   const isClipboardMode = mode.type === 'clipboard';
   const isEssentialsListMode = mode.type === 'essentials-list';
@@ -547,6 +558,12 @@ function KeyboardBody() {
   const openCalculator = useCallback(() => {
     setCalculatorDisplay('0');
     setMode({type: 'calculator'});
+    setLayout('letters');
+    resetCase();
+  }, [resetCase]);
+
+  const openTouchpad = useCallback(() => {
+    setMode({type: 'touchpad'});
     setLayout('letters');
     resetCase();
   }, [resetCase]);
@@ -1250,6 +1267,14 @@ function KeyboardBody() {
 
   const handleMultiTouchKeyCommit = useCallback(
     (keyDef: KeyDefinition, text: string) => {
+      if (keyDef.type === 'space') {
+        handleKeyPressRef.current(keyDef);
+        deferKeyboardSideEffect(() => {
+          markTyping();
+        });
+        return;
+      }
+
       if (!text) {
         return;
       }
@@ -1267,6 +1292,15 @@ function KeyboardBody() {
         layoutRef.current === 'letters' && modeRef.current.type === 'typing';
 
       keyboardBridge.insertKeyText(text);
+
+      if (
+        shiftOnRef.current &&
+        !capsLockedRef.current &&
+        layoutRef.current === 'letters'
+      ) {
+        shiftOnRef.current = false;
+        startTransition(() => setShiftOn(false));
+      }
 
       if (isLetterTyping) {
         hasTypedInFieldRef.current = true;
@@ -1286,14 +1320,6 @@ function KeyboardBody() {
 
       deferKeyboardSideEffect(() => {
         markTyping();
-        if (
-          shiftOnRef.current &&
-          !capsLockedRef.current &&
-          layoutRef.current === 'letters'
-        ) {
-          shiftOnRef.current = false;
-          startTransition(() => setShiftOn(false));
-        }
       });
     },
     [applyInstantSuggestionBar, markTyping, refreshSuggestions],
@@ -1338,7 +1364,8 @@ function KeyboardBody() {
     mode.type === 'clipboard' ||
     mode.type === 'gestures' ||
     mode.type === 'autocorrect' ||
-    mode.type === 'calculator';
+    mode.type === 'calculator' ||
+    mode.type === 'touchpad';
 
   const handleCalculatorInsert = useCallback((value: string) => {
     if (!value || value === 'Error' || value === '0') {
@@ -1496,6 +1523,7 @@ function KeyboardBody() {
             mode.type === 'gestures' ||
             mode.type === 'autocorrect' ||
             mode.type === 'calculator' ||
+            mode.type === 'touchpad' ||
             mode.type === 'translate' ||
             mode.type === 'rewrite'
           }
@@ -1586,7 +1614,9 @@ function KeyboardBody() {
                       ? 'Autocorrect'
                       : mode.type === 'calculator'
                         ? 'Calculator'
-                        : mode.type === 'translate'
+                        : mode.type === 'touchpad'
+                          ? 'Touchpad'
+                          : mode.type === 'translate'
                           ? 'Translate'
                           : mode.type === 'rewrite'
                             ? 'Rewrite'
@@ -1640,6 +1670,9 @@ function KeyboardBody() {
               onSelectCalculator={() => {
                 openCalculator();
               }}
+              onSelectTouchpad={() => {
+                openTouchpad();
+              }}
             />
           ) : null}
 
@@ -1655,6 +1688,8 @@ function KeyboardBody() {
               onDisplayChange={setCalculatorDisplay}
             />
           ) : null}
+
+          {mode.type === 'touchpad' ? <TouchpadPanel /> : null}
 
           {mode.type === 'clipboard' ? (
             <ClipboardProPanel
@@ -1727,6 +1762,7 @@ function KeyboardBody() {
               layout={layout}
               modeType={mode.type}
               isUppercase={isUppercase}
+              getIsUppercase={getIsUppercase}
               shiftOn={shiftOn}
               capsLocked={capsLocked}
               onKeyPress={handleKeyPress}
@@ -1831,6 +1867,7 @@ export default function KeyboardApp() {
       design={keyboardDesign}
       customThemeJson={customThemeJson}
       layoutSettings={layoutSettings}
+      customFontLoaded={fontsLoaded}
     >
       <KeyLayoutProvider>
         <KeyboardBody />

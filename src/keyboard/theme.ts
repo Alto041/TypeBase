@@ -46,10 +46,10 @@ export const DEFAULT_KEYBOARD_LAYOUT_SETTINGS: KeyboardLayoutSettings = {
   letterSymbolAlternatesEnabled: false,
 };
 
-/** Touch slop into gaps — half the visual gap on each side of a key. */
+/** Touch slop into gaps — full visual gap so taps between keys snap to the nearest key. */
 export const KEY_HIT_SLOP = {
-  horizontal: DEFAULT_KEYBOARD_LAYOUT_SETTINGS.keyGap / 2,
-  vertical: DEFAULT_KEYBOARD_LAYOUT_SETTINGS.keyRowMargin / 2,
+  horizontal: DEFAULT_KEYBOARD_LAYOUT_SETTINGS.keyGap,
+  vertical: DEFAULT_KEYBOARD_LAYOUT_SETTINGS.keyRowMargin,
 };
 const NUMPAD_KEYS_PADDING_TOP = 2;
 
@@ -369,6 +369,7 @@ export function createKeyboardTheme(
   design: KeyboardDesign = 'typebase',
   customThemeJson?: string | null,
   layout: KeyboardLayoutSettings = DEFAULT_KEYBOARD_LAYOUT_SETTINGS,
+  customFontLoaded = false,
 ) {
   let palette =
     design === 'custom'
@@ -409,8 +410,8 @@ export function createKeyboardTheme(
     letterSymbolAlternatesEnabled: layout.letterSymbolAlternatesEnabled,
     letterLayoutId: layout.letterLayoutId,
     keyHitSlop: {
-      horizontal: layout.keyGap / 2,
-      vertical: layout.keyRowMargin / 2,
+      horizontal: layout.keyGap,
+      vertical: layout.keyRowMargin,
     },
     numpadKeyHeight,
     numpadKeysPaddingTop: NUMPAD_KEYS_PADDING_TOP,
@@ -430,7 +431,7 @@ export function createKeyboardTheme(
       4 * numpadKeyHeight +
       4 * layout.keyGap +
       IME_STRIP_CLEARANCE,
-    fontFamily: 'Geist' as const,
+    fontFamily: customFontLoaded ? ('Geist' as const) : undefined,
   };
 }
 

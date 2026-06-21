@@ -18,5 +18,6 @@ export type KeyboardMode =
   | {type: 'gestures'}
   | {type: 'autocorrect'}
   | {type: 'calculator'}
+  | {type: 'touchpad'}
   | {type: 'translate'}
   | {type: 'rewrite'};
