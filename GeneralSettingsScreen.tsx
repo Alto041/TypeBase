@@ -18,6 +18,7 @@ import DiscordIcon from './assets/discord.svg';
 import FeedbackIcon from './assets/feedback.svg';
 import GraphicEqIcon from './assets/graphic_eq.svg';
 import DevIcon from './assets/dev.svg';
+import SymbolToggleIcon from './assets/symbol-toggle.svg';
 
 import {playSwitchOffSound, playSwitchOnSound} from './src/app/switchSound';
 
@@ -60,10 +61,13 @@ export function GeneralSettingsScreen({
   const [uiSoundsEnabled, setUiSoundsEnabledState] = useState(true);
   const [enterKeyPreviewEnabled, setEnterKeyPreviewEnabledState] = useState(true);
   const [developerEyeEnabled, setDeveloperEyeEnabledState] = useState(false);
+  const [letterSymbolAlternatesEnabled, setLetterSymbolAlternatesEnabledState] =
+    useState(false);
 
   const uiSoundsAnim = useRef(new Animated.Value(0)).current;
   const enterKeyAnim = useRef(new Animated.Value(0)).current;
   const developerEyeAnim = useRef(new Animated.Value(0)).current;
+  const symbolAlternatesAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     void getUiSoundsEnabled()
@@ -79,6 +83,8 @@ export function GeneralSettingsScreen({
       enterKeyAnim.setValue(layout.enterKeyPreviewEnabled ? 1 : 0);
       setDeveloperEyeEnabledState(layout.developerEyeEnabled);
       developerEyeAnim.setValue(layout.developerEyeEnabled ? 1 : 0);
+      setLetterSymbolAlternatesEnabledState(layout.letterSymbolAlternatesEnabled);
+      symbolAlternatesAnim.setValue(layout.letterSymbolAlternatesEnabled ? 1 : 0);
     });
   }, []);
 
@@ -131,6 +137,16 @@ export function GeneralSettingsScreen({
     void Haptics.selectionAsync().catch(() => {});
   };
 
+  const toggleLetterSymbolAlternates = async () => {
+    const next = !letterSymbolAlternatesEnabled;
+    setLetterSymbolAlternatesEnabledState(next);
+    void updateKeyboardLayoutSetting('letterSymbolAlternatesEnabled', next);
+    animateToggle(symbolAlternatesAnim, next ? 1 : 0);
+    if (next) playSwitchOnSound();
+    else playSwitchOffSound();
+    void Haptics.selectionAsync().catch(() => {});
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={C.bg} />
@@ -143,7 +159,7 @@ export function GeneralSettingsScreen({
           <View style={styles.rowCard}>
             <View style={styles.rowInner}>
               <EnterIcon width={ROW_ICON} height={ROW_ICON} color={C.red} />
-              <Text style={styles.rowTitle}>Enter Key Preview</Text>
+              <Text style={styles.rowTitle}>Red Enter Icon</Text>
               <View style={styles.toggleWrap}>
                 <Pressable
                   onPress={toggleEnterKeyPreview}
@@ -186,6 +202,38 @@ export function GeneralSettingsScreen({
                         transform: [
                           {
                             translateX: uiSoundsAnim.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [0, 18],
+                            }),
+                          },
+                        ],
+                      },
+                    ]}
+                  />
+                </Pressable>
+              </View>
+            </View>
+          </View>
+
+          {/* Symbol long-press on letter keys */}
+          <View style={styles.rowCard}>
+            <View style={styles.rowInner}>
+              <SymbolToggleIcon width={ROW_ICON} height={ROW_ICON} color={C.text} />
+              <Text style={styles.rowTitle}>Extended Characters</Text>
+              <View style={styles.toggleWrap}>
+                <Pressable
+                  onPress={toggleLetterSymbolAlternates}
+                  style={[
+                    styles.toggleTrack,
+                    letterSymbolAlternatesEnabled && styles.toggleTrackOn,
+                  ]}>
+                  <Animated.View
+                    style={[
+                      styles.toggleThumb,
+                      {
+                        transform: [
+                          {
+                            translateX: symbolAlternatesAnim.interpolate({
                               inputRange: [0, 1],
                               outputRange: [0, 18],
                             }),
@@ -254,7 +302,7 @@ export function GeneralSettingsScreen({
           <View style={[styles.rowCard, styles.rowCardStatic]}>
             <View style={styles.rowInner}>
               <Text style={styles.rowSubLabel}>App Version</Text>
-              <Text style={styles.rowValue}>1.0.0</Text>
+              <Text style={styles.rowValue}>0.8</Text>
             </View>
           </View>
         </View>

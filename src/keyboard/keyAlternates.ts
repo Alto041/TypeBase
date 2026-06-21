@@ -1,5 +1,6 @@
 import type {KeyboardLayout} from './layouts/qwerty';
 import type {KeyDefinition} from './layouts/qwerty';
+import {getKeyboardLayoutSettings} from './settings/layoutStore';
 
 /** Lowercase letter long-press alternates (Gboard-style). Base letter is index 0. */
 const LETTER_ALTERNATES: Record<string, readonly string[]> = {
@@ -29,6 +30,39 @@ const LETTER_ALTERNATES: Record<string, readonly string[]> = {
   x: ['x'],
   y: ['y', 'ý', 'ÿ'],
   z: ['z', 'ž', 'ź', 'ż'],
+};
+
+/**
+ * Classic phone-keyboard long-press on QWERTY letter keys (AOSP-style).
+ * Top row → 1–0, home row → punctuation, bottom row → more symbols.
+ */
+const PHONE_LETTER_SYMBOL_ALTERNATES: Record<string, readonly string[]> = {
+  q: ['q', '1'],
+  w: ['w', '2'],
+  e: ['e', '3'],
+  r: ['r', '4'],
+  t: ['t', '5'],
+  y: ['y', '6'],
+  u: ['u', '7'],
+  i: ['i', '8'],
+  o: ['o', '9'],
+  p: ['p', '0'],
+  a: ['a', '@'],
+  s: ['s', '#'],
+  d: ['d', '&'],
+  f: ['f', '*'],
+  g: ['g', '-'],
+  h: ['h', '('],
+  j: ['j', ')'],
+  k: ['k', "'"],
+  l: ['l', '"'],
+  z: ['z', '?'],
+  x: ['x', '!'],
+  c: ['c', ':'],
+  v: ['v', ';'],
+  b: ['b', '/'],
+  n: ['n', ','],
+  m: ['m', '.'],
 };
 
 const NUMBER_ALTERNATES: Record<string, readonly string[]> = {
@@ -68,8 +102,32 @@ function applyCase(alternates: readonly string[], uppercase: boolean): string[] 
     return [...alternates];
   }
   return alternates.map(char =>
-    char.length === 1 ? char.toUpperCase() : char,
+    char.length === 1 && /[a-z]/i.test(char) ? char.toUpperCase() : char,
   );
+}
+
+function resolveLetterAlternates(
+  keyDef: KeyDefinition,
+  uppercase: boolean,
+): readonly string[] {
+  const base = keyDef.value;
+  if (!base || base.length !== 1 || !/[a-z]/i.test(base)) {
+    return base ? [base] : [];
+  }
+
+  const lookupKey = (keyDef.id.length === 1 && /[a-z]/i.test(keyDef.id)
+    ? keyDef.id
+    : base
+  ).toLowerCase();
+
+  const useSymbolAlternates =
+    getKeyboardLayoutSettings().letterSymbolAlternatesEnabled;
+
+  if (useSymbolAlternates) {
+    return PHONE_LETTER_SYMBOL_ALTERNATES[lookupKey] ?? [base.toLowerCase()];
+  }
+
+  return LETTER_ALTERNATES[lookupKey] ?? [base.toLowerCase()];
 }
 
 export function getKeyAlternates(
@@ -85,7 +143,7 @@ export function getKeyAlternates(
   let alternates: readonly string[] = [base];
 
   if (layout === 'letters' && base.length === 1 && /[a-z]/i.test(base)) {
-    alternates = LETTER_ALTERNATES[base.toLowerCase()] ?? [base];
+    alternates = resolveLetterAlternates(keyDef, uppercase);
   } else if (layout === 'numbers') {
     alternates = NUMBER_ALTERNATES[base] ?? [base];
   } else if (layout === 'symbols') {

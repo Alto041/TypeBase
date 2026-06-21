@@ -16,20 +16,8 @@ import {SafeAreaProvider, SafeAreaView, useSafeAreaInsets} from 'react-native-sa
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import {useFonts} from 'expo-font';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import ClipboardIcon from './assets/plugins/clipboard.svg';
-import TranslateIcon from './assets/plugins/translate.svg';
-import EssentialsIcon from './assets/plugins/essentials.svg';
-import CalculatorIcon from './assets/plugins/calculator.svg';
-import AutocorrectIcon from './assets/plugins/autocorrect.svg';
-import GestureIcon from './assets/gesture.svg';
-import EmojiIcon from './assets/emoji.svg';
-import ArtificialIcon from './assets/Artificial.svg';
-import VoiceIcon from './assets/graphic_eq.svg';
-import LinkIcon from './assets/Link.svg';
-import SymbolsIcon from './assets/symbols.svg';
-import ItemsIcon from './assets/items.svg';
-import BackIcon from './assets/back.svg';
 import AiConfigIcon from './assets/ai_config.svg';
+import LanguageLayoutIcon from './assets/layout.svg';
 import KeyboardPermIcon from './assets/keyboard_perm.svg';
 
 import HomeIcon from './assets/home.svg';
@@ -76,7 +64,6 @@ const CHIP_WIDTH_INSET = 15;
 const CHIP_V_MARGIN    = (PILL_HEIGHT - CHIP_HEIGHT) / 2;
 const ICON_SIZE        = 22;
 const GRADIENT_LIGHT   = '#F1F1F1';
-const GRADIENT_DARK    = '#0f0f10';
 
 const BOTTOM_NAV_BOTTOM_GAP = 8;
 const BOTTOM_NAV_FADE_HEIGHT = 96;
@@ -203,8 +190,10 @@ function BottomNavigation({
   };
 
   const handleSelect = (tab: NavTab) => {
-    void hapticTap();
-    if (tab !== selectedRef.current) void playUiSound('navigation');
+    hapticTap();
+    if (tab !== selectedRef.current) {
+      playUiSound('navigation');
+    }
     setSelectedOption(tab);
     selectedRef.current = tab;
     if (pillWidthRef.current > 0) animateChip(tab, pillWidthRef.current);
@@ -274,7 +263,9 @@ function BottomNavigation({
 type LaunchpadCardProps = {
   icon: React.ReactNode;
   title: string;
-  description: string;
+  description?: string;
+  titleFontFamily?: string;
+  radius?: number;
   onPress?: () => void;
   position?: 'top' | 'mid' | 'bottom' | 'solo';
 };
@@ -283,6 +274,8 @@ function LaunchpadCard({
   icon,
   title,
   description,
+  titleFontFamily,
+  radius = CARD_R,
   onPress,
   position = 'solo',
 }: LaunchpadCardProps) {
@@ -299,8 +292,10 @@ function LaunchpadCard({
     <View style={styles.linkRow}>
       <View style={styles.launchpadIconWrap}>{icon}</View>
       <View style={styles.linkTextWrap}>
-        <Text style={styles.rowTitle}>{title}</Text>
-        <Text style={styles.rowSub}>{description}</Text>
+        <Text style={[styles.rowTitle, titleFontFamily ? {fontFamily: titleFontFamily} : null]}>
+          {title}
+        </Text>
+        {description ? <Text style={styles.rowSub}>{description}</Text> : null}
       </View>
     </View>
   );
@@ -308,12 +303,19 @@ function LaunchpadCard({
   return onPress ? (
     <Pressable
       onPress={onPress}
-      style={[styles.stackItem, positionStyle, styles.launchpadPressable]}
+      style={[
+        styles.stackItem,
+        positionStyle,
+        {borderRadius: radius},
+        styles.launchpadPressable,
+      ]}
     >
       {content}
     </Pressable>
   ) : (
-    <View style={[styles.stackItem, positionStyle]}>{content}</View>
+    <View style={[styles.stackItem, positionStyle, {borderRadius: radius}]}>
+      {content}
+    </View>
   );
 }
 
@@ -330,10 +332,26 @@ function SetupScreen() {
     transitionTo(() => setTab(next));
   };
 
+  const openAiConfig = () => {
+    transitionTo(() => setShowAiConfig(true));
+  };
+
+  const closeAiConfig = () => {
+    transitionTo(() => setShowAiConfig(false));
+  };
+
+  const openLanguageLayout = () => {
+    transitionTo(() => setShowLanguageLayout(true));
+  };
+
+  const closeLanguageLayout = () => {
+    transitionTo(() => setShowLanguageLayout(false));
+  };
+
   if (showAiConfig) {
     return (
       <View style={styles.setupRoot}>
-        <AiConfigScreen onBack={() => setShowAiConfig(false)} />
+        <AiConfigScreen onBack={closeAiConfig} />
       </View>
     );
   }
@@ -341,7 +359,7 @@ function SetupScreen() {
   if (showLanguageLayout) {
     return (
       <View style={styles.setupRoot}>
-        <LanguageLayoutScreen onBack={() => setShowLanguageLayout(false)} />
+        <LanguageLayoutScreen onBack={closeLanguageLayout} />
       </View>
     );
   }
@@ -362,9 +380,8 @@ function SetupScreen() {
     }
     return (
       <LaunchpadScreen
-        onOpenKeyboard={() => changeTab('customize')}
-        onOpenAiConfig={() => setShowAiConfig(true)}
-        onOpenLanguageLayout={() => setShowLanguageLayout(true)}
+        onOpenAiConfig={openAiConfig}
+        onOpenLanguageLayout={openLanguageLayout}
       />
     );
   };
@@ -380,11 +397,9 @@ function SetupScreen() {
 }
 
 function LaunchpadScreen({
-  onOpenKeyboard,
   onOpenAiConfig,
   onOpenLanguageLayout,
 }: {
-  onOpenKeyboard: () => void;
   onOpenAiConfig: () => void;
   onOpenLanguageLayout: () => void;
 }) {
@@ -434,9 +449,10 @@ function LaunchpadScreen({
 
         <View style={styles.stack}>
           <LaunchpadCard
-            icon={<SymbolsIcon width={HOME_ICON} height={HOME_ICON} color={C.text} />}
+            icon={<LanguageLayoutIcon width={HOME_ICON} height={HOME_ICON} color={C.text} />}
             title="Language & layout"
-            description="QWERTY, AZERTY, Arabic, Cyrillic, and more"
+            titleFontFamily="FragmentMono"
+            radius={18}
             onPress={onOpenLanguageLayout}
             position="solo"
           />
@@ -460,14 +476,14 @@ export default function App() {
       try {
         const v = await AsyncStorage.getItem(ONBOARDING_COMPLETE_KEY);
         setOnboardingComplete(v === '1');
-      } catch (e) {
+      } catch {
         // If storage fails for any reason, fall back to showing onboarding.
         setOnboardingComplete(false);
       } finally {
         setHydratingOnboarding(false);
       }
     };
-    void hydrate();
+    hydrate();
   }, []);
 
   return (

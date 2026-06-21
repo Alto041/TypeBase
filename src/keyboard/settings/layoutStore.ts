@@ -48,6 +48,10 @@ function normalizeLayout(raw: unknown): KeyboardLayoutSettings {
       typeof obj['developerEyeEnabled'] === 'boolean'
         ? obj['developerEyeEnabled']
         : defaults.developerEyeEnabled,
+    letterSymbolAlternatesEnabled:
+      typeof obj['letterSymbolAlternatesEnabled'] === 'boolean'
+        ? obj['letterSymbolAlternatesEnabled']
+        : defaults.letterSymbolAlternatesEnabled,
     letterLayoutId: normalizeLetterLayoutId(obj['letterLayoutId']),
   };
 }

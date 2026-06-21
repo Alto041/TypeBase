@@ -28,6 +28,11 @@ export type KeyboardLayoutSettings = {
   enterKeyPreviewEnabled: boolean;
   /** When true, show JSON theme editor on the Themes page. */
   developerEyeEnabled: boolean;
+  /**
+   * When true, long-press on letter keys offers symbols/numbers (a→@, q→1, …)
+   * instead of accent variants (á, è, …).
+   */
+  letterSymbolAlternatesEnabled: boolean;
 };
 
 export const DEFAULT_KEYBOARD_LAYOUT_SETTINGS: KeyboardLayoutSettings = {
@@ -38,6 +43,7 @@ export const DEFAULT_KEYBOARD_LAYOUT_SETTINGS: KeyboardLayoutSettings = {
   enterKeyPreviewEnabled: true,
   developerEyeEnabled: false,
   letterLayoutId: DEFAULT_LETTER_LAYOUT_ID,
+  letterSymbolAlternatesEnabled: false,
 };
 
 /** Touch slop into gaps — half the visual gap on each side of a key. */
