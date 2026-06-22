@@ -3,7 +3,6 @@ import {
   Animated,
   findNodeHandle,
   PanResponder,
-  PixelRatio,
   Platform,
   Pressable,
   StyleSheet,
@@ -23,6 +22,8 @@ import ArtificialIcon from '../../../assets/Artificial.svg';
 import {useKeyLayoutContext} from '../gesture/KeyLayoutContext';
 import {
   isMultiTouchTextKey,
+  notifySwipeStarted,
+  pointerIdFromTouch,
   registerMultiTouchKeyVisual,
 } from '../gesture/multiTouchKeys';
 import {gestureSwipeActiveRef} from '../gesture/gestureState';
@@ -106,6 +107,7 @@ function KeyComponent({
   const spaceSwipingRef = useRef(false);
   const spaceDidSwipeRef = useRef(false);
   const spaceTapCommittedRef = useRef(false);
+  const spacePointerIdRef = useRef<number | null>(null);
   const pressOpacity = useRef(new Animated.Value(1)).current;
   const previewRafRef = useRef<number | null>(null);
   const isSpaceKey = keyDef.type === 'space';
@@ -508,6 +510,7 @@ function KeyComponent({
     spaceSwipingRef.current = false;
     spaceDidSwipeRef.current = false;
     spaceTapCommittedRef.current = true;
+    spacePointerIdRef.current = null;
     triggerKeyHaptic();
     onPress(keyDef);
   }, [keyDef, onPress]);
@@ -517,10 +520,12 @@ function KeyComponent({
       spaceSwipingRef.current = false;
       spaceDidSwipeRef.current = false;
       spaceTapCommittedRef.current = false;
+      spacePointerIdRef.current = null;
       return;
     }
     if (spaceTapCommittedRef.current) {
       spaceTapCommittedRef.current = false;
+      spacePointerIdRef.current = null;
       return;
     }
     triggerKeyHaptic();
@@ -535,11 +540,25 @@ function KeyComponent({
           Boolean(isSpaceGesture) &&
           Math.abs(gesture.dx) > SPACE_SWIPE_THRESHOLD_PX &&
           Math.abs(gesture.dx) > Math.abs(gesture.dy),
-        onPanResponderGrant: () => {
+        onPanResponderGrant: (evt) => {
           spaceSwipingRef.current = false;
           spaceDidSwipeRef.current = false;
           spaceCursorAccumRef.current = 0;
           lastSpaceDxRef.current = 0;
+          // Capture pointer id so we can cancel the multi-touch space session when swiping.
+          const ne: any = evt?.nativeEvent ?? {};
+          let pid: number | null = null;
+          if (typeof ne.identifier === 'number') {
+            pid = ne.identifier;
+          } else if (typeof ne.identifier === 'string') {
+            const n = Number(ne.identifier);
+            pid = Number.isNaN(n) ? null : n;
+          } else if (Array.isArray(ne.changedTouches) && ne.changedTouches[0]) {
+            pid = pointerIdFromTouch(ne.changedTouches[0]);
+          } else if (Array.isArray(ne.touches) && ne.touches[0]) {
+            pid = pointerIdFromTouch(ne.touches[0]);
+          }
+          spacePointerIdRef.current = pid != null && !Number.isNaN(pid) ? pid : null;
         },
         onPanResponderMove: (_, gesture) => {
           if (!keyGestures) {
@@ -548,6 +567,9 @@ function KeyComponent({
           if (Math.abs(gesture.dx) > SPACE_SWIPE_THRESHOLD_PX) {
             if (!spaceDidSwipeRef.current) {
               keyboardBridge.deleteBackward();
+              if (spacePointerIdRef.current != null) {
+                notifySwipeStarted(spacePointerIdRef.current);
+              }
             }
             spaceSwipingRef.current = true;
             spaceDidSwipeRef.current = true;
@@ -555,10 +577,11 @@ function KeyComponent({
           const delta = gesture.dx - lastSpaceDxRef.current;
           lastSpaceDxRef.current = gesture.dx;
           spaceCursorAccumRef.current += delta;
-          const stepPx = CURSOR_STEP_PX * PixelRatio.get();
-          while (Math.abs(spaceCursorAccumRef.current) >= stepPx) {
+          // Gesture dx is in dp; keep threshold/step in the same unit (dp).
+          const stepDp = CURSOR_STEP_PX;
+          while (Math.abs(spaceCursorAccumRef.current) >= stepDp) {
             const step = spaceCursorAccumRef.current > 0 ? 1 : -1;
-            spaceCursorAccumRef.current -= step * stepPx;
+            spaceCursorAccumRef.current -= step * stepDp;
             keyGestures.onCursorMove(step);
           }
         },
@@ -567,12 +590,14 @@ function KeyComponent({
           spaceDidSwipeRef.current = false;
           spaceCursorAccumRef.current = 0;
           lastSpaceDxRef.current = 0;
+          spacePointerIdRef.current = null;
         },
         onPanResponderTerminate: () => {
           spaceSwipingRef.current = false;
           spaceDidSwipeRef.current = false;
           spaceCursorAccumRef.current = 0;
           lastSpaceDxRef.current = 0;
+          spacePointerIdRef.current = null;
         },
       }),
     [isSpaceGesture, keyGestures],
@@ -595,7 +620,7 @@ function KeyComponent({
           }
         }}
         collapsable={false}
-        pointerEvents="box-none">
+        pointerEvents={isSpaceGesture ? 'auto' : 'box-none'}>
         <Animated.View
           pointerEvents="none"
           style={[

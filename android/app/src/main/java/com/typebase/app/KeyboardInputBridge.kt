@@ -25,6 +25,8 @@ object KeyboardInputBridge {
 
   private val prefersNumpadListeners = CopyOnWriteArrayList<(Boolean) -> Unit>()
   private val keyboardVisibilityListeners = CopyOnWriteArrayList<(Boolean) -> Unit>()
+  private val keyboardSessionStartListeners = CopyOnWriteArrayList<() -> Unit>()
+  private val orientationChangeListeners = CopyOnWriteArrayList<(Boolean) -> Unit>()
   private val supportsNewlineListeners = CopyOnWriteArrayList<(Boolean) -> Unit>()
   private val initialCapsModeListeners = CopyOnWriteArrayList<(Boolean) -> Unit>()
   private val nativeFastPathKeyListeners =
@@ -137,6 +139,24 @@ object KeyboardInputBridge {
   fun addKeyboardVisibilityListener(listener: (Boolean) -> Unit): () -> Unit {
     keyboardVisibilityListeners.add(listener)
     return { keyboardVisibilityListeners.remove(listener) }
+  }
+
+  fun notifyKeyboardSessionStart() {
+    keyboardSessionStartListeners.forEach { listener -> listener() }
+  }
+
+  fun addKeyboardSessionStartListener(listener: () -> Unit): () -> Unit {
+    keyboardSessionStartListeners.add(listener)
+    return { keyboardSessionStartListeners.remove(listener) }
+  }
+
+  fun notifyOrientationChanged(landscape: Boolean) {
+    orientationChangeListeners.forEach { listener -> listener(landscape) }
+  }
+
+  fun addOrientationChangeListener(listener: (Boolean) -> Unit): () -> Unit {
+    orientationChangeListeners.add(listener)
+    return { orientationChangeListeners.remove(listener) }
   }
 
   fun notifyNativeFastPathKey(id: String, type: String, value: String, text: String) {

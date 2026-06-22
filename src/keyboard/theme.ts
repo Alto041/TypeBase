@@ -395,6 +395,7 @@ export function createKeyboardTheme(
   customThemeJson?: string | null,
   layout: KeyboardLayoutSettings = DEFAULT_KEYBOARD_LAYOUT_SETTINGS,
   customFontLoaded = false,
+  isLandscape = false,
 ) {
   let palette =
     design === 'custom'
@@ -412,21 +413,27 @@ export function createKeyboardTheme(
   }
 
   const numpadKeyHeight = Math.max(36, layout.keyHeight - 6);
+  const suggestionBarHeight = isLandscape ? 42 : 48;
+  const keysPaddingTop = isLandscape ? 4 : KEYS_PADDING_TOP;
+  const imeStripClearance = isLandscape ? 28 : IME_STRIP_CLEARANCE;
+  const essentialsPanelHeight = isLandscape ? 112 : 136;
+  const keyboardHeightBuffer = isLandscape ? 4 : KEYBOARD_HEIGHT_BUFFER;
 
   return {
     ...palette,
     design,
     scheme,
+    isLandscape,
     /** @deprecated Use letterKey */
     key: palette.letterKey,
     /** @deprecated Use letterKeyPressed for letter keys, modifierKeyPressed for others */
     keyPressed: palette.letterKeyPressed,
     /** @deprecated Use modifierKey */
     numpadActionKey: palette.modifierKey,
-    suggestionBarHeight: 48,
-    keysPaddingTop: KEYS_PADDING_TOP,
-    imeStripClearance: IME_STRIP_CLEARANCE,
-    essentialsPanelHeight: 136,
+    suggestionBarHeight,
+    keysPaddingTop,
+    imeStripClearance,
+    essentialsPanelHeight,
     keyHeight: layout.keyHeight,
     keyRowMargin: layout.keyRowMargin,
     keyGap: layout.keyGap,
@@ -444,18 +451,18 @@ export function createKeyboardTheme(
     emojiPanelHeight: layout.keyHeight * 3 + layout.keyRowMargin * 3,
     emojiPanelGap: 12,
     keyboardHeightDp:
-      48 +
-      KEYS_PADDING_TOP +
+      suggestionBarHeight +
+      keysPaddingTop +
       KEY_ROW_COUNT * layout.keyHeight +
       KEY_ROW_COUNT * layout.keyRowMargin +
-      IME_STRIP_CLEARANCE +
-      KEYBOARD_HEIGHT_BUFFER,
+      imeStripClearance +
+      keyboardHeightBuffer,
     numpadKeyboardHeightDp:
-      48 +
+      suggestionBarHeight +
       NUMPAD_KEYS_PADDING_TOP +
       4 * numpadKeyHeight +
       4 * layout.keyGap +
-      IME_STRIP_CLEARANCE,
+      imeStripClearance,
     fontFamily: customFontLoaded ? ('Geist' as const) : undefined,
   };
 }

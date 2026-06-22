@@ -21,6 +21,7 @@ type KeyboardThemeProviderProps = {
   customThemeJson?: string | null;
   layoutSettings?: KeyboardLayoutSettings;
   customFontLoaded?: boolean;
+  isLandscape?: boolean;
   children: ReactNode;
 };
 
@@ -30,6 +31,7 @@ export function KeyboardThemeProvider({
   customThemeJson,
   layoutSettings = DEFAULT_KEYBOARD_LAYOUT_SETTINGS,
   customFontLoaded = false,
+  isLandscape = false,
   children,
 }: KeyboardThemeProviderProps) {
   const theme = useMemo(
@@ -40,8 +42,16 @@ export function KeyboardThemeProvider({
         customThemeJson,
         layoutSettings,
         customFontLoaded,
+        isLandscape,
       ),
-    [customFontLoaded, customThemeJson, design, layoutSettings, scheme],
+    [
+      customFontLoaded,
+      customThemeJson,
+      design,
+      isLandscape,
+      layoutSettings,
+      scheme,
+    ],
   );
 
   return (

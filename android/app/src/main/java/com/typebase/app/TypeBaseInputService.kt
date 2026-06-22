@@ -1,5 +1,6 @@
 package com.typebase.app
 
+import android.content.res.Configuration
 import android.inputmethodservice.InputMethodService
 import android.os.Handler
 import android.os.Looper
@@ -78,8 +79,11 @@ class TypeBaseInputService : InputMethodService() {
     // Always notify JS when the input view opens; onStartInput may fire before RN mounts.
     KeyboardInputBridge.refreshSupportsNewline(info)
     KeyboardInputBridge.refreshInitialCapsMode(info)
-    resumeReactForKeyboard()
-    container?.let { mountKeyboardSurface(it) }
+    resumeReactForKeyboard {
+      // Reset JS to the main alphabet view after React resumes, before the window is shown.
+      KeyboardInputBridge.notifyKeyboardSessionStart()
+      container?.let { mountKeyboardSurface(it) }
+    }
   }
 
   override fun onWindowShown() {
@@ -91,13 +95,20 @@ class TypeBaseInputService : InputMethodService() {
 
   override fun onFinishInputView(finishingInput: Boolean) {
     super.onFinishInputView(finishingInput)
-    pauseReactForKeyboardIfNeeded()
+    // Do not pause React here — onWindowHidden will notify JS and pause after the reset.
   }
 
   override fun onWindowHidden() {
     super.onWindowHidden()
-    pauseReactForKeyboardIfNeeded()
+    // Notify JS while React is still resumed so the reset runs before the next show.
     KeyboardInputBridge.notifyKeyboardHidden()
+    pauseReactForKeyboardIfNeeded()
+  }
+
+  override fun onConfigurationChanged(newConfig: Configuration) {
+    super.onConfigurationChanged(newConfig)
+    val landscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
+    KeyboardInputBridge.notifyOrientationChanged(landscape)
   }
 
   private fun preloadKeyboardRuntime() {
@@ -111,7 +122,7 @@ class TypeBaseInputService : InputMethodService() {
    * The IME has no Activity, so React Native stays paused unless we resume it when the keyboard
    * window is shown. Without this, taps on items/emoji/voice appear to freeze the keyboard.
    */
-  private fun resumeReactForKeyboard() {
+  private fun resumeReactForKeyboard(onResumed: (() -> Unit)? = null) {
     val app = application as? ReactApplication ?: return
     UiThreadUtil.runOnUiThread {
       val host = app.reactHost ?: return@runOnUiThread
@@ -119,6 +130,7 @@ class TypeBaseInputService : InputMethodService() {
         host.onHostResume(null)
         keyboardResumedReact = true
       }
+      onResumed?.invoke()
     }
   }
 
@@ -229,7 +241,7 @@ class TypeBaseInputService : InputMethodService() {
   companion object {
     const val KEYBOARD_COMPONENT_NAME = "TypeBaseKeyboard"
     const val DEFAULT_KEYBOARD_HEIGHT_DP = 340
-    private const val MIN_KEYBOARD_HEIGHT_DP = 280
+    private const val MIN_KEYBOARD_HEIGHT_DP = 200
     private const val MAX_SURFACE_MOUNT_ATTEMPTS = 120
   }
 

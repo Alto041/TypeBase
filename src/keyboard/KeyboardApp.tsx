@@ -12,6 +12,7 @@ import {
   InteractionManager,
   PixelRatio,
   StyleSheet,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import {useFonts} from 'expo-font';
@@ -149,6 +150,10 @@ import type {
   KeyboardTheme,
 } from './theme';
 import {DEFAULT_KEYBOARD_LAYOUT_SETTINGS} from './theme';
+import {
+  isLandscapeOrientation,
+  layoutSettingsForOrientation,
+} from './orientation';
 import {useVoiceInput} from './voice/useVoiceInput';
 
 const DOUBLE_TAP_MS = 350;
@@ -421,28 +426,6 @@ function KeyboardBody() {
   }, []);
 
   useEffect(() => {
-    void keyboardBridge.getInputInitialCapsMode().then(mode => {
-      setInputInitialCapsMode(Boolean(mode));
-    });
-    const capsSubscription = DeviceEventEmitter.addListener(
-      'keyboardInputInitialCapsMode',
-      (mode: boolean) => {
-        hasTypedInFieldRef.current = false;
-        setInputInitialCapsMode(Boolean(mode));
-        void keyboardBridge.getTextBeforeCursor(96).then(syncAutoCapitalizeShift);
-      },
-    );
-    const shownSubscription = DeviceEventEmitter.addListener('keyboardShown', () => {
-      hasTypedInFieldRef.current = false;
-      void keyboardBridge.getTextBeforeCursor(96).then(syncAutoCapitalizeShift);
-    });
-    return () => {
-      capsSubscription.remove();
-      shownSubscription.remove();
-    };
-  }, [syncAutoCapitalizeShift]);
-
-  useEffect(() => {
     initKeyPreview();
     return () => destroyKeyPreview();
   }, []);
@@ -490,6 +473,74 @@ function KeyboardBody() {
     setCapsLocked(false);
   }, []);
 
+  const resetToMainAlphabetView = useCallback(() => {
+    // Update refs immediately so guards and the next paint see the main alphabet view.
+    layoutRef.current = 'letters';
+    modeRef.current = {type: 'typing'};
+    emojiCategoryRef.current = DEFAULT_EMOJI_CATEGORY;
+    gifSearchActiveRef.current = false;
+    emojiSearchActiveRef.current = false;
+    livePrefixRef.current = '';
+
+    setMode({type: 'typing'});
+    setLayout('letters');
+    setEmojiCategory(DEFAULT_EMOJI_CATEGORY);
+    setEmojiSearchQuery('');
+    setEmojiSearchActive(false);
+    setGifSearchQuery('');
+    setGifSearchActive(false);
+    setFormKeyword('');
+    setFormValue('');
+    setCalculatorDisplay('0');
+    setCommaLauncherActive(false);
+    setPeriodRewriteActive(false);
+    setCurrentPrefix('');
+    setSuggestions([]);
+    setEssentialSuggestions([]);
+    setEssentialTriggerLength(0);
+    setAutocorrectPreview(null);
+    setTypedKeepSuggestion(null);
+    setStoppedTyping(true);
+    setShiftOn(false);
+    setCapsLocked(false);
+
+    void setCommaLauncherArmed(false);
+
+    if (typingIdleTimerRef.current) {
+      clearTimeout(typingIdleTimerRef.current);
+      typingIdleTimerRef.current = null;
+    }
+    if (suggestionRefreshTimerRef.current) {
+      clearTimeout(suggestionRefreshTimerRef.current);
+      suggestionRefreshTimerRef.current = null;
+    }
+
+    autocorrectUndoStackRef.current = [];
+    autocorrectRedoStackRef.current = [];
+    userChoseLettersRef.current = false;
+    shiftOnRef.current = false;
+    capsLockedRef.current = false;
+  }, []);
+
+  useEffect(() => {
+    const hiddenSubscription = DeviceEventEmitter.addListener(
+      'keyboardHidden',
+      () => {
+        resetToMainAlphabetView();
+      },
+    );
+    const sessionSubscription = DeviceEventEmitter.addListener(
+      'keyboardSessionStart',
+      () => {
+        resetToMainAlphabetView();
+      },
+    );
+    return () => {
+      hiddenSubscription.remove();
+      sessionSubscription.remove();
+    };
+  }, [resetToMainAlphabetView]);
+
   const syncAutoCapitalizeShift = useCallback((context: string) => {
     if (capsLockedRef.current) {
       return;
@@ -506,6 +557,28 @@ function KeyboardBody() {
       startTransition(() => setShiftOn(shouldCap));
     }
   }, [inputInitialCapsMode]);
+
+  useEffect(() => {
+    void keyboardBridge.getInputInitialCapsMode().then(mode => {
+      setInputInitialCapsMode(Boolean(mode));
+    });
+    const capsSubscription = DeviceEventEmitter.addListener(
+      'keyboardInputInitialCapsMode',
+      (mode: boolean) => {
+        hasTypedInFieldRef.current = false;
+        setInputInitialCapsMode(Boolean(mode));
+        void keyboardBridge.getTextBeforeCursor(96).then(syncAutoCapitalizeShift);
+      },
+    );
+    const shownSubscription = DeviceEventEmitter.addListener('keyboardShown', () => {
+      hasTypedInFieldRef.current = false;
+      void keyboardBridge.getTextBeforeCursor(96).then(syncAutoCapitalizeShift);
+    });
+    return () => {
+      capsSubscription.remove();
+      shownSubscription.remove();
+    };
+  }, [syncAutoCapitalizeShift]);
 
   const closeItemsFlow = useCallback(() => {
     setMode({type: 'typing'});
@@ -1093,6 +1166,16 @@ function KeyboardBody() {
     }, 80);
     return () => clearTimeout(timer);
   }, [layout, theme, layoutContext]);
+
+  useEffect(() => {
+    const subscription = DeviceEventEmitter.addListener(
+      'keyboardOrientationChange',
+      () => {
+        layoutContext?.requestRemeasure();
+      },
+    );
+    return () => subscription.remove();
+  }, [layoutContext]);
 
   const appendToFormField = useCallback(
     (text: string) => {
@@ -1870,13 +1953,14 @@ function KeyboardBody() {
       : isValidEssentialKeyword(formKeyword) && formValue.trim().length > 0);
 
   const isNumpadLayout = layout === 'numpad';
+  const useCompactLayout = isNumpadLayout || theme.isLandscape;
 
   return (
     <View
-      style={[styles.container, isNumpadLayout && styles.containerCompact]}>
+      style={[styles.container, useCompactLayout && styles.containerCompact]}>
       <GestureTypingLayer
           enabled={gestureEnabled}
-          compact={isNumpadLayout}
+          compact={useCompactLayout}
           alignTop={
             isNumpadLayout ||
             mode.type === 'clipboard' ||
@@ -2178,6 +2262,8 @@ function KeyboardBody() {
 
 
 export default function KeyboardApp() {
+  const {width, height} = useWindowDimensions();
+  const isLandscape = isLandscapeOrientation(width, height);
   const [fontsLoaded] = useFonts({
     Geist: require('../../assets/Geist-VariableFont_wght.ttf'),
   });
@@ -2190,6 +2276,11 @@ export default function KeyboardApp() {
     DEFAULT_KEYBOARD_LAYOUT_SETTINGS,
   );
   const [themeReady, setThemeReady] = useState(false);
+
+  const effectiveLayoutSettings = useMemo(
+    () => layoutSettingsForOrientation(layoutSettings, isLandscape),
+    [isLandscape, layoutSettings],
+  );
 
   useEffect(() => {
     void Promise.all([
@@ -2248,10 +2339,11 @@ export default function KeyboardApp() {
       scheme={colorScheme}
       design={keyboardDesign}
       customThemeJson={customThemeJson}
-      layoutSettings={layoutSettings}
+      layoutSettings={effectiveLayoutSettings}
       customFontLoaded={fontsLoaded}
+      isLandscape={isLandscape}
     >
-      <KeyLayoutProvider layoutSettings={layoutSettings}>
+      <KeyLayoutProvider layoutSettings={effectiveLayoutSettings}>
         <KeyboardBody />
       </KeyLayoutProvider>
     </KeyboardThemeProvider>

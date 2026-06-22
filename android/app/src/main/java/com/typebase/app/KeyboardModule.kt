@@ -14,6 +14,7 @@ import android.os.SystemClock
 import android.provider.Settings
 import android.view.HapticFeedbackConstants
 import android.view.KeyEvent
+import android.view.inputmethod.ExtractedTextRequest
 import android.view.inputmethod.InputConnection
 import android.R
 import android.view.inputmethod.InputContentInfo
@@ -36,6 +37,8 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
 
   private var removePrefersNumpadListener: (() -> Unit)? = null
   private var removeKeyboardVisibilityListener: (() -> Unit)? = null
+  private var removeKeyboardSessionStartListener: (() -> Unit)? = null
+  private var removeOrientationChangeListener: (() -> Unit)? = null
   private var removeSupportsNewlineListener: (() -> Unit)? = null
   private var removeInitialCapsModeListener: (() -> Unit)? = null
   private var removeNativeFastPathKeyListener: (() -> Unit)? = null
@@ -67,6 +70,24 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
             reactApplicationContext
                 .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
                 .emit(event, null)
+          }
+        }
+
+    removeKeyboardSessionStartListener =
+        KeyboardInputBridge.addKeyboardSessionStartListener {
+          if (reactApplicationContext.hasActiveReactInstance()) {
+            reactApplicationContext
+                .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                .emit("keyboardSessionStart", null)
+          }
+        }
+
+    removeOrientationChangeListener =
+        KeyboardInputBridge.addOrientationChangeListener { landscape ->
+          if (reactApplicationContext.hasActiveReactInstance()) {
+            reactApplicationContext
+                .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                .emit("keyboardOrientationChange", landscape)
           }
         }
 
@@ -118,6 +139,10 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     removePrefersNumpadListener = null
     removeKeyboardVisibilityListener?.invoke()
     removeKeyboardVisibilityListener = null
+    removeKeyboardSessionStartListener?.invoke()
+    removeKeyboardSessionStartListener = null
+    removeOrientationChangeListener?.invoke()
+    removeOrientationChangeListener = null
     removeSupportsNewlineListener?.invoke()
     removeSupportsNewlineListener = null
     removeInitialCapsModeListener?.invoke()
@@ -917,19 +942,41 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
 
   @ReactMethod
   fun moveCursor(offset: Int, promise: Promise) {
-    try {
-      val connection = KeyboardInputBridge.getInputConnection()
-      if (connection == null) {
-        promise.resolve(false)
-        return
+    UiThreadUtil.runOnUiThread {
+      try {
+        val connection = KeyboardInputBridge.getInputConnection()
+        if (connection == null) {
+          promise.resolve(false)
+          return@runOnUiThread
+        }
+
+        // Prefer ExtractedText for accurate current selection position.
+        val extracted = connection.getExtractedText(ExtractedTextRequest().apply { token = 0 }, 0)
+        val current = when {
+          extracted != null && extracted.selectionStart >= 0 -> extracted.selectionStart
+          extracted != null && extracted.selectionEnd >= 0 -> extracted.selectionEnd
+          else -> null
+        }
+
+        if (current != null) {
+          val newPos = (current + offset).coerceAtLeast(0)
+          connection.setSelection(newPos, newPos)
+          promise.resolve(true)
+          return@runOnUiThread
+        }
+
+        // Fallback: synthesize DPAD left/right events (one per step).
+        val steps = kotlin.math.abs(offset)
+        val direction = if (offset >= 0) KeyEvent.KEYCODE_DPAD_RIGHT else KeyEvent.KEYCODE_DPAD_LEFT
+        val eventTime = SystemClock.uptimeMillis()
+        repeat(steps) {
+          connection.sendKeyEvent(KeyEvent(eventTime, eventTime, KeyEvent.ACTION_DOWN, direction, 0, 0))
+          connection.sendKeyEvent(KeyEvent(eventTime, eventTime, KeyEvent.ACTION_UP, direction, 0, 0))
+        }
+        promise.resolve(steps > 0)
+      } catch (error: Exception) {
+        promise.reject("MOVE_CURSOR_FAILED", error)
       }
-      val beforeLen = connection.getTextBeforeCursor(100000, 0)?.length ?: 0
-      val afterLen = connection.getTextAfterCursor(100000, 0)?.length ?: 0
-      val target = (beforeLen + offset).coerceIn(0, beforeLen + afterLen)
-      connection.setSelection(target, target)
-      promise.resolve(true)
-    } catch (error: Exception) {
-      promise.reject("MOVE_CURSOR_FAILED", error)
     }
   }
 
