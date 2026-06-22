@@ -10,6 +10,9 @@ object KeyboardInputBridge {
   @Volatile
   var inputService: TypeBaseInputService? = null
 
+  /** Google app search bar: always show submit enter, never newline. */
+  private const val GOOGLE_QUICK_SEARCH_BOX = "com.google.android.googlequicksearchbox"
+
   @Volatile
   private var numpadPreferred: Boolean = false
 
@@ -30,6 +33,9 @@ object KeyboardInputBridge {
   fun prefersNumpad(): Boolean = numpadPreferred
 
   fun currentInputSupportsNewline(): Boolean = supportsNewline
+
+  fun shouldForceSubmitEnter(): Boolean =
+      currentEditorInfo?.packageName == GOOGLE_QUICK_SEARCH_BOX
 
   fun setCurrentEditorInfo(info: EditorInfo?) {
     currentEditorInfo = info
@@ -145,6 +151,10 @@ object KeyboardInputBridge {
   }
 
   fun shouldAllowNewline(info: EditorInfo?): Boolean {
+    if (info?.packageName == GOOGLE_QUICK_SEARCH_BOX) {
+      return false
+    }
+
     if (info == null) {
       return false
     }

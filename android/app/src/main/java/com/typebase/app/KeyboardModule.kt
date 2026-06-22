@@ -47,6 +47,10 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
 
   override fun initialize() {
     super.initialize()
+    Thread {
+          SwipeWordDictionary.ensureLoaded(reactApplicationContext)
+        }
+        .start()
     removePrefersNumpadListener =
         KeyboardInputBridge.addPrefersNumpadListener { prefers ->
           if (reactApplicationContext.hasActiveReactInstance()) {
@@ -323,6 +327,42 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   }
 
   @ReactMethod
+  fun preloadSwipeWordDictionary(promise: Promise) {
+    try {
+      SwipeWordDictionary.ensureLoaded(reactApplicationContext)
+      promise.resolve(true)
+    } catch (error: Exception) {
+      promise.reject("PRELOAD_SWIPE_WORD_DICT_FAILED", error)
+    }
+  }
+
+  @ReactMethod
+  fun getSwipeCandidates(pattern: String, maxCandidates: Int, promise: Promise) {
+    try {
+      val results =
+          SwipeWordDictionary.getSwipeCandidates(
+              reactApplicationContext,
+              learnedWordsPrefs(),
+              pattern,
+              maxCandidates.coerceIn(1, 2000),
+          )
+      promise.resolve(results)
+    } catch (error: Exception) {
+      promise.reject("GET_SWIPE_CANDIDATES_FAILED", error)
+    }
+  }
+
+  @ReactMethod
+  fun isKnownSwipeWord(word: String, promise: Promise) {
+    try {
+      SwipeWordDictionary.ensureLoaded(reactApplicationContext)
+      promise.resolve(SwipeWordDictionary.isKnownWord(word))
+    } catch (error: Exception) {
+      promise.reject("IS_KNOWN_SWIPE_WORD_FAILED", error)
+    }
+  }
+
+  @ReactMethod
   fun insertText(text: String) {
     KeyboardInputBridge.getInputConnection()?.commitText(text, 1)
   }
@@ -421,7 +461,10 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   @ReactMethod
   fun submitEnterKey() {
     val connection = KeyboardInputBridge.getInputConnection() ?: return
-    if (KeyboardInputBridge.currentInputSupportsNewline()) {
+    if (
+        KeyboardInputBridge.currentInputSupportsNewline() &&
+            !KeyboardInputBridge.shouldForceSubmitEnter()
+    ) {
       connection.commitText("\n", 1)
       return
     }

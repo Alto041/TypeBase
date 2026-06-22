@@ -27,24 +27,110 @@ const MIN_AUTO_CONFIDENCE = 0.67;
 const COMMON_WORD_RANK = 3500;
 const FREQUENT_WORD_SCAN_LIMIT = 1000;
 const FREQUENT_FALLBACK_LIMIT = 2000;
-const MISSING_SPACE_MIN_LENGTH = 5;
-const MISSING_SPACE_MAX_WORD_LENGTH = 12;
-const MISSING_SPACE_COMMON_RANK = 12_000;
+const MISSING_SPACE_MIN_LENGTH = 6;
 const MISSING_SPACE_STRONG_RANK = 5_000;
 
-function isSegmentWord(word: string): boolean {
-  if (word === 'a' || word === 'i') {
-    return true;
+/** Very common 1–2 letter words allowed in a split (blocks junk like "th", "ng"). */
+const SHORT_SEGMENT_WORDS = new Set<string>(['a', 'i']);
+for (const word of WORDS.slice(0, 250)) {
+  if (word.length <= 2) {
+    SHORT_SEGMENT_WORDS.add(word);
   }
-  if (word.length < 2) {
+}
+
+function isValidSegmentPart(word: string): boolean {
+  if (word !== 'a' && word !== 'i' && !STATIC_RANK.has(word)) {
     return false;
   }
-  return STATIC_RANK.has(word);
+
+  const rank = STATIC_RANK.get(word) ?? 99_999;
+  if (rank > MISSING_SPACE_STRONG_RANK) {
+    return false;
+  }
+
+  if (word.length <= 2) {
+    return SHORT_SEGMENT_WORDS.has(word);
+  }
+
+  return true;
+}
+
+/** Still typing a longer dictionary word (e.g. "somethin" → "something"). */
+function isLikelyIncompleteWord(typed: string): boolean {
+  const bucket = STATIC_BY_FIRST.get(typed[0]) ?? [];
+  for (const word of bucket) {
+    if (word.length > typed.length && word.startsWith(typed)) {
+      const rank = STATIC_RANK.get(word) ?? 99_999;
+      if (rank < 15_000) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+function findTwoWordSplit(typed: string): string | null {
+  let best: {left: string; right: string; score: number} | null = null;
+
+  for (let splitAt = 2; splitAt <= typed.length - 2; splitAt += 1) {
+    const left = typed.slice(0, splitAt);
+    const right = typed.slice(splitAt);
+    if (!isValidSegmentPart(left) || !isValidSegmentPart(right)) {
+      continue;
+    }
+
+    const score =
+      (STATIC_RANK.get(left) ?? 99_999) + (STATIC_RANK.get(right) ?? 99_999);
+    if (!best || score < best.score) {
+      best = {left, right, score};
+    }
+  }
+
+  if (!best) {
+    return null;
+  }
+
+  if (
+    best.left === 'i' &&
+    best.right.length >= 5 &&
+    typed.length >= 6
+  ) {
+    return null;
+  }
+
+  return `${best.left} ${best.right}`;
+}
+
+function findThreeWordSplit(typed: string): string | null {
+  let best: {parts: string[]; score: number} | null = null;
+
+  for (let first = 2; first <= typed.length - 4; first += 1) {
+    for (let second = first + 2; second <= typed.length - 2; second += 1) {
+      const parts = [
+        typed.slice(0, first),
+        typed.slice(first, second),
+        typed.slice(second),
+      ];
+      if (!parts.every(isValidSegmentPart)) {
+        continue;
+      }
+
+      const score = parts.reduce(
+        (total, part) => total + (STATIC_RANK.get(part) ?? 99_999),
+        0,
+      );
+      if (!best || score < best.score) {
+        best = {parts, score};
+      }
+    }
+  }
+
+  return best ? best.parts.join(' ') : null;
 }
 
 /**
  * Split concatenated words missing a space (e.g. "areyou" → "are you").
- * Uses dictionary frequency ranks from englishWords.json — no native lookup needed.
+ * Conservative: only 2–3 common words, never valid/partial dictionary words.
  */
 function findMissingSpaceCorrection(
   typed: string,
@@ -54,77 +140,21 @@ function findMissingSpaceCorrection(
     return null;
   }
 
-  const typedRank = STATIC_RANK.get(typed);
-  if (typedRank != null && typedRank < 25_000) {
+  if (STATIC_RANK.has(typed)) {
     return null;
   }
 
-  const n = typed.length;
-  const maxWordLen = Math.min(MISSING_SPACE_MAX_WORD_LENGTH, n - 1);
-  const dp = new Float64Array(n + 1).fill(Number.POSITIVE_INFINITY);
-  const splitAt = new Int16Array(n + 1).fill(-1);
-  dp[0] = 0;
-
-  for (let end = 1; end <= n; end += 1) {
-    for (let len = 1; len <= Math.min(maxWordLen, end); len += 1) {
-      const word = typed.slice(end - len, end);
-      if (!isSegmentWord(word)) {
-        continue;
-      }
-
-      const rank = STATIC_RANK.get(word) ?? 80_000;
-      if (word.length >= 2 && rank > MISSING_SPACE_COMMON_RANK) {
-        continue;
-      }
-
-      const start = end - len;
-      if (!Number.isFinite(dp[start])) {
-        continue;
-      }
-
-      const score = dp[start] + rank + (word.length === 1 ? 40 : 0);
-      if (score < dp[end]) {
-        dp[end] = score;
-        splitAt[end] = start;
-      }
-    }
-  }
-
-  if (!Number.isFinite(dp[n]) || splitAt[n] < 0) {
+  if (isLikelyIncompleteWord(typed)) {
     return null;
   }
 
-  const words: string[] = [];
-  let pos = n;
-  while (pos > 0) {
-    const start = splitAt[pos];
-    if (start < 0) {
-      return null;
-    }
-    words.unshift(typed.slice(start, pos));
-    pos = start;
+  const twoWord = findTwoWordSplit(typed);
+  if (twoWord) {
+    return twoWord;
   }
 
-  if (words.length < 2) {
-    return null;
-  }
-
-  if (
-    words.length === 2 &&
-    words[0] === 'i' &&
-    words[1].length >= 5 &&
-    typed.length >= 6
-  ) {
-    return null;
-  }
-
-  const ranks = words.map(word => STATIC_RANK.get(word) ?? 99_999);
-  const strongCount = ranks.filter(rank => rank < MISSING_SPACE_STRONG_RANK).length;
-  if (strongCount >= 2) {
-    return words.join(' ');
-  }
-  if (strongCount >= 1 && words.length === 2 && ranks.every(rank => rank < MISSING_SPACE_COMMON_RANK)) {
-    return words.join(' ');
+  if (typed.length >= 9) {
+    return findThreeWordSplit(typed);
   }
 
   return null;
@@ -587,11 +617,6 @@ export function getTypoSuggestionPreview(
     return applyCaseToWord(exactFix.correction, typed);
   }
 
-  const missingSpace = findMissingSpaceCorrection(lower, learnedUses);
-  if (missingSpace) {
-    return applyCaseToWord(missingSpace, typed);
-  }
-
   if (isProtectedWord(lower, learnedUses)) {
     return null;
   }
@@ -745,15 +770,6 @@ export function getSuggestionBarAutocorrect(
     if (correction.toLowerCase() === lower) {
       return {keepTyped: null, correction: null};
     }
-    return {
-      keepTyped: offerKeepTyped ? typed : null,
-      correction,
-    };
-  }
-
-  const missingSpace = findMissingSpaceCorrection(lower, learnedUses);
-  if (missingSpace) {
-    const correction = applyCaseToWord(missingSpace, typed);
     return {
       keepTyped: offerKeepTyped ? typed : null,
       correction,

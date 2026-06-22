@@ -1,3 +1,4 @@
+import {Platform} from 'react-native';
 import {
   DEFAULT_LETTER_LAYOUT_ID,
   type LetterLayoutId,
@@ -364,6 +365,13 @@ function paletteFor(
 
 export type KeyboardTheme = ReturnType<typeof createKeyboardTheme>;
 
+/** Safe Text font — Android Fabric crashes if a custom font isn't registered yet. */
+export function keyboardTextFont(
+  theme: KeyboardTheme,
+): {fontFamily?: string} {
+  return theme.fontFamily ? {fontFamily: theme.fontFamily} : {};
+}
+
 export function createKeyboardTheme(
   scheme: KeyboardColorScheme,
   design: KeyboardDesign = 'typebase',
@@ -431,7 +439,10 @@ export function createKeyboardTheme(
       4 * numpadKeyHeight +
       4 * layout.keyGap +
       IME_STRIP_CLEARANCE,
-    fontFamily: customFontLoaded ? ('Geist' as const) : undefined,
+    fontFamily:
+      customFontLoaded && Platform.OS === 'ios'
+        ? ('Geist' as const)
+        : undefined,
   };
 }
 

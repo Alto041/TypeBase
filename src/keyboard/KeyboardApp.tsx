@@ -96,6 +96,7 @@ import {
   setLauncherAppPackage,
 } from './gestures/gesturesStore';
 import type {GestureSettings, LaunchableApp} from './gestures/types';
+import {ensureSwipeWordDictionaryLoaded} from './gesture/wordDictionary';
 import {deferKeyboardSideEffect} from './haptics';
 import {keyboardBridge} from './keyboardBridge';
 import {
@@ -518,7 +519,10 @@ function KeyboardBody() {
 
   const reloadAutocorrect = useCallback(async () => {
     await reloadAutocorrectFromStorage();
-    await ensureLearnedPhrasesLoaded();
+    await Promise.all([
+      ensureLearnedDictionaryLoaded(),
+      ensureLearnedPhrasesLoaded(),
+    ]);
     setAutocorrectSettings(getAutocorrectSettings());
   }, []);
 
@@ -932,6 +936,7 @@ function KeyboardBody() {
         ensureEssentialsLoaded(),
         ensureClipboardLoaded(),
         ensureLearnedDictionaryLoaded(),
+        ensureSwipeWordDictionaryLoaded(),
         ensureLearnedPhrasesLoaded(),
         ensureAutocorrectLoaded(),
         ensureApiKeysLoaded(),

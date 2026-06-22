@@ -1,4 +1,4 @@
-import React, {useMemo, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {Dimensions, StyleSheet, View} from 'react-native';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import {useKeyboardTheme} from '../KeyboardThemeContext';
@@ -7,6 +7,11 @@ import {EmojiCategoryGrid} from './EmojiCategoryGrid';
 import {GifCategoryGrid} from './GifCategoryGrid';
 import type {EmojiCategoryId} from './emojis';
 import type {GiphyGif} from './giphyService';
+import {
+  ensureRecentEmojisLoaded,
+  getRecentEmojis,
+  recordRecentEmoji,
+} from './recentEmojisStore';
 
 type EmojiPanelProps = {
   category: EmojiCategoryId;
@@ -31,6 +36,29 @@ export function EmojiPanel({
   const [panelWidth, setPanelWidth] = useState(() =>
     Math.max(280, Math.round(Dimensions.get('window').width)),
   );
+  const [recentEmojis, setRecentEmojis] = useState<readonly string[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void ensureRecentEmojisLoaded().then(() => {
+      if (!cancelled) {
+        setRecentEmojis(getRecentEmojis());
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleEmojiSelect = useCallback(
+    (emoji: string) => {
+      onSelect(emoji);
+      void recordRecentEmoji(emoji).then(() => {
+        setRecentEmojis(getRecentEmojis());
+      });
+    },
+    [onSelect],
+  );
 
   return (
     <View
@@ -52,7 +80,8 @@ export function EmojiPanel({
         <EmojiCategoryGrid
           category={category}
           width={panelWidth}
-          onSelect={onSelect}
+          recentEmojis={recentEmojis}
+          onSelect={handleEmojiSelect}
         />
       )}
       <View style={styles.fade} pointerEvents="none">

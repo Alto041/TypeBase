@@ -25,6 +25,7 @@ import {
   isMultiTouchTextKey,
   registerMultiTouchKeyVisual,
 } from '../gesture/multiTouchKeys';
+import {gestureSwipeActiveRef} from '../gesture/gestureState';
 import {hideKeyPreview, showKeyPreview} from '../KeyPreview';
 import {triggerKeyHaptic} from '../haptics';
 import {keyboardBridge} from '../keyboardBridge';
@@ -32,6 +33,7 @@ import {getLetterSymbolHint} from '../keyAlternates';
 import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
 import type {KeyDefinition} from '../layouts/qwerty';
 import type {KeyboardTheme} from '../theme';
+import {keyboardTextFont} from '../theme';
 
 const COMMA_HOLD_DELAY_MS = 400;
 const PERIOD_HOLD_DELAY_MS = 400;
@@ -241,6 +243,9 @@ function KeyComponent({
     return registerMultiTouchKeyVisual(keyDef.id, pressed => {
       if (usesMultiTouchRouter) {
         if (pressed) {
+          if (gestureSwipeActiveRef.current) {
+            return;
+          }
           const tag = reactTagRef.current ?? findNodeHandle(keyRef.current);
           if (tag) {
             reactTagRef.current = tag;
@@ -758,7 +763,7 @@ function createKeyStyles(theme: KeyboardTheme) {
     keyLabel: {
       color: theme.label,
       fontSize: 22,
-      fontFamily: theme.fontFamily,
+      ...keyboardTextFont(theme),
       fontWeight: '500',
     },
     symbolHint: {
@@ -767,7 +772,7 @@ function createKeyStyles(theme: KeyboardTheme) {
       bottom: 2,
       color: theme.iconMuted,
       fontSize: 9,
-      fontFamily: theme.fontFamily,
+      ...keyboardTextFont(theme),
       fontWeight: '500',
       lineHeight: 10,
     },

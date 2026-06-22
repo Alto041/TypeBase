@@ -1,10 +1,12 @@
-import englishWords from './data/englishWords.json';
+import {Platform} from 'react-native';
+import {keyboardBridge} from '../keyboardBridge';
 import {
   getLearnedCounts,
   learnedRankBoost,
 } from '../suggestions/learnedDictionary';
+import {ENGLISH_WORDS} from './englishWordsSource';
 
-const WORDS = englishWords as string[];
+const WORDS = ENGLISH_WORDS;
 
 const byFirstLetter = new Map<string, Array<{word: string; rank: number}>>();
 const STATIC_RANK = new Map<string, number>();
@@ -19,6 +21,30 @@ for (let rank = 0; rank < WORDS.length; rank++) {
   const bucket = byFirstLetter.get(first) ?? [];
   bucket.push({word, rank});
   byFirstLetter.set(first, bucket);
+}
+
+let nativeDictionaryReady = false;
+let nativeDictionaryPromise: Promise<void> | null = null;
+
+export async function ensureSwipeWordDictionaryLoaded(): Promise<void> {
+  if (nativeDictionaryReady) {
+    return;
+  }
+  if (Platform.OS !== 'android') {
+    nativeDictionaryReady = true;
+    return;
+  }
+  if (!nativeDictionaryPromise) {
+    nativeDictionaryPromise = keyboardBridge
+      .preloadSwipeWordDictionary()
+      .then(() => {
+        nativeDictionaryReady = true;
+      })
+      .catch(() => {
+        nativeDictionaryPromise = null;
+      });
+  }
+  await nativeDictionaryPromise;
 }
 
 export function isPatternSubsequence(pattern: string, word: string): boolean {
@@ -37,8 +63,6 @@ export function isPatternSubsequence(pattern: string, word: string): boolean {
   return false;
 }
 
-/** Allow up to `maxEdits` skipped/extra chars when matching pattern to word. */
-/** Swipe trace is usually longer/noisier than the intended word. */
 export function wordMatchesTrace(
   word: string,
   trace: string,
@@ -100,7 +124,7 @@ export function fuzzyMatchesPattern(
   return dp[pattern.length][word.length] <= maxEdits;
 }
 
-export function getSwipeCandidates(
+function getSwipeCandidatesJs(
   pattern: string,
   maxCandidates = 420,
 ): Array<{word: string; rank: number}> {
@@ -156,6 +180,24 @@ export function getSwipeCandidates(
   }
 
   return results;
+}
+
+export async function getSwipeCandidates(
+  pattern: string,
+  maxCandidates = 420,
+): Promise<Array<{word: string; rank: number}>> {
+  if (Platform.OS === 'android') {
+    await ensureSwipeWordDictionaryLoaded();
+    if (nativeDictionaryReady) {
+      try {
+        return await keyboardBridge.getSwipeCandidates(pattern, maxCandidates);
+      } catch {
+        // Fall back to the bundled JS dictionary.
+      }
+    }
+  }
+
+  return getSwipeCandidatesJs(pattern, maxCandidates);
 }
 
 export function isKnownWord(word: string): boolean {

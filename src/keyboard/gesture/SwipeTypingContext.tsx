@@ -11,10 +11,11 @@ import {PixelRatio, View, type GestureResponderEvent} from 'react-native';
 import {triggerKeyHaptic} from '../haptics';
 import {useKeyboardTheme} from '../KeyboardThemeContext';
 import {keyboardBridge} from '../keyboardBridge';
+import {hideKeyPreview} from '../KeyPreview';
 import {clampPoint, decimatePoints, distance} from './coordinates';
 import {decodeSwipeGesture} from './gestureDecoder';
 import {ensureLearnedDictionaryLoaded} from '../suggestions/learnedDictionary';
-import {isValidSwipeCommit} from './wordDictionary';
+import {ensureSwipeWordDictionaryLoaded, isValidSwipeCommit} from './wordDictionary';
 import {
   activeSwipePointerIdRef,
   gestureSwipeActiveRef,
@@ -253,13 +254,15 @@ export function SwipeTypingProvider({
 
   const decodeAndCommit = useCallback(
     (localPoints: Point[], tapCommitted: boolean) => {
-      const attemptDecode = (retriesLeft: number) => {
+      const attemptDecode = async (retriesLeft: number) => {
         const layouts = layoutContext?.getLayouts() ?? [];
         const letterKeyCount = layouts.filter(layout => layout.letter).length;
 
         if (letterKeyCount < 20 && retriesLeft > 0) {
           layoutContext?.refreshAreaBounds();
-          requestAnimationFrame(() => attemptDecode(retriesLeft - 1));
+          requestAnimationFrame(() => {
+            void attemptDecode(retriesLeft - 1);
+          });
           return;
         }
 
@@ -270,7 +273,7 @@ export function SwipeTypingProvider({
           return;
         }
 
-        const word = decodeSwipeGesture(localPoints, layouts, isUppercase);
+        const word = await decodeSwipeGesture(localPoints, layouts, isUppercase);
         if (word && isValidSwipeCommit(word)) {
           if (tapCommitted) {
             keyboardBridge.deleteBackward();
@@ -280,8 +283,11 @@ export function SwipeTypingProvider({
         }
       };
 
-      void ensureLearnedDictionaryLoaded().then(() => {
-        attemptDecode(3);
+      void Promise.all([
+        ensureLearnedDictionaryLoaded(),
+        ensureSwipeWordDictionaryLoaded(),
+      ]).then(() => {
+        void attemptDecode(3);
       });
     },
     [isUppercase, layoutContext, onWordCommitted],
@@ -289,6 +295,7 @@ export function SwipeTypingProvider({
 
   const beginSwipeTrail = useCallback(
     (session: SwipePointerSession, pageX: number, pageY: number) => {
+      hideKeyPreview();
       gestureSwipeActiveRef.current = true;
       syncTrailBounds(() => {
         localPointsRef.current = [];

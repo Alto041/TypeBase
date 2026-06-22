@@ -581,11 +581,11 @@ function shouldPreferCandidate(
   );
 }
 
-export function decodeSwipeGesture(
+export async function decodeSwipeGesture(
   rawPoints: Point[],
   layouts: KeyBounds[],
   isUppercase: boolean,
-): string | null {
+): Promise<string | null> {
   if (rawPoints.length < 2 || layouts.length === 0) {
     return null;
   }
@@ -615,7 +615,7 @@ export function decodeSwipeGesture(
     );
   }
 
-  const candidates = getSwipeCandidates(pattern);
+  const candidates = await getSwipeCandidates(pattern);
   const learned = getLearnedCounts();
   const maxEdits = traceEditBudget(pattern);
 
@@ -658,7 +658,7 @@ export function decodeSwipeGesture(
 
   if (!bestWord) {
     return finalizeSwipeWord(
-      pickByProximityOnly(
+      (await pickByProximityOnly(
         pattern,
         swipePath,
         rawPoints,
@@ -667,7 +667,7 @@ export function decodeSwipeGesture(
         keyboardHeight,
         verticalSpan,
         isUppercase,
-      ) ??
+      )) ??
         decodeByPathShape(
           rawPoints,
           swipePath,
@@ -688,7 +688,7 @@ export function decodeSwipeGesture(
     (bestScore > 1.12 && margin < 0.008 && pattern.length < 7)
   ) {
     return finalizeSwipeWord(
-      pickByProximityOnly(
+      (await pickByProximityOnly(
         pattern,
         swipePath,
         rawPoints,
@@ -697,7 +697,7 @@ export function decodeSwipeGesture(
         keyboardHeight,
         verticalSpan,
         isUppercase,
-      ) ??
+      )) ??
         decodeByPathShape(
           rawPoints,
           swipePath,
@@ -759,7 +759,7 @@ function decodeByPathShape(
   return bestWord ? formatWord(bestWord, isUppercase) : null;
 }
 
-function pickByProximityOnly(
+async function pickByProximityOnly(
   pattern: string,
   swipePath: Point[],
   rawSwipePath: Point[],
@@ -768,12 +768,12 @@ function pickByProximityOnly(
   keyboardHeight: number,
   verticalSpan: number,
   isUppercase: boolean,
-): string | null {
+): Promise<string | null> {
   if (pattern.length < 2) {
     return null;
   }
 
-  const candidates = getSwipeCandidates(pattern);
+  const candidates = await getSwipeCandidates(pattern);
   let bestWord: string | null = null;
   let bestScore = Infinity;
 

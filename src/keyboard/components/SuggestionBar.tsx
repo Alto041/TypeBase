@@ -19,6 +19,7 @@ import {triggerKeyHaptic} from '../haptics';
 import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
 import {applyCaseToWord} from '../suggestions/wordSuggestions';
 import type {KeyboardTheme} from '../theme';
+import {keyboardTextFont} from '../theme';
 
 export type EssentialSuggestion = {
   keyword: string;
@@ -527,6 +528,7 @@ function SuggestionBarComponent({
 }
 
 function createSuggestionBarStyles(theme: KeyboardTheme) {
+  const textFont = keyboardTextFont(theme);
   return StyleSheet.create({
   container: {
     minHeight: theme.suggestionBarHeight,
@@ -569,7 +571,7 @@ function createSuggestionBarStyles(theme: KeyboardTheme) {
   centerTitle: {
     color: theme.spaceLabel,
     fontSize: 12,
-    fontFamily: theme.fontFamily,
+    ...textFont,
     fontWeight: '600',
     letterSpacing: 0.8,
     textAlign: 'center',
@@ -583,7 +585,7 @@ function createSuggestionBarStyles(theme: KeyboardTheme) {
   formLabel: {
     color: theme.spaceLabel,
     fontSize: 10,
-    fontFamily: theme.fontFamily,
+    ...textFont,
     fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 0.6,
@@ -596,14 +598,14 @@ function createSuggestionBarStyles(theme: KeyboardTheme) {
   formPrefix: {
     color: theme.essentialsAccent,
     fontSize: 16,
-    fontFamily: theme.fontFamily,
+    ...textFont,
     fontWeight: '600',
   },
   formText: {
     flexShrink: 1,
     color: theme.label,
     fontSize: 16,
-    fontFamily: theme.fontFamily,
+    ...textFont,
     fontWeight: '500',
   },
   formPlaceholder: {
@@ -626,7 +628,7 @@ function createSuggestionBarStyles(theme: KeyboardTheme) {
   gifSearchPlaceholder: {
     color: theme.iconMuted,
     fontSize: 14,
-    fontFamily: theme.fontFamily,
+    ...textFont,
   },
   gifSearchClear: {
     width: 22,
@@ -658,7 +660,7 @@ function createSuggestionBarStyles(theme: KeyboardTheme) {
     flex: 1,
     color: theme.label,
     fontSize: 16,
-    fontFamily: theme.fontFamily,
+    ...textFont,
     fontWeight: '500',
   },
   cursor: {
@@ -688,7 +690,7 @@ function createSuggestionBarStyles(theme: KeyboardTheme) {
   suggestionText: {
     color: theme.label,
     fontSize: 17,
-    fontFamily: theme.fontFamily,
+    ...textFont,
     fontWeight: '500',
   },
   typedKeepSuggestion: {
@@ -697,7 +699,7 @@ function createSuggestionBarStyles(theme: KeyboardTheme) {
   typedKeepSuggestionText: {
     color: theme.label,
     fontSize: 17,
-    fontFamily: theme.fontFamily,
+    ...textFont,
     fontWeight: '600',
   },
   autocorrectSuggestion: {
@@ -706,13 +708,13 @@ function createSuggestionBarStyles(theme: KeyboardTheme) {
   essentialKeyword: {
     color: theme.essentialsAccent,
     fontSize: 14,
-    fontFamily: theme.fontFamily,
+    ...textFont,
     fontWeight: '600',
   },
   essentialValue: {
     color: theme.spaceLabel,
     fontSize: 12,
-    fontFamily: theme.fontFamily,
+    ...textFont,
   },
   partialContainer: {
     flex: 1,
@@ -723,7 +725,7 @@ function createSuggestionBarStyles(theme: KeyboardTheme) {
   partialText: {
     color: theme.spaceLabel,
     fontSize: 17,
-    fontFamily: theme.fontFamily,
+    ...textFont,
     fontWeight: '500',
     textAlign: 'right',
   },
@@ -758,7 +760,7 @@ function createSuggestionBarStyles(theme: KeyboardTheme) {
     flexShrink: 1,
     color: theme.label,
     fontSize: 15,
-    fontFamily: theme.fontFamily,
+    ...textFont,
     fontWeight: '500',
   },
   clipboardPasteImage: {

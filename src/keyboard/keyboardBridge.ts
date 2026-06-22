@@ -9,6 +9,12 @@ type KeyboardModuleType = {
   stopBackspaceRepeat: () => void;
   getTextBeforeCursor: (length: number) => Promise<string>;
   getLearnedWordCounts: () => Promise<Record<string, number>>;
+  preloadSwipeWordDictionary: () => Promise<boolean>;
+  getSwipeCandidates: (
+    pattern: string,
+    maxCandidates: number,
+  ) => Promise<Array<{word: string; rank: number}>>;
+  isKnownSwipeWord: (word: string) => Promise<boolean>;
   getEssentials: () => Promise<string>;
   setEssentials: (json: string) => Promise<boolean>;
   getPrefersNumpad: () => Promise<boolean>;
@@ -109,6 +115,38 @@ export const keyboardBridge: KeyboardModuleType = {
       return KeyboardModule.getLearnedWordCounts() as Promise<Record<string, number>>;
     }
     return Promise.resolve({});
+  },
+  preloadSwipeWordDictionary: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.preloadSwipeWordDictionary) {
+      return KeyboardModule.preloadSwipeWordDictionary() as Promise<boolean>;
+    }
+    return Promise.resolve(false);
+  },
+  getSwipeCandidates: (pattern: string, maxCandidates: number) => {
+    if (Platform.OS === 'android' && KeyboardModule?.getSwipeCandidates) {
+      return KeyboardModule.getSwipeCandidates(pattern, maxCandidates).then(
+        raw => {
+          if (!Array.isArray(raw)) {
+            return [];
+          }
+          return raw.filter(
+            (item): item is {word: string; rank: number} =>
+              typeof item === 'object' &&
+              item != null &&
+              typeof (item as {word?: unknown}).word === 'string' &&
+              (item as {word: string}).word.length > 0 &&
+              typeof (item as {rank?: unknown}).rank === 'number',
+          );
+        },
+      );
+    }
+    return Promise.resolve([]);
+  },
+  isKnownSwipeWord: (word: string) => {
+    if (Platform.OS === 'android' && KeyboardModule?.isKnownSwipeWord) {
+      return KeyboardModule.isKnownSwipeWord(word) as Promise<boolean>;
+    }
+    return Promise.resolve(false);
   },
   getEssentials: () => {
     if (Platform.OS === 'android' && KeyboardModule?.getEssentials) {
