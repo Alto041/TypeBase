@@ -133,10 +133,7 @@ export function GifCategoryGrid({
             onPress={() => {
               handleGifPress(gif);
             }}
-            style={({pressed}) => [
-              styles.cell,
-              pressed && styles.cellPressed,
-            ]}>
+            style={styles.cell}>
             {previewUrl ? (
               <Image
                 source={{uri: previewUrl}}
@@ -228,9 +225,6 @@ function createGifCategoryGridStyles(theme: KeyboardTheme, panelHeight: number) 
       borderRadius: theme.keyRadius,
       overflow: 'hidden',
       backgroundColor: theme.letterKey,
-    },
-    cellPressed: {
-      opacity: 0.75,
     },
     preview: {
       width: '100%',

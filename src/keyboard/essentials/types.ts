@@ -20,4 +20,5 @@ export type KeyboardMode =
   | {type: 'calculator'}
   | {type: 'touchpad'}
   | {type: 'translate'}
-  | {type: 'rewrite'};
+  | {type: 'rewrite'}
+  | {type: 'format'};

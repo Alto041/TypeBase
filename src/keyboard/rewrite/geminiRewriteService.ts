@@ -29,12 +29,19 @@ function getToneInstruction(toneId: string): string {
 }
 
 function buildRewritePrompt(text: string, toneId: string): string {
+  const tone = REWRITE_TONES.find(item => item.id === toneId) ??
+    REWRITE_TONES.find(item => item.id === DEFAULT_REWRITE_TONE)!;
+
   return `You are an expert writing assistant built into a mobile keyboard. Rewrite the user's text.
 
-STYLE:
-${getToneInstruction(toneId)}
+SELECTED MODE:
+${tone.label} (${tone.id})
+
+MODE INSTRUCTION:
+${tone.instruction}
 
 RULES:
+- The selected mode must noticeably control the output. Do not produce a generic "better writing" rewrite.
 - Keep the same language as the input — never translate.
 - Preserve names, numbers, URLs, email addresses, @handles, and emoji unless fixing obvious errors.
 - Do not add greetings, sign-offs, or commentary the user did not write.

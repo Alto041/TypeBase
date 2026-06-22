@@ -33,7 +33,7 @@ import {getLetterSymbolHint} from '../keyAlternates';
 import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
 import type {KeyDefinition} from '../layouts/qwerty';
 import type {KeyboardTheme} from '../theme';
-import {keyboardTextFont} from '../theme';
+import {keyboardTypefaceStyle} from '../theme';
 
 const COMMA_HOLD_DELAY_MS = 400;
 const PERIOD_HOLD_DELAY_MS = 400;
@@ -162,13 +162,6 @@ function KeyComponent({
   const symbolHint = isTextKey ? getLetterSymbolHint(keyDef) : null;
 
   const borderRadius = isEnterKey ? keyHeight / 2 : theme.keyRadius;
-  const isNonAlphaSymbolKey =
-    isEnterAction ||
-    isShift ||
-    isModifierKey ||
-    isNumpadActionKey ||
-    isAbcKey ||
-    isSpaceKey;
 
   const measureKey = useCallback(() => {
     if (!usesMultiTouchDispatch) {
@@ -310,6 +303,7 @@ function KeyComponent({
     measureKey,
     keyDef.id,
     usesMultiTouchDispatch,
+    layoutContext?.layoutEpoch,
     layoutContext?.areaBounds.pageX,
     layoutContext?.areaBounds.pageY,
     layoutContext?.areaBounds.width,
@@ -343,6 +337,13 @@ function KeyComponent({
     isSpecial ||
     isNumpadActionKey ||
     showLauncher;
+  const isNonAlphaSymbolKey =
+    isEnterAction ||
+    isShift ||
+    isModifierKey ||
+    isNumpadActionKey ||
+    isAbcKey ||
+    isSpaceKey;
   const keyIconColor = isEnterAction ? theme.iconOnEnter : theme.icon;
 
   const keyContent = isEnterAction ? (
@@ -368,7 +369,7 @@ function KeyComponent({
   ) : showLauncher ? (
     <RocketLaunchIcon width={20} height={20} color={keyIconColor} />
   ) : showRewrite ? (
-    <ArtificialIcon width={18} height={17} />
+    <ArtificialIcon width={18} height={17} color="#000000" />
   ) : (
     <>
       <Text
@@ -699,6 +700,7 @@ function keyPropsAreEqual(prev: KeyProps, next: KeyProps): boolean {
     prev.keyHeight === next.keyHeight &&
     prev.variant === next.variant &&
     prev.enterKeyNextLineEnabled === next.enterKeyNextLineEnabled &&
+    prev.multiTouchDispatchEnabled === next.multiTouchDispatchEnabled &&
     prev.style === next.style
   );
 }
@@ -763,8 +765,7 @@ function createKeyStyles(theme: KeyboardTheme) {
     keyLabel: {
       color: theme.label,
       fontSize: 22,
-      ...keyboardTextFont(theme),
-      fontWeight: '500',
+      ...keyboardTypefaceStyle(theme, '500'),
     },
     symbolHint: {
       position: 'absolute',
@@ -772,8 +773,7 @@ function createKeyStyles(theme: KeyboardTheme) {
       bottom: 2,
       color: theme.iconMuted,
       fontSize: 9,
-      ...keyboardTextFont(theme),
-      fontWeight: '500',
+      ...keyboardTypefaceStyle(theme, '500'),
       lineHeight: 10,
     },
     specialKeyLabel: {

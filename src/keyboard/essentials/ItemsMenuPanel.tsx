@@ -14,11 +14,13 @@ import EssentialsIcon from '../../../assets/plugins/essentials.svg';
 import CalculatorIcon from '../../../assets/plugins/calculator.svg';
 import TouchpadIcon from '../../../assets/plugins/touchpad.svg';
 import AutocorrectIcon from '../../../assets/plugins/autocorrect.svg';
+import ArtificialIcon from '../../../assets/Artificial.svg';
 import GesturesIcon from '../../../assets/gesture.svg';
 import {
   PLUGIN_INNER_RADIUS,
   PLUGIN_OUTER_RADIUS,
   PLUGIN_MENU_FADE_HEIGHT,
+  PluginPanelIcon,
   PluginScrollView,
   usePluginPanelStyles,
 } from '../components/pluginPanelLayout';
@@ -27,6 +29,7 @@ import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
 import type {KeyboardTheme} from '../theme';
 
 type ItemsMenuPanelProps = {
+  onSelectFormat: () => void;
   onSelectEssentials: () => void;
   onSelectClipboard: () => void;
   onSelectGestures: () => void;
@@ -55,7 +58,7 @@ function PluginTile({title, Icon, tileStyle, onPress}: PluginTileProps) {
         onPress();
       }}
       style={[styles.tile, tileStyle]}>
-      <Icon width={22} height={22} color={theme.icon} />
+      <PluginPanelIcon Icon={Icon} />
       <Text style={styles.tileTitle}>{title}</Text>
       <View style={styles.tileSpacer} />
       <ArrowIcon width={9} height={16} color={theme.iconMuted} />
@@ -103,6 +106,7 @@ function getTileStyle(index: number, total: number): ViewStyle {
 }
 
 const PLUGINS = [
+  {id: 'format', title: 'Format', Icon: ArtificialIcon},
   {id: 'essentials', title: 'Essentials', Icon: EssentialsIcon},
   {id: 'clipboard', title: 'Clipboard', Icon: ClipboardIcon},
   {id: 'autocorrect', title: 'Autocorrect', Icon: AutocorrectIcon},
@@ -114,6 +118,7 @@ const PLUGINS = [
 const PLUGIN_FADE_HEIGHT = PLUGIN_MENU_FADE_HEIGHT;
 
 export function ItemsMenuPanel({
+  onSelectFormat,
   onSelectEssentials,
   onSelectClipboard,
   onSelectGestures,
@@ -125,6 +130,7 @@ export function ItemsMenuPanel({
   const panelStyles = usePluginPanelStyles();
   const styles = useThemedStyles(createItemsMenuStyles);
   const handlers = {
+    format: onSelectFormat,
     essentials: onSelectEssentials,
     clipboard: onSelectClipboard,
     autocorrect: onSelectAutocorrect,

@@ -127,6 +127,7 @@ function PunctuationKeyComponent({
     return () => clearTimeout(timer);
   }, [
     measureKey,
+    layoutContext?.layoutEpoch,
     layoutContext?.areaBounds.pageX,
     layoutContext?.areaBounds.pageY,
     layoutContext?.areaBounds.width,
@@ -253,7 +254,7 @@ function PunctuationKeyComponent({
   const content = showLauncher ? (
     <RocketLaunchIcon width={20} height={20} color={theme.icon} />
   ) : showRewrite ? (
-    <ArtificialIcon width={18} height={17} />
+    <ArtificialIcon width={18} height={17} color="#000000" />
   ) : (
     <Text style={styles.keyLabel}>{label}</Text>
   );

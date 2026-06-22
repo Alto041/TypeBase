@@ -1,7 +1,30 @@
-import React from 'react';
+import React, {type FC} from 'react';
 import {Platform, ScrollView, StyleSheet} from 'react-native';
-import {useThemedStyles} from '../KeyboardThemeContext';
-import {keyboardTheme, type KeyboardTheme} from '../theme';
+import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
+import {keyboardTheme, keyboardTypefaceStyle, type KeyboardTheme} from '../theme';
+
+export function pluginPanelIconColor(theme: KeyboardTheme): string {
+  return theme.icon;
+}
+
+type PluginPanelIconProps = {
+  Icon: FC<{width?: number; height?: number; color?: string}>;
+  size?: number;
+  color?: string;
+};
+
+export function PluginPanelIcon({
+  Icon,
+  size = 22,
+  color,
+}: PluginPanelIconProps) {
+  const theme = useKeyboardTheme();
+  return React.createElement(Icon, {
+    width: size,
+    height: size,
+    color: color ?? pluginPanelIconColor(theme),
+  });
+}
 
 /** Height of the 4 QWERTY rows — plugin panels must not extend below this. */
 export const PLUGIN_PANEL_HEIGHT =
@@ -44,13 +67,12 @@ export function createPluginPanelStyles(theme: KeyboardTheme) {
     emptyTitle: {
       color: theme.label,
       fontSize: 15,
-      fontFamily: theme.fontFamily,
-      fontWeight: '600',
+      ...keyboardTypefaceStyle(theme, '600'),
     },
     emptyHint: {
       color: theme.spaceLabel,
       fontSize: 13,
-      fontFamily: theme.fontFamily,
+      ...keyboardTypefaceStyle(theme),
       lineHeight: 18,
     },
   });

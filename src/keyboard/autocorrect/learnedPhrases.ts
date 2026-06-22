@@ -2,6 +2,7 @@ import {keyboardBridge} from '../keyboardBridge';
 
 const phraseCounts = new Map<string, number>();
 let loadPromise: Promise<void> | null = null;
+let loadGeneration = 0;
 
 export function normalizePhrase(phrase: string): string {
   return phrase.trim().toLowerCase().replace(/\s+/g, ' ');
@@ -16,13 +17,23 @@ export function isLearnablePhrase(phrase: string): boolean {
   return words.every(word => word.length >= 2 && /^[a-z]+$/.test(word));
 }
 
+export function resetLearnedPhrasesCache(): void {
+  loadGeneration += 1;
+  phraseCounts.clear();
+  loadPromise = null;
+}
+
 export async function ensureLearnedPhrasesLoaded(): Promise<void> {
   if (loadPromise) {
     return loadPromise;
   }
 
+  const generation = loadGeneration;
   loadPromise = (async () => {
     const counts = await keyboardBridge.getLearnedPhraseCounts();
+    if (generation !== loadGeneration) {
+      return;
+    }
     phraseCounts.clear();
     for (const [phrase, count] of Object.entries(counts)) {
       if (count > 0) {
@@ -34,8 +45,22 @@ export async function ensureLearnedPhrasesLoaded(): Promise<void> {
   return loadPromise;
 }
 
+export async function reloadLearnedPhrasesFromStorage(): Promise<void> {
+  resetLearnedPhrasesCache();
+  await ensureLearnedPhrasesLoaded();
+}
+
 export function getLearnedPhraseCounts(): ReadonlyMap<string, number> {
   return phraseCounts;
+}
+
+export async function clearLearnedPhrasesStore(): Promise<void> {
+  resetLearnedPhrasesCache();
+  const cleared = await keyboardBridge.clearLearnedPhrases();
+  if (!cleared) {
+    throw new Error('Failed to clear learned phrases');
+  }
+  loadPromise = Promise.resolve();
 }
 
 export function recordLearnedPhrase(phrase: string): void {

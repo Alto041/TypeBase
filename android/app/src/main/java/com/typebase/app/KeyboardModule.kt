@@ -38,6 +38,7 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   private var removeKeyboardVisibilityListener: (() -> Unit)? = null
   private var removeSupportsNewlineListener: (() -> Unit)? = null
   private var removeInitialCapsModeListener: (() -> Unit)? = null
+  private var removeNativeFastPathKeyListener: (() -> Unit)? = null
   private var clipboardListener: ClipboardManager.OnPrimaryClipChangedListener? = null
   private val backspaceHandler = Handler(Looper.getMainLooper())
   private var backspaceHoldRunnable: Runnable? = null
@@ -85,6 +86,19 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
                 .emit("keyboardInputInitialCapsMode", mode)
           }
         }
+    removeNativeFastPathKeyListener =
+        KeyboardInputBridge.addNativeFastPathKeyListener { id, type, value, text ->
+          if (reactApplicationContext.hasActiveReactInstance()) {
+            val event = Arguments.createMap()
+            event.putString("id", id)
+            event.putString("type", type)
+            event.putString("value", value)
+            event.putString("text", text)
+            reactApplicationContext
+                .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                .emit("keyboardNativeFastPathKey", event)
+          }
+        }
     val clipboardManager =
         reactApplicationContext.getSystemService(Context.CLIPBOARD_SERVICE) as
             ClipboardManager
@@ -108,6 +122,8 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     removeSupportsNewlineListener = null
     removeInitialCapsModeListener?.invoke()
     removeInitialCapsModeListener = null
+    removeNativeFastPathKeyListener?.invoke()
+    removeNativeFastPathKeyListener = null
     clipboardListener?.let { listener ->
       val clipboardManager =
           reactApplicationContext.getSystemService(Context.CLIPBOARD_SERVICE) as
@@ -144,6 +160,13 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
 
   private fun writeLearnedWords(json: JSONObject) {
     learnedWordsPrefs().edit().putString(LEARNED_WORDS_KEY, json.toString()).apply()
+  }
+
+  private fun writeLearnedWordsSync(json: JSONObject): Boolean {
+    return learnedWordsPrefs()
+        .edit()
+        .putString(LEARNED_WORDS_KEY, json.toString())
+        .commit()
   }
 
   @ReactMethod
@@ -311,6 +334,27 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   }
 
   @ReactMethod
+  fun getRecentEmojis(promise: Promise) {
+    try {
+      val raw = learnedWordsPrefs().getString(RECENT_EMOJIS_KEY, "[]") ?: "[]"
+      promise.resolve(raw)
+    } catch (error: Exception) {
+      promise.reject("GET_RECENT_EMOJIS_FAILED", error)
+    }
+  }
+
+  @ReactMethod
+  fun setRecentEmojis(json: String, promise: Promise) {
+    try {
+      val saved =
+          learnedWordsPrefs().edit().putString(RECENT_EMOJIS_KEY, json).commit()
+      promise.resolve(saved)
+    } catch (error: Exception) {
+      promise.reject("SET_RECENT_EMOJIS_FAILED", error)
+    }
+  }
+
+  @ReactMethod
   fun getLearnedWordCounts(promise: Promise) {
     try {
       val json = readLearnedWords()
@@ -323,6 +367,15 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
       promise.resolve(map)
     } catch (error: Exception) {
       promise.reject("GET_LEARNED_WORD_COUNTS_FAILED", error)
+    }
+  }
+
+  @ReactMethod
+  fun clearLearnedWords(promise: Promise) {
+    try {
+      promise.resolve(writeLearnedWordsSync(JSONObject()))
+    } catch (error: Exception) {
+      promise.reject("CLEAR_LEARNED_WORDS_FAILED", error)
     }
   }
 
@@ -371,6 +424,11 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   fun insertKeyText(text: String) {
     KeyboardInputBridge.getInputConnection()?.commitText(text, 1)
     performKeyHapticInternal()
+  }
+
+  @ReactMethod
+  fun setNativeKeyFastPathConfig(json: String) {
+    KeyboardInputBridge.setNativeKeyFastPathConfig(json)
   }
 
   @ReactMethod
@@ -442,7 +500,7 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
       connection.commitText("", 1)
       return
     }
-    connection.deleteSurroundingText(1, 0)
+    connection.deleteSurroundingTextInCodePoints(1, 0)
   }
 
   private fun stopBackspaceRepeatInternal() {
@@ -767,6 +825,13 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     learnedWordsPrefs().edit().putString(LEARNED_PHRASES_KEY, json.toString()).apply()
   }
 
+  private fun writeLearnedPhrasesSync(json: JSONObject): Boolean {
+    return learnedWordsPrefs()
+        .edit()
+        .putString(LEARNED_PHRASES_KEY, json.toString())
+        .commit()
+  }
+
   @ReactMethod
   fun getLearnedPhraseCounts(promise: Promise) {
     try {
@@ -800,6 +865,30 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
       promise.resolve(nextCount)
     } catch (error: Exception) {
       promise.reject("RECORD_LEARNED_PHRASE_FAILED", error)
+    }
+  }
+
+  @ReactMethod
+  fun clearLearnedPhrases(promise: Promise) {
+    try {
+      promise.resolve(writeLearnedPhrasesSync(JSONObject()))
+    } catch (error: Exception) {
+      promise.reject("CLEAR_LEARNED_PHRASES_FAILED", error)
+    }
+  }
+
+  @ReactMethod
+  fun clearLearnedAutocorrectData(promise: Promise) {
+    try {
+      val saved =
+          learnedWordsPrefs()
+              .edit()
+              .putString(LEARNED_WORDS_KEY, "{}")
+              .putString(LEARNED_PHRASES_KEY, "{}")
+              .commit()
+      promise.resolve(saved)
+    } catch (error: Exception) {
+      promise.reject("CLEAR_LEARNED_AUTOCORRECT_FAILED", error)
     }
   }
 
@@ -1155,6 +1244,7 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     private const val LEARNED_WORDS_KEY = "learned_words"
     private const val ESSENTIALS_KEY = "essentials"
     private const val CLIPBOARD_HISTORY_KEY = "clipboard_history"
+    private const val RECENT_EMOJIS_KEY = "recent_emojis"
     private const val GESTURE_SETTINGS_KEY = "gesture_settings"
     private const val AUTOCORRECT_SETTINGS_KEY = "autocorrect_settings"
     private const val LEARNED_PHRASES_KEY = "learned_phrases"
@@ -1171,7 +1261,7 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     private const val KEYBOARD_LAYOUT_KEY = "keyboard_layout"
     private const val CUSTOM_LETTER_LAYOUTS_KEY = "custom_letter_layouts"
     private const val DEFAULT_KEYBOARD_LAYOUT =
-        """{"keyHeight":52,"keyGap":4,"keyRowMargin":10,"keyRadius":6,"enterKeyPreviewEnabled":true,"developerEyeEnabled":false,"letterSymbolAlternatesEnabled":false,"letterLayoutId":"en-us"}"""
+        """{"keyHeight":47,"keyGap":5,"keyRowMargin":12,"keyRadius":6,"enterKeyPreviewEnabled":true,"developerEyeEnabled":false,"letterSymbolAlternatesEnabled":false,"letterLayoutId":"en-us"}"""
     private const val DEFAULT_API_KEYS =
         """{"geminiApiKey":"","speechmaticsApiKey":""}"""
     private const val DEFAULT_GESTURE_SETTINGS =

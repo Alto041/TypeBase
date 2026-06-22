@@ -1,20 +1,22 @@
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {Dimensions, StyleSheet, View} from 'react-native';
-import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import {useKeyboardTheme} from '../KeyboardThemeContext';
 import type {KeyboardTheme} from '../theme';
 import {EmojiCategoryGrid} from './EmojiCategoryGrid';
+import {EmojiSearchGrid} from './EmojiSearchGrid';
 import {GifCategoryGrid} from './GifCategoryGrid';
 import type {EmojiCategoryId} from './emojis';
 import type {GiphyGif} from './giphyService';
 import {
   ensureRecentEmojisLoaded,
   getRecentEmojis,
-  recordRecentEmoji,
+  getRecentEmojisVersion,
+  touchRecentEmoji,
 } from './recentEmojisStore';
 
 type EmojiPanelProps = {
   category: EmojiCategoryId;
+  emojiSearchQuery: string;
   onSelect: (emoji: string) => void;
   onGifSelect: (gif: GiphyGif) => void;
   gifSearchQuery: string;
@@ -22,40 +24,42 @@ type EmojiPanelProps = {
 
 export function EmojiPanel({
   category,
+  emojiSearchQuery,
   onSelect,
   onGifSelect,
   gifSearchQuery,
 }: EmojiPanelProps) {
   const theme = useKeyboardTheme();
   const emojiScrollHeight = theme.emojiPanelHeight - theme.emojiPanelGap;
-  const emojiFadeHeight = Math.round(emojiScrollHeight * 0.52);
   const styles = useMemo(
-    () => createEmojiPanelStyles(theme, emojiScrollHeight, emojiFadeHeight),
-    [theme, emojiScrollHeight, emojiFadeHeight],
+    () => createEmojiPanelStyles(theme, emojiScrollHeight),
+    [theme, emojiScrollHeight],
   );
   const [panelWidth, setPanelWidth] = useState(() =>
     Math.max(280, Math.round(Dimensions.get('window').width)),
   );
   const [recentEmojis, setRecentEmojis] = useState<readonly string[]>([]);
+  const [recentEmojisVersion, setRecentEmojisVersion] = useState(0);
+
+  const reloadRecents = useCallback(() => {
+    void ensureRecentEmojisLoaded().then(() => {
+      setRecentEmojis(getRecentEmojis());
+      setRecentEmojisVersion(getRecentEmojisVersion());
+    });
+  }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    void ensureRecentEmojisLoaded().then(() => {
-      if (!cancelled) {
-        setRecentEmojis(getRecentEmojis());
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    reloadRecents();
+  }, [reloadRecents, category]);
 
   const handleEmojiSelect = useCallback(
     (emoji: string) => {
       onSelect(emoji);
-      void recordRecentEmoji(emoji).then(() => {
-        setRecentEmojis(getRecentEmojis());
-      });
+      const next = touchRecentEmoji(emoji);
+      if (next) {
+        setRecentEmojis(next);
+        setRecentEmojisVersion(getRecentEmojisVersion());
+      }
     },
     [onSelect],
   );
@@ -76,44 +80,21 @@ export function EmojiPanel({
           query={gifSearchQuery}
           onSelect={onGifSelect}
         />
+      ) : emojiSearchQuery.trim().length > 0 ? (
+        <EmojiSearchGrid
+          width={panelWidth}
+          query={emojiSearchQuery}
+          onSelect={handleEmojiSelect}
+        />
       ) : (
         <EmojiCategoryGrid
           category={category}
           width={panelWidth}
           recentEmojis={recentEmojis}
+          recentEmojisVersion={recentEmojisVersion}
           onSelect={handleEmojiSelect}
         />
       )}
-      <View style={styles.fade} pointerEvents="none">
-        <Svg width="100%" height="100%" preserveAspectRatio="none">
-          <Defs>
-            <LinearGradient id="emojiSmoke" x1="0" y1="1" x2="0" y2="0">
-              <Stop
-                offset="0"
-                stopColor={theme.container}
-                stopOpacity="1"
-              />
-              <Stop
-                offset="0.5"
-                stopColor={theme.container}
-                stopOpacity="0.4"
-              />
-              <Stop
-                offset="1"
-                stopColor={theme.container}
-                stopOpacity="0"
-              />
-            </LinearGradient>
-          </Defs>
-          <Rect
-            x="0"
-            y="0"
-            width="100%"
-            height="100%"
-            fill="url(#emojiSmoke)"
-          />
-        </Svg>
-      </View>
     </View>
   );
 }
@@ -121,20 +102,12 @@ export function EmojiPanel({
 function createEmojiPanelStyles(
   theme: KeyboardTheme,
   emojiScrollHeight: number,
-  emojiFadeHeight: number,
 ) {
   return StyleSheet.create({
     container: {
       height: emojiScrollHeight,
       marginBottom: theme.emojiPanelGap,
       overflow: 'hidden',
-    },
-    fade: {
-      position: 'absolute',
-      left: 0,
-      right: 0,
-      bottom: 0,
-      height: emojiFadeHeight,
     },
   });
 }

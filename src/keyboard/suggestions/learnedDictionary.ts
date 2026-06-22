@@ -2,6 +2,7 @@ import {keyboardBridge} from '../keyboardBridge';
 
 const learnedCounts = new Map<string, number>();
 let loadPromise: Promise<void> | null = null;
+let loadGeneration = 0;
 
 export function isLearnableWord(word: string): boolean {
   const normalized = word.trim().toLowerCase();
@@ -12,13 +13,23 @@ export function normalizeLearnedWord(word: string): string {
   return word.trim().toLowerCase();
 }
 
+export function resetLearnedDictionaryCache(): void {
+  loadGeneration += 1;
+  learnedCounts.clear();
+  loadPromise = null;
+}
+
 export async function ensureLearnedDictionaryLoaded(): Promise<void> {
   if (loadPromise) {
     return loadPromise;
   }
 
+  const generation = loadGeneration;
   loadPromise = (async () => {
     const counts = await keyboardBridge.getLearnedWordCounts();
+    if (generation !== loadGeneration) {
+      return;
+    }
     learnedCounts.clear();
     for (const [word, count] of Object.entries(counts)) {
       if (count > 0) {
@@ -30,8 +41,22 @@ export async function ensureLearnedDictionaryLoaded(): Promise<void> {
   return loadPromise;
 }
 
+export async function reloadLearnedDictionaryFromStorage(): Promise<void> {
+  resetLearnedDictionaryCache();
+  await ensureLearnedDictionaryLoaded();
+}
+
 export function getLearnedCounts(): ReadonlyMap<string, number> {
   return learnedCounts;
+}
+
+export async function clearLearnedDictionary(): Promise<void> {
+  resetLearnedDictionaryCache();
+  const cleared = await keyboardBridge.clearLearnedWords();
+  if (!cleared) {
+    throw new Error('Failed to clear learned words');
+  }
+  loadPromise = Promise.resolve();
 }
 
 export function recordLearnedWord(word: string): void {

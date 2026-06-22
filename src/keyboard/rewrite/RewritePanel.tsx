@@ -30,6 +30,7 @@ export function RewritePanel() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const requestIdRef = useRef(0);
+  const sourceTextRef = useRef('');
 
   const runRewrite = useCallback(async (input: string, nextToneId: string) => {
     const requestId = ++requestIdRef.current;
@@ -60,6 +61,7 @@ export function RewritePanel() {
       FIELD_SNIPPET_LENGTH,
     );
     requestIdRef.current += 1;
+    sourceTextRef.current = beforeCursor;
     setSourceText(beforeCursor);
     setSourceReplaceLength(beforeCursor.length);
     setRewritten(null);
@@ -67,26 +69,18 @@ export function RewritePanel() {
     setLoading(false);
   }, []);
 
-  const loadSourceText = useCallback(
-    async (nextToneId = toneId) => {
-      const beforeCursor = await keyboardBridge.getTextBeforeCursor(
-        FIELD_SNIPPET_LENGTH,
-      );
-      setSourceText(beforeCursor);
-      setSourceReplaceLength(beforeCursor.length);
-
-      const input = beforeCursor.trim();
-      if (input) {
-        await runRewrite(input, nextToneId);
-      } else {
-        requestIdRef.current += 1;
-        setLoading(false);
-        setRewritten(null);
-        setError(null);
-      }
-    },
-    [runRewrite, toneId],
-  );
+  const loadSourceText = useCallback(async () => {
+    const beforeCursor = await keyboardBridge.getTextBeforeCursor(
+      FIELD_SNIPPET_LENGTH,
+    );
+    requestIdRef.current += 1;
+    sourceTextRef.current = beforeCursor;
+    setSourceText(beforeCursor);
+    setSourceReplaceLength(beforeCursor.length);
+    setLoading(false);
+    setRewritten(null);
+    setError(null);
+  }, []);
 
   useEffect(() => {
     void loadSourceText();
@@ -97,12 +91,25 @@ export function RewritePanel() {
       triggerKeyHaptic();
       setToneId(tone.id);
       setError(null);
-      const input = sourceText.trim();
-      if (input) {
-        void runRewrite(input, tone.id);
-      }
+
+      void (async () => {
+        let input = sourceTextRef.current.trim();
+        if (!input) {
+          const beforeCursor = await keyboardBridge.getTextBeforeCursor(
+            FIELD_SNIPPET_LENGTH,
+          );
+          sourceTextRef.current = beforeCursor;
+          setSourceText(beforeCursor);
+          setSourceReplaceLength(beforeCursor.length);
+          input = beforeCursor.trim();
+        }
+
+        if (input) {
+          await runRewrite(input, tone.id);
+        }
+      })();
     },
-    [runRewrite, sourceText],
+    [runRewrite],
   );
 
   const handleReplace = useCallback(() => {
@@ -145,7 +152,7 @@ export function RewritePanel() {
             return (
               <Pressable
                 key={tone.id}
-                onPress={() => handleToneSelect(tone)}
+                onPressIn={() => handleToneSelect(tone)}
                 style={({pressed}) => [
                   styles.toneChip,
                   selected && styles.toneChipSelected,
@@ -224,6 +231,8 @@ export function RewritePanel() {
           </View>
         ) : loading ? (
           <Text style={styles.placeholder}>Rewriting…</Text>
+        ) : sourceText.trim() ? (
+          <Text style={styles.placeholder}>Choose a tone to rewrite.</Text>
         ) : null}
       </ScrollView>
 

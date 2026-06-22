@@ -4,6 +4,7 @@ import android.inputmethodservice.InputMethodService
 import android.os.Handler
 import android.os.Looper
 import android.util.TypedValue
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
@@ -24,6 +25,7 @@ class TypeBaseInputService : InputMethodService() {
   private var surfaceMountAttempts = 0
   private var keyboardResumedReact = false
   private val mainHandler = Handler(Looper.getMainLooper())
+  private val nativeKeyFastPath = NativeKeyFastPath()
 
   private val reactInstanceListener =
       object : ReactInstanceEventListener {
@@ -45,10 +47,13 @@ class TypeBaseInputService : InputMethodService() {
   val popupAnchorView: View?
     get() = container
 
+  val keyboardViewForFeedback: View?
+    get() = keyboardView ?: container
+
   override fun onCreateInputView(): View {
     surfaceMountAttempts = 0
     val frame =
-        FrameLayout(this).apply {
+        KeyboardFrameLayout().apply {
           // Allow two+ letter keys to receive touches at the same time (Gboard-style).
           setMotionEventSplittingEnabled(true)
         }
@@ -191,6 +196,10 @@ class TypeBaseInputService : InputMethodService() {
     }
   }
 
+  fun setNativeKeyFastPathConfig(json: String) {
+    nativeKeyFastPath.updateConfig(json)
+  }
+
   private fun keyboardHeightPx(heightDp: Int): Int =
       TypedValue.applyDimension(
               TypedValue.COMPLEX_UNIT_DIP,
@@ -206,6 +215,7 @@ class TypeBaseInputService : InputMethodService() {
     keyboardView?.let { view -> (view.parent as? ViewGroup)?.removeView(view) }
     keyboardView = null
     container = null
+    nativeKeyFastPath.clear()
     val surface = reactSurface
     reactSurface = null
     surface?.stop()
@@ -221,5 +231,14 @@ class TypeBaseInputService : InputMethodService() {
     const val DEFAULT_KEYBOARD_HEIGHT_DP = 340
     private const val MIN_KEYBOARD_HEIGHT_DP = 280
     private const val MAX_SURFACE_MOUNT_ATTEMPTS = 120
+  }
+
+  private inner class KeyboardFrameLayout : FrameLayout(this@TypeBaseInputService) {
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+      if (nativeKeyFastPath.onTouchEvent(event)) {
+        return true
+      }
+      return super.dispatchTouchEvent(event)
+    }
   }
 }

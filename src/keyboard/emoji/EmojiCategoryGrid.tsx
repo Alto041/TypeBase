@@ -9,7 +9,7 @@ import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from 'react-native';
-import {useThemedStyles} from '../KeyboardThemeContext';
+import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
 import {triggerKeyHaptic} from '../haptics';
 import type {KeyboardTheme} from '../theme';
 import {
@@ -23,6 +23,7 @@ type EmojiCategoryGridProps = {
   category: Exclude<EmojiCategoryId, 'gif'>;
   width: number;
   recentEmojis: readonly string[];
+  recentEmojisVersion: number;
   selectionLockedRef?: RefObject<boolean>;
   onSelect: (emoji: string) => void;
 };
@@ -52,10 +53,14 @@ export function EmojiCategoryGrid({
   category,
   width,
   recentEmojis,
+  recentEmojisVersion,
   selectionLockedRef,
   onSelect,
 }: EmojiCategoryGridProps) {
+  const theme = useKeyboardTheme();
   const styles = useThemedStyles(createEmojiCategoryGridStyles);
+  const emojiScrollHeight = theme.emojiPanelHeight - theme.emojiPanelGap;
+  const emojiRowHeight = Math.floor(emojiScrollHeight / 4);
   const hasRecents = recentEmojis.length > 0;
   const dividerWidth = 1;
   const availableWidth = width - dividerWidth;
@@ -79,8 +84,8 @@ export function EmojiCategoryGrid({
     ) {
       return;
     }
-    triggerKeyHaptic();
     onSelect(emoji);
+    triggerKeyHaptic();
   };
 
   const renderGridRow: ListRenderItem<readonly string[]> = ({
@@ -91,10 +96,10 @@ export function EmojiCategoryGrid({
       {row.map(emoji => (
         <Pressable
           key={`${category}-${rowIndex}-${emoji}`}
-          onPress={() => {
+          onPressIn={() => {
             handleEmojiPress(emoji);
           }}
-          style={({pressed}) => [styles.cell, pressed && styles.cellPressed]}>
+          style={styles.cell}>
           <Text style={styles.emoji}>{emoji}</Text>
         </Pressable>
       ))}
@@ -111,13 +116,10 @@ export function EmojiCategoryGrid({
 
   const renderRecentItem: ListRenderItem<string> = ({item: emoji, index}) => (
     <Pressable
-      onPress={() => {
+      onPressIn={() => {
         handleEmojiPress(emoji);
       }}
-      style={({pressed}) => [
-        styles.recentCell,
-        pressed && styles.cellPressed,
-      ]}>
+      style={styles.recentCell}>
       <Text style={styles.emoji}>{emoji}</Text>
     </Pressable>
   );
@@ -133,6 +135,15 @@ export function EmojiCategoryGrid({
       nestedScrollEnabled
       showsVerticalScrollIndicator={false}
       removeClippedSubviews
+      initialNumToRender={4}
+      maxToRenderPerBatch={4}
+      windowSize={5}
+      updateCellsBatchingPeriod={16}
+      getItemLayout={(_, index) => ({
+        length: emojiRowHeight,
+        offset: emojiRowHeight * index,
+        index,
+      })}
       onScrollBeginDrag={gridScrollGuard.markScrollStart}
       onMomentumScrollBegin={gridScrollGuard.markScrollStart}
       onMomentumScrollEnd={gridScrollGuard.clearScroll}
@@ -160,6 +171,16 @@ export function EmojiCategoryGrid({
           keyboardShouldPersistTaps="handled"
           nestedScrollEnabled
           showsVerticalScrollIndicator={false}
+          extraData={recentEmojisVersion}
+          initialNumToRender={4}
+          maxToRenderPerBatch={4}
+          windowSize={5}
+          updateCellsBatchingPeriod={16}
+          getItemLayout={(_, index) => ({
+            length: emojiRowHeight,
+            offset: emojiRowHeight * index,
+            index,
+          })}
           onScrollBeginDrag={recentScrollGuard.markScrollStart}
           onMomentumScrollBegin={recentScrollGuard.markScrollStart}
           onMomentumScrollEnd={recentScrollGuard.clearScroll}
@@ -187,24 +208,27 @@ function createEmojiCategoryGridStyles(theme: KeyboardTheme) {
       flexShrink: 0,
       height: emojiScrollHeight,
       backgroundColor: theme.pluginCard,
-      borderTopLeftRadius: 8,
-      borderBottomLeftRadius: 8,
+      borderRadius: 22,
+      marginLeft: 5,
+      marginVertical: 5,
       overflow: 'hidden',
     },
     recentList: {
       flexGrow: 0,
       flexShrink: 0,
       width: '100%',
-      height: emojiScrollHeight,
+      height: emojiScrollHeight - 10,
     },
     recentContent: {
-      paddingTop: 2,
+      paddingTop: 4,
+      paddingBottom: 4,
       gap: 2,
     },
     columnDivider: {
       flexShrink: 0,
       width: 1,
-      marginVertical: 6,
+      marginLeft: 4,
+      marginVertical: 10,
       backgroundColor: theme.modifierKeyPressed,
     },
     gridScroll: {
@@ -236,9 +260,6 @@ function createEmojiCategoryGridStyles(theme: KeyboardTheme) {
       alignItems: 'center',
       justifyContent: 'center',
       borderRadius: 6,
-    },
-    cellPressed: {
-      backgroundColor: theme.letterKeyPressed,
     },
     emoji: {
       fontSize: 22,

@@ -1,6 +1,7 @@
 package com.typebase.app
 
 import android.view.KeyEvent
+import android.view.HapticFeedbackConstants
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
@@ -26,6 +27,8 @@ object KeyboardInputBridge {
   private val keyboardVisibilityListeners = CopyOnWriteArrayList<(Boolean) -> Unit>()
   private val supportsNewlineListeners = CopyOnWriteArrayList<(Boolean) -> Unit>()
   private val initialCapsModeListeners = CopyOnWriteArrayList<(Boolean) -> Unit>()
+  private val nativeFastPathKeyListeners =
+      CopyOnWriteArrayList<(String, String, String, String) -> Unit>()
 
   @Volatile
   private var initialCapsMode: Boolean = false
@@ -100,6 +103,16 @@ object KeyboardInputBridge {
     inputService?.setKeyboardHeightDp(heightDp)
   }
 
+  fun setNativeKeyFastPathConfig(json: String) {
+    inputService?.setNativeKeyFastPathConfig(json)
+  }
+
+  fun performKeyHaptic() {
+    inputService
+        ?.keyboardViewForFeedback
+        ?.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+  }
+
   fun setPrefersNumpad(prefers: Boolean) {
     if (numpadPreferred == prefers) {
       return
@@ -124,6 +137,17 @@ object KeyboardInputBridge {
   fun addKeyboardVisibilityListener(listener: (Boolean) -> Unit): () -> Unit {
     keyboardVisibilityListeners.add(listener)
     return { keyboardVisibilityListeners.remove(listener) }
+  }
+
+  fun notifyNativeFastPathKey(id: String, type: String, value: String, text: String) {
+    nativeFastPathKeyListeners.forEach { listener -> listener(id, type, value, text) }
+  }
+
+  fun addNativeFastPathKeyListener(
+      listener: (String, String, String, String) -> Unit,
+  ): () -> Unit {
+    nativeFastPathKeyListeners.add(listener)
+    return { nativeFastPathKeyListeners.remove(listener) }
   }
 
   fun setSupportsNewline(supports: Boolean) {

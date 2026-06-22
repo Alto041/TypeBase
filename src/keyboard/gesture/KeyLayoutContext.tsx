@@ -2,14 +2,26 @@ import React, {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useState,
   type RefObject,
 } from 'react';
 import type {LayoutChangeEvent, View as ViewType} from 'react-native';
+import type {KeyboardLayoutSettings} from '../theme';
 import {measureKeysArea} from './measureKeysArea';
 import type {KeyBounds, Point} from './types';
+
+function layoutGeometrySignature(layout: KeyboardLayoutSettings): string {
+  return [
+    layout.keyHeight,
+    layout.keyGap,
+    layout.keyRowMargin,
+    layout.keyRadius,
+    layout.letterLayoutId,
+  ].join('|');
+}
 
 export type AreaBounds = {
   pageX: number;
@@ -18,12 +30,15 @@ export type AreaBounds = {
   height: number;
 };
 
-type KeyLayoutContextValue = {
+export type KeyLayoutContextValue = {
   keysAreaRef: RefObject<ViewType | null>;
   areaBounds: AreaBounds;
   areaOriginRef: RefObject<{pageX: number; pageY: number}>;
+  /** Bumps when key bounds should be re-measured (layout settings, IME resize, …). */
+  layoutEpoch: number;
   onKeysAreaLayout: (event: LayoutChangeEvent) => void;
   refreshAreaBounds: () => void;
+  requestRemeasure: () => void;
   pageToLocalPoint: (
     pageX: number,
     pageY: number,
@@ -38,11 +53,21 @@ const KeyLayoutContext = createContext<KeyLayoutContextValue | null>(null);
 
 const EMPTY_BOUNDS: AreaBounds = {pageX: 0, pageY: 0, width: 0, height: 0};
 
-export function KeyLayoutProvider({children}: {children: React.ReactNode}) {
+type KeyLayoutProviderProps = {
+  children: React.ReactNode;
+  layoutSettings: KeyboardLayoutSettings;
+};
+
+export function KeyLayoutProvider({
+  children,
+  layoutSettings,
+}: KeyLayoutProviderProps) {
   const keysAreaRef = useRef<ViewType>(null);
   const layoutsRef = useRef<Map<string, KeyBounds>>(new Map());
   const areaOriginRef = useRef({pageX: 0, pageY: 0});
   const [areaBounds, setAreaBounds] = useState<AreaBounds>(EMPTY_BOUNDS);
+  const [layoutEpoch, setLayoutEpoch] = useState(0);
+  const layoutGeometry = layoutGeometrySignature(layoutSettings);
 
   const applyAreaBounds = useCallback((bounds: AreaBounds) => {
     areaOriginRef.current = {pageX: bounds.pageX, pageY: bounds.pageY};
@@ -67,6 +92,33 @@ export function KeyLayoutProvider({children}: {children: React.ReactNode}) {
 
     measureKeysArea(keysArea, applyAreaBounds);
   }, [applyAreaBounds]);
+
+  const requestRemeasure = useCallback(() => {
+    refreshAreaBounds();
+    setLayoutEpoch(epoch => epoch + 1);
+  }, [refreshAreaBounds]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const schedule = () => {
+      if (cancelled) {
+        return;
+      }
+      requestRemeasure();
+    };
+
+    const raf = requestAnimationFrame(() => {
+      schedule();
+      requestAnimationFrame(schedule);
+    });
+    const timer = setTimeout(schedule, 120);
+
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(raf);
+      clearTimeout(timer);
+    };
+  }, [layoutGeometry, requestRemeasure]);
 
   const pageToLocalPoint = useCallback(
     (pageX: number, pageY: number, callback: (point: Point) => void) => {
@@ -114,8 +166,10 @@ export function KeyLayoutProvider({children}: {children: React.ReactNode}) {
       keysAreaRef,
       areaBounds,
       areaOriginRef,
+      layoutEpoch,
       onKeysAreaLayout,
       refreshAreaBounds,
+      requestRemeasure,
       pageToLocalPoint,
       registerKey,
       unregisterKey,
@@ -124,10 +178,12 @@ export function KeyLayoutProvider({children}: {children: React.ReactNode}) {
     [
       areaBounds,
       getLayouts,
+      layoutEpoch,
       onKeysAreaLayout,
       pageToLocalPoint,
       refreshAreaBounds,
       registerKey,
+      requestRemeasure,
       unregisterKey,
     ],
   );

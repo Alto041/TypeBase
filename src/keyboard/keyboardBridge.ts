@@ -9,6 +9,8 @@ type KeyboardModuleType = {
   stopBackspaceRepeat: () => void;
   getTextBeforeCursor: (length: number) => Promise<string>;
   getLearnedWordCounts: () => Promise<Record<string, number>>;
+  clearLearnedWords: () => Promise<boolean>;
+  clearLearnedAutocorrectData: () => Promise<boolean>;
   preloadSwipeWordDictionary: () => Promise<boolean>;
   getSwipeCandidates: (
     pattern: string,
@@ -26,6 +28,8 @@ type KeyboardModuleType = {
   deleteClipboardImageFile: (imagePath: string) => Promise<boolean>;
   getClipboardHistory: () => Promise<string>;
   setClipboardHistory: (json: string) => Promise<boolean>;
+  getRecentEmojis: () => Promise<string>;
+  setRecentEmojis: (json: string) => Promise<boolean>;
   recordLearnedWord: (word: string) => Promise<number>;
   replaceWordPrefix: (prefixLength: number, word: string) => void;
   insertNewline: () => void;
@@ -34,6 +38,7 @@ type KeyboardModuleType = {
   openInputMethodSettings: () => void;
   performKeyHaptic: () => void;
   setKeyboardHeight: (heightDp: number) => void;
+  setNativeKeyFastPathConfig: (json: string) => void;
   getGestureSettings: () => Promise<string>;
   setGestureSettings: (json: string) => Promise<boolean>;
   getAutocorrectSettings: () => Promise<string>;
@@ -44,6 +49,7 @@ type KeyboardModuleType = {
   setAiProvider: (provider: string) => Promise<boolean>;
   getLearnedPhraseCounts: () => Promise<Record<string, number>>;
   recordLearnedPhrase: (phrase: string) => Promise<number>;
+  clearLearnedPhrases: () => Promise<boolean>;
   moveCursor: (offset: number) => Promise<boolean>;
   moveCursorDirection: (
     direction: 'left' | 'right' | 'up' | 'down',
@@ -116,6 +122,18 @@ export const keyboardBridge: KeyboardModuleType = {
     }
     return Promise.resolve({});
   },
+  clearLearnedWords: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.clearLearnedWords) {
+      return KeyboardModule.clearLearnedWords() as Promise<boolean>;
+    }
+    return Promise.resolve(false);
+  },
+  clearLearnedAutocorrectData: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.clearLearnedAutocorrectData) {
+      return KeyboardModule.clearLearnedAutocorrectData() as Promise<boolean>;
+    }
+    return Promise.resolve(false);
+  },
   preloadSwipeWordDictionary: () => {
     if (Platform.OS === 'android' && KeyboardModule?.preloadSwipeWordDictionary) {
       return KeyboardModule.preloadSwipeWordDictionary() as Promise<boolean>;
@@ -125,7 +143,7 @@ export const keyboardBridge: KeyboardModuleType = {
   getSwipeCandidates: (pattern: string, maxCandidates: number) => {
     if (Platform.OS === 'android' && KeyboardModule?.getSwipeCandidates) {
       return KeyboardModule.getSwipeCandidates(pattern, maxCandidates).then(
-        raw => {
+        (raw: unknown) => {
           if (!Array.isArray(raw)) {
             return [];
           }
@@ -223,6 +241,18 @@ export const keyboardBridge: KeyboardModuleType = {
     }
     return Promise.resolve(false);
   },
+  getRecentEmojis: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.getRecentEmojis) {
+      return KeyboardModule.getRecentEmojis() as Promise<string>;
+    }
+    return Promise.resolve('[]');
+  },
+  setRecentEmojis: (json: string) => {
+    if (Platform.OS === 'android' && KeyboardModule?.setRecentEmojis) {
+      return KeyboardModule.setRecentEmojis(json) as Promise<boolean>;
+    }
+    return Promise.resolve(false);
+  },
   recordLearnedWord: (word: string) => {
     if (Platform.OS === 'android' && KeyboardModule?.recordLearnedWord) {
       return KeyboardModule.recordLearnedWord(word) as Promise<number>;
@@ -262,6 +292,11 @@ export const keyboardBridge: KeyboardModuleType = {
   setKeyboardHeight: (heightDp: number) => {
     if (Platform.OS === 'android' && KeyboardModule?.setKeyboardHeight) {
       KeyboardModule.setKeyboardHeight(heightDp);
+    }
+  },
+  setNativeKeyFastPathConfig: (json: string) => {
+    if (Platform.OS === 'android' && KeyboardModule?.setNativeKeyFastPathConfig) {
+      KeyboardModule.setNativeKeyFastPathConfig(json);
     }
   },
   getGestureSettings: () => {
@@ -323,6 +358,12 @@ export const keyboardBridge: KeyboardModuleType = {
       return KeyboardModule.recordLearnedPhrase(phrase) as Promise<number>;
     }
     return Promise.resolve(0);
+  },
+  clearLearnedPhrases: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.clearLearnedPhrases) {
+      return KeyboardModule.clearLearnedPhrases() as Promise<boolean>;
+    }
+    return Promise.resolve(false);
   },
   moveCursor: (offset: number) => {
     if (Platform.OS === 'android' && KeyboardModule?.moveCursor) {
@@ -430,7 +471,7 @@ export const keyboardBridge: KeyboardModuleType = {
       return KeyboardModule.getKeyboardLayoutSettings() as Promise<string>;
     }
     return Promise.resolve(
-      '{"keyHeight":52,"keyGap":4,"keyRowMargin":10,"keyRadius":6,"enterKeyPreviewEnabled":true,"developerEyeEnabled":false,"letterSymbolAlternatesEnabled":false,"letterLayoutId":"en-us"}',
+      '{"keyHeight":47,"keyGap":5,"keyRowMargin":12,"keyRadius":6,"enterKeyPreviewEnabled":true,"developerEyeEnabled":false,"letterSymbolAlternatesEnabled":false,"letterLayoutId":"en-us"}',
     );
   },
   setKeyboardLayoutSettings: (json: string) => {

@@ -23,7 +23,7 @@ for (const word of WORDS) {
   }
 }
 
-const MIN_AUTO_CONFIDENCE = 0.67;
+const MIN_AUTO_CONFIDENCE = 0.39;
 const COMMON_WORD_RANK = 3500;
 const FREQUENT_WORD_SCAN_LIMIT = 1000;
 const FREQUENT_FALLBACK_LIMIT = 2000;
@@ -808,13 +808,6 @@ export function shouldAutoApply(
   }
 
   if (isProbablyProperNoun(typedWord)) {
-    return false;
-  }
-
-  if (
-    startsWithCapital(typedWord) &&
-    candidate.correction.toLowerCase() !== typedWord.toLowerCase()
-  ) {
     return false;
   }
 

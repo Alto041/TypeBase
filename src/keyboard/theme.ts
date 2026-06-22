@@ -10,9 +10,9 @@ const IME_STRIP_CLEARANCE = 46;
 /** Extra headroom so the suggestion bar and bottom row are never clipped. */
 const KEYBOARD_HEIGHT_BUFFER = 6;
 
-const KEY_HEIGHT = 52;
-const KEY_ROW_MARGIN = 10;
-const KEY_GAP = 4;
+const KEY_HEIGHT = 47;
+const KEY_ROW_MARGIN = 12;
+const KEY_GAP = 5;
 const KEY_RADIUS = 6;
 
 export type KeyboardLayoutSettings = {
@@ -365,11 +365,28 @@ function paletteFor(
 
 export type KeyboardTheme = ReturnType<typeof createKeyboardTheme>;
 
-/** Safe Text font — Android Fabric crashes if a custom font isn't registered yet. */
+/** Text face for keyboard labels — Geist when loaded. */
+export function keyboardTypefaceStyle(
+  theme: KeyboardTheme,
+  fontWeight?: '400' | '500' | '600' | '700',
+): {fontFamily?: string; fontWeight?: '400' | '500' | '600' | '700'} {
+  if (!theme.fontFamily) {
+    return fontWeight ? {fontWeight} : {};
+  }
+  // Android Fabric crashes if fontWeight is combined with a single-file VF face.
+  if (Platform.OS === 'android') {
+    return {fontFamily: theme.fontFamily};
+  }
+  return fontWeight
+    ? {fontFamily: theme.fontFamily, fontWeight}
+    : {fontFamily: theme.fontFamily};
+}
+
+/** @deprecated Use keyboardTypefaceStyle */
 export function keyboardTextFont(
   theme: KeyboardTheme,
 ): {fontFamily?: string} {
-  return theme.fontFamily ? {fontFamily: theme.fontFamily} : {};
+  return keyboardTypefaceStyle(theme);
 }
 
 export function createKeyboardTheme(
@@ -439,10 +456,7 @@ export function createKeyboardTheme(
       4 * numpadKeyHeight +
       4 * layout.keyGap +
       IME_STRIP_CLEARANCE,
-    fontFamily:
-      customFontLoaded && Platform.OS === 'ios'
-        ? ('Geist' as const)
-        : undefined,
+    fontFamily: customFontLoaded ? ('Geist' as const) : undefined,
   };
 }
 

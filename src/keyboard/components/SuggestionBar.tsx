@@ -19,7 +19,7 @@ import {triggerKeyHaptic} from '../haptics';
 import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
 import {applyCaseToWord} from '../suggestions/wordSuggestions';
 import type {KeyboardTheme} from '../theme';
-import {keyboardTextFont} from '../theme';
+import {keyboardTypefaceStyle} from '../theme';
 
 export type EssentialSuggestion = {
   keyword: string;
@@ -69,10 +69,11 @@ type EssentialsFormBarState = {
   onConfirm: () => void;
 };
 
-type GifSearchBarState = {
+type PanelSearchBarState = {
   visible: boolean;
   active: boolean;
   query: string;
+  placeholder: string;
   onActivate: () => void;
   onClear: () => void;
 };
@@ -111,7 +112,8 @@ type SuggestionBarProps = {
   showUndoRedo?: boolean;
   onUndo?: () => void;
   onRedo?: () => void;
-  gifSearch?: GifSearchBarState;
+  gifSearch?: PanelSearchBarState;
+  panelSearch?: PanelSearchBarState;
 };
 
 function SuggestionBarComponent({
@@ -144,33 +146,35 @@ function SuggestionBarComponent({
   onUndo,
   onRedo,
   gifSearch,
+  panelSearch: panelSearchProp,
 }: SuggestionBarProps) {
   const theme = useKeyboardTheme();
   const styles = useThemedStyles(createSuggestionBarStyles);
+  const panelSearch = panelSearchProp ?? gifSearch;
 
   if (!visible) {
     return null;
   }
 
-  if (gifSearch?.visible) {
+  if (panelSearch?.visible) {
     return (
       <View style={styles.container}>
-        {gifSearch.active ? (
+        {panelSearch.active ? (
           <View style={styles.gifSearchOnly}>
             <Text
               style={[
                 styles.gifSearchOnlyText,
-                !gifSearch.query && styles.gifSearchPlaceholder,
+                !panelSearch.query && styles.gifSearchPlaceholder,
               ]}
               numberOfLines={1}>
-              {gifSearch.query || 'Search GIFs'}
+              {panelSearch.query || panelSearch.placeholder}
             </Text>
             <View style={styles.cursor} />
-            {gifSearch.query ? (
+            {panelSearch.query ? (
               <Pressable
                 onPressIn={() => {
                   triggerKeyHaptic();
-                  gifSearch.onClear();
+                  panelSearch.onClear();
                 }}
                 hitSlop={6}
                 style={({pressed}) => [
@@ -185,13 +189,15 @@ function SuggestionBarComponent({
           <Pressable
             onPressIn={() => {
               triggerKeyHaptic();
-              gifSearch.onActivate();
+              panelSearch.onActivate();
             }}
             style={({pressed}) => [
               styles.gifSearchOnly,
               pressed && styles.gifSearchTriggerPressed,
             ]}>
-            <Text style={styles.gifSearchPlaceholder}>Search GIFs</Text>
+            <Text style={styles.gifSearchPlaceholder}>
+              {panelSearch.placeholder}
+            </Text>
           </Pressable>
         )}
       </View>
@@ -528,7 +534,6 @@ function SuggestionBarComponent({
 }
 
 function createSuggestionBarStyles(theme: KeyboardTheme) {
-  const textFont = keyboardTextFont(theme);
   return StyleSheet.create({
   container: {
     minHeight: theme.suggestionBarHeight,
@@ -571,8 +576,7 @@ function createSuggestionBarStyles(theme: KeyboardTheme) {
   centerTitle: {
     color: theme.spaceLabel,
     fontSize: 12,
-    ...textFont,
-    fontWeight: '600',
+    ...keyboardTypefaceStyle(theme, '600'),
     letterSpacing: 0.8,
     textAlign: 'center',
   },
@@ -585,8 +589,7 @@ function createSuggestionBarStyles(theme: KeyboardTheme) {
   formLabel: {
     color: theme.spaceLabel,
     fontSize: 10,
-    ...textFont,
-    fontWeight: '600',
+    ...keyboardTypefaceStyle(theme, '600'),
     textTransform: 'uppercase',
     letterSpacing: 0.6,
   },
@@ -598,15 +601,13 @@ function createSuggestionBarStyles(theme: KeyboardTheme) {
   formPrefix: {
     color: theme.essentialsAccent,
     fontSize: 16,
-    ...textFont,
-    fontWeight: '600',
+    ...keyboardTypefaceStyle(theme, '600'),
   },
   formText: {
     flexShrink: 1,
     color: theme.label,
     fontSize: 16,
-    ...textFont,
-    fontWeight: '500',
+    ...keyboardTypefaceStyle(theme, '500'),
   },
   formPlaceholder: {
     color: theme.spaceLabel,
@@ -628,7 +629,7 @@ function createSuggestionBarStyles(theme: KeyboardTheme) {
   gifSearchPlaceholder: {
     color: theme.iconMuted,
     fontSize: 14,
-    ...textFont,
+    ...keyboardTypefaceStyle(theme),
   },
   gifSearchClear: {
     width: 22,
@@ -660,8 +661,7 @@ function createSuggestionBarStyles(theme: KeyboardTheme) {
     flex: 1,
     color: theme.label,
     fontSize: 16,
-    ...textFont,
-    fontWeight: '500',
+    ...keyboardTypefaceStyle(theme, '500'),
   },
   cursor: {
     width: 2,
@@ -690,8 +690,7 @@ function createSuggestionBarStyles(theme: KeyboardTheme) {
   suggestionText: {
     color: theme.label,
     fontSize: 17,
-    ...textFont,
-    fontWeight: '500',
+    ...keyboardTypefaceStyle(theme, '500'),
   },
   typedKeepSuggestion: {
     flex: 1.1,
@@ -699,8 +698,7 @@ function createSuggestionBarStyles(theme: KeyboardTheme) {
   typedKeepSuggestionText: {
     color: theme.label,
     fontSize: 17,
-    ...textFont,
-    fontWeight: '600',
+    ...keyboardTypefaceStyle(theme, '600'),
   },
   autocorrectSuggestion: {
     paddingHorizontal: 4,
@@ -708,13 +706,12 @@ function createSuggestionBarStyles(theme: KeyboardTheme) {
   essentialKeyword: {
     color: theme.essentialsAccent,
     fontSize: 14,
-    ...textFont,
-    fontWeight: '600',
+    ...keyboardTypefaceStyle(theme, '600'),
   },
   essentialValue: {
     color: theme.spaceLabel,
     fontSize: 12,
-    ...textFont,
+    ...keyboardTypefaceStyle(theme),
   },
   partialContainer: {
     flex: 1,
@@ -725,8 +722,7 @@ function createSuggestionBarStyles(theme: KeyboardTheme) {
   partialText: {
     color: theme.spaceLabel,
     fontSize: 17,
-    ...textFont,
-    fontWeight: '500',
+    ...keyboardTypefaceStyle(theme, '500'),
     textAlign: 'right',
   },
   divider: {
@@ -760,8 +756,7 @@ function createSuggestionBarStyles(theme: KeyboardTheme) {
     flexShrink: 1,
     color: theme.label,
     fontSize: 15,
-    ...textFont,
-    fontWeight: '500',
+    ...keyboardTypefaceStyle(theme, '500'),
   },
   clipboardPasteImage: {
     width: 22,

@@ -1,4 +1,7 @@
 /** Gemma 3 instruct prompt wrapper (MediaPipe / LiteRT format). */
+import {getFormatType} from '../format/formatTypes';
+import type {FormatSession} from '../format/formatSessionStore';
+
 export function wrapGemmaPrompt(instruction: string): string {
   return `<start_of_turn>user
 ${instruction.trim()}
@@ -19,13 +22,54 @@ Text:
 "${text}"`);
 }
 
-export function buildGemmaRewritePrompt(text: string, _toneInstruction: string): string {
-  return wrapGemmaPrompt(`Hey, I want you to rewrite the message and make it sound better while keeping the original meaning.
+export function buildGemmaRewritePrompt(text: string, toneInstruction: string): string {
+  return wrapGemmaPrompt(`Rewrite the message according to this exact mode:
 
-Return only the rewritten text and nothing else.
+${toneInstruction}
+
+Rules:
+- Keep the same language as the input.
+- Preserve names, numbers, URLs, @handles, and emoji.
+- Do not add greetings, sign-offs, explanations, or markdown.
+- Return only the rewritten text and nothing else.
 
 Text:
 "${text}"`);
+}
+
+export function buildGemmaFormatPrompt(text: string, formatId: string): string {
+  const format = getFormatType(formatId);
+  return wrapGemmaPrompt(`Hey, I want you to format the message for ${format.label}.
+
+${format.instruction}
+
+Keep the same language. Remove AI filler and markdown. Return only the formatted text and nothing else.
+
+Text:
+"${text}"`);
+}
+
+export function buildGemmaFormatFollowUpPrompt(
+  currentText: string,
+  followUpInstruction: string,
+  session: FormatSession | null | undefined,
+): string {
+  const history =
+    session?.turns
+      .slice(-4)
+      .map(turn => `${turn.role === 'user' ? 'User' : 'Assistant'}: ${turn.text}`)
+      .join('\n') ?? '';
+
+  const historyBlock = history ? `\n\nEarlier in this session:\n${history}` : '';
+
+  return wrapGemmaPrompt(`Hey, refine the formatted message below.
+
+Change: ${followUpInstruction}
+
+Return only the updated text and nothing else.${historyBlock}
+
+Text:
+"${currentText}"`);
 }
 
 export function buildGemmaVoiceCleanupPrompt(transcript: string): string {
