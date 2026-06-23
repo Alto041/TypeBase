@@ -6,8 +6,6 @@ import {
   StyleSheet,
   Text,
   View,
-  type NativeScrollEvent,
-  type NativeSyntheticEvent,
 } from 'react-native';
 import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
 import {triggerKeyHaptic} from '../haptics';
@@ -35,18 +33,15 @@ function useScrollGuard() {
     scrollingRef.current = true;
   };
 
-  const markScrollEnd = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const velocityY = event.nativeEvent.velocity?.y ?? 0;
-    if (Math.abs(velocityY) < 0.15) {
-      scrollingRef.current = false;
-    }
-  };
-
-  const clearScroll = () => {
+  const markScrollEnd = () => {
     scrollingRef.current = false;
   };
 
-  return {scrollingRef, markScrollStart, markScrollEnd, clearScroll};
+  const onScroll = () => {
+    scrollingRef.current = true;
+  };
+
+  return {scrollingRef, markScrollStart, markScrollEnd, onScroll};
 }
 
 export function EmojiCategoryGrid({
@@ -71,17 +66,17 @@ export function EmojiCategoryGrid({
   const gridScrollGuard = useScrollGuard();
   const recentScrollGuard = useScrollGuard();
 
+  // Keep guards in sync if one list starts scrolling; treat either as "user is scrolling emojis"
+  const isAnyScrolling = () =>
+    gridScrollGuard.scrollingRef.current || recentScrollGuard.scrollingRef.current;
+
   const gridRows = useMemo(
     () => chunkEmojis(EMOJIS_BY_CATEGORY[category], EMOJI_COLUMNS),
     [category],
   );
 
   const handleEmojiPress = (emoji: string) => {
-    if (
-      selectionLockedRef?.current ||
-      gridScrollGuard.scrollingRef.current ||
-      recentScrollGuard.scrollingRef.current
-    ) {
+    if (selectionLockedRef?.current || isAnyScrolling()) {
       return;
     }
     onSelect(emoji);
@@ -96,7 +91,7 @@ export function EmojiCategoryGrid({
       {row.map(emoji => (
         <Pressable
           key={`${category}-${rowIndex}-${emoji}`}
-          onPressIn={() => {
+          onPress={() => {
             handleEmojiPress(emoji);
           }}
           style={styles.cell}>
@@ -116,7 +111,7 @@ export function EmojiCategoryGrid({
 
   const renderRecentItem: ListRenderItem<string> = ({item: emoji, index}) => (
     <Pressable
-      onPressIn={() => {
+      onPress={() => {
         handleEmojiPress(emoji);
       }}
       style={styles.recentCell}>
@@ -144,9 +139,11 @@ export function EmojiCategoryGrid({
         offset: emojiRowHeight * index,
         index,
       })}
+      scrollEventThrottle={16}
+      onScroll={gridScrollGuard.onScroll}
       onScrollBeginDrag={gridScrollGuard.markScrollStart}
       onMomentumScrollBegin={gridScrollGuard.markScrollStart}
-      onMomentumScrollEnd={gridScrollGuard.clearScroll}
+      onMomentumScrollEnd={gridScrollGuard.markScrollEnd}
       onScrollEndDrag={gridScrollGuard.markScrollEnd}
     />
   );
@@ -181,9 +178,11 @@ export function EmojiCategoryGrid({
             offset: emojiRowHeight * index,
             index,
           })}
+          scrollEventThrottle={16}
+          onScroll={recentScrollGuard.onScroll}
           onScrollBeginDrag={recentScrollGuard.markScrollStart}
           onMomentumScrollBegin={recentScrollGuard.markScrollStart}
-          onMomentumScrollEnd={recentScrollGuard.clearScroll}
+          onMomentumScrollEnd={recentScrollGuard.markScrollEnd}
           onScrollEndDrag={recentScrollGuard.markScrollEnd}
         />
       </View>
@@ -206,22 +205,20 @@ function createEmojiCategoryGridStyles(theme: KeyboardTheme) {
     recentColumn: {
       flexGrow: 0,
       flexShrink: 0,
-      height: emojiScrollHeight,
       backgroundColor: theme.pluginCard,
       borderRadius: 22,
       marginLeft: 5,
-      marginVertical: 5,
+      marginTop: 2,
+      marginBottom: 6,
       overflow: 'hidden',
     },
     recentList: {
-      flexGrow: 0,
-      flexShrink: 0,
+      flex: 1,
       width: '100%',
-      height: emojiScrollHeight - 10,
     },
     recentContent: {
       paddingTop: 4,
-      paddingBottom: 4,
+      paddingBottom: 2,
       gap: 2,
     },
     columnDivider: {

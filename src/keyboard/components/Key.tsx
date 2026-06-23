@@ -11,7 +11,9 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
-import ShiftArrowIcon from '../../../assets/arrow_forward_ios.svg';
+import ShiftNormalIcon from '../../../assets/normal.svg';
+import ShiftFilledIcon from '../../../assets/filled.svg';
+import ShiftLockIcon from '../../../assets/Lock.svg';
 import EnterIcon from '../../../assets/enter.svg';
 import QuivoxEnterIcon from '../../../assets/quivox_enter.svg';
 import NextLineIcon from '../../../assets/next_line.svg';
@@ -347,6 +349,11 @@ function KeyComponent({
     isAbcKey ||
     isSpaceKey;
   const keyIconColor = isEnterAction ? theme.iconOnEnter : theme.icon;
+  const ShiftStateIcon = isCapsLocked
+    ? ShiftLockIcon
+    : isShiftOn
+      ? ShiftFilledIcon
+      : ShiftNormalIcon;
 
   const keyContent = isEnterAction ? (
     theme.design === 'quivox' && isEnterKey ? (
@@ -361,12 +368,12 @@ function KeyComponent({
   ) : isSymbolsIcon ? (
     <SymbolsIcon width={22} height={22} color={keyIconColor} />
   ) : isShift ? (
-    <View
-      style={[
-        styles.shiftIconContainer,
-        {transform: [{scaleY: isUppercase ? -1 : 1}]},
-      ]}>
-      <ShiftArrowIcon width={16} height={12} color={keyIconColor} />
+    <View style={styles.shiftIconContainer}>
+      <ShiftStateIcon
+        width={isCapsLocked ? 18 : 17}
+        height={isCapsLocked ? 19 : 15}
+        color={keyIconColor}
+      />
     </View>
   ) : showLauncher ? (
     <RocketLaunchIcon width={20} height={20} color={keyIconColor} />
@@ -760,12 +767,10 @@ function createKeyStyles(theme: KeyboardTheme) {
     },
     shiftKeyLocked: {
       backgroundColor: theme.modifierKey,
-      borderWidth: 1,
-      borderColor: theme.label,
     },
     shiftIconContainer: {
-      width: 16,
-      height: 12,
+      width: 22,
+      height: 22,
       alignItems: 'center',
       justifyContent: 'center',
     },

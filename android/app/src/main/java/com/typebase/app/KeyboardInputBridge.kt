@@ -5,6 +5,7 @@ import android.view.HapticFeedbackConstants
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
+import android.text.InputType
 import java.util.concurrent.CopyOnWriteArrayList
 
 object KeyboardInputBridge {
@@ -57,18 +58,33 @@ object KeyboardInputBridge {
     }
   }
 
-  /**
-   * Check if the input field expects initial capitalization.
-   * This checks TYPE_TEXT_FLAG_CAP_SENTENCES and TYPE_TEXT_FLAG_CAP_WORDS.
-   */
   fun shouldCapitalizeInitial(info: EditorInfo?): Boolean {
     if (info == null) {
       return false
     }
     val inputType = info.inputType
-    val textFlags = inputType and android.text.InputType.TYPE_MASK_FLAGS
-    return (textFlags and android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES) != 0 ||
-           (textFlags and android.text.InputType.TYPE_TEXT_FLAG_CAP_WORDS) != 0
+    val inputClass = inputType and InputType.TYPE_MASK_CLASS
+    if (inputClass != InputType.TYPE_CLASS_TEXT) {
+      return false
+    }
+
+    val textFlags = inputType and InputType.TYPE_MASK_FLAGS
+    if ((textFlags and InputType.TYPE_TEXT_FLAG_CAP_SENTENCES) != 0 ||
+        (textFlags and InputType.TYPE_TEXT_FLAG_CAP_WORDS) != 0) {
+      return true
+    }
+
+    val variation = inputType and InputType.TYPE_MASK_VARIATION
+    return when (variation) {
+      InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS,
+      InputType.TYPE_TEXT_VARIATION_EMAIL_SUBJECT,
+      InputType.TYPE_TEXT_VARIATION_URI,
+      InputType.TYPE_TEXT_VARIATION_PASSWORD,
+      InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD,
+      InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD,
+      InputType.TYPE_TEXT_VARIATION_FILTER -> false
+      else -> true
+    }
   }
 
   private fun notifyInitialCapsModeListeners(mode: Boolean) {

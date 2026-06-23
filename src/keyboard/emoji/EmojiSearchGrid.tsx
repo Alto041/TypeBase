@@ -1,4 +1,4 @@
-import React, {useMemo} from 'react';
+import React, {useMemo, useRef} from 'react';
 import {
   FlatList,
   ListRenderItem,
@@ -30,14 +30,29 @@ export function EmojiSearchGrid({width, query, onSelect}: EmojiSearchGridProps) 
     [results],
   );
 
+  // Guard to avoid treating scroll gestures as emoji picks
+  const scrollingRef = useRef(false);
+  const markScrolling = () => {
+    scrollingRef.current = true;
+  };
+  const clearScrolling = () => {
+    scrollingRef.current = false;
+  };
+  const handleEmojiPress = (emoji: string) => {
+    if (scrollingRef.current) {
+      return;
+    }
+    onSelect(emoji);
+    triggerKeyHaptic();
+  };
+
   const renderRow: ListRenderItem<readonly string[]> = ({item: row, index}) => (
     <View style={styles.row}>
       {row.map(emoji => (
         <Pressable
           key={`search-${index}-${emoji}`}
-          onPressIn={() => {
-            onSelect(emoji);
-            triggerKeyHaptic();
+          onPress={() => {
+            handleEmojiPress(emoji);
           }}
           style={styles.cell}>
           <Text style={styles.emoji}>{emoji}</Text>
@@ -82,6 +97,11 @@ export function EmojiSearchGrid({width, query, onSelect}: EmojiSearchGridProps) 
       maxToRenderPerBatch={4}
       windowSize={5}
       updateCellsBatchingPeriod={16}
+      scrollEventThrottle={16}
+      onScroll={markScrolling}
+      onScrollBeginDrag={markScrolling}
+      onScrollEndDrag={clearScrolling}
+      onMomentumScrollEnd={clearScrolling}
       getItemLayout={(_, index) => ({
         length: emojiRowHeight,
         offset: emojiRowHeight * index,

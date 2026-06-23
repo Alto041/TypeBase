@@ -2,6 +2,11 @@ import {useCallback, useEffect, useRef, useState} from 'react';
 import {keyboardBridge} from '../keyboardBridge';
 import {requireSpeechmaticsApiKey} from '../settings/apiKeysStore';
 import {
+  ensureVoiceSttProviderLoaded,
+  getVoiceSttProvider,
+  type VoiceSttProvider,
+} from '../settings/voiceSttProviderStore';
+import {
   cleanupVoiceTranscript,
   VoiceCleanupError,
 } from './geminiVoiceCleanupService';
@@ -41,6 +46,13 @@ function buildSessionRaw(finals: string[], pendingPartial: string): string {
   return `${committed} ${partial}`;
 }
 
+function isMissingSpeechmaticsKey(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    error.message.toLowerCase().includes('speechmatics api key')
+  );
+}
+
 export function useVoiceInput() {
   const [isListening, setIsListening] = useState(false);
   const [isVoiceConnecting, setIsVoiceConnecting] = useState(false);
@@ -48,6 +60,7 @@ export function useVoiceInput() {
   const [partialTranscript, setPartialTranscript] = useState('');
   const serviceRef = useRef<SpeechmaticsVoiceService | null>(null);
   const unsubscribeRef = useRef<(() => void) | null>(null);
+  const activeSttProviderRef = useRef<VoiceSttProvider | null>(null);
   const sessionFinalsRef = useRef<string[]>([]);
   const lastPartialRef = useRef('');
   const stoppingRef = useRef(false);
@@ -145,10 +158,17 @@ export function useVoiceInput() {
       setIsListening(false);
       setIsVoiceConnecting(false);
 
-      unsubscribeRef.current?.();
-      unsubscribeRef.current = null;
+      const activeProvider = activeSttProviderRef.current;
 
-      await voiceRecorder.stop().catch(() => {});
+      if (activeProvider === 'android') {
+        await voiceRecorder.stopAndroidStt().catch(() => {});
+        unsubscribeRef.current?.();
+        unsubscribeRef.current = null;
+      } else {
+        unsubscribeRef.current?.();
+        unsubscribeRef.current = null;
+        await voiceRecorder.stop().catch(() => {});
+      }
 
       const service = serviceRef.current;
       serviceRef.current = null;
@@ -156,6 +176,7 @@ export function useVoiceInput() {
         await service.stop().catch(() => {});
       }
 
+      activeSttProviderRef.current = null;
       await finishSession();
     } finally {
       stoppingRef.current = false;
@@ -163,6 +184,46 @@ export function useVoiceInput() {
   }, [finishSession]);
 
   stopListeningRef.current = stopListening;
+
+  const startAndroidListening = useCallback(async (): Promise<boolean> => {
+    activeSttProviderRef.current = 'android';
+    const isAvailable = await voiceRecorder.isAndroidSttAvailable();
+    if (!isAvailable) {
+      activeSttProviderRef.current = null;
+      return false;
+    }
+
+    unsubscribeRef.current = voiceRecorder.subscribeAndroidStt({
+      onReady: () => {
+        setIsVoiceConnecting(false);
+        setIsListening(true);
+        playVoiceActivationSound();
+      },
+      onPartial: partial => {
+        updateLivePreview(partial);
+      },
+      onFinal: text => {
+        appendFinalSegment(text);
+        void stopListeningRef.current();
+      },
+      onError: () => {
+        if (!stoppingRef.current) {
+          void stopListeningRef.current();
+        }
+      },
+    });
+
+    try {
+      await voiceRecorder.startAndroidStt();
+      return true;
+    } catch {
+      unsubscribeRef.current?.();
+      unsubscribeRef.current = null;
+      activeSttProviderRef.current = null;
+      setIsListening(false);
+      return false;
+    }
+  }, [appendFinalSegment, updateLivePreview]);
 
   const startListening = useCallback(async () => {
     if (isVoiceProcessing || stoppingRef.current) {
@@ -177,6 +238,19 @@ export function useVoiceInput() {
 
     resetSession();
     setIsVoiceConnecting(true);
+
+    await ensureVoiceSttProviderLoaded();
+    const sttProvider = getVoiceSttProvider();
+    activeSttProviderRef.current = sttProvider;
+
+    if (sttProvider === 'android') {
+      const started = await startAndroidListening();
+      if (!started) {
+        setIsVoiceConnecting(false);
+        resetSession();
+      }
+      return;
+    }
 
     const service = new SpeechmaticsVoiceService();
     serviceRef.current = service;
@@ -196,7 +270,22 @@ export function useVoiceInput() {
     });
 
     try {
-      const apiKey = await requireSpeechmaticsApiKey();
+      let apiKey: string;
+      try {
+        apiKey = await requireSpeechmaticsApiKey();
+      } catch (error) {
+        if (isMissingSpeechmaticsKey(error)) {
+          await service.stop().catch(() => {});
+          serviceRef.current = null;
+          const started = await startAndroidListening();
+          if (!started) {
+            setIsVoiceConnecting(false);
+            resetSession();
+          }
+          return;
+        }
+        throw error;
+      }
       await service.start(apiKey);
       setIsVoiceConnecting(false);
       playVoiceActivationSound();
@@ -206,12 +295,23 @@ export function useVoiceInput() {
       await voiceRecorder.start();
       setIsListening(true);
     } catch {
+      const startedFallback = await startAndroidListening();
+      if (startedFallback) {
+        return;
+      }
       setIsVoiceConnecting(false);
       serviceRef.current = null;
+      activeSttProviderRef.current = null;
       await service.stop().catch(() => {});
       resetSession();
     }
-  }, [appendFinalSegment, isVoiceProcessing, resetSession, updateLivePreview]);
+  }, [
+    appendFinalSegment,
+    isVoiceProcessing,
+    resetSession,
+    startAndroidListening,
+    updateLivePreview,
+  ]);
 
   const toggleListening = useCallback(async () => {
     if (isVoiceProcessing || stoppingRef.current) {
@@ -220,9 +320,15 @@ export function useVoiceInput() {
 
     if (isVoiceConnecting) {
       setIsVoiceConnecting(false);
+      if (activeSttProviderRef.current === 'android') {
+        await voiceRecorder.stopAndroidStt().catch(() => {});
+      }
       const service = serviceRef.current;
       serviceRef.current = null;
       await service?.stop().catch(() => {});
+      activeSttProviderRef.current = null;
+      unsubscribeRef.current?.();
+      unsubscribeRef.current = null;
       resetSession();
       return;
     }

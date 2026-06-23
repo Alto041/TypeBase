@@ -52,6 +52,14 @@ function normalizeLayout(raw: unknown): KeyboardLayoutSettings {
       typeof obj['letterSymbolAlternatesEnabled'] === 'boolean'
         ? obj['letterSymbolAlternatesEnabled']
         : defaults.letterSymbolAlternatesEnabled,
+    numberRowEnabled:
+      typeof obj['numberRowEnabled'] === 'boolean'
+        ? obj['numberRowEnabled']
+        : defaults.numberRowEnabled,
+    keyboardHeightOffset:
+      typeof obj['keyboardHeightOffset'] === 'number' && Number.isFinite(obj['keyboardHeightOffset'])
+        ? clamp(Math.round(obj['keyboardHeightOffset']), -140, 220)
+        : defaults.keyboardHeightOffset,
     letterLayoutId: normalizeLetterLayoutId(obj['letterLayoutId']),
   };
 }

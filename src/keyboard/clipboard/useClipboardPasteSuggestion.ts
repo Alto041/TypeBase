@@ -9,6 +9,8 @@ type UseClipboardPasteSuggestionOptions = {
   enabled: boolean;
 };
 
+let consumedPasteSuggestionFingerprint: string | null = null;
+
 export function useClipboardPasteSuggestion({
   enabled,
 }: UseClipboardPasteSuggestionOptions) {
@@ -19,7 +21,7 @@ export function useClipboardPasteSuggestion({
   const lastFingerprintRef = useRef<string | null>(null);
 
   const refresh = useCallback(async () => {
-    if (!enabled || dismissedRef.current) {
+    if (!enabled) {
       return;
     }
     const next = await fetchClipboardPasteSuggestion();
@@ -27,6 +29,14 @@ export function useClipboardPasteSuggestion({
       setSuggestion(null);
       lastFingerprintRef.current = null;
       return;
+    }
+    if (next.fingerprint === consumedPasteSuggestionFingerprint) {
+      setSuggestion(null);
+      lastFingerprintRef.current = next.fingerprint;
+      return;
+    }
+    if (consumedPasteSuggestionFingerprint) {
+      consumedPasteSuggestionFingerprint = null;
     }
     if (next.fingerprint !== lastFingerprintRef.current) {
       lastFingerprintRef.current = next.fingerprint;
@@ -37,8 +47,9 @@ export function useClipboardPasteSuggestion({
     }
   }, [enabled]);
 
-  const clear = useCallback(() => {
+  const clear = useCallback((fingerprint?: string) => {
     dismissedRef.current = true;
+    consumedPasteSuggestionFingerprint = fingerprint ?? lastFingerprintRef.current;
     setSuggestion(null);
   }, []);
 

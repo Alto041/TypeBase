@@ -1,5 +1,5 @@
 import {NativeModules, Platform} from 'react-native';
-import type {ClipboardContent} from './clipboard/types';
+import type {ClipboardContent, ImportedScreenshot} from './clipboard/types';
 
 type KeyboardModuleType = {
   insertText: (text: string) => void;
@@ -24,6 +24,12 @@ type KeyboardModuleType = {
   getInputInitialCapsMode: () => Promise<boolean>;
   getClipboardText: () => Promise<string>;
   getClipboardContent: () => Promise<ClipboardContent>;
+  hasMediaImagesPermission: () => Promise<boolean>;
+  openAppForMediaImagesPermission: () => Promise<boolean>;
+  importRecentScreenshots: (
+    sinceMs: number,
+    maxCount: number,
+  ) => Promise<ImportedScreenshot[]>;
   insertClipboardImage: (imagePath: string) => Promise<boolean>;
   deleteClipboardImageFile: (imagePath: string) => Promise<boolean>;
   getClipboardHistory: () => Promise<string>;
@@ -47,6 +53,8 @@ type KeyboardModuleType = {
   setApiKeys: (json: string) => Promise<boolean>;
   getAiProvider: () => Promise<string>;
   setAiProvider: (provider: string) => Promise<boolean>;
+  getVoiceSttProvider: () => Promise<string>;
+  setVoiceSttProvider: (provider: string) => Promise<boolean>;
   getLearnedPhraseCounts: () => Promise<Record<string, number>>;
   recordLearnedPhrase: (phrase: string) => Promise<number>;
   clearLearnedPhrases: () => Promise<boolean>;
@@ -217,6 +225,45 @@ export const keyboardBridge: KeyboardModuleType = {
     }
     return {kind: 'none'};
   },
+  importRecentScreenshots: async (sinceMs: number, maxCount: number) => {
+    if (Platform.OS === 'android' && KeyboardModule?.importRecentScreenshots) {
+      const raw = (await KeyboardModule.importRecentScreenshots(
+        sinceMs,
+        maxCount,
+      )) as string;
+      try {
+        const parsed = JSON.parse(raw) as unknown;
+        if (!Array.isArray(parsed)) {
+          return [];
+        }
+        return parsed.filter(
+          (item): item is ImportedScreenshot =>
+            Boolean(
+              item &&
+                typeof item === 'object' &&
+                (item as ImportedScreenshot).kind === 'image' &&
+                typeof (item as ImportedScreenshot).imagePath === 'string' &&
+                typeof (item as ImportedScreenshot).imageHash === 'string',
+            ),
+        );
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  },
+  hasMediaImagesPermission: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.hasMediaImagesPermission) {
+      return KeyboardModule.hasMediaImagesPermission() as Promise<boolean>;
+    }
+    return Promise.resolve(false);
+  },
+  openAppForMediaImagesPermission: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.openAppForMediaImagesPermission) {
+      return KeyboardModule.openAppForMediaImagesPermission() as Promise<boolean>;
+    }
+    return Promise.resolve(false);
+  },
   insertClipboardImage: (imagePath: string) => {
     if (Platform.OS === 'android' && KeyboardModule?.insertClipboardImage) {
       return KeyboardModule.insertClipboardImage(imagePath) as Promise<boolean>;
@@ -344,6 +391,18 @@ export const keyboardBridge: KeyboardModuleType = {
   setAiProvider: (provider: string) => {
     if (Platform.OS === 'android' && KeyboardModule?.setAiProvider) {
       return KeyboardModule.setAiProvider(provider) as Promise<boolean>;
+    }
+    return Promise.resolve(false);
+  },
+  getVoiceSttProvider: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.getVoiceSttProvider) {
+      return KeyboardModule.getVoiceSttProvider() as Promise<string>;
+    }
+    return Promise.resolve('speechmatics');
+  },
+  setVoiceSttProvider: (provider: string) => {
+    if (Platform.OS === 'android' && KeyboardModule?.setVoiceSttProvider) {
+      return KeyboardModule.setVoiceSttProvider(provider) as Promise<boolean>;
     }
     return Promise.resolve(false);
   },

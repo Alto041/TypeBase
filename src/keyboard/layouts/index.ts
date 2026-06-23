@@ -1,5 +1,6 @@
 import type {KeyDefinition} from './qwerty';
 import {
+  DIGITS_ROW,
   NUMPAD_ROWS,
   NUMBER_ROWS,
   SYMBOL_ROWS,
@@ -21,12 +22,15 @@ import {
 export type {KeyDefinition, KeyboardLayout};
 export {
   DEFAULT_LETTER_LAYOUT_ID,
+  type LetterLayoutId,
+  type LetterLayoutMeta,
+} from './letterLayouts';
+export {
   getLetterLayoutMeta,
   isLetterLayoutId,
   normalizeLetterLayoutId,
-  type LetterLayoutId,
-  type LetterLayoutMeta,
 } from './resolveLetterLayout';
+export {DIGITS_ROW} from './qwerty';
 export {
   isBuiltInLetterLayoutId,
   isCustomLayoutId,

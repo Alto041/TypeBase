@@ -1,5 +1,10 @@
-import {keyboardBridge} from '../keyboardBridge';
-import type {ClipboardContent} from './types';
+import {
+  captureSystemClipboard,
+  ensureClipboardLoaded,
+  getClipboardItems,
+  importRecentScreenshots,
+} from './clipboardStore';
+import type {ClipboardContent, ClipboardItem} from './types';
 
 export type ClipboardPasteSuggestion = {
   kind: 'text' | 'image';
@@ -32,9 +37,36 @@ export function clipboardContentToPasteSuggestion(
   return null;
 }
 
+function clipboardItemToPasteSuggestion(
+  item: ClipboardItem | undefined,
+): ClipboardPasteSuggestion | null {
+  if (!item) {
+    return null;
+  }
+  if (item.kind === 'text') {
+    const text = item.text?.trim();
+    if (!text) {
+      return null;
+    }
+    return {kind: 'text', text, fingerprint: `text:${text}`};
+  }
+  if (item.kind === 'image' && item.imageUri && item.imageHash) {
+    return {
+      kind: 'image',
+      imageUri: item.imageUri.startsWith('file://')
+        ? item.imageUri
+        : `file://${item.imageUri}`,
+      fingerprint: `image:${item.imageHash}`,
+    };
+  }
+  return null;
+}
+
 export async function fetchClipboardPasteSuggestion(): Promise<ClipboardPasteSuggestion | null> {
-  const content = await keyboardBridge.getClipboardContent();
-  return clipboardContentToPasteSuggestion(content);
+  await ensureClipboardLoaded();
+  await captureSystemClipboard().catch(() => null);
+  await importRecentScreenshots({bumpExisting: true}).catch(() => 0);
+  return clipboardItemToPasteSuggestion(getClipboardItems()[0]);
 }
 
 export function clipboardPastePreviewText(text: string, maxLength = 48): string {

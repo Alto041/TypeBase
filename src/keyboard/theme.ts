@@ -34,6 +34,13 @@ export type KeyboardLayoutSettings = {
    * instead of accent variants (á, è, …).
    */
   letterSymbolAlternatesEnabled: boolean;
+  /** When true, show a dedicated number row (1 2 … 0) above the letter rows. */
+  numberRowEnabled: boolean;
+  /**
+   * User-controlled height adjustment in dp (positive = taller keyboard,
+   * negative = shorter). Applied on top of the computed base height for letters view.
+   */
+  keyboardHeightOffset: number;
 };
 
 export const DEFAULT_KEYBOARD_LAYOUT_SETTINGS: KeyboardLayoutSettings = {
@@ -45,6 +52,8 @@ export const DEFAULT_KEYBOARD_LAYOUT_SETTINGS: KeyboardLayoutSettings = {
   developerEyeEnabled: false,
   letterLayoutId: DEFAULT_LETTER_LAYOUT_ID,
   letterSymbolAlternatesEnabled: false,
+  numberRowEnabled: false,
+  keyboardHeightOffset: 0,
 };
 
 /** Touch slop into gaps — full visual gap so taps between keys snap to the nearest key. */
@@ -441,6 +450,8 @@ export function createKeyboardTheme(
     enterKeyPreviewEnabled: layout.enterKeyPreviewEnabled,
     letterSymbolAlternatesEnabled: layout.letterSymbolAlternatesEnabled,
     letterLayoutId: layout.letterLayoutId,
+    numberRowEnabled: layout.numberRowEnabled,
+    keyboardHeightOffset: layout.keyboardHeightOffset ?? 0,
     keyHitSlop: {
       horizontal: layout.keyGap,
       vertical: layout.keyRowMargin,

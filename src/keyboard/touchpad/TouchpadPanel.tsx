@@ -35,6 +35,8 @@ export function TouchpadPanel() {
   const accumYRef = useRef(0);
   const lastDxRef = useRef(0);
   const lastDyRef = useRef(0);
+  const gridRef = useRef<any>(null);
+  const gridWidthRef = useRef(0);
 
   selectModeRef.current = selectMode;
 
@@ -65,9 +67,27 @@ export function TouchpadPanel() {
   const panResponder = useMemo(
     () =>
       PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onMoveShouldSetPanResponder: (_event, gesture) =>
-          Math.hypot(gesture.dx, gesture.dy) >= dp(TRACKPAD_ACTIVATION_SLOP_DP),
+        onStartShouldSetPanResponder: (evt) => {
+          // Only claim pan gestures that start on the trackpad (left) side of the grid.
+          // This keeps the responder target as the full-height grid container so long
+          // swipes (even when the finger travels over buttons or up into the suggestion
+          // bar) do not leak to the app below and accidentally hide the keyboard.
+          const w = gridWidthRef.current;
+          if (w <= 0) {
+            return true;
+          }
+          const startX = (evt.nativeEvent as any).locationX ?? 0;
+          return startX < w * 0.78;
+        },
+        onStartShouldSetPanResponderCapture: (evt) => {
+          const w = gridWidthRef.current;
+          if (w <= 0) {
+            return true;
+          }
+          const startX = (evt.nativeEvent as any).locationX ?? 0;
+          return startX < w * 0.78;
+        },
+        onMoveShouldSetPanResponder: () => false,
         onPanResponderTerminationRequest: () => false,
         onPanResponderGrant: () => {
           accumXRef.current = 0;
@@ -130,13 +150,23 @@ export function TouchpadPanel() {
 
   return (
     <View style={panelStyles.container}>
-      <View style={styles.grid}>
+      <View
+        ref={gridRef}
+        collapsable={false}
+        style={styles.grid}
+        onLayout={(e) => {
+          const w = e.nativeEvent.layout.width;
+          if (w > 0) {
+            gridWidthRef.current = w;
+          }
+        }}
+        {...panResponder.panHandlers}>
         <View
           style={[
             styles.trackpad,
             selectMode && styles.trackpadSelecting,
           ]}
-          {...panResponder.panHandlers}
+          pointerEvents="none"
         />
 
         <View style={styles.actionColumn}>

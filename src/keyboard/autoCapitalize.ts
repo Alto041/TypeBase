@@ -40,12 +40,11 @@ export function shouldAutoCapitalizeShift(
     return false;
   }
 
-  if (shouldAutoCapitalize(context)) {
-    return true;
+  if (!hasTypedSinceFocus && context.length === 0) {
+    return inputRequestsInitialCaps;
   }
 
-  // Unreadable empty field at focus time; trust EditorInfo cap flags.
-  if (inputRequestsInitialCaps && !hasTypedSinceFocus && context.length === 0) {
+  if (shouldAutoCapitalize(context)) {
     return true;
   }
 

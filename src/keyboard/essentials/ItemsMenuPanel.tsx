@@ -16,6 +16,7 @@ import TouchpadIcon from '../../../assets/plugins/touchpad.svg';
 import AutocorrectIcon from '../../../assets/plugins/autocorrect.svg';
 import ArtificialIcon from '../../../assets/Artificial.svg';
 import GesturesIcon from '../../../assets/gesture.svg';
+import ResizeIcon from '../../../assets/resize.svg';
 import {
   PLUGIN_INNER_RADIUS,
   PLUGIN_OUTER_RADIUS,
@@ -36,6 +37,7 @@ type ItemsMenuPanelProps = {
   onSelectAutocorrect: () => void;
   onSelectCalculator: () => void;
   onSelectTouchpad: () => void;
+  onSelectResize: () => void;
 };
 
 type PluginTileProps = {
@@ -113,6 +115,7 @@ const PLUGINS = [
   {id: 'gestures', title: 'Gestures', Icon: GesturesIcon},
   {id: 'calculator', title: 'Calculator', Icon: CalculatorIcon},
   {id: 'touchpad', title: 'Touchpad', Icon: TouchpadIcon},
+  {id: 'resize', title: 'Keyboard Resize', Icon: ResizeIcon},
 ] as const;
 
 const PLUGIN_FADE_HEIGHT = PLUGIN_MENU_FADE_HEIGHT;
@@ -125,6 +128,7 @@ export function ItemsMenuPanel({
   onSelectAutocorrect,
   onSelectCalculator,
   onSelectTouchpad,
+  onSelectResize,
 }: ItemsMenuPanelProps) {
   const theme = useKeyboardTheme();
   const panelStyles = usePluginPanelStyles();
@@ -137,6 +141,7 @@ export function ItemsMenuPanel({
     gestures: onSelectGestures,
     calculator: onSelectCalculator,
     touchpad: onSelectTouchpad,
+    resize: onSelectResize,
   };
 
   return (

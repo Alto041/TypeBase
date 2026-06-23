@@ -14,12 +14,15 @@ import {
   StyleSheet,
   useWindowDimensions,
   View,
+  type StyleProp,
+  type ViewStyle,
 } from 'react-native';
 import {useFonts} from 'expo-font';
 import {KeyboardRow} from './components/KeyboardRows';
 import {SuggestionBar} from './components/SuggestionBar';
 import {CalculatorPanel} from './calculator/CalculatorPanel';
 import {TouchpadPanel} from './touchpad/TouchpadPanel';
+import {KeyboardResizeOverlay} from './resize/KeyboardResizeOverlay';
 import {ClipboardProPanel} from './clipboard/ClipboardProPanel';
 import {EmojiBottomRow} from './emoji/EmojiBottomRow';
 import {EmojiPanel} from './emoji/EmojiPanel';
@@ -31,6 +34,7 @@ import {
   deleteClipboardItem,
   ensureClipboardLoaded,
   getClipboardItems,
+  importRecentScreenshots,
   toggleClipboardPin,
 } from './clipboard/clipboardStore';
 import type {ClipboardItem} from './clipboard/types';
@@ -108,6 +112,7 @@ import {
   isSwipeTypingDisabledForLayout,
 } from './settings/customLayoutStore';
 import {
+  DIGITS_ROW,
   getKeyboardRows,
   type KeyDefinition,
   type KeyboardLayout,
@@ -128,6 +133,7 @@ import {
   getKeyboardLayoutSettings,
   KEYBOARD_LAYOUT_CHANGED_EVENT,
   parseLayoutEventPayload,
+  updateKeyboardLayoutSetting,
 } from './settings/layoutStore';
 import {
   ensureThemeLoaded,
@@ -186,6 +192,8 @@ type LetterKeyboardRowsProps = {
   onKeyPress: (keyDef: KeyDefinition) => void;
   onMultiTouchKeyCommit: (keyDef: KeyDefinition, text: string) => void;
   keyGestures?: KeyGesturesConfig;
+  keyHeight?: number;
+  rowStyle?: StyleProp<ViewStyle>;
   enterKeyNextLineEnabled: boolean;
   multiTouchEnabled?: boolean;
 };
@@ -201,6 +209,8 @@ const LetterKeyboardRows = React.memo(function LetterKeyboardRows({
   onKeyPress,
   onMultiTouchKeyCommit,
   keyGestures,
+  keyHeight,
+  rowStyle,
   enterKeyNextLineEnabled,
   multiTouchEnabled,
 }: LetterKeyboardRowsProps) {
@@ -227,10 +237,13 @@ const LetterKeyboardRows = React.memo(function LetterKeyboardRows({
           onKeyPress={onKeyPress}
           keyGestures={keyGestures}
           keyHeight={
-            layout === 'numpad' ? theme.numpadKeyHeight : undefined
+            keyHeight ?? (layout === 'numpad' ? theme.numpadKeyHeight : undefined)
           }
           variant={layout === 'numpad' ? 'numpad' : undefined}
-          rowStyle={layout === 'numpad' ? styles.numpadRow : undefined}
+          rowStyle={[
+            layout === 'numpad' ? styles.numpadRow : undefined,
+            rowStyle,
+          ]}
           enterKeyNextLineEnabled={enterKeyNextLineEnabled}
           multiTouchDispatchEnabled={multiTouchActive}
         />
@@ -303,8 +316,11 @@ function KeyboardBody() {
   const isUppercaseRef = useRef(false);
   const clipboardPasteSuggestionRef =
     useRef<ReturnType<typeof useClipboardPasteSuggestion>['clipboardPasteSuggestion']>(null);
+  const mediaImagesPermissionPromptedRef = useRef(false);
   const [prefersNumpad, setPrefersNumpad] = useState(false);
   const [inputInitialCapsMode, setInputInitialCapsMode] = useState(false);
+  // Live offset used only while the resize overlay is active.
+  const [resizeLiveOffset, setResizeLiveOffset] = useState(0);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [essentialSuggestions, setEssentialSuggestions] = useState<Essential[]>(
     [],
@@ -384,6 +400,7 @@ function KeyboardBody() {
   const isRewriteMode = mode.type === 'rewrite';
   const isFormatMode = mode.type === 'format';
   const isEmojiMode = mode.type === 'emoji';
+  const isResizeMode = mode.type === 'resize';
   const isGifCategory = isEmojiMode && emojiCategory === 'gif';
   const isGifSearchMode = isGifCategory && gifSearchActive;
   const isEmojiSearchMode =
@@ -396,10 +413,43 @@ function KeyboardBody() {
 
   const [customLayoutsTick, setCustomLayoutsTick] = useState(0);
 
-  const rows = useMemo(
-    () => getKeyboardRows(layout, theme.letterLayoutId),
-    [layout, theme.letterLayoutId, customLayoutsTick],
-  );
+  const rows = useMemo(() => {
+    const baseRows = getKeyboardRows(layout, theme.letterLayoutId);
+    if (layout === 'letters' && theme.numberRowEnabled) {
+      return [DIGITS_ROW, ...baseRows];
+    }
+    return baseRows;
+  }, [layout, theme.letterLayoutId, customLayoutsTick, theme.numberRowEnabled]);
+
+  // Effective key height for letters when using keyboard resize (or persisted offset).
+  // Positive offset: make keys taller → the rows block occupies more vertical space from the bottom,
+  // so the top of the keyboard content (top row + suggestion above it) moves up on screen.
+  // Negative offset: shrink keys + reduce padding so the keyboard "shrinks and fits in" the smaller window.
+  const resizeOffset = layout === 'letters' ? (isResizeMode ? resizeLiveOffset : (theme.keyboardHeightOffset ?? 0)) : 0;
+  const effectiveLetterKeyHeight =
+    layout === 'letters' && resizeOffset !== 0
+      ? (() => {
+          const rowCount = Math.max(1, rows.length);
+          if (resizeOffset > 0) {
+            // Grow the letter keys vertically, distributing most of the extra height
+            // across however many rows are visible (4 normally, 5 with number row).
+            const grow = (resizeOffset * 0.78) / rowCount;
+            return Math.round(theme.keyHeight + grow);
+          }
+          // Shrink keys enough that the content really fits inside the smaller window.
+          const shrink = (Math.abs(resizeOffset) * 0.78) / rowCount;
+          return Math.max(30, Math.round(theme.keyHeight - shrink));
+        })()
+      : undefined;
+
+  const resizeRowsExtraMargin =
+    layout === 'letters' && resizeOffset !== 0
+      ? (() => {
+          const rowCount = Math.max(1, rows.length);
+          const delta = (resizeOffset * 0.22) / rowCount;
+          return Math.max(0, Math.round(theme.keyRowMargin + delta));
+        })()
+      : undefined;
 
   useEffect(() => {
     void ensureCustomLayoutsLoaded();
@@ -424,6 +474,13 @@ function KeyboardBody() {
     );
     return () => subscription.remove();
   }, []);
+
+  // Sync live resize offset when entering the resize overlay.
+  useEffect(() => {
+    if (isResizeMode) {
+      setResizeLiveOffset(theme.keyboardHeightOffset ?? 0);
+    }
+  }, [isResizeMode, theme.keyboardHeightOffset]);
 
   useEffect(() => {
     initKeyPreview();
@@ -465,6 +522,7 @@ function KeyboardBody() {
 
   const reloadClipboard = useCallback(async () => {
     await ensureClipboardLoaded();
+    await importRecentScreenshots().catch(() => 0);
     setClipboardItems(getClipboardItems());
   }, []);
 
@@ -477,6 +535,8 @@ function KeyboardBody() {
     // Update refs immediately so guards and the next paint see the main alphabet view.
     layoutRef.current = 'letters';
     modeRef.current = {type: 'typing'};
+    shiftOnRef.current = true;
+    capsLockedRef.current = false;
     emojiCategoryRef.current = DEFAULT_EMOJI_CATEGORY;
     gifSearchActiveRef.current = false;
     emojiSearchActiveRef.current = false;
@@ -501,8 +561,9 @@ function KeyboardBody() {
     setAutocorrectPreview(null);
     setTypedKeepSuggestion(null);
     setStoppedTyping(true);
-    setShiftOn(false);
+    setShiftOn(true);
     setCapsLocked(false);
+    setResizeLiveOffset(0);
 
     void setCommaLauncherArmed(false);
 
@@ -674,6 +735,23 @@ function KeyboardBody() {
     resetCase();
   }, [resetCase]);
 
+  const openResize = useCallback(() => {
+    setMode({type: 'resize'});
+    setLayout('letters');
+    resetCase();
+  }, [resetCase]);
+
+  const closeResize = useCallback((saveOffset?: number) => {
+    if (typeof saveOffset === 'number') {
+      void updateKeyboardLayoutSetting('keyboardHeightOffset', saveOffset);
+    }
+    // Clear live so the height effect immediately falls back to the (possibly just saved or previous) persisted value.
+    setResizeLiveOffset(0);
+    setMode({type: 'typing'});
+    setLayout('letters');
+    resetCase();
+  }, [resetCase]);
+
   const openFormatPanel = useCallback(async () => {
     if (isListening) {
       await toggleListening();
@@ -746,13 +824,23 @@ function KeyboardBody() {
   );
 
   const openClipboard = useCallback(async () => {
-    await reloadClipboard();
+    if (!mediaImagesPermissionPromptedRef.current) {
+      const hasMediaPermission = await keyboardBridge
+        .hasMediaImagesPermission()
+        .catch(() => false);
+      if (!hasMediaPermission) {
+        mediaImagesPermissionPromptedRef.current = true;
+        await keyboardBridge.openAppForMediaImagesPermission().catch(() => false);
+      }
+    }
+    await ensureClipboardLoaded();
     await captureSystemClipboard();
-    await reloadClipboard();
+    await importRecentScreenshots({bumpExisting: true}).catch(() => 0);
+    setClipboardItems(getClipboardItems());
     setMode({type: 'clipboard'});
     setLayout('letters');
     resetCase();
-  }, [reloadClipboard, resetCase]);
+  }, [resetCase]);
 
   const toggleEmojiPanel = useCallback(async () => {
     if (mode.type === 'emoji') {
@@ -1156,16 +1244,51 @@ function KeyboardBody() {
   ]);
 
   useEffect(() => {
-    const height =
+    let height =
       layout === 'numpad'
         ? theme.numpadKeyboardHeightDp
         : theme.keyboardHeightDp;
-    keyboardBridge.setKeyboardHeight(height);
-    const timer = setTimeout(() => {
-      layoutContext?.requestRemeasure();
-    }, 80);
-    return () => clearTimeout(timer);
-  }, [layout, theme, layoutContext]);
+
+    // Apply user resize offset (or live drag value) only for the letters layout.
+    if (layout === 'letters') {
+      const offset = isResizeMode
+        ? resizeLiveOffset
+        : (theme.keyboardHeightOffset ?? 0);
+      height += offset;
+
+      if (theme.numberRowEnabled) {
+        height += theme.keyHeight + theme.keyRowMargin;
+      }
+    }
+
+    // Enforce sane bounds (very small or huge keyboards are bad for IME).
+    const minHeight = 245;
+    const maxHeight = 520;
+    const finalHeight = Math.max(minHeight, Math.min(maxHeight, Math.round(height)));
+
+    keyboardBridge.setKeyboardHeight(finalHeight);
+
+    // IMPORTANT for smooth resize drag:
+    // Do NOT remeasure keys on every live offset change while the resize overlay is active.
+    // Remeasure is expensive (touches all key bounds for gesture typing etc).
+    // The native window size change is enough for the visual resize.
+    // We remeasure once when leaving resize mode (via normal effects) or on session changes.
+    if (!isResizeMode) {
+      const timer = setTimeout(() => {
+        layoutContext?.requestRemeasure();
+      }, 80);
+      return () => clearTimeout(timer);
+    }
+    return undefined;
+  }, [
+    layout,
+    theme,
+    layoutContext,
+    isResizeMode,
+    resizeLiveOffset,
+    theme.keyboardHeightOffset,
+    theme.numberRowEnabled,
+  ]);
 
   useEffect(() => {
     const subscription = DeviceEventEmitter.addListener(
@@ -1295,7 +1418,7 @@ function KeyboardBody() {
       return;
     }
     markTyping();
-    clearClipboardPasteSuggestion();
+    clearClipboardPasteSuggestion(item.fingerprint);
     if (item.kind === 'image' && item.imageUri) {
       const imagePath = item.imageUri.replace(/^file:\/\//, '');
       void keyboardBridge.insertClipboardImage(imagePath);
@@ -1692,7 +1815,8 @@ function KeyboardBody() {
   const showKeys =
     mode.type === 'typing' ||
     mode.type === 'essentials-form' ||
-    isEmojiMode;
+    isEmojiMode ||
+    isResizeMode;
   const itemsSelected =
     mode.type === 'items-menu' ||
     mode.type === 'essentials-list' ||
@@ -2106,6 +2230,19 @@ function KeyboardBody() {
             !showKeys && styles.keysPanel,
             !showKeys && styles.keysPanelPlugins,
             !showKeys ? styles.keysPanelClip : null,
+            // When shrinking (negative offset in resize), reduce top padding so the keyboard
+            // "shrinks and fits in" the smaller window from the top while bottom stays put.
+            layout === 'letters' && (isResizeMode ? resizeLiveOffset : (theme.keyboardHeightOffset ?? 0)) < 0
+              ? {
+                  paddingTop: Math.max(
+                    0,
+                    theme.keysPaddingTop +
+                      Math.round(
+                        (isResizeMode ? resizeLiveOffset : (theme.keyboardHeightOffset ?? 0)) * 0.15,
+                      ),
+                  ),
+                }
+              : null,
           ]}>
           {isEmojiMode && !isGifSearchMode && !isEmojiSearchMode ? (
             <EmojiPanel
@@ -2140,6 +2277,9 @@ function KeyboardBody() {
               onSelectTouchpad={() => {
                 openTouchpad();
               }}
+              onSelectResize={() => {
+                openResize();
+              }}
             />
           ) : null}
 
@@ -2159,6 +2299,33 @@ function KeyboardBody() {
           ) : null}
 
           {mode.type === 'touchpad' ? <TouchpadPanel /> : null}
+
+          {isResizeMode ? (
+            <View
+              style={{
+                position: 'absolute',
+                left: 0,
+                right: 0,
+                top: 0,
+                bottom: 0,
+                zIndex: 80,
+              }}
+              pointerEvents="box-none">
+              <KeyboardResizeOverlay
+                baseHeight={
+                  theme.keyboardHeightDp +
+                  (theme.numberRowEnabled ? theme.keyHeight + theme.keyRowMargin : 0)
+                }
+                currentOffset={resizeLiveOffset}
+                onOffsetChange={setResizeLiveOffset}
+                onDone={(finalOffset) => closeResize(finalOffset)}
+                onCancel={() => {
+                  // revert live changes by not saving; height will reset on mode change via effect
+                  closeResize();
+                }}
+              />
+            </View>
+          ) : null}
 
           {mode.type === 'clipboard' ? (
             <ClipboardProPanel
@@ -2249,9 +2416,15 @@ function KeyboardBody() {
                 isGifSearchMode ||
                 isEmojiSearchMode
               }
-            enterKeyNextLineEnabled={
-              mode.type === 'typing' ? enterKeyNextLineEnabled : false
-            }
+              keyHeight={effectiveLetterKeyHeight}
+              rowStyle={
+                resizeRowsExtraMargin !== undefined
+                  ? {marginBottom: resizeRowsExtraMargin}
+                  : undefined
+              }
+              enterKeyNextLineEnabled={
+                mode.type === 'typing' ? enterKeyNextLineEnabled : false
+              }
             />
           ) : null}
         </View>

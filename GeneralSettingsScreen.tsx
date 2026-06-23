@@ -19,6 +19,7 @@ import FeedbackIcon from './assets/feedback.svg';
 import GraphicEqIcon from './assets/graphic_eq.svg';
 import DevIcon from './assets/dev.svg';
 import SymbolToggleIcon from './assets/symbol-toggle.svg';
+import NumberRowIcon from './assets/123.svg';
 
 import {playSwitchOffSound, playSwitchOnSound} from './src/app/switchSound';
 
@@ -63,11 +64,13 @@ export function GeneralSettingsScreen({
   const [developerEyeEnabled, setDeveloperEyeEnabledState] = useState(false);
   const [letterSymbolAlternatesEnabled, setLetterSymbolAlternatesEnabledState] =
     useState(false);
+  const [numberRowEnabled, setNumberRowEnabledState] = useState(false);
 
   const uiSoundsAnim = useRef(new Animated.Value(0)).current;
   const enterKeyAnim = useRef(new Animated.Value(0)).current;
   const developerEyeAnim = useRef(new Animated.Value(0)).current;
   const symbolAlternatesAnim = useRef(new Animated.Value(0)).current;
+  const numberRowAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     void getUiSoundsEnabled()
@@ -85,6 +88,8 @@ export function GeneralSettingsScreen({
       developerEyeAnim.setValue(layout.developerEyeEnabled ? 1 : 0);
       setLetterSymbolAlternatesEnabledState(layout.letterSymbolAlternatesEnabled);
       symbolAlternatesAnim.setValue(layout.letterSymbolAlternatesEnabled ? 1 : 0);
+      setNumberRowEnabledState(layout.numberRowEnabled ?? false);
+      numberRowAnim.setValue(layout.numberRowEnabled ? 1 : 0);
     });
   }, []);
 
@@ -142,6 +147,16 @@ export function GeneralSettingsScreen({
     setLetterSymbolAlternatesEnabledState(next);
     void updateKeyboardLayoutSetting('letterSymbolAlternatesEnabled', next);
     animateToggle(symbolAlternatesAnim, next ? 1 : 0);
+    if (next) playSwitchOnSound();
+    else playSwitchOffSound();
+    void Haptics.selectionAsync().catch(() => {});
+  };
+
+  const toggleNumberRow = async () => {
+    const next = !numberRowEnabled;
+    setNumberRowEnabledState(next);
+    void updateKeyboardLayoutSetting('numberRowEnabled', next);
+    animateToggle(numberRowAnim, next ? 1 : 0);
     if (next) playSwitchOnSound();
     else playSwitchOffSound();
     void Haptics.selectionAsync().catch(() => {});
@@ -234,6 +249,36 @@ export function GeneralSettingsScreen({
                         transform: [
                           {
                             translateX: symbolAlternatesAnim.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [0, 18],
+                            }),
+                          },
+                        ],
+                      },
+                    ]}
+                  />
+                </Pressable>
+              </View>
+            </View>
+          </View>
+
+          {/* Number Row Toggle */}
+          <View style={styles.rowCard}>
+            <View style={styles.rowInner}>
+              <NumberRowIcon width={ROW_ICON} height={ROW_ICON} color={C.text} />
+              <Text style={styles.rowTitle}>Number Row</Text>
+              <View style={styles.toggleWrap}>
+                <Pressable
+                  onPress={toggleNumberRow}
+                  style={[styles.toggleTrack, numberRowEnabled && styles.toggleTrackOn]}
+                >
+                  <Animated.View
+                    style={[
+                      styles.toggleThumb,
+                      {
+                        transform: [
+                          {
+                            translateX: numberRowAnim.interpolate({
                               inputRange: [0, 1],
                               outputRange: [0, 18],
                             }),

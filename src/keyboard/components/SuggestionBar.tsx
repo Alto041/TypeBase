@@ -27,6 +27,11 @@ export type EssentialSuggestion = {
 };
 
 const MAX_SUGGESTION_CHIPS = 3;
+const TWO_CHIP_WORD_LENGTH = 13;
+const ONE_CHIP_WORD_LENGTH = 20;
+const THREE_CHIP_TEXT_LENGTH = 12;
+const TWO_CHIP_TEXT_LENGTH = 18;
+const ONE_CHIP_TEXT_LENGTH = 28;
 
 type WordSuggestionChip =
   | {kind: 'keep'; text: string}
@@ -57,7 +62,40 @@ function buildWordSuggestionChips(
     });
   }
 
-  return chips.slice(0, MAX_SUGGESTION_CHIPS);
+  const longestChipLength = chips.reduce(
+    (longest, chip) => Math.max(longest, chip.text.length),
+    0,
+  );
+  const chipLimit =
+    longestChipLength >= ONE_CHIP_WORD_LENGTH
+      ? 1
+      : longestChipLength >= TWO_CHIP_WORD_LENGTH
+        ? 2
+        : MAX_SUGGESTION_CHIPS;
+
+  return chips.slice(0, chipLimit);
+}
+
+function middleTruncateSuggestion(text: string, maxLength: number): string {
+  if (text.length <= maxLength) {
+    return text;
+  }
+  const available = Math.max(1, maxLength - 1);
+  const headLength = Math.ceil(available * 0.62);
+  const tailLength = Math.max(0, available - headLength);
+  return `${text.slice(0, headLength)}…${
+    tailLength > 0 ? text.slice(-tailLength) : ''
+  }`;
+}
+
+function suggestionDisplayMaxLength(chipCount: number): number {
+  if (chipCount <= 1) {
+    return ONE_CHIP_TEXT_LENGTH;
+  }
+  if (chipCount === 2) {
+    return TWO_CHIP_TEXT_LENGTH;
+  }
+  return THREE_CHIP_TEXT_LENGTH;
 }
 
 type EssentialsFormBarState = {
@@ -223,6 +261,9 @@ function SuggestionBarComponent({
       );
   const showEssentials = hasEssentials;
   const showWordSuggestions = wordSuggestionChips.length > 0;
+  const wordSuggestionDisplayMax = suggestionDisplayMaxLength(
+    wordSuggestionChips.length,
+  );
   const hasClipboardPaste =
     !isFormMode &&
     !centerTitle &&
@@ -416,7 +457,10 @@ function SuggestionBarComponent({
                         : styles.suggestionText
                     }
                     numberOfLines={1}>
-                    {chip.text ?? ''}
+                    {middleTruncateSuggestion(
+                      chip.text ?? '',
+                      wordSuggestionDisplayMax,
+                    )}
                   </Text>
                 </Pressable>
               </Fragment>

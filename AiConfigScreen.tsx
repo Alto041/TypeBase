@@ -1,6 +1,7 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {
   ActivityIndicator,
+  Animated,
   BackHandler,
   Pressable,
   ScrollView,
@@ -32,12 +33,18 @@ import {
   getApiKeys,
   setApiKeys,
 } from './src/keyboard/settings/apiKeysStore';
+import {
+  ensureVoiceSttProviderLoaded,
+  getVoiceSttProvider,
+  setVoiceSttProvider,
+  type VoiceSttProvider,
+} from './src/keyboard/settings/voiceSttProviderStore';
 import {isGemmaModelDownloaded} from './src/keyboard/ai/gemmaBridge';
 import {
   ensureGemmaModelDownloaded,
   isOnDeviceAiSupported,
 } from './src/keyboard/ai/gemmaModelManager';
-import {playSwitchOnSound} from './src/app/switchSound';
+import {playSwitchOffSound, playSwitchOnSound} from './src/app/switchSound';
 
 const C = {
   bg: '#f2f2f4',
@@ -52,6 +59,7 @@ const C = {
 const CARD_R = 14;
 const CONFIG_CARD_R = 25;
 const ROW_GAP = 8;
+const ROW_ICON = 20;
 const TEXT_KERNING = -0.7;
 
 const CONFIG_ICON_INSET = 16;
@@ -71,6 +79,8 @@ export function AiConfigScreen({
   onContinue?: () => void;
 }) {
   const [provider, setProvider] = useState<AiProvider>('gemini');
+  const [voiceProvider, setVoiceProviderState] =
+    useState<VoiceSttProvider>('speechmatics');
   const [apiKeys, setApiKeysState] = useState<ApiKeys>({
     geminiApiKey: '',
     speechmaticsApiKey: '',
@@ -84,14 +94,19 @@ export function AiConfigScreen({
   const scrollViewRef = useRef<ScrollView | null>(null);
   const geminiApiKeyInputRef = useRef<TextInput | null>(null);
   const geminiApiKeyYRef = useRef(0);
+  const voiceProviderAnim = useRef(new Animated.Value(0)).current;
 
   // Load initial data
   useEffect(() => {
     const loadData = async () => {
       await ensureAiProviderLoaded();
+      await ensureVoiceSttProviderLoaded();
       await ensureApiKeysLoaded();
 
       setProvider(getAiProvider());
+      const loadedVoiceProvider = getVoiceSttProvider();
+      setVoiceProviderState(loadedVoiceProvider);
+      voiceProviderAnim.setValue(loadedVoiceProvider === 'android' ? 1 : 0);
       setApiKeysState(getApiKeys());
       setIsOnDeviceSupported(isOnDeviceAiSupported());
 
@@ -128,6 +143,31 @@ export function AiConfigScreen({
     playSwitchOnSound();
     setProvider(newProvider);
     await setAiProvider(newProvider);
+  };
+
+  const animateToggle = (anim: Animated.Value, toValue: number) => {
+    Animated.spring(anim, {
+      toValue,
+      useNativeDriver: true,
+      stiffness: 700,
+      damping: 28,
+      mass: 0.8,
+    }).start();
+  };
+
+  const handleVoiceProviderChange = async (newProvider: VoiceSttProvider) => {
+    void Haptics.selectionAsync().catch(() => {});
+    if (newProvider === 'android') playSwitchOnSound();
+    else playSwitchOffSound();
+    setVoiceProviderState(newProvider);
+    animateToggle(voiceProviderAnim, newProvider === 'android' ? 1 : 0);
+    await setVoiceSttProvider(newProvider);
+  };
+
+  const toggleAndroidStt = async () => {
+    await handleVoiceProviderChange(
+      voiceProvider === 'android' ? 'speechmatics' : 'android',
+    );
   };
 
   const handleEditGeminiApiKey = async () => {
@@ -361,7 +401,47 @@ export function AiConfigScreen({
             </View>
           )}
 
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Voice Input Provider</Text>
+            <View style={styles.rowCard}>
+              <View style={styles.rowInner}>
+                <DeviceIcon width={ROW_ICON} height={ROW_ICON} />
+                <Text style={styles.rowTitle}>Android STT</Text>
+                <View style={styles.toggleWrap}>
+                  <Pressable
+                    onPress={toggleAndroidStt}
+                    style={[
+                      styles.toggleTrack,
+                      voiceProvider === 'android' && styles.toggleTrackOn,
+                    ]}>
+                    <Animated.View
+                      style={[
+                        styles.toggleThumb,
+                        {
+                          transform: [
+                            {
+                              translateX: voiceProviderAnim.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: [0, 18],
+                              }),
+                            },
+                          ],
+                        },
+                      ]}
+                    />
+                  </Pressable>
+                </View>
+              </View>
+            </View>
+            <Text style={styles.inputHint}>
+              {voiceProvider === 'android'
+                ? 'Device speech recognition'
+                : 'Off: Speechmatics'}
+            </Text>
+          </View>
+
           {/* Speechmatics API Key */}
+          {voiceProvider === 'speechmatics' ? (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Speech-to-Text API Key</Text>
             <View style={styles.inputCard}>
@@ -379,15 +459,15 @@ export function AiConfigScreen({
                 autoCorrect={false}
               />
             </View>
-            <Text style={styles.inputHint}>Required for voice typing</Text>
+            <Text style={styles.inputHint}>Voice typing key</Text>
           </View>
+          ) : null}
 
           {/* Info Section */}
           {!isWizard ? (
             <View style={styles.infoSection}>
               <Text style={styles.infoText}>
-                Your API keys are stored securely on your device and are only used
-                to communicate with the respective AI services.
+                Keys stay on this device.
               </Text>
             </View>
           ) : null}
@@ -579,6 +659,49 @@ const styles = StyleSheet.create({
     marginLeft: 4,
     marginBottom: 4,
   },
+  rowCard: {
+    backgroundColor: C.card,
+    borderRadius: CARD_R,
+    minHeight: 50,
+    justifyContent: 'center',
+  },
+  rowInner: {
+    minHeight: 50,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+  },
+  rowTitle: {
+    marginLeft: 12,
+    flex: 1,
+    fontSize: 16,
+    lineHeight: 20,
+    color: C.text,
+    letterSpacing: TEXT_KERNING,
+    fontWeight: '500',
+    fontFamily: 'FragmentMono',
+  },
+  toggleWrap: {
+    width: 48,
+    alignItems: 'flex-end',
+  },
+  toggleTrack: {
+    width: 42,
+    height: 24,
+    borderRadius: 999,
+    backgroundColor: '#dddddf',
+    padding: 3,
+    justifyContent: 'center',
+  },
+  toggleTrackOn: {
+    backgroundColor: C.green,
+  },
+  toggleThumb: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#ffffff',
+  },
   providerCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -660,10 +783,10 @@ const styles = StyleSheet.create({
     minHeight: 24,
   },
   inputHint: {
-    fontSize: 13,
+    fontSize: 12,
     color: C.sub,
     marginLeft: 4,
-    marginTop: 4,
+    marginTop: 2,
     fontFamily: 'FragmentMono',
     letterSpacing: TEXT_KERNING,
   },
@@ -752,9 +875,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   infoText: {
-    fontSize: 13,
+    fontSize: 12,
     color: C.sub,
-    lineHeight: 20,
+    lineHeight: 17,
     fontFamily: 'FragmentMono',
     letterSpacing: TEXT_KERNING,
   },

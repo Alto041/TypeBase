@@ -30,12 +30,24 @@ import {
   setApiKeys,
 } from '../settings/apiKeysStore';
 import {
+  ensureVoiceSttProviderLoaded,
+  getVoiceSttProvider,
+  setVoiceSttProvider,
+  type VoiceSttProvider,
+} from '../settings/voiceSttProviderStore';
+import {
   ensureGemmaModelDownloaded,
   isOnDeviceAiSupported,
 } from './gemmaModelManager';
 
 type ProviderOption = {
   id: AiProvider;
+  title: string;
+  subtitle: string;
+};
+
+type VoiceProviderOption = {
+  id: VoiceSttProvider;
   title: string;
   subtitle: string;
 };
@@ -50,6 +62,19 @@ const PROVIDER_OPTIONS: ProviderOption[] = [
     id: 'on_device',
     title: 'On-Device AI (Gemma)',
     subtitle: 'Gemma 3 1B - runs locally on your device',
+  },
+];
+
+const VOICE_PROVIDER_OPTIONS: VoiceProviderOption[] = [
+  {
+    id: 'speechmatics',
+    title: 'Speechmatics',
+    subtitle: 'Cloud transcription with live partials',
+  },
+  {
+    id: 'android',
+    title: 'Android STT',
+    subtitle: 'Uses the device speech recognizer; supports offline when available',
   },
 ];
 
@@ -143,6 +168,51 @@ function ProviderSelector({
                 ]}>
                 {option.subtitle}
               </Text>
+            </View>
+            {isSelected && <Text style={styles.selectedMark}>✓</Text>}
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+function VoiceProviderSelector({
+  selectedProvider,
+  onSelect,
+}: {
+  selectedProvider: VoiceSttProvider;
+  onSelect: (provider: VoiceSttProvider) => void;
+}) {
+  const styles = useThemedStyles(createStyles);
+
+  return (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>Voice Input Provider</Text>
+      {VOICE_PROVIDER_OPTIONS.map((option, index) => {
+        const isSelected = selectedProvider === option.id;
+
+        return (
+          <Pressable
+            key={option.id}
+            onPress={() => {
+              triggerKeyHaptic();
+              onSelect(option.id);
+            }}
+            style={[
+              styles.providerRow,
+              getTileStyle(index, VOICE_PROVIDER_OPTIONS.length),
+              isSelected && styles.providerRowSelected,
+            ]}>
+            <View style={styles.providerInfo}>
+              <Text
+                style={[
+                  styles.providerTitle,
+                  isSelected && styles.providerTitleSelected,
+                ]}>
+                {option.title}
+              </Text>
+              <Text style={styles.providerSubtitle}>{option.subtitle}</Text>
             </View>
             {isSelected && <Text style={styles.selectedMark}>✓</Text>}
           </Pressable>
@@ -254,6 +324,8 @@ export function AiConfigPanel() {
   const styles = useThemedStyles(createStyles);
 
   const [provider, setProvider] = useState<AiProvider>('gemini');
+  const [voiceProvider, setVoiceProviderState] =
+    useState<VoiceSttProvider>('speechmatics');
   const [apiKeys, setApiKeysState] = useState<ApiKeys>({
     geminiApiKey: '',
     speechmaticsApiKey: '',
@@ -268,9 +340,11 @@ export function AiConfigPanel() {
   useEffect(() => {
     const loadData = async () => {
       await ensureAiProviderLoaded();
+      await ensureVoiceSttProviderLoaded();
       await ensureApiKeysLoaded();
 
       setProvider(getAiProvider());
+      setVoiceProviderState(getVoiceSttProvider());
       setApiKeysState(getApiKeys());
       setIsOnDeviceSupported(isOnDeviceAiSupported());
       setIsLoading(false);
@@ -284,6 +358,14 @@ export function AiConfigPanel() {
     setProvider(newProvider);
     await setAiProvider(newProvider);
   }, []);
+
+  const handleVoiceProviderChange = useCallback(
+    async (newProvider: VoiceSttProvider) => {
+      setVoiceProviderState(newProvider);
+      await setVoiceSttProvider(newProvider);
+    },
+    [],
+  );
 
   // Handle API key changes
   const handleGeminiKeyChange = useCallback(async (value: string) => {
@@ -333,6 +415,11 @@ export function AiConfigPanel() {
           isOnDeviceSupported={isOnDeviceSupported}
         />
 
+        <VoiceProviderSelector
+          selectedProvider={voiceProvider}
+          onSelect={handleVoiceProviderChange}
+        />
+
         {/* Cloud AI Settings */}
         {provider === 'gemini' && (
           <ApiKeyInput
@@ -353,13 +440,14 @@ export function AiConfigPanel() {
           />
         )}
 
-        {/* Speechmatics STT API Key */}
-        <ApiKeyInput
-          title="Speechmatics API Key"
-          placeholder="Enter your Speechmatics API key for voice typing"
-          value={apiKeys.speechmaticsApiKey}
-          onChange={handleSpeechmaticsKeyChange}
-        />
+        {voiceProvider === 'speechmatics' && (
+          <ApiKeyInput
+            title="Speechmatics API Key"
+            placeholder="Enter your Speechmatics API key for voice typing"
+            value={apiKeys.speechmaticsApiKey}
+            onChange={handleSpeechmaticsKeyChange}
+          />
+        )}
       </PluginScrollView>
     </View>
   );

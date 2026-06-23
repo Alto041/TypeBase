@@ -21,4 +21,5 @@ export type KeyboardMode =
   | {type: 'touchpad'}
   | {type: 'translate'}
   | {type: 'rewrite'}
-  | {type: 'format'};
+  | {type: 'format'}
+  | {type: 'resize'};

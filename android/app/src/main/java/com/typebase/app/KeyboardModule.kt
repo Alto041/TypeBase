@@ -1,5 +1,6 @@
 package com.typebase.app
 
+import android.Manifest
 import android.content.ClipData
 import android.content.ClipDescription
 import android.content.ClipboardManager
@@ -11,6 +12,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import android.provider.MediaStore
 import android.provider.Settings
 import android.view.HapticFeedbackConstants
 import android.view.KeyEvent
@@ -19,6 +21,7 @@ import android.view.inputmethod.InputConnection
 import android.R
 import android.view.inputmethod.InputContentInfo
 import androidx.core.content.FileProvider
+import androidx.core.content.ContextCompat
 import java.io.File
 import java.io.FileOutputStream
 import java.security.MessageDigest
@@ -30,6 +33,7 @@ import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.UiThreadUtil
 import com.facebook.react.bridge.WritableMap
 import com.facebook.react.modules.core.DeviceEventManagerModule
+import org.json.JSONArray
 import org.json.JSONObject
 
 class KeyboardModule(reactContext: ReactApplicationContext) :
@@ -335,6 +339,105 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
       promise.resolve(!file.exists() || file.delete())
     } catch (error: Exception) {
       promise.reject("DELETE_CLIPBOARD_IMAGE_FAILED", error)
+    }
+  }
+
+  @ReactMethod
+  fun hasMediaImagesPermission(promise: Promise) {
+    try {
+      promise.resolve(hasMediaImagesPermissionInternal())
+    } catch (error: Exception) {
+      promise.reject("MEDIA_PERMISSION_CHECK_FAILED", error)
+    }
+  }
+
+  @ReactMethod
+  fun openAppForMediaImagesPermission(promise: Promise) {
+    try {
+      if (hasMediaImagesPermissionInternal()) {
+        promise.resolve(true)
+        return
+      }
+      val intent =
+          Intent(reactApplicationContext, MainActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            putExtra(MainActivity.EXTRA_REQUEST_MEDIA_IMAGES, true)
+          }
+      reactApplicationContext.startActivity(intent)
+      promise.resolve(true)
+    } catch (error: Exception) {
+      promise.reject("OPEN_MEDIA_PERMISSION_FAILED", error)
+    }
+  }
+
+  @ReactMethod
+  fun importRecentScreenshots(sinceMs: Double, maxCount: Int, promise: Promise) {
+    try {
+      if (!hasMediaImagesPermissionInternal()) {
+        promise.resolve("[]")
+        return
+      }
+      val resolver = reactApplicationContext.contentResolver
+      val collection =
+          if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
+          } else {
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+          }
+
+      val pathColumn =
+          if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            MediaStore.Images.Media.RELATIVE_PATH
+          } else {
+            MediaStore.Images.Media.DATA
+          }
+      val projection =
+          arrayOf(
+              MediaStore.Images.Media._ID,
+              MediaStore.Images.Media.DISPLAY_NAME,
+              MediaStore.Images.Media.MIME_TYPE,
+              MediaStore.Images.Media.DATE_ADDED,
+              MediaStore.Images.Media.DATE_MODIFIED,
+              pathColumn,
+          )
+
+      val sinceSeconds = (sinceMs / 1000.0).toLong().coerceAtLeast(0L)
+      val selection =
+          "(${MediaStore.Images.Media.DATE_ADDED} >= ? OR ${MediaStore.Images.Media.DATE_MODIFIED} >= ?)"
+      val selectionArgs = arrayOf(sinceSeconds.toString(), sinceSeconds.toString())
+      val sortOrder = "${MediaStore.Images.Media.DATE_ADDED} DESC"
+      val imported = JSONArray()
+      val limit = maxCount.coerceIn(1, 8)
+
+      resolver
+          .query(collection, projection, selection, selectionArgs, sortOrder)
+          ?.use { cursor ->
+            val idIndex = cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
+            val nameIndex = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DISPLAY_NAME)
+            val mimeIndex = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.MIME_TYPE)
+            val pathIndex = cursor.getColumnIndex(pathColumn)
+
+            while (cursor.moveToNext() && imported.length() < limit) {
+              val name = cursor.getString(nameIndex).orEmpty()
+              val relativePath = if (pathIndex >= 0) cursor.getString(pathIndex).orEmpty() else ""
+              if (!looksLikeScreenshot(name, relativePath)) {
+                continue
+              }
+
+              val mimeType = cursor.getString(mimeIndex) ?: "image/png"
+              val id = cursor.getLong(idIndex)
+              val uri = Uri.withAppendedPath(collection, id.toString())
+              val saved = saveClipboardImage(uri, mimeType) ?: continue
+              imported.put(JSONObject(saved))
+            }
+          }
+
+      promise.resolve(imported.toString())
+    } catch (_: SecurityException) {
+      // Media permission is not granted; keep keyboard behavior silent and non-blocking.
+      promise.resolve("[]")
+    } catch (error: Exception) {
+      promise.reject("IMPORT_RECENT_SCREENSHOTS_FAILED", error)
     }
   }
 
@@ -841,6 +944,30 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     }
   }
 
+  @ReactMethod
+  fun getVoiceSttProvider(promise: Promise) {
+    try {
+      val provider =
+          learnedWordsPrefs().getString(VOICE_STT_PROVIDER_KEY, DEFAULT_VOICE_STT_PROVIDER)
+              ?: DEFAULT_VOICE_STT_PROVIDER
+      promise.resolve(provider)
+    } catch (error: Exception) {
+      promise.reject("GET_VOICE_STT_PROVIDER_FAILED", error)
+    }
+  }
+
+  @ReactMethod
+  fun setVoiceSttProvider(provider: String, promise: Promise) {
+    try {
+      val normalized = if (provider == "android") "android" else "speechmatics"
+      val saved =
+          learnedWordsPrefs().edit().putString(VOICE_STT_PROVIDER_KEY, normalized).commit()
+      promise.resolve(saved)
+    } catch (error: Exception) {
+      promise.reject("SET_VOICE_STT_PROVIDER_FAILED", error)
+    }
+  }
+
   private fun readLearnedPhrases(): JSONObject {
     val raw = learnedWordsPrefs().getString(LEARNED_PHRASES_KEY, "{}") ?: "{}"
     return JSONObject(raw)
@@ -1262,6 +1389,26 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     }
   }
 
+  private fun hasMediaImagesPermissionInternal(): Boolean {
+    val permission =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+          Manifest.permission.READ_MEDIA_IMAGES
+        } else {
+          Manifest.permission.READ_EXTERNAL_STORAGE
+        }
+    return ContextCompat.checkSelfPermission(reactApplicationContext, permission) ==
+        PackageManager.PERMISSION_GRANTED
+  }
+
+  private fun looksLikeScreenshot(name: String, relativePath: String): Boolean {
+    val haystack = "$relativePath/$name".lowercase()
+    return haystack.contains("screenshot") ||
+        haystack.contains("screen_shot") ||
+        haystack.contains("screen shot") ||
+        haystack.contains("screenshots/") ||
+        haystack.contains("pictures/screenshots")
+  }
+
   private fun sha256Hex(bytes: ByteArray): String {
     val digest = MessageDigest.getInstance("SHA-256").digest(bytes)
     return digest.joinToString("") { byte -> "%02x".format(byte) }
@@ -1299,6 +1446,8 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     private const val API_KEYS_KEY = "api_keys"
     private const val AI_PROVIDER_KEY = "ai_provider"
     private const val DEFAULT_AI_PROVIDER = "gemini"
+    private const val VOICE_STT_PROVIDER_KEY = "voice_stt_provider"
+    private const val DEFAULT_VOICE_STT_PROVIDER = "speechmatics"
     private const val KEYBOARD_THEME_KEY = "keyboard_theme"
     private const val DEFAULT_KEYBOARD_THEME = "light"
     private const val KEYBOARD_DESIGN_KEY = "keyboard_design"

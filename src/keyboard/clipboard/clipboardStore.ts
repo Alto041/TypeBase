@@ -2,10 +2,13 @@ import {keyboardBridge} from '../keyboardBridge';
 import type {ClipboardItem} from './types';
 
 const MAX_HISTORY = 50;
+const SCREENSHOT_LOOKBACK_MS = 5 * 60 * 1000;
+const MAX_SCREENSHOTS_PER_IMPORT = 4;
 
 const items = new Map<string, ClipboardItem>();
 
 let loadPromise: Promise<void> | null = null;
+let lastScreenshotImportAt = 0;
 
 function createId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -157,11 +160,15 @@ export async function addClipboardImage(
   imageUri: string,
   imageHash: string,
   mimeType?: string,
+  options: {bumpExisting?: boolean} = {},
 ): Promise<ClipboardItem> {
   const existing = getClipboardItems().find(
     item => item.kind === 'image' && item.imageHash === imageHash,
   );
   if (existing) {
+    if (options.bumpExisting === false) {
+      return existing;
+    }
     const updated: ClipboardItem = {...existing, createdAt: Date.now()};
     items.set(existing.id, updated);
     await persist();
@@ -181,6 +188,50 @@ export async function addClipboardImage(
   trimUnpinnedOverflow();
   await persist();
   return item;
+}
+
+export async function importRecentScreenshots(
+  options: {bumpExisting?: boolean} = {},
+): Promise<number> {
+  await ensureClipboardLoaded();
+  const hasMediaPermission = await keyboardBridge
+    .hasMediaImagesPermission()
+    .catch(() => false);
+  if (!hasMediaPermission) {
+    return 0;
+  }
+  const now = Date.now();
+  const sinceMs =
+    options.bumpExisting
+      ? now - SCREENSHOT_LOOKBACK_MS
+      : lastScreenshotImportAt > 0
+      ? Math.max(lastScreenshotImportAt - 2000, now - SCREENSHOT_LOOKBACK_MS)
+      : now - SCREENSHOT_LOOKBACK_MS;
+
+  const screenshots = await keyboardBridge.importRecentScreenshots(
+    sinceMs,
+    MAX_SCREENSHOTS_PER_IMPORT,
+  );
+  lastScreenshotImportAt = now;
+
+  let imported = 0;
+  // MediaStore returns newest first; insert/update oldest first so the newest
+  // screenshot lands at the top of clipboard history.
+  for (const screenshot of [...screenshots].reverse()) {
+    const before = getClipboardItems().find(
+      item => item.kind === 'image' && item.imageHash === screenshot.imageHash,
+    );
+    await addClipboardImage(
+      screenshot.imagePath,
+      screenshot.imageHash,
+      screenshot.mimeType,
+      {bumpExisting: options.bumpExisting ?? false},
+    );
+    if (!before) {
+      imported += 1;
+    }
+  }
+  return imported;
 }
 
 export async function deleteClipboardItem(itemId: string): Promise<void> {

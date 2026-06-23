@@ -20,3 +20,10 @@ export type ClipboardContent =
       imageHash: string;
       mimeType?: string;
     };
+
+export type ImportedScreenshot = {
+  kind: 'image';
+  imagePath: string;
+  imageHash: string;
+  mimeType?: string;
+};
