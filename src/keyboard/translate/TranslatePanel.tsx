@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import {
-  PLUGIN_PANEL_HEIGHT,
+  getPluginMenuFadeHeight,
   usePluginPanelStyles,
 } from '../components/pluginPanelLayout';
 import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
@@ -26,7 +26,6 @@ type TranslatePanelProps = {
   onResultChange?: (result: string | null) => void;
 };
 
-const FADE_HEIGHT = Math.round(PLUGIN_PANEL_HEIGHT * 0.52);
 const FIELD_SNIPPET_LENGTH = 600;
 
 export function TranslatePanel({onResultChange}: TranslatePanelProps) {
@@ -296,6 +295,8 @@ export function TranslatePanel({onResultChange}: TranslatePanelProps) {
 }
 
 function createTranslateStyles(theme: KeyboardTheme) {
+  const fadeHeight = getPluginMenuFadeHeight(theme);
+
   return StyleSheet.create({
     scroll: {
       flex: 1,
@@ -303,7 +304,7 @@ function createTranslateStyles(theme: KeyboardTheme) {
     scrollContent: {
       paddingHorizontal: 12,
       paddingTop: 6,
-      paddingBottom: FADE_HEIGHT + 12,
+      paddingBottom: fadeHeight + 12,
       gap: 8,
     },
     languageRowContent: {
@@ -431,7 +432,7 @@ function createTranslateStyles(theme: KeyboardTheme) {
       left: 0,
       right: 0,
       bottom: 0,
-      height: FADE_HEIGHT,
+      height: fadeHeight,
     },
   });
 }

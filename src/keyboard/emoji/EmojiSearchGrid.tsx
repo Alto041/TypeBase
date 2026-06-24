@@ -7,7 +7,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
+import {useKeyboardTheme} from '../KeyboardThemeContext';
 import {triggerKeyHaptic} from '../haptics';
 import type {KeyboardTheme} from '../theme';
 import {chunkEmojis, EMOJI_COLUMNS} from './emojis';
@@ -15,14 +15,23 @@ import {searchEmojis} from './gboardEmojiData';
 
 type EmojiSearchGridProps = {
   width: number;
+  height: number;
   query: string;
   onSelect: (emoji: string) => void;
 };
 
-export function EmojiSearchGrid({width, query, onSelect}: EmojiSearchGridProps) {
+export function EmojiSearchGrid({
+  width,
+  height,
+  query,
+  onSelect,
+}: EmojiSearchGridProps) {
   const theme = useKeyboardTheme();
-  const styles = useThemedStyles(createEmojiSearchGridStyles);
-  const emojiScrollHeight = theme.emojiPanelHeight - theme.emojiPanelGap;
+  const emojiScrollHeight = Math.max(120, Math.round(height));
+  const styles = useMemo(
+    () => createEmojiSearchGridStyles(theme, emojiScrollHeight),
+    [theme, emojiScrollHeight],
+  );
   const emojiRowHeight = Math.floor(emojiScrollHeight / 4);
   const results = useMemo(() => searchEmojis(query), [query]);
   const rows = useMemo(
@@ -111,8 +120,10 @@ export function EmojiSearchGrid({width, query, onSelect}: EmojiSearchGridProps) 
   );
 }
 
-function createEmojiSearchGridStyles(theme: KeyboardTheme) {
-  const emojiScrollHeight = theme.emojiPanelHeight - theme.emojiPanelGap;
+function createEmojiSearchGridStyles(
+  theme: KeyboardTheme,
+  emojiScrollHeight: number,
+) {
   const emojiRowHeight = Math.floor(emojiScrollHeight / 4);
 
   return StyleSheet.create({

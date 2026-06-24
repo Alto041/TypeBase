@@ -138,14 +138,14 @@ function getSwipeCandidatesJs(
   const seen = new Set<string>();
   const results: Array<{word: string; rank: number}> = [];
 
-  const push = (word: string, rank: number) => {
+  const push = (word: string, rank: number, requireTraceMatch: boolean) => {
     if (seen.has(word)) {
       return false;
     }
     if (word.length < 2 || word.length > 16) {
       return false;
     }
-    if (!wordMatchesTrace(word, normalized, maxEdits)) {
+    if (requireTraceMatch && !wordMatchesTrace(word, normalized, maxEdits)) {
       return false;
     }
     seen.add(word);
@@ -164,17 +164,30 @@ function getSwipeCandidatesJs(
       staticRank != null
         ? Math.max(0, staticRank - learnedRankBoost(count))
         : Math.max(0, 2500 - learnedRankBoost(count));
-    if (push(word, rank) && results.length >= maxCandidates) {
+    if (push(word, rank, false) && results.length >= maxCandidates) {
       return results;
     }
   }
 
+  // First pass: strong trace candidates.
   for (let rank = 0; rank < WORDS.length; rank++) {
     const word = WORDS[rank].toLowerCase();
     if (word[0] !== first) {
       continue;
     }
-    if (push(word, rank) && results.length >= maxCandidates) {
+    if (push(word, rank, true) && results.length >= maxCandidates) {
+      return results;
+    }
+  }
+
+  // Second pass: broad first-letter candidates. Production gesture keyboards
+  // score by path shape, not only by the noisy key trace a finger happened to cross.
+  for (let rank = 0; rank < WORDS.length; rank++) {
+    const word = WORDS[rank].toLowerCase();
+    if (word[0] !== first) {
+      continue;
+    }
+    if (push(word, rank, false) && results.length >= maxCandidates) {
       return results;
     }
   }

@@ -2,17 +2,17 @@ import {
   getLearnedCounts,
   learnedSwipeBonus,
 } from '../suggestions/learnedDictionary';
+import {keyboardBridge} from '../keyboardBridge';
 import {
   getSwipeCandidates,
   getWordsByFirstLetter,
   isValidSwipeCommit,
-  traceEditBudget,
-  wordMatchesTrace,
 } from './wordDictionary';
 import type {KeyBounds, Point} from './types';
 
-const MIN_RESAMPLE_COUNT = 48;
-const MAX_RESAMPLE_COUNT = 80;
+const MIN_RESAMPLE_COUNT = 36;
+const MAX_RESAMPLE_COUNT = 60;
+const SWIPE_CANDIDATE_LIMIT = 650;
 
 function resampleCountForPath(pointCount: number): number {
   return Math.min(
@@ -21,8 +21,44 @@ function resampleCountForPath(pointCount: number): number {
   );
 }
 
+async function decodeSwipeGestureNative(
+  rawPoints: Point[],
+  layouts: KeyBounds[],
+  isUppercase: boolean,
+): Promise<string | null> {
+  try {
+    const layoutPayload = layouts
+      .filter(layout => layout.letter)
+      .map(layout => ({
+        letter: layout.letter,
+        x: layout.x,
+        y: layout.y,
+        width: layout.width,
+        height: layout.height,
+        centerX: layout.centerX,
+        centerY: layout.centerY,
+      }));
+    const word = await keyboardBridge.decodeSwipeGesture(
+      JSON.stringify(rawPoints),
+      JSON.stringify(layoutPayload),
+      isUppercase,
+    );
+    return word && isValidSwipeCommit(word) ? word : null;
+  } catch {
+    return null;
+  }
+}
+
 function distance(a: Point, b: Point): number {
   return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function pathLength(points: Point[]): number {
+  let total = 0;
+  for (let i = 1; i < points.length; i++) {
+    total += distance(points[i - 1], points[i]);
+  }
+  return total;
 }
 
 function resamplePath(points: Point[], count: number): Point[] {
@@ -148,7 +184,7 @@ function letterAtPoint(
 
     if (dist <= slop && dist < bestDistance) {
       bestDistance = dist;
-      bestLetter = layout.letter;
+      bestLetter = layout.letter ?? null;
     }
   }
 
@@ -289,6 +325,131 @@ function keySequence(word: string): string {
   return sequence;
 }
 
+function angleBetween(a: Point, b: Point, c: Point): number {
+  const abx = a.x - b.x;
+  const aby = a.y - b.y;
+  const cbx = c.x - b.x;
+  const cby = c.y - b.y;
+  const ab = Math.hypot(abx, aby);
+  const cb = Math.hypot(cbx, cby);
+  if (ab === 0 || cb === 0) {
+    return 0;
+  }
+  const cosine = Math.max(-1, Math.min(1, (abx * cbx + aby * cby) / (ab * cb)));
+  return Math.acos(cosine);
+}
+
+function turnAmount(a: Point, b: Point, c: Point): number {
+  return Math.PI - angleBetween(a, b, c);
+}
+
+function minKeySize(letterMap: Map<string, KeyBounds>): number {
+  const sizes = [...letterMap.values()].map(key => Math.min(key.width, key.height));
+  return sizes.length > 0 ? Math.max(24, Math.min(...sizes)) : 48;
+}
+
+function extractGestureTurningPoints(
+  path: Point[],
+  letterMap: Map<string, KeyBounds>,
+): Point[] {
+  if (path.length <= 2) {
+    return [];
+  }
+
+  const minSpacing = minKeySize(letterMap) * 0.45;
+  const threshold = 0.48; // ~27.5deg direction change.
+  const turns: Array<{point: Point; amount: number; index: number}> = [];
+
+  for (let i = 2; i < path.length - 2; i++) {
+    const prev = path[i - 2];
+    const point = path[i];
+    const next = path[i + 2];
+    const amount = turnAmount(prev, point, next);
+    if (amount < threshold) {
+      continue;
+    }
+
+    const previousTurn = turns[turns.length - 1];
+    if (previousTurn && distance(previousTurn.point, point) < minSpacing) {
+      if (amount > previousTurn.amount) {
+        turns[turns.length - 1] = {point, amount, index: i};
+      }
+      continue;
+    }
+
+    turns.push({point, amount, index: i});
+  }
+
+  return turns
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, 6)
+    .sort((a, b) => a.index - b.index)
+    .map(turn => turn.point);
+}
+
+function idealPathForWord(
+  word: string,
+  letterMap: Map<string, KeyBounds>,
+): Point[] {
+  return buildIdealPath(word, letterMap);
+}
+
+function extractIdealTurningPoints(idealPath: Point[]): Point[] {
+  if (idealPath.length <= 2) {
+    return [];
+  }
+
+  const threshold = 0.42; // Ideal paths are clean, so smaller turns matter.
+  const turns: Point[] = [];
+  for (let i = 1; i < idealPath.length - 1; i++) {
+    if (turnAmount(idealPath[i - 1], idealPath[i], idealPath[i + 1]) >= threshold) {
+      turns.push(idealPath[i]);
+    }
+  }
+
+  // Short words often rely on every intermediate key as a landmark.
+  if (turns.length === 0 && idealPath.length <= 5) {
+    return idealPath.slice(1, -1);
+  }
+
+  return turns;
+}
+
+function orderedLandmarkDistance(
+  gestureTurns: Point[],
+  idealTurns: Point[],
+  scale: number,
+): number {
+  if (idealTurns.length === 0) {
+    return 0;
+  }
+  if (gestureTurns.length === 0) {
+    return 0.45 + idealTurns.length * 0.08;
+  }
+
+  let total = 0;
+  let searchFrom = 0;
+  for (const ideal of idealTurns) {
+    let bestIndex = -1;
+    let best = Infinity;
+    for (let i = searchFrom; i < gestureTurns.length; i++) {
+      const d = distance(gestureTurns[i], ideal);
+      if (d < best) {
+        best = d;
+        bestIndex = i;
+      }
+    }
+    if (bestIndex < 0) {
+      total += 0.55;
+      continue;
+    }
+    total += best / scale;
+    searchFrom = bestIndex + 1;
+  }
+
+  return total / idealTurns.length;
+}
+
 function proximityGateRadius(
   key: KeyBounds,
   pathPointCount: number,
@@ -302,7 +463,17 @@ function proximityGateRadius(
   return base * (1 + stretch + verticalBoost);
 }
 
-/** Every distinct key in the word must be visited by the swipe path. */
+function proximityMissBudget(wordLength: number): number {
+  if (wordLength <= 4) {
+    return 0;
+  }
+  if (wordLength <= 7) {
+    return 1;
+  }
+  return 2;
+}
+
+/** Most distinct keys should be visited; start/end stay anchored. */
 function passesLetterProximityGate(
   word: string,
   swipePath: Point[],
@@ -312,6 +483,10 @@ function passesLetterProximityGate(
   keyboardHeight: number,
 ): boolean {
   let previousLetter: string | null = null;
+  let distinctIndex = 0;
+  let misses = 0;
+  const distinctLetters = keySequence(word);
+  const missBudget = proximityMissBudget(distinctLetters.length);
 
   for (const char of word) {
     if (char === previousLetter) {
@@ -326,19 +501,26 @@ function passesLetterProximityGate(
       {x: key.centerX, y: key.centerY},
       swipePath,
     );
-    if (
-      best >
-      proximityGateRadius(
-        key,
-        pathPointCount,
-        verticalSpan,
-        keyboardHeight,
-      )
-    ) {
-      return false;
+    const radius = proximityGateRadius(
+      key,
+      pathPointCount,
+      verticalSpan,
+      keyboardHeight,
+    );
+    const isEndpoint =
+      distinctIndex === 0 || distinctIndex === distinctLetters.length - 1;
+    if (best > radius * (isEndpoint ? 1.2 : 1)) {
+      if (isEndpoint) {
+        return false;
+      }
+      misses += 1;
+      if (misses > missBudget) {
+        return false;
+      }
     }
 
     previousLetter = char;
+    distinctIndex += 1;
   }
 
   return true;
@@ -375,6 +557,65 @@ function proximityScore(
   }
 
   return hits > 0 ? total / hits / scale : Infinity;
+}
+
+function anchorScore(
+  word: string,
+  rawSwipePath: Point[],
+  letterMap: Map<string, KeyBounds>,
+  scale: number,
+): number {
+  if (rawSwipePath.length === 0) {
+    return 0.8;
+  }
+
+  const sequence = keySequence(word);
+  const firstKey = letterMap.get(sequence[0]);
+  const lastKey = letterMap.get(sequence[sequence.length - 1]);
+  if (!firstKey || !lastKey) {
+    return 0.8;
+  }
+
+  const start = rawSwipePath[0];
+  const end = rawSwipePath[rawSwipePath.length - 1];
+  const startDistance = distance(start, {x: firstKey.centerX, y: firstKey.centerY}) / scale;
+  const endDistance = distance(end, {x: lastKey.centerX, y: lastKey.centerY}) / scale;
+
+  // The first and last letters are the strongest user intention signals.
+  return startDistance * 0.62 + endDistance * 0.72;
+}
+
+function turningScore(
+  word: string,
+  gestureTurns: Point[],
+  letterMap: Map<string, KeyBounds>,
+  scale: number,
+): number {
+  const idealPath = idealPathForWord(word, letterMap);
+  const idealTurns = extractIdealTurningPoints(idealPath);
+  return orderedLandmarkDistance(gestureTurns, idealTurns, scale);
+}
+
+function lengthMismatchPenalty(
+  word: string,
+  pattern: string,
+  idealPathLength: number,
+  gesturePathLength: number,
+): number | null {
+  if (idealPathLength <= 0 || gesturePathLength <= 0) {
+    return 0.35;
+  }
+
+  const longWordFromShortTrace = word.length > pattern.length + 4;
+  if (longWordFromShortTrace && idealPathLength > gesturePathLength * 1.45) {
+    return null;
+  }
+
+  const mismatch =
+    Math.abs(idealPathLength - gesturePathLength) /
+    Math.max(idealPathLength, gesturePathLength);
+  const longWordPenalty = longWordFromShortTrace ? 0.28 : 0;
+  return mismatch * 0.9 + longWordPenalty;
 }
 
 function dtwAverageDistance(pathA: Point[], pathB: Point[]): number {
@@ -475,7 +716,7 @@ function keySequencePenalty(word: string, trace: string): number {
     }
   }
 
-  return foreignKeys * 0.4 + Math.abs(wordKeys.length - trace.length) * 0.1;
+  return foreignKeys * 0.18 + Math.abs(wordKeys.length - trace.length) * 0.06;
 }
 
 function shortWordPenalty(word: string, trace: string): number {
@@ -498,7 +739,7 @@ function consumptionPenalty(word: string, trace: string): number {
     return 0;
   }
 
-  return (target - ratio) * (trace.length >= 7 ? 0.9 : 1.35);
+  return (target - ratio) * (trace.length >= 7 ? 0.45 : 0.75);
 }
 
 function formatWord(word: string, isUppercase: boolean): string {
@@ -521,13 +762,30 @@ function scoreCandidate(
   pattern: string,
   swipePath: Point[],
   rawSwipePath: Point[],
+  gestureTurns: Point[],
   letterMap: Map<string, KeyBounds>,
   scale: number,
+  gesturePathLength: number,
   rank: number,
   learnedUses: number,
   verticalSpan: number,
   keyboardHeight: number,
 ): number | null {
+  const idealPath = buildIdealPath(word, letterMap);
+  if (idealPath.length < 2) {
+    return null;
+  }
+  const idealLength = pathLength(idealPath);
+  const lengthPenalty = lengthMismatchPenalty(
+    word,
+    pattern,
+    idealLength,
+    gesturePathLength,
+  );
+  if (lengthPenalty == null) {
+    return null;
+  }
+
   if (
     !passesLetterProximityGate(
       word,
@@ -545,17 +803,22 @@ function scoreCandidate(
   if (!Number.isFinite(proximity)) {
     return null;
   }
+  const anchors = anchorScore(word, rawSwipePath, letterMap, scale);
+  const turns = turningScore(word, gestureTurns, letterMap, scale);
 
-  const idealPath = buildIdealPath(word, letterMap);
   let shapeScore = proximity;
   if (idealPath.length >= 2) {
     const idealResampled = resamplePath(idealPath, swipePath.length);
     const dtw = dtwAverageDistance(swipePath, idealResampled) / scale;
-    shapeScore = proximity * 0.68 + dtw * 0.32;
+    // Give the global path shape more say than the noisy crossed-key trace.
+    shapeScore = proximity * 0.52 + dtw * 0.48;
   }
 
   return (
-    shapeScore +
+    shapeScore * 0.78 +
+    anchors * 0.42 +
+    turns * 0.34 +
+    lengthPenalty +
     shortWordPenalty(word, pattern) +
     consumptionPenalty(word, pattern) +
     traceTailPenalty(word, pattern) +
@@ -581,6 +844,41 @@ function shouldPreferCandidate(
   );
 }
 
+async function getBroadSwipeCandidates(
+  pattern: string,
+  rawPoints: Point[],
+  layouts: KeyBounds[],
+): Promise<Array<{word: string; rank: number}>> {
+  const seen = new Set<string>();
+  const results: Array<{word: string; rank: number}> = [];
+
+  const addCandidates = async (candidatePattern: string) => {
+    if (!candidatePattern || !/^[a-z]/.test(candidatePattern)) {
+      return;
+    }
+    const candidates = await getSwipeCandidates(
+      candidatePattern,
+      SWIPE_CANDIDATE_LIMIT,
+    );
+    for (const candidate of candidates) {
+      if (seen.has(candidate.word)) {
+        continue;
+      }
+      seen.add(candidate.word);
+      results.push(candidate);
+    }
+  };
+
+  await addCandidates(pattern);
+
+  const startLetter = nearestTraceLetter(rawPoints[0], layouts);
+  if (startLetter && startLetter !== pattern[0]) {
+    await addCandidates(`${startLetter}${pattern.slice(1)}`);
+  }
+
+  return results;
+}
+
 export async function decodeSwipeGesture(
   rawPoints: Point[],
   layouts: KeyBounds[],
@@ -588,6 +886,15 @@ export async function decodeSwipeGesture(
 ): Promise<string | null> {
   if (rawPoints.length < 2 || layouts.length === 0) {
     return null;
+  }
+
+  const nativeWord = await decodeSwipeGestureNative(
+    rawPoints,
+    layouts,
+    isUppercase,
+  );
+  if (nativeWord) {
+    return nativeWord;
   }
 
   const scale = keyboardScale(layouts);
@@ -600,24 +907,27 @@ export async function decodeSwipeGesture(
   );
   const verticalSpan = pathVerticalSpan(rawPoints);
   const pattern = buildTracePattern(rawPoints, swipePath, layouts);
+  const gestureTurns = extractGestureTurningPoints(swipePath, letterMap);
+  const gesturePathLength = pathLength(rawPoints);
 
   if (pattern.length < 2) {
     return finalizeSwipeWord(
       decodeByPathShape(
-      rawPoints,
-      swipePath,
-      letterMap,
-      scale,
-      keyboardHeight,
-      verticalSpan,
-      isUppercase,
+        rawPoints,
+        swipePath,
+        gestureTurns,
+        letterMap,
+        scale,
+        gesturePathLength,
+        keyboardHeight,
+        verticalSpan,
+        isUppercase,
       ),
     );
   }
 
-  const candidates = await getSwipeCandidates(pattern);
+  const candidates = await getBroadSwipeCandidates(pattern, rawPoints, layouts);
   const learned = getLearnedCounts();
-  const maxEdits = traceEditBudget(pattern);
 
   let bestWord: string | null = null;
   let bestScore = Infinity;
@@ -625,18 +935,16 @@ export async function decodeSwipeGesture(
   let secondScore = Infinity;
 
   for (const {word, rank} of candidates) {
-    if (!wordMatchesTrace(word, pattern, maxEdits)) {
-      continue;
-    }
-
     const learnedUses = learned.get(word) ?? 0;
     const score = scoreCandidate(
       word,
       pattern,
       swipePath,
       rawPoints,
+      gestureTurns,
       letterMap,
       scale,
+      gesturePathLength,
       rank,
       learnedUses,
       verticalSpan,
@@ -662,8 +970,10 @@ export async function decodeSwipeGesture(
         pattern,
         swipePath,
         rawPoints,
+        gestureTurns,
         letterMap,
         scale,
+        gesturePathLength,
         keyboardHeight,
         verticalSpan,
         isUppercase,
@@ -671,8 +981,10 @@ export async function decodeSwipeGesture(
         decodeByPathShape(
           rawPoints,
           swipePath,
+          gestureTurns,
           letterMap,
           scale,
+          gesturePathLength,
           keyboardHeight,
           verticalSpan,
           isUppercase,
@@ -692,8 +1004,10 @@ export async function decodeSwipeGesture(
         pattern,
         swipePath,
         rawPoints,
+        gestureTurns,
         letterMap,
         scale,
+        gesturePathLength,
         keyboardHeight,
         verticalSpan,
         isUppercase,
@@ -701,8 +1015,10 @@ export async function decodeSwipeGesture(
         decodeByPathShape(
           rawPoints,
           swipePath,
+          gestureTurns,
           letterMap,
           scale,
+          gesturePathLength,
           keyboardHeight,
           verticalSpan,
           isUppercase,
@@ -717,8 +1033,10 @@ export async function decodeSwipeGesture(
 function decodeByPathShape(
   rawPoints: Point[],
   swipePath: Point[],
+  gestureTurns: Point[],
   letterMap: Map<string, KeyBounds>,
   scale: number,
+  gesturePathLength: number,
   keyboardHeight: number,
   verticalSpan: number,
   isUppercase: boolean,
@@ -740,8 +1058,10 @@ function decodeByPathShape(
       fallbackPattern.length >= 2 ? fallbackPattern : keySequence(word),
       swipePath,
       rawPoints,
+      gestureTurns,
       letterMap,
       scale,
+      gesturePathLength,
       rank,
       0,
       verticalSpan,
@@ -763,8 +1083,10 @@ async function pickByProximityOnly(
   pattern: string,
   swipePath: Point[],
   rawSwipePath: Point[],
+  gestureTurns: Point[],
   letterMap: Map<string, KeyBounds>,
   scale: number,
+  gesturePathLength: number,
   keyboardHeight: number,
   verticalSpan: number,
   isUppercase: boolean,
@@ -773,7 +1095,7 @@ async function pickByProximityOnly(
     return null;
   }
 
-  const candidates = await getSwipeCandidates(pattern);
+  const candidates = await getSwipeCandidates(pattern, SWIPE_CANDIDATE_LIMIT);
   let bestWord: string | null = null;
   let bestScore = Infinity;
 
@@ -783,8 +1105,10 @@ async function pickByProximityOnly(
       pattern,
       swipePath,
       rawSwipePath,
+      gestureTurns,
       letterMap,
       scale,
+      gesturePathLength,
       rank,
       0,
       verticalSpan,
@@ -807,8 +1131,10 @@ async function pickByProximityOnly(
     pattern,
     swipePath,
     rawSwipePath,
+    gestureTurns,
     letterMap,
     scale,
+    gesturePathLength,
     keyboardHeight,
     verticalSpan,
     isUppercase,
@@ -819,8 +1145,10 @@ function pickByFirstLetterProximity(
   pattern: string,
   swipePath: Point[],
   rawSwipePath: Point[],
+  gestureTurns: Point[],
   letterMap: Map<string, KeyBounds>,
   scale: number,
+  gesturePathLength: number,
   keyboardHeight: number,
   verticalSpan: number,
   isUppercase: boolean,
@@ -830,7 +1158,7 @@ function pickByFirstLetterProximity(
     return null;
   }
 
-  const candidates = getWordsByFirstLetter(first);
+  const candidates = getWordsByFirstLetter(first, SWIPE_CANDIDATE_LIMIT);
   let bestWord: string | null = null;
   let bestScore = Infinity;
 
@@ -840,8 +1168,10 @@ function pickByFirstLetterProximity(
       pattern,
       swipePath,
       rawSwipePath,
+      gestureTurns,
       letterMap,
       scale,
+      gesturePathLength,
       rank,
       0,
       verticalSpan,

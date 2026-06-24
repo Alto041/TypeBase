@@ -41,10 +41,24 @@ export const PLUGIN_MENU_FADE_SCROLL_INSET = Math.round(
 export const PLUGIN_OUTER_RADIUS = 12;
 export const PLUGIN_INNER_RADIUS = 2;
 
+export function getPluginPanelHeight(theme: KeyboardTheme): number {
+  return theme.pluginPanelHeight ?? PLUGIN_PANEL_HEIGHT;
+}
+
+export function getPluginMenuFadeHeight(theme: KeyboardTheme): number {
+  return Math.round(getPluginPanelHeight(theme) * 0.52);
+}
+
+export function getPluginMenuFadeScrollInset(theme: KeyboardTheme): number {
+  return Math.round(
+    Math.min(theme.keyHeight * 0.85, getPluginPanelHeight(theme) * 0.28),
+  );
+}
+
 export function createPluginPanelStyles(theme: KeyboardTheme) {
   return StyleSheet.create({
     container: {
-      height: PLUGIN_PANEL_HEIGHT,
+      height: getPluginPanelHeight(theme),
       alignSelf: 'stretch',
       minHeight: 0,
       overflow: 'hidden',
@@ -88,6 +102,7 @@ export function PluginScrollView({
   children,
   fadeScrollInset = false,
 }: PluginScrollViewProps) {
+  const theme = useKeyboardTheme();
   const styles = useThemedStyles(createPluginPanelStyles);
 
   return React.createElement(
@@ -97,7 +112,7 @@ export function PluginScrollView({
       contentContainerStyle: [
         styles.listContent,
         fadeScrollInset && {
-          paddingBottom: PLUGIN_MENU_FADE_SCROLL_INSET,
+          paddingBottom: getPluginMenuFadeScrollInset(theme),
         },
       ],
       keyboardShouldPersistTaps: 'handled' as const,

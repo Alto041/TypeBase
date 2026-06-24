@@ -12,6 +12,9 @@ function normalizeSettings(raw: Partial<AutocorrectSettings>): AutocorrectSettin
     enabled: raw.enabled ?? DEFAULT_AUTOCORRECT_SETTINGS.enabled,
     autoApplyOnSpace:
       raw.autoApplyOnSpace ?? DEFAULT_AUTOCORRECT_SETTINGS.autoApplyOnSpace,
+    aiAutoCorrectEnabled:
+      raw.aiAutoCorrectEnabled ??
+      DEFAULT_AUTOCORRECT_SETTINGS.aiAutoCorrectEnabled,
   };
 }
 
@@ -65,5 +68,12 @@ export async function setAutocorrectEnabled(enabled: boolean): Promise<void> {
 
 export async function setAutoApplyOnSpace(autoApplyOnSpace: boolean): Promise<void> {
   cached = {...cached, autoApplyOnSpace};
+  await persistSettings();
+}
+
+export async function setAiAutoCorrectEnabled(
+  aiAutoCorrectEnabled: boolean,
+): Promise<void> {
+  cached = {...cached, aiAutoCorrectEnabled};
   await persistSettings();
 }

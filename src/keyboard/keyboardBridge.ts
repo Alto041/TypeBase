@@ -17,6 +17,11 @@ type KeyboardModuleType = {
     maxCandidates: number,
   ) => Promise<Array<{word: string; rank: number}>>;
   isKnownSwipeWord: (word: string) => Promise<boolean>;
+  decodeSwipeGesture: (
+    pointsJson: string,
+    layoutsJson: string,
+    isUppercase: boolean,
+  ) => Promise<string>;
   getEssentials: () => Promise<string>;
   setEssentials: (json: string) => Promise<boolean>;
   getPrefersNumpad: () => Promise<boolean>;
@@ -173,6 +178,16 @@ export const keyboardBridge: KeyboardModuleType = {
       return KeyboardModule.isKnownSwipeWord(word) as Promise<boolean>;
     }
     return Promise.resolve(false);
+  },
+  decodeSwipeGesture: (pointsJson: string, layoutsJson: string, isUppercase: boolean) => {
+    if (Platform.OS === 'android' && KeyboardModule?.decodeSwipeGesture) {
+      return KeyboardModule.decodeSwipeGesture(
+        pointsJson,
+        layoutsJson,
+        isUppercase,
+      ) as Promise<string>;
+    }
+    return Promise.resolve('');
   },
   getEssentials: () => {
     if (Platform.OS === 'android' && KeyboardModule?.getEssentials) {
@@ -362,7 +377,9 @@ export const keyboardBridge: KeyboardModuleType = {
     if (Platform.OS === 'android' && KeyboardModule?.getAutocorrectSettings) {
       return KeyboardModule.getAutocorrectSettings() as Promise<string>;
     }
-    return Promise.resolve('{"enabled":true,"autoApplyOnSpace":false}');
+    return Promise.resolve(
+      '{"enabled":true,"autoApplyOnSpace":false,"aiAutoCorrectEnabled":false}',
+    );
   },
   setAutocorrectSettings: (json: string) => {
     if (Platform.OS === 'android' && KeyboardModule?.setAutocorrectSettings) {

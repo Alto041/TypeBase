@@ -17,7 +17,7 @@ const HANDLE_HEIGHT = 28;
 const MIN_OFFSET = -140;
 const MAX_OFFSET = 220;
 const MIN_KEYBOARD_HEIGHT = 245;
-const MAX_KEYBOARD_HEIGHT = 520;
+const MAX_KEYBOARD_HEIGHT = 510;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));

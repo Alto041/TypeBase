@@ -7,7 +7,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
+import {useKeyboardTheme} from '../KeyboardThemeContext';
 import {triggerKeyHaptic} from '../haptics';
 import type {KeyboardTheme} from '../theme';
 import {
@@ -20,6 +20,7 @@ import {
 type EmojiCategoryGridProps = {
   category: Exclude<EmojiCategoryId, 'gif'>;
   width: number;
+  height: number;
   recentEmojis: readonly string[];
   recentEmojisVersion: number;
   selectionLockedRef?: RefObject<boolean>;
@@ -47,14 +48,18 @@ function useScrollGuard() {
 export function EmojiCategoryGrid({
   category,
   width,
+  height,
   recentEmojis,
   recentEmojisVersion,
   selectionLockedRef,
   onSelect,
 }: EmojiCategoryGridProps) {
   const theme = useKeyboardTheme();
-  const styles = useThemedStyles(createEmojiCategoryGridStyles);
-  const emojiScrollHeight = theme.emojiPanelHeight - theme.emojiPanelGap;
+  const emojiScrollHeight = Math.max(120, Math.round(height));
+  const styles = useMemo(
+    () => createEmojiCategoryGridStyles(theme, emojiScrollHeight),
+    [theme, emojiScrollHeight],
+  );
   const emojiRowHeight = Math.floor(emojiScrollHeight / 4);
   const hasRecents = recentEmojis.length > 0;
   const dividerWidth = 1;
@@ -192,8 +197,10 @@ export function EmojiCategoryGrid({
   );
 }
 
-function createEmojiCategoryGridStyles(theme: KeyboardTheme) {
-  const emojiScrollHeight = theme.emojiPanelHeight - theme.emojiPanelGap;
+function createEmojiCategoryGridStyles(
+  theme: KeyboardTheme,
+  emojiScrollHeight: number,
+) {
   const emojiRowHeight = Math.floor(emojiScrollHeight / 4);
 
   return StyleSheet.create({

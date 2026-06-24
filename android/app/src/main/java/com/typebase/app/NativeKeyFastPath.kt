@@ -1,10 +1,8 @@
 package com.typebase.app
 
-import android.os.SystemClock
 import android.view.MotionEvent
 import org.json.JSONArray
 import org.json.JSONObject
-import kotlin.math.hypot
 
 class NativeKeyFastPath {
   private data class NativeKey(
@@ -20,9 +18,6 @@ class NativeKeyFastPath {
   private data class TouchSession(
       val pointerId: Int,
       val key: NativeKey,
-      val startRawX: Float,
-      val startRawY: Float,
-      val startTimeMs: Long,
   )
 
   @Volatile
@@ -31,7 +26,6 @@ class NativeKeyFastPath {
   private var areaPageY = 0f
   private var hitSlopHorizontal = 0f
   private var hitSlopVertical = 0f
-  private var pixelRatio = 1f
   private var keyboardLayout = "letters"
   private var uppercase = false
   private var shiftOn = false
@@ -47,7 +41,6 @@ class NativeKeyFastPath {
       areaPageY = obj.optDouble("areaPageY", 0.0).toFloat()
       hitSlopHorizontal = obj.optDouble("hitSlopHorizontal", 0.0).toFloat()
       hitSlopVertical = obj.optDouble("hitSlopVertical", 0.0).toFloat()
-      pixelRatio = obj.optDouble("pixelRatio", 1.0).toFloat().coerceAtLeast(1f)
       keyboardLayout = obj.optString("layout", "letters")
       uppercase = obj.optBoolean("isUppercase", false)
       shiftOn = obj.optBoolean("shiftOn", false)
@@ -69,6 +62,10 @@ class NativeKeyFastPath {
     sessions.clear()
   }
 
+  /**
+   * Commits letter keys on touch-down (before React processes the event) for minimal
+   * input latency. Returns false so swipe typing and key visuals still receive touches.
+   */
   fun onTouchEvent(event: MotionEvent): Boolean {
     if (!enabled || keys.isEmpty()) {
       return false
@@ -82,28 +79,15 @@ class NativeKeyFastPath {
         val rawX = event.rawXForIndex(index)
         val rawY = event.rawYForIndex(index)
         val key = hitTest(rawX, rawY) ?: return false
-        sessions[pointerId] =
-            TouchSession(pointerId, key, rawX, rawY, SystemClock.uptimeMillis())
+        sessions[pointerId] = TouchSession(pointerId, key)
+        commitKey(key)
         false
       }
 
       MotionEvent.ACTION_UP,
       MotionEvent.ACTION_POINTER_UP -> {
-        val index = event.actionIndex
-        val pointerId = event.getPointerId(index)
-        val session = sessions.remove(pointerId) ?: return false
-        val rawX = event.rawXForIndex(index)
-        val rawY = event.rawYForIndex(index)
-        if (!isTap(session, rawX, rawY)) {
-          return false
-        }
-
-        val key = hitTest(rawX, rawY)
-        if (key?.id != session.key.id) {
-          return false
-        }
-
-        commitKey(key)
+        val pointerId = event.getPointerId(event.actionIndex)
+        sessions.remove(pointerId)
         false
       }
 
@@ -124,10 +108,14 @@ class NativeKeyFastPath {
       if (value.isEmpty()) {
         continue
       }
+      val type = obj.optString("type", "char")
+      if (type == "comma" || type == "period") {
+        continue
+      }
       parsed.add(
           NativeKey(
               id = obj.optString("id", value),
-              type = obj.optString("type", "char"),
+              type = type,
               value = value,
               left = obj.optDouble("x", 0.0).toFloat(),
               top = obj.optDouble("y", 0.0).toFloat(),
@@ -144,8 +132,8 @@ class NativeKeyFastPath {
   }
 
   private fun hitTest(rawX: Float, rawY: Float): NativeKey? {
-    val localX = rawX / pixelRatio - areaPageX
-    val localY = rawY / pixelRatio - areaPageY
+    val localX = rawX - areaPageX
+    val localY = rawY - areaPageY
     var match: NativeKey? = null
     var smallestArea = Float.MAX_VALUE
 
@@ -168,20 +156,9 @@ class NativeKeyFastPath {
     return match
   }
 
-  private fun isTap(session: TouchSession, rawX: Float, rawY: Float): Boolean {
-    val distance = hypot((rawX - session.startRawX).toDouble(), (rawY - session.startRawY).toDouble())
-    val elapsed = SystemClock.uptimeMillis() - session.startTimeMs
-    return distance <= MAX_TAP_MOVE_PX && elapsed <= MAX_TAP_MS
-  }
-
   private fun commitKey(key: NativeKey): Boolean {
     val connection = KeyboardInputBridge.getInputConnection() ?: return false
-    val text =
-        if (keyboardLayout == "letters" && uppercase && key.value.length == 1) {
-          key.value.uppercase()
-        } else {
-          key.value
-        }
+    val text = resolveCommitText(key.value)
 
     connection.commitText(text, 1)
     KeyboardInputBridge.performKeyHaptic()
@@ -195,16 +172,22 @@ class NativeKeyFastPath {
     return true
   }
 
+  private fun resolveCommitText(value: String): String {
+    if (keyboardLayout != "letters" || value.length != 1) {
+      return value
+    }
+    return if (uppercase) {
+      value.uppercase()
+    } else {
+      value.lowercase()
+    }
+  }
+
   private fun MotionEvent.rawXForIndex(index: Int): Float {
     return rawX + getX(index) - x
   }
 
   private fun MotionEvent.rawYForIndex(index: Int): Float {
     return rawY + getY(index) - y
-  }
-
-  companion object {
-    private const val MAX_TAP_MS = 220L
-    private const val MAX_TAP_MOVE_PX = 18f
   }
 }

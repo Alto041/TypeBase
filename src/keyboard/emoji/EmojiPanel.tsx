@@ -17,6 +17,7 @@ import {
 type EmojiPanelProps = {
   category: EmojiCategoryId;
   emojiSearchQuery: string;
+  panelHeight: number;
   onSelect: (emoji: string) => void;
   onGifSelect: (gif: GiphyGif) => void;
   gifSearchQuery: string;
@@ -25,12 +26,13 @@ type EmojiPanelProps = {
 export function EmojiPanel({
   category,
   emojiSearchQuery,
+  panelHeight,
   onSelect,
   onGifSelect,
   gifSearchQuery,
 }: EmojiPanelProps) {
   const theme = useKeyboardTheme();
-  const emojiScrollHeight = theme.emojiPanelHeight - theme.emojiPanelGap;
+  const emojiScrollHeight = Math.max(120, Math.round(panelHeight));
   const styles = useMemo(
     () => createEmojiPanelStyles(theme, emojiScrollHeight),
     [theme, emojiScrollHeight],
@@ -83,6 +85,7 @@ export function EmojiPanel({
       ) : emojiSearchQuery.trim().length > 0 ? (
         <EmojiSearchGrid
           width={panelWidth}
+          height={emojiScrollHeight}
           query={emojiSearchQuery}
           onSelect={handleEmojiSelect}
         />
@@ -90,6 +93,7 @@ export function EmojiPanel({
         <EmojiCategoryGrid
           category={category}
           width={panelWidth}
+          height={emojiScrollHeight}
           recentEmojis={recentEmojis}
           recentEmojisVersion={recentEmojisVersion}
           onSelect={handleEmojiSelect}

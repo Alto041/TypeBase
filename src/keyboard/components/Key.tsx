@@ -46,7 +46,7 @@ const KEY_PRESS_RETENTION = {top: 18, left: 10, bottom: 18, right: 10};
 const KEY_HIT_SLOP = {top: 3, left: 2, bottom: 3, right: 2};
 const KEY_PRESS_OPACITY = 0.55;
 const KEY_PRESS_IN_MS = 0;
-const KEY_PRESS_OUT_MS = 55;
+const KEY_PRESS_OUT_MS = 16;
 
 export type KeyGesturesConfig = {
   spaceCursorSwipe: boolean;
@@ -111,7 +111,6 @@ function KeyComponent({
   const spaceTapCommittedRef = useRef(false);
   const spacePointerIdRef = useRef<number | null>(null);
   const pressOpacity = useRef(new Animated.Value(1)).current;
-  const previewRafRef = useRef<number | null>(null);
   const isSpaceKey = keyDef.type === 'space';
   const usesMultiTouchRouter = isMultiTouchTextKey(keyDef);
   const usesMultiTouchDispatch =
@@ -249,17 +248,10 @@ function KeyComponent({
             const label = isUppercase
               ? (keyDef.value ?? '').toUpperCase()
               : (keyDef.value ?? '').toLowerCase();
-            previewRafRef.current = requestAnimationFrame(() => {
-              previewRafRef.current = null;
-              showKeyPreview(tag, label);
-            });
+            showKeyPreview(tag, label);
           }
         } else {
-          if (previewRafRef.current !== null) {
-            cancelAnimationFrame(previewRafRef.current);
-            previewRafRef.current = null;
-          }
-          hideKeyPreview();
+          hideKeyPreview(80);
         }
       }
       animateMultiTouchPress(pressed);
@@ -316,10 +308,6 @@ function KeyComponent({
 
   useEffect(() => {
     return () => {
-      if (previewRafRef.current !== null) {
-        cancelAnimationFrame(previewRafRef.current);
-        previewRafRef.current = null;
-      }
       clearLauncherHold();
       clearRewriteHold();
       layoutContext?.unregisterKey(keyDef.id);

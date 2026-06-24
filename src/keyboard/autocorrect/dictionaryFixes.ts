@@ -46,7 +46,7 @@ const EXACT_FIX_ENTRIES: Array<[string, ExactDictionaryFix]> = [
   ['youll', {correction: "you'll", confidence: 0.9}],
   ['theyll', {correction: "they'll", confidence: 0.9}],
   // Note: we intentionally do NOT have an exact fix for "well" -> "we'll" because "well" is an extremely
-  // common discourse marker that users often want to write as-is (we add comma via punctuation logic instead).
+  // common discourse marker that users often want to write as-is.
   ['shouldve', {correction: "should've", confidence: 0.92}],
   ['wouldve', {correction: "would've", confidence: 0.92}],
   ['couldve', {correction: "could've", confidence: 0.92}],
@@ -70,8 +70,7 @@ const EXACT_FIX_ENTRIES: Array<[string, ExactDictionaryFix]> = [
   ['yall', {correction: "y'all", confidence: 0.91}],
   ['oclock', {correction: "o'clock", confidence: 0.93}],
 
-  // Discourse markers, abbreviations, and common phrases that are usually followed by a comma.
-  // These let autocorrect output punctuation (the correction can contain "," etc.).
+  // Abbreviations that expand to common comma-led phrases. Full words stay as typed.
   ['ig', {correction: 'i guess,', confidence: 0.9}],
   ['idk', {correction: "i don't know,", confidence: 0.86}],
   ['tbh', {correction: 'to be honest,', confidence: 0.88}],
@@ -84,9 +83,8 @@ const EXACT_FIX_ENTRIES: Array<[string, ExactDictionaryFix]> = [
   ['afaik', {correction: 'as far as i know,', confidence: 0.82}],
   ['brb', {correction: 'be right back,', confidence: 0.8}],
   ['asap', {correction: 'as soon as possible,', confidence: 0.78}],
-  ['pls', {correction: 'please,', confidence: 0.75}],
-  ['thx', {correction: 'thanks,', confidence: 0.78}],
-  ['thanks', {correction: 'thanks,', confidence: 0.72}],
+  ['pls', {correction: 'please', confidence: 0.75}],
+  ['thx', {correction: 'thanks', confidence: 0.78}],
 
   // Frequent typos
   ['teh', {correction: 'the', confidence: 0.96}],

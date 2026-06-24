@@ -20,7 +20,7 @@ import ResizeIcon from '../../../assets/resize.svg';
 import {
   PLUGIN_INNER_RADIUS,
   PLUGIN_OUTER_RADIUS,
-  PLUGIN_MENU_FADE_HEIGHT,
+  getPluginMenuFadeHeight,
   PluginPanelIcon,
   PluginScrollView,
   usePluginPanelStyles,
@@ -118,8 +118,6 @@ const PLUGINS = [
   {id: 'resize', title: 'Keyboard Resize', Icon: ResizeIcon},
 ] as const;
 
-const PLUGIN_FADE_HEIGHT = PLUGIN_MENU_FADE_HEIGHT;
-
 export function ItemsMenuPanel({
   onSelectFormat,
   onSelectEssentials,
@@ -184,6 +182,8 @@ export function ItemsMenuPanel({
 }
 
 function createItemsMenuStyles(theme: KeyboardTheme) {
+  const fadeHeight = getPluginMenuFadeHeight(theme);
+
   return StyleSheet.create({
     container: {
       justifyContent: 'flex-start',
@@ -214,7 +214,7 @@ function createItemsMenuStyles(theme: KeyboardTheme) {
       left: 0,
       right: 0,
       bottom: 0,
-      height: PLUGIN_FADE_HEIGHT,
+      height: fadeHeight,
     },
   });
 }

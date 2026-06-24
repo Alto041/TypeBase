@@ -11,6 +11,7 @@ import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewTreeObserver
 import android.widget.FrameLayout
 import android.widget.TextView
 
@@ -77,6 +78,21 @@ class KeyPreviewManager(private val fallbackContext: Context) {
 
     private fun showAtAnchor(anchor: View, label: String) {
         val container = KeyboardInputBridge.getPopupAnchorView() as? FrameLayout ?: return
+        if (anchor.width <= 0 || anchor.height <= 0) {
+            val observer = anchor.viewTreeObserver
+            observer.addOnGlobalLayoutListener(
+                object : ViewTreeObserver.OnGlobalLayoutListener {
+                    override fun onGlobalLayout() {
+                        if (anchor.width <= 0 || anchor.height <= 0) {
+                            return
+                        }
+                        anchor.viewTreeObserver.removeOnGlobalLayoutListener(this)
+                        showAtAnchor(anchor, label)
+                    }
+                },
+            )
+            return
+        }
         if (!ensurePreviewView(container)) return
         cancelDismiss()
 

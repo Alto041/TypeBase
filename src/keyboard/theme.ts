@@ -9,6 +9,8 @@ const KEYS_PADDING_TOP = 6;
 const IME_STRIP_CLEARANCE = 46;
 /** Extra headroom so the suggestion bar and bottom row are never clipped. */
 const KEYBOARD_HEIGHT_BUFFER = 6;
+const MIN_RESIZED_KEYBOARD_HEIGHT = 245;
+const MAX_RESIZED_KEYBOARD_HEIGHT = 510;
 
 const KEY_HEIGHT = 47;
 const KEY_ROW_MARGIN = 12;
@@ -137,6 +139,10 @@ function isValidRgbOrRgba(value: string): boolean {
 
 function isCssColor(value: unknown): value is string {
   return typeof value === 'string' && (isValidHexColor(value) || isValidRgbOrRgba(value));
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
 }
 
 function paletteForCustomTheme(
@@ -427,6 +433,53 @@ export function createKeyboardTheme(
   const imeStripClearance = isLandscape ? 28 : IME_STRIP_CLEARANCE;
   const essentialsPanelHeight = isLandscape ? 112 : 136;
   const keyboardHeightBuffer = isLandscape ? 4 : KEYBOARD_HEIGHT_BUFFER;
+  const numberRowHeight =
+    layout.numberRowEnabled
+      ? layout.keyHeight + layout.keyRowMargin
+      : 0;
+  const baseKeyboardHeightDp =
+    suggestionBarHeight +
+    keysPaddingTop +
+    KEY_ROW_COUNT * layout.keyHeight +
+    KEY_ROW_COUNT * layout.keyRowMargin +
+    imeStripClearance +
+    keyboardHeightBuffer;
+  const resizedKeyboardHeightDp = clamp(
+    baseKeyboardHeightDp + numberRowHeight + (layout.keyboardHeightOffset ?? 0),
+    MIN_RESIZED_KEYBOARD_HEIGHT,
+    MAX_RESIZED_KEYBOARD_HEIGHT,
+  );
+  const availablePanelHeight = Math.max(
+    120,
+    resizedKeyboardHeightDp -
+      suggestionBarHeight -
+      keysPaddingTop -
+      imeStripClearance -
+      keyboardHeightBuffer,
+  );
+  const pluginPanelHeight = Math.round(
+    Math.min(
+      availablePanelHeight,
+      Math.max(
+        150,
+        layout.keyHeight * 4 +
+          layout.keyRowMargin * 3 +
+          numberRowHeight +
+          (layout.keyboardHeightOffset ?? 0),
+      ),
+    ),
+  );
+  const emojiPanelHeight = Math.round(
+    Math.min(
+      availablePanelHeight,
+      Math.max(
+        140,
+        layout.keyHeight * 3 +
+          layout.keyRowMargin * 3 +
+          (layout.keyboardHeightOffset ?? 0),
+      ),
+    ),
+  );
 
   return {
     ...palette,
@@ -459,15 +512,10 @@ export function createKeyboardTheme(
     numpadKeyHeight,
     numpadKeysPaddingTop: NUMPAD_KEYS_PADDING_TOP,
     keyRowPaddingHorizontal: 5,
-    emojiPanelHeight: layout.keyHeight * 3 + layout.keyRowMargin * 3,
+    pluginPanelHeight,
+    emojiPanelHeight,
     emojiPanelGap: 12,
-    keyboardHeightDp:
-      suggestionBarHeight +
-      keysPaddingTop +
-      KEY_ROW_COUNT * layout.keyHeight +
-      KEY_ROW_COUNT * layout.keyRowMargin +
-      imeStripClearance +
-      keyboardHeightBuffer,
+    keyboardHeightDp: baseKeyboardHeightDp,
     numpadKeyboardHeightDp:
       suggestionBarHeight +
       NUMPAD_KEYS_PADDING_TOP +

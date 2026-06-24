@@ -303,7 +303,6 @@ function finishSession(
 
   if (session.committedOnDown && session.phase !== 'popup') {
     setMultiTouchKeyPressed(session.keyId, false);
-    hideKeyPreview();
     activeSessions.delete(pointerId);
     notifyPopup(null);
     return;
@@ -317,7 +316,6 @@ function finishSession(
       : session.defaultCommit;
   onKeyCommit(session.keyDef, text);
   setMultiTouchKeyPressed(session.keyId, false);
-  hideKeyPreview();
   activeSessions.delete(pointerId);
   notifyPopup(null);
 }
@@ -329,8 +327,20 @@ type DispatchMultiTouchOptions = {
   areaWidth: number;
   keyboardLayout: KeyboardLayout;
   getIsUppercase: () => boolean;
+  getLetterCommitText?: (keyValue: string) => string;
   hitSlop?: KeyHitSlop;
 };
+
+function resolveLetterCommitText(
+  keyValue: string,
+  options: DispatchMultiTouchOptions,
+): string {
+  if (options.getLetterCommitText) {
+    return options.getLetterCommitText(keyValue);
+  }
+  const isUppercase = options.getIsUppercase();
+  return isUppercase ? keyValue.toUpperCase() : keyValue.toLowerCase();
+}
 
 type TouchLike = {
   identifier: number | string;
@@ -423,9 +433,7 @@ export function dispatchMultiTouchStart(
       options.keyboardLayout,
       isUppercase,
     );
-    const defaultCommit = isUppercase
-      ? (hit.keyDef.value ?? '').toUpperCase()
-      : (hit.keyDef.value ?? '').toLowerCase();
+    const defaultCommit = resolveLetterCommitText(hit.keyDef.value ?? '', options);
     const opensAlternatePopup = shouldShowAlternatePopup(alternates);
 
     const session: MultiTouchSession = {
@@ -496,7 +504,6 @@ export function dispatchMultiTouchEnd(
       finishSession(pid, session, options.onKeyCommit);
     } else if (keyId) {
       setMultiTouchKeyPressed(keyId, false);
-      hideKeyPreview();
     }
 
     pointerToKeyId.delete(pid);

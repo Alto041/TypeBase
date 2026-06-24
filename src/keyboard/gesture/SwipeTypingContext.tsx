@@ -477,6 +477,7 @@ type SwipeTypingKeysHostProps = {
   keyboardLayout?: KeyboardLayout;
   isUppercase?: boolean;
   getIsUppercase?: () => boolean;
+  getLetterCommitText?: (keyValue: string) => string;
   onMultiTouchKeyCommit?: (keyDef: KeyDefinition, text: string) => void;
 };
 
@@ -486,6 +487,7 @@ export function SwipeTypingKeysHost({
   keyboardLayout = 'letters',
   isUppercase = false,
   getIsUppercase,
+  getLetterCommitText,
   onMultiTouchKeyCommit,
 }: SwipeTypingKeysHostProps) {
   const ctx = useContext(SwipeTypingContext);
@@ -548,6 +550,7 @@ export function SwipeTypingKeysHost({
           areaWidth: layoutContext.areaBounds.width,
           keyboardLayout,
           getIsUppercase: getIsUppercase ?? (() => isUppercase),
+          getLetterCommitText,
           hitSlop: keyHitSlop,
         });
       }
@@ -555,6 +558,7 @@ export function SwipeTypingKeysHost({
     [
       ctx,
       getIsUppercase,
+      getLetterCommitText,
       isUppercase,
       keyHitSlop,
       keyboardLayout,

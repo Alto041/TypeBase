@@ -20,6 +20,7 @@ type AutocorrectPanelProps = {
   settings: AutocorrectSettings;
   onToggleEnabled: (enabled: boolean) => void;
   onToggleAutoApply: (autoApplyOnSpace: boolean) => void;
+  onToggleAiAutoCorrect: (enabled: boolean) => void;
   onLearnedDataReset?: () => void;
 };
 
@@ -80,6 +81,7 @@ export function AutocorrectPanel({
   settings,
   onToggleEnabled,
   onToggleAutoApply,
+  onToggleAiAutoCorrect,
   onLearnedDataReset,
 }: AutocorrectPanelProps) {
   const panelStyles = usePluginPanelStyles();
@@ -145,6 +147,17 @@ export function AutocorrectPanel({
             hint="Replace typos when you press space. Off keeps your exact word."
             enabled={settings.autoApplyOnSpace}
             onToggle={() => onToggleAutoApply(!settings.autoApplyOnSpace)}
+          />
+        </View>
+
+        <View style={[styles.card, styles.cardMiddle]}>
+          <SettingRow
+            title="AI auto correct"
+            hint="Proofread recent typing after pauses. Bigger fixes show as a chip."
+            enabled={settings.aiAutoCorrectEnabled}
+            onToggle={() =>
+              onToggleAiAutoCorrect(!settings.aiAutoCorrectEnabled)
+            }
           />
         </View>
 

@@ -26,6 +26,11 @@ export type EssentialSuggestion = {
   value: string;
 };
 
+export type AiAutocorrectSuggestionBarItem = {
+  original: string;
+  correction: string;
+};
+
 const MAX_SUGGESTION_CHIPS = 3;
 const TWO_CHIP_WORD_LENGTH = 13;
 const ONE_CHIP_WORD_LENGTH = 20;
@@ -141,6 +146,9 @@ type SuggestionBarProps = {
   centerTitle?: string;
   clipboardPasteSuggestion?: ClipboardPasteSuggestion | null;
   onClipboardPasteSelect?: () => void;
+  aiAutocorrectSuggestion?: AiAutocorrectSuggestionBarItem | null;
+  onAiAutocorrectSelect?: () => void;
+  isAiAutocorrectProcessing?: boolean;
   /** Show back chevron instead of the plugins icon (panels + essentials form). */
   leadingBack?: boolean;
   trailingAction?: {
@@ -178,6 +186,9 @@ function SuggestionBarComponent({
   centerTitle,
   clipboardPasteSuggestion = null,
   onClipboardPasteSelect,
+  aiAutocorrectSuggestion = null,
+  onAiAutocorrectSelect,
+  isAiAutocorrectProcessing = false,
   leadingBack = false,
   trailingAction,
   showUndoRedo = false,
@@ -270,6 +281,22 @@ function SuggestionBarComponent({
     Boolean(clipboardPasteSuggestion) &&
     !showEssentials &&
     !showPartial;
+  const hasAiAutocorrectSuggestion =
+    !isFormMode &&
+    !centerTitle &&
+    Boolean(aiAutocorrectSuggestion) &&
+    !showEssentials &&
+    !showPartial &&
+    !showVoiceProcessing &&
+    !isAiAutocorrectProcessing;
+
+  const showAiProcessing =
+    !isFormMode &&
+    !centerTitle &&
+    isAiAutocorrectProcessing &&
+    !showVoiceProcessing &&
+    !showPartial &&
+    !hasAiAutocorrectSuggestion;
   const toolbarIconMuted = theme.icon;
   const toolbarIconActive = theme.icon;
   const toolbarIconSize = 20;
@@ -376,8 +403,32 @@ function SuggestionBarComponent({
               Polishing…
             </Text>
           </View>
+        ) : showAiProcessing ? (
+          <View style={styles.aiProcessingContainer}>
+            <VoiceConnectingDots size={22} color={theme.spaceLabel} />
+          </View>
         ) : showPartial ? (
           <VoiceTranscriptPreview transcript={partialTranscript} />
+        ) : hasAiAutocorrectSuggestion && aiAutocorrectSuggestion ? (
+          <View style={styles.clipboardPasteContainer}>
+            <Pressable
+              onPressIn={() => {
+                triggerKeyHaptic();
+                onAiAutocorrectSelect?.();
+              }}
+              style={({pressed}) => [
+                styles.aiAutocorrectPill,
+                pressed && styles.clipboardPastePillPressed,
+              ]}>
+              <CheckIcon width={15} height={15} color={theme.icon} />
+              <Text style={styles.aiAutocorrectText} numberOfLines={1}>
+                {middleTruncateSuggestion(
+                  aiAutocorrectSuggestion.correction,
+                  ONE_CHIP_TEXT_LENGTH,
+                )}
+              </Text>
+            </Pressable>
+          </View>
         ) : hasClipboardPaste && clipboardPasteSuggestion ? (
           <View style={styles.clipboardPasteContainer}>
             <Pressable
@@ -801,6 +852,29 @@ function createSuggestionBarStyles(theme: KeyboardTheme) {
     color: theme.label,
     fontSize: 15,
     ...keyboardTypefaceStyle(theme, '500'),
+  },
+  aiAutocorrectPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingLeft: 12,
+    paddingRight: 14,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: theme.pluginCard,
+    maxWidth: '92%',
+  },
+  aiAutocorrectText: {
+    flexShrink: 1,
+    color: theme.label,
+    fontSize: 15,
+    ...keyboardTypefaceStyle(theme, '600'),
+  },
+  aiProcessingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
   },
   clipboardPasteImage: {
     width: 22,

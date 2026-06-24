@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import {
-  PLUGIN_PANEL_HEIGHT,
+  getPluginMenuFadeHeight,
   usePluginPanelStyles,
 } from '../components/pluginPanelLayout';
 import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
@@ -19,7 +19,6 @@ import type {KeyboardTheme} from '../theme';
 import {rewriteText} from './geminiRewriteService';
 import {DEFAULT_REWRITE_TONE, REWRITE_TONES, type RewriteTone} from './rewriteTones';
 
-const FADE_HEIGHT = Math.round(PLUGIN_PANEL_HEIGHT * 0.52);
 const FIELD_SNIPPET_LENGTH = 600;
 
 export function RewritePanel() {
@@ -271,6 +270,8 @@ export function RewritePanel() {
 }
 
 function createRewriteStyles(theme: KeyboardTheme) {
+  const fadeHeight = getPluginMenuFadeHeight(theme);
+
   return StyleSheet.create({
     scroll: {
       flex: 1,
@@ -278,7 +279,7 @@ function createRewriteStyles(theme: KeyboardTheme) {
     scrollContent: {
       paddingHorizontal: 12,
       paddingTop: 6,
-      paddingBottom: FADE_HEIGHT + 12,
+      paddingBottom: fadeHeight + 12,
       gap: 8,
     },
     toneRowContent: {
@@ -406,7 +407,7 @@ function createRewriteStyles(theme: KeyboardTheme) {
       left: 0,
       right: 0,
       bottom: 0,
-      height: FADE_HEIGHT,
+      height: fadeHeight,
     },
   });
 }

@@ -80,3 +80,12 @@ Return only the polished text and nothing else.
 Text:
 "${transcript}"`);
 }
+
+export function buildGemmaAutocorrectPrompt(text: string): string {
+  return wrapGemmaPrompt(`Hey, fix all spelling mistakes, grammar errors, missing apostrophes, and punctuation in the message below. Keep slang (like bro), the same words, and the same meaning — do not rephrase or add new ideas.
+
+Return only the corrected text and nothing else.
+
+Text:
+"${text}"`);
+}

@@ -204,6 +204,90 @@ function maxEditDistance(length: number): number {
   return 2;
 }
 
+/** Adjacent letter swaps (teh → the, waht → what) count as 1-edit typos. */
+function collectTranspositionNeighbors(typed: string): string[] {
+  const neighbors: string[] = [];
+  for (let index = 0; index < typed.length - 1; index += 1) {
+    if (typed[index] === typed[index + 1]) {
+      continue;
+    }
+    const chars = typed.split('');
+    const swapped = chars
+      .map((char, charIndex) => {
+        if (charIndex === index) {
+          return chars[index + 1];
+        }
+        if (charIndex === index + 1) {
+          return chars[index];
+        }
+        return char;
+      })
+      .join('');
+    if (STATIC_RANK.has(swapped)) {
+      neighbors.push(swapped);
+    }
+  }
+  return neighbors;
+}
+
+/**
+ * True when a capitalized token is much more likely a sentence-start typo than a name
+ * (e.g. Ypu → you, Teh → the).
+ */
+function findCloseCommonWord(lower: string): string | null {
+  if (lower.length < 2) {
+    return null;
+  }
+
+  const maxEdits = lower.length <= 4 ? 1 : 2;
+  const lengthMin = Math.max(1, lower.length - maxEdits);
+  const lengthMax = lower.length + maxEdits;
+  type BestMatch = {word: string; edits: number; rank: number};
+  const state: {best: BestMatch | null} = {best: null};
+
+  const consider = (word: string) => {
+    if (word === lower) {
+      return;
+    }
+    if (word.length < lengthMin || word.length > lengthMax) {
+      return;
+    }
+    const rank = STATIC_RANK.get(word) ?? 99_999;
+    if (rank >= COMMON_WORD_RANK) {
+      return;
+    }
+    const edits = levenshtein(lower, word);
+    if (edits > maxEdits) {
+      return;
+    }
+    if (isLikelyNameTrap(lower, word)) {
+      return;
+    }
+    if (
+      !state.best ||
+      edits < state.best.edits ||
+      (edits === state.best.edits && rank < state.best.rank)
+    ) {
+      state.best = {word, edits, rank};
+    }
+  };
+
+  for (const word of STATIC_BY_FIRST.get(lower[0]) ?? []) {
+    consider(word);
+  }
+
+  for (const swapped of collectTranspositionNeighbors(lower)) {
+    consider(swapped);
+  }
+
+  const scanLimit = lower.length <= 6 ? Math.min(1200, WORDS.length) : 0;
+  for (let index = 0; index < scanLimit; index += 1) {
+    consider(WORDS[index]);
+  }
+
+  return state.best?.word ?? null;
+}
+
 function isProtectedWord(word: string, learnedUses: number): boolean {
   const rank = STATIC_RANK.get(word);
   if (rank != null && rank < COMMON_WORD_RANK) {
@@ -240,6 +324,15 @@ function isProbablyProperNoun(word: string): boolean {
   const rank = STATIC_RANK.get(lower);
   const learnedUses = getLearnedCounts().get(lower) ?? 0;
   if (learnedUses >= 1) {
+    return false;
+  }
+
+  if (rank != null && rank < COMMON_WORD_RANK) {
+    return false;
+  }
+
+  // Sentence-start caps are common; don't treat obvious typos as names (Ypu → you).
+  if (findCloseCommonWord(lower)) {
     return false;
   }
 
@@ -398,7 +491,8 @@ function scoreCandidate(
     edits * 100 -
     learnedUses * 18 -
     Math.max(0, 5000 - staticRank) * 0.02 -
-    (candidate.startsWith(typed.slice(0, 2)) ? 6 : 0)
+    (candidate.startsWith(typed.slice(0, 2)) ? 6 : 0) -
+    (isAdjacentTransposition(typed, candidate) ? 10 : 0)
   );
 }
 
@@ -496,6 +590,18 @@ function collectCandidates(
     }
   }
 
+  for (const swapped of collectTranspositionNeighbors(typed)) {
+    if (!seen.has(swapped)) {
+      seen.add(swapped);
+      results.push({
+        word: swapped,
+        edits: 1,
+        learnedUses: learned.get(swapped) ?? 0,
+        staticRank: STATIC_RANK.get(swapped) ?? 60_000,
+      });
+    }
+  }
+
   const bucket = STATIC_BY_FIRST.get(typed[0]) ?? [];
   for (const word of bucket) {
     consider(word, learned.get(word) ?? 0, STATIC_RANK.get(word) ?? 60_000);
@@ -520,8 +626,13 @@ function collectCandidates(
   }
 
   if (!options?.skipFrequentScan) {
-    if (results.length < 2 && typed.length >= 4) {
-      for (let i = 0; i < Math.min(FREQUENT_WORD_SCAN_LIMIT, WORDS.length); i++) {
+    const needsBroadScan =
+      results.length < 2 ||
+      (!STATIC_RANK.has(typed) && typed.length <= 6);
+
+    if (needsBroadScan && typed.length >= 3) {
+      const scanLimit = typed.length <= 5 ? 1200 : FREQUENT_WORD_SCAN_LIMIT;
+      for (let i = 0; i < Math.min(scanLimit, WORDS.length); i++) {
         const word = WORDS[i];
         consider(word, learned.get(word) ?? 0, i);
       }
@@ -624,7 +735,7 @@ export function getTypoSuggestionPreview(
   const [best] = getSimilarWordSuggestions(lower, 1, new Set([lower]), {
     skipFrequentScan: fast,
   });
-  if (!best || best.word.startsWith(lower)) {
+  if (!best) {
     return null;
   }
 

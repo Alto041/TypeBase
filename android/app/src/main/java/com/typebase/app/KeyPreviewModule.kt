@@ -18,6 +18,8 @@ class KeyPreviewModule(private val reactContext: ReactApplicationContext) :
 
     private val manager = KeyPreviewManager(reactContext)
     private val anchorViewCache = HashMap<Int, WeakReference<View>>()
+    /** Bumped on immediate hide so stale Fabric UIBlock shows are skipped. */
+    private var showGeneration = 0
 
     override fun getName() = "KeyPreview"
 
@@ -34,6 +36,7 @@ class KeyPreviewModule(private val reactContext: ReactApplicationContext) :
     @ReactMethod
     fun show(reactTag: Int, label: String) {
         UiThreadUtil.runOnUiThread {
+            val generation = ++showGeneration
             resolveAnchorView(reactTag)?.let { view ->
                 manager.show(view, label)
                 return@runOnUiThread
@@ -45,6 +48,7 @@ class KeyPreviewModule(private val reactContext: ReactApplicationContext) :
 
             uiManager.addUIBlock(
                 UIBlock { resolver ->
+                    if (generation != showGeneration) return@UIBlock
                     val view = resolver.resolveView(reactTag) ?: return@UIBlock
                     anchorViewCache[reactTag] = WeakReference(view)
                     manager.show(view, label)
@@ -56,6 +60,7 @@ class KeyPreviewModule(private val reactContext: ReactApplicationContext) :
     @ReactMethod
     fun hide() {
         UiThreadUtil.runOnUiThread {
+            showGeneration++
             manager.hide()
         }
     }

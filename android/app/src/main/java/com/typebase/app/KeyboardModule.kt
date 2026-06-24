@@ -544,6 +544,28 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   }
 
   @ReactMethod
+  fun decodeSwipeGesture(
+      pointsJson: String,
+      layoutsJson: String,
+      isUppercase: Boolean,
+      promise: Promise,
+  ) {
+    try {
+      val word =
+          SwipeWordDictionary.decodeSwipeGesture(
+              reactApplicationContext,
+              learnedWordsPrefs(),
+              pointsJson,
+              layoutsJson,
+              isUppercase,
+          )
+      promise.resolve(word ?: "")
+    } catch (error: Exception) {
+      promise.reject("DECODE_SWIPE_GESTURE_FAILED", error)
+    }
+  }
+
+  @ReactMethod
   fun insertText(text: String) {
     KeyboardInputBridge.getInputConnection()?.commitText(text, 1)
   }
