@@ -43,6 +43,10 @@ export type KeyboardLayoutSettings = {
    * negative = shorter). Applied on top of the computed base height for letters view.
    */
   keyboardHeightOffset: number;
+  /** When true, play the imported custom tap sound on key press. */
+  customTapSoundEnabled: boolean;
+  /** File name under keyboard_tap_sounds/ (e.g. custom_tap.mp3). */
+  customTapSoundFile: string | null;
 };
 
 export const DEFAULT_KEYBOARD_LAYOUT_SETTINGS: KeyboardLayoutSettings = {
@@ -56,6 +60,8 @@ export const DEFAULT_KEYBOARD_LAYOUT_SETTINGS: KeyboardLayoutSettings = {
   letterSymbolAlternatesEnabled: false,
   numberRowEnabled: false,
   keyboardHeightOffset: 0,
+  customTapSoundEnabled: false,
+  customTapSoundFile: null,
 };
 
 /** Touch slop into gaps — full visual gap so taps between keys snap to the nearest key. */

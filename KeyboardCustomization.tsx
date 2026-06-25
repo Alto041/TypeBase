@@ -1,5 +1,7 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   Animated,
   DeviceEventEmitter,
   Image,
@@ -19,6 +21,8 @@ import * as Haptics from 'expo-haptics';
 import BackIcon from './assets/back.svg';
 import ResetIcon from './assets/reset.svg';
 import ThemeIcon from './assets/theme.svg';
+import GraphicEqIcon from './assets/graphic_eq.svg';
+import UploadIcon from './assets/file-upload.svg';
 
 import {playSwitchOffSound, playSwitchOnSound} from './src/app/switchSound';
 
@@ -30,6 +34,11 @@ import {
   setKeyboardLayoutSettings,
   updateKeyboardLayoutSetting,
 } from './src/keyboard/settings/layoutStore';
+import {
+  clearCustomTapSound,
+  importCustomTapSound,
+  previewCustomTapSound,
+} from './src/keyboard/settings/tapSoundStore';
 import {
   ensureThemeLoaded,
   getKeyboardColorScheme,
@@ -62,13 +71,31 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
     DEFAULT_KEYBOARD_LAYOUT_SETTINGS,
   );
   const [loading, setLoading] = useState(true);
+  const [importingTapSound, setImportingTapSound] = useState(false);
+  const tapSoundAnim = useRef(new Animated.Value(0)).current;
+
+  const syncTapSoundState = useCallback((nextLayout: KeyboardLayoutSettings) => {
+    setLayout(current => ({...current, ...nextLayout}));
+    tapSoundAnim.setValue(nextLayout.customTapSoundEnabled ? 1 : 0);
+  }, [tapSoundAnim]);
 
   useEffect(() => {
     void ensureLayoutLoaded().then(() => {
-      setLayout(getKeyboardLayoutSettings());
+      const loaded = getKeyboardLayoutSettings();
+      setLayout(loaded);
+      tapSoundAnim.setValue(loaded.customTapSoundEnabled ? 1 : 0);
       setLoading(false);
     });
-  }, []);
+
+    const layoutSubscription = DeviceEventEmitter.addListener(
+      KEYBOARD_LAYOUT_CHANGED_EVENT,
+      payload => {
+        syncTapSoundState(parseLayoutEventPayload(payload));
+      },
+    );
+
+    return () => layoutSubscription.remove();
+  }, [syncTapSoundState, tapSoundAnim]);
 
   const update = (key: keyof KeyboardLayoutSettings, value: number) => {
     let next = value;
@@ -87,8 +114,71 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
 
   const handleReset = () => {
     setLayout(DEFAULT_KEYBOARD_LAYOUT_SETTINGS);
+    void clearCustomTapSound();
     void setKeyboardLayoutSettings(DEFAULT_KEYBOARD_LAYOUT_SETTINGS);
+    tapSoundAnim.setValue(0);
   };
+
+  const animateTapSoundToggle = (enabled: boolean) => {
+    Animated.spring(tapSoundAnim, {
+      toValue: enabled ? 1 : 0,
+      useNativeDriver: true,
+      stiffness: 700,
+      damping: 28,
+      mass: 0.8,
+    }).start();
+  };
+
+  const toggleCustomTapSound = () => {
+    if (loading) {
+      return;
+    }
+    if (!layout.customTapSoundFile) {
+      Alert.alert('Import a sound', 'Upload a short audio clip before enabling custom tap sounds.');
+      return;
+    }
+    const next = !layout.customTapSoundEnabled;
+    setLayout(current => ({...current, customTapSoundEnabled: next}));
+    void updateKeyboardLayoutSetting('customTapSoundEnabled', next);
+    animateTapSoundToggle(next);
+    if (next) {
+      playSwitchOnSound();
+      void previewCustomTapSound();
+    } else {
+      playSwitchOffSound();
+    }
+    void Haptics.selectionAsync().catch(() => {});
+  };
+
+  const handleImportTapSound = async () => {
+    if (loading || importingTapSound) {
+      return;
+    }
+    try {
+      setImportingTapSound(true);
+      const fileName = await importCustomTapSound();
+      setLayout(current => ({
+        ...current,
+        customTapSoundFile: fileName,
+        customTapSoundEnabled: true,
+      }));
+      animateTapSoundToggle(true);
+      void previewCustomTapSound();
+      void Haptics.selectionAsync().catch(() => {});
+    } catch (error) {
+      if (error instanceof Error && error.message === 'IMPORT_CANCELED') {
+        return;
+      }
+      const message =
+        error instanceof Error ? error.message : 'Could not import that audio file.';
+      Alert.alert('Import failed', message);
+    } finally {
+      setImportingTapSound(false);
+    }
+  };
+
+  const customTapSoundEnabled = layout.customTapSoundEnabled;
+  const customTapSoundFile = layout.customTapSoundFile;
 
   // Knob geometry (for Key Height circular control)
   const KNOB_SIZE = 130;   // larger hit area for easier control (finger can land around the visual)
@@ -413,6 +503,51 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
                 </View>
               </View>
             </View>
+          </View>
+
+          <View style={styles.themeToggleContainer}>
+            <GraphicEqIcon width={20} height={20} color={C.text} />
+            <View style={styles.tapSoundTextCol}>
+              <Text style={styles.tapSoundTitle}>Custom Tap Sound</Text>
+              {customTapSoundFile ? (
+                <Text style={styles.tapSoundFileName} numberOfLines={1}>
+                  {customTapSoundFile}
+                </Text>
+              ) : (
+                <Text style={styles.tapSoundHint}>Import a short MP3, WAV, or OGG</Text>
+              )}
+            </View>
+            <Pressable
+              onPress={() => void handleImportTapSound()}
+              disabled={loading || importingTapSound}
+              style={styles.tapSoundUploadBtn}
+              hitSlop={8}>
+              {importingTapSound ? (
+                <ActivityIndicator color={C.text} size="small" />
+              ) : (
+                <UploadIcon width={18} height={18} />
+              )}
+            </Pressable>
+            <Pressable
+              onPress={toggleCustomTapSound}
+              style={[styles.toggleTrack, customTapSoundEnabled && styles.toggleTrackOn]}
+              disabled={loading}>
+              <Animated.View
+                style={[
+                  styles.toggleThumb,
+                  {
+                    transform: [
+                      {
+                        translateX: tapSoundAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0, 18],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              />
+            </Pressable>
           </View>
 
           {/* Reset all settings row */}
@@ -1095,6 +1230,38 @@ const styles = StyleSheet.create({
     color: C.text,
     letterSpacing: TEXT_KERNING,
     marginLeft: 10,
+  },
+  tapSoundTextCol: {
+    flex: 1,
+    marginLeft: 10,
+    paddingRight: 8,
+    gap: 2,
+  },
+  tapSoundTitle: {
+    fontFamily: 'FragmentMono',
+    fontSize: 14,
+    color: C.text,
+    letterSpacing: TEXT_KERNING,
+  },
+  tapSoundHint: {
+    fontFamily: 'FragmentMono',
+    fontSize: 11,
+    color: C.sub,
+    letterSpacing: TEXT_KERNING,
+  },
+  tapSoundFileName: {
+    fontFamily: 'FragmentMono',
+    fontSize: 11,
+    color: C.sub,
+    letterSpacing: TEXT_KERNING,
+  },
+  tapSoundUploadBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
   },
 
   jsonCard: {

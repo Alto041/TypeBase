@@ -61,6 +61,14 @@ function normalizeLayout(raw: unknown): KeyboardLayoutSettings {
         ? clamp(Math.round(obj['keyboardHeightOffset']), -140, 220)
         : defaults.keyboardHeightOffset,
     letterLayoutId: normalizeLetterLayoutId(obj['letterLayoutId']),
+    customTapSoundEnabled:
+      typeof obj['customTapSoundEnabled'] === 'boolean'
+        ? obj['customTapSoundEnabled']
+        : defaults.customTapSoundEnabled,
+    customTapSoundFile:
+      typeof obj['customTapSoundFile'] === 'string' && obj['customTapSoundFile'].trim()
+        ? obj['customTapSoundFile'].trim()
+        : defaults.customTapSoundFile,
   };
 }
 

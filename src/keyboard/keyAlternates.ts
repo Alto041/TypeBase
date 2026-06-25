@@ -65,6 +65,35 @@ const PHONE_LETTER_SYMBOL_ALTERNATES: Record<string, readonly string[]> = {
   m: ['m', '.'],
 };
 
+/**
+ * Q-row hints when a dedicated number row is shown.
+ * Must not overlap ASDF (@ # & * - ( ) ' ") or ZXCV (? ! : ; / , .).
+ */
+const Q_ROW_SYMBOL_ALTERNATES_WITH_NUMBER_ROW: Record<string, readonly string[]> = {
+  q: ['q', '$'],
+  w: ['w', '%'],
+  e: ['e', '+'],
+  r: ['r', '='],
+  t: ['t', '^'],
+  y: ['y', '['],
+  u: ['u', ']'],
+  i: ['i', '{'],
+  o: ['o', '}'],
+  p: ['p', '|'],
+};
+
+const Q_ROW_LETTERS = new Set(Object.keys(Q_ROW_SYMBOL_ALTERNATES_WITH_NUMBER_ROW));
+
+function getPhoneLetterSymbolAlternates(
+  lookupKey: string,
+): readonly string[] | undefined {
+  const {numberRowEnabled} = getKeyboardLayoutSettings();
+  if (numberRowEnabled && Q_ROW_LETTERS.has(lookupKey)) {
+    return Q_ROW_SYMBOL_ALTERNATES_WITH_NUMBER_ROW[lookupKey];
+  }
+  return PHONE_LETTER_SYMBOL_ALTERNATES[lookupKey];
+}
+
 const NUMBER_ALTERNATES: Record<string, readonly string[]> = {
   '0': ['0', '°', '₀'],
   '1': ['1', '¹', '½', '⅓', '¼'],
@@ -121,10 +150,11 @@ function resolveLetterAlternates(
   ).toLowerCase();
 
   const useSymbolAlternates =
-    getKeyboardLayoutSettings().letterSymbolAlternatesEnabled;
+    getKeyboardLayoutSettings().letterSymbolAlternatesEnabled ||
+    getKeyboardLayoutSettings().numberRowEnabled;
 
   if (useSymbolAlternates) {
-    const phone = PHONE_LETTER_SYMBOL_ALTERNATES[lookupKey];
+    const phone = getPhoneLetterSymbolAlternates(lookupKey);
     if (!phone || phone.length < 2) {
       return [];
     }
@@ -136,7 +166,8 @@ function resolveLetterAlternates(
 
 /** Small symbol/number shown in the key corner when symbol long-press is on. */
 export function getLetterSymbolHint(keyDef: KeyDefinition): string | null {
-  if (!getKeyboardLayoutSettings().letterSymbolAlternatesEnabled) {
+  const settings = getKeyboardLayoutSettings();
+  if (!settings.letterSymbolAlternatesEnabled && !settings.numberRowEnabled) {
     return null;
   }
 
@@ -150,7 +181,7 @@ export function getLetterSymbolHint(keyDef: KeyDefinition): string | null {
     : base
   ).toLowerCase();
 
-  const phone = PHONE_LETTER_SYMBOL_ALTERNATES[lookupKey];
+  const phone = getPhoneLetterSymbolAlternates(lookupKey);
   return phone && phone.length >= 2 ? phone[1] : null;
 }
 
@@ -161,7 +192,8 @@ export function shouldShowAlternatePopup(alternates: readonly string[]): boolean
   }
   return (
     alternates.length === 1 &&
-    getKeyboardLayoutSettings().letterSymbolAlternatesEnabled
+    (getKeyboardLayoutSettings().letterSymbolAlternatesEnabled ||
+      getKeyboardLayoutSettings().numberRowEnabled)
   );
 }
 
@@ -173,7 +205,7 @@ export function getKeyAlternates(
   uppercase: boolean,
 ): string[] {
   const settings = getKeyboardLayoutSettings();
-  const cacheKey = `${keyDef.id}|${layout}|${uppercase ? 1 : 0}|${settings.letterSymbolAlternatesEnabled ? 1 : 0}`;
+  const cacheKey = `${keyDef.id}|${layout}|${uppercase ? 1 : 0}|${settings.letterSymbolAlternatesEnabled ? 1 : 0}|${settings.numberRowEnabled ? 1 : 0}`;
   const cached = keyAlternatesCache.get(cacheKey);
   if (cached) {
     return cached;

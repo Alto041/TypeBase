@@ -12,12 +12,13 @@ import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
 import type {KeyboardTheme} from '../theme';
 import {triggerKeyHaptic} from '../haptics';
 import {keyboardBridge} from '../keyboardBridge';
+import {
+  clampKeyboardResizeOffset,
+  computeKeyboardResizeOffsetBounds,
+  computeResizedKeyboardHeightDp,
+} from './resizeLimits';
 
 const HANDLE_HEIGHT = 28;
-const MIN_OFFSET = -140;
-const MAX_OFFSET = 220;
-const MIN_KEYBOARD_HEIGHT = 245;
-const MAX_KEYBOARD_HEIGHT = 510;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -47,13 +48,10 @@ export function KeyboardResizeOverlay({
 
   const offsetRef = useRef(currentOffset);
   const baseOffsetRef = useRef(currentOffset);
+  const offsetBoundsRef = useRef(computeKeyboardResizeOffsetBounds(baseHeight));
   const draggingRef = useRef(false);
   const [displayHeight, setDisplayHeight] = useState(() =>
-    clamp(
-      Math.round(baseHeight + currentOffset),
-      MIN_KEYBOARD_HEIGHT,
-      MAX_KEYBOARD_HEIGHT,
-    ),
+    computeResizedKeyboardHeightDp(baseHeight, currentOffset),
   );
   const labelRafRef = useRef<number | null>(null);
   const pendingDisplayHeightRef = useRef(displayHeight);
@@ -78,13 +76,11 @@ export function KeyboardResizeOverlay({
     if (draggingRef.current) {
       return;
     }
-    offsetRef.current = currentOffset;
-    baseOffsetRef.current = currentOffset;
-    const nextHeight = clamp(
-      Math.round(baseHeight + currentOffset),
-      MIN_KEYBOARD_HEIGHT,
-      MAX_KEYBOARD_HEIGHT,
-    );
+    offsetBoundsRef.current = computeKeyboardResizeOffsetBounds(baseHeight);
+    const clampedOffset = clampKeyboardResizeOffset(currentOffset, baseHeight);
+    offsetRef.current = clampedOffset;
+    baseOffsetRef.current = clampedOffset;
+    const nextHeight = computeResizedKeyboardHeightDp(baseHeight, clampedOffset);
     pendingDisplayHeightRef.current = nextHeight;
     setDisplayHeight(nextHeight);
     animatedHandleTranslateY.setValue(0);
@@ -108,31 +104,24 @@ export function KeyboardResizeOverlay({
         onPanResponderTerminationRequest: () => false,
         onPanResponderGrant: () => {
           draggingRef.current = true;
+          offsetBoundsRef.current = computeKeyboardResizeOffsetBounds(baseHeight);
           baseOffsetRef.current = offsetRef.current;
           animatedHandleTranslateY.setValue(0);
         },
         onPanResponderMove: (_evt, gesture) => {
-          // Drag direction: moving finger up (dy negative) should increase height (taller keyboard, top edge rises).
-          // So: nextOffset = base - dy
+          const {minOffset, maxOffset} = offsetBoundsRef.current;
+          // Drag up (dy negative) increases height → larger offset.
           const next = clamp(
             Math.round(baseOffsetRef.current - gesture.dy),
-            MIN_OFFSET,
-            MAX_OFFSET,
+            minOffset,
+            maxOffset,
           );
 
-          // Move the handle exactly with the finger for this gesture.
-          animatedHandleTranslateY.setValue(
-            Math.max(-140, Math.min(220, gesture.dy)),
-          );
+          // Stop the handle at the limit even if the finger keeps moving.
+          animatedHandleTranslateY.setValue(-(next - baseOffsetRef.current));
 
           offsetRef.current = next;
-          scheduleDisplayHeight(
-            clamp(
-              Math.round(baseHeight + next),
-              MIN_KEYBOARD_HEIGHT,
-              MAX_KEYBOARD_HEIGHT,
-            ),
-          );
+          scheduleDisplayHeight(computeResizedKeyboardHeightDp(baseHeight, next));
 
           // Keep the hot path tiny. Do NOT resize the native IME or rerender keys
           // while the finger is moving; both cause visible stutter on keyboard windows.
@@ -140,26 +129,28 @@ export function KeyboardResizeOverlay({
         },
         onPanResponderRelease: () => {
           draggingRef.current = false;
-          const h = clamp(
-            Math.round(baseHeight + offsetRef.current),
-            MIN_KEYBOARD_HEIGHT,
-            MAX_KEYBOARD_HEIGHT,
+          const clampedOffset = clampKeyboardResizeOffset(
+            offsetRef.current,
+            baseHeight,
           );
+          offsetRef.current = clampedOffset;
+          const h = computeResizedKeyboardHeightDp(baseHeight, clampedOffset);
           keyboardBridge.setKeyboardHeight(h);
           setDisplayHeight(h);
-          onOffsetChange(offsetRef.current);
+          onOffsetChange(clampedOffset);
           animatedHandleTranslateY.setValue(0);
         },
         onPanResponderTerminate: () => {
           draggingRef.current = false;
-          const h = clamp(
-            Math.round(baseHeight + offsetRef.current),
-            MIN_KEYBOARD_HEIGHT,
-            MAX_KEYBOARD_HEIGHT,
+          const clampedOffset = clampKeyboardResizeOffset(
+            offsetRef.current,
+            baseHeight,
           );
+          offsetRef.current = clampedOffset;
+          const h = computeResizedKeyboardHeightDp(baseHeight, clampedOffset);
           keyboardBridge.setKeyboardHeight(h);
           setDisplayHeight(h);
-          onOffsetChange(offsetRef.current);
+          onOffsetChange(clampedOffset);
           animatedHandleTranslateY.setValue(0);
         },
       }),
@@ -168,8 +159,8 @@ export function KeyboardResizeOverlay({
 
   const handleDone = useCallback(() => {
     triggerKeyHaptic();
-    onDone(offsetRef.current);
-  }, [onDone]);
+    onDone(clampKeyboardResizeOffset(offsetRef.current, baseHeight));
+  }, [baseHeight, onDone]);
 
   const handleReset = useCallback(() => {
     triggerKeyHaptic();
@@ -177,12 +168,7 @@ export function KeyboardResizeOverlay({
     offsetRef.current = reset;
     baseOffsetRef.current = reset;
     animatedHandleTranslateY.setValue(0);
-    // Apply immediately
-    const h = clamp(
-      Math.round(baseHeight + reset),
-      MIN_KEYBOARD_HEIGHT,
-      MAX_KEYBOARD_HEIGHT,
-    );
+    const h = computeResizedKeyboardHeightDp(baseHeight, reset);
     keyboardBridge.setKeyboardHeight(h);
     setDisplayHeight(h);
     onOffsetChange(reset);

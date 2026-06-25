@@ -40,6 +40,7 @@ class TypeBaseInputService : InputMethodService() {
   override fun onCreate() {
     super.onCreate()
     KeyboardInputBridge.inputService = this
+    KeyTapSoundPlayer.sync(applicationContext)
     val app = application as? ReactApplication
     app?.reactHost?.addReactInstanceEventListener(reactInstanceListener)
     preloadKeyboardRuntime()
@@ -228,6 +229,7 @@ class TypeBaseInputService : InputMethodService() {
     keyboardView = null
     container = null
     nativeKeyFastPath.clear()
+    KeyboardInputBridge.setTouchpadGestureConsuming(false)
     val surface = reactSurface
     reactSurface = null
     surface?.stop()
@@ -250,7 +252,11 @@ class TypeBaseInputService : InputMethodService() {
       if (nativeKeyFastPath.onTouchEvent(event)) {
         return true
       }
-      return super.dispatchTouchEvent(event)
+      val handled = super.dispatchTouchEvent(event)
+      if (KeyboardInputBridge.isTouchpadGestureConsuming()) {
+        return true
+      }
+      return handled
     }
   }
 }

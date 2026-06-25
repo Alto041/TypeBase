@@ -22,6 +22,12 @@ import {SuggestionBar} from './components/SuggestionBar';
 import {CalculatorPanel} from './calculator/CalculatorPanel';
 import {TouchpadPanel} from './touchpad/TouchpadPanel';
 import {KeyboardResizeOverlay} from './resize/KeyboardResizeOverlay';
+import {
+  clampKeyboardResizeOffset,
+  computeResizedKeyboardHeightDp,
+  MAX_KEYBOARD_HEIGHT_DP,
+  MIN_KEYBOARD_HEIGHT_DP,
+} from './resize/resizeLimits';
 import {ClipboardProPanel} from './clipboard/ClipboardProPanel';
 import {EmojiBottomRow} from './emoji/EmojiBottomRow';
 import {EmojiPanel} from './emoji/EmojiPanel';
@@ -359,6 +365,7 @@ function KeyboardBody() {
   const [inputInitialCapsMode, setInputInitialCapsMode] = useState(false);
   // Live offset used only while the resize overlay is active.
   const [resizeLiveOffset, setResizeLiveOffset] = useState(0);
+  const [touchpadGestureActive, setTouchpadGestureActive] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [essentialSuggestions, setEssentialSuggestions] = useState<Essential[]>(
     [],
@@ -454,6 +461,7 @@ function KeyboardBody() {
   const isEssentialsListMode = mode.type === 'essentials-list';
   const isGesturesMode = mode.type === 'gestures';
   const isCalculatorMode = mode.type === 'calculator';
+  const isTouchpadMode = mode.type === 'touchpad';
   const isTranslateMode = mode.type === 'translate';
   const isRewriteMode = mode.type === 'rewrite';
   const isFormatMode = mode.type === 'format';
@@ -483,7 +491,19 @@ function KeyboardBody() {
   // Positive offset: make keys taller → the rows block occupies more vertical space from the bottom,
   // so the top of the keyboard content (top row + suggestion above it) moves up on screen.
   // Negative offset: shrink keys + reduce padding so the keyboard "shrinks and fits in" the smaller window.
-  const resizeOffset = layout === 'letters' ? (isResizeMode ? resizeLiveOffset : (theme.keyboardHeightOffset ?? 0)) : 0;
+  const letterResizeBaseHeight =
+    theme.keyboardHeightDp +
+    (theme.numberRowEnabled ? theme.keyHeight + theme.keyRowMargin : 0);
+  const rawResizeOffset =
+    layout === 'letters'
+      ? isResizeMode
+        ? resizeLiveOffset
+        : (theme.keyboardHeightOffset ?? 0)
+      : 0;
+  const resizeOffset =
+    layout === 'letters'
+      ? clampKeyboardResizeOffset(rawResizeOffset, letterResizeBaseHeight)
+      : 0;
   const effectiveLetterKeyHeight =
     layout === 'letters' && resizeOffset !== 0
       ? (() => {
@@ -514,21 +534,20 @@ function KeyboardBody() {
       ? Math.max(0, theme.keysPaddingTop + Math.round(resizeOffset * 0.15))
       : theme.keysPaddingTop;
 
-  const activeKeyboardHeightDp = Math.max(
-    245,
-    Math.min(
-      510,
-      Math.round(
-        (layout === 'numpad'
-          ? theme.numpadKeyboardHeightDp
-          : theme.keyboardHeightDp) +
-          (layout === 'letters'
-            ? resizeOffset +
-              (theme.numberRowEnabled ? theme.keyHeight + theme.keyRowMargin : 0)
-            : 0),
-      ),
-    ),
-  );
+  const activeKeyboardHeightDp =
+    layout === 'letters'
+      ? computeResizedKeyboardHeightDp(letterResizeBaseHeight, rawResizeOffset)
+      : Math.max(
+          MIN_KEYBOARD_HEIGHT_DP,
+          Math.min(
+            MAX_KEYBOARD_HEIGHT_DP,
+            Math.round(
+              layout === 'numpad'
+                ? theme.numpadKeyboardHeightDp
+                : theme.keyboardHeightDp,
+            ),
+          ),
+        );
 
   const emojiPanelScrollHeight = Math.max(
     120,
@@ -833,6 +852,8 @@ function KeyboardBody() {
   }, [resetCase]);
 
   const openTouchpad = useCallback(() => {
+    keyboardBridge.setTouchpadGestureConsuming(false);
+    setTouchpadGestureActive(false);
     setMode({type: 'touchpad'});
     setLayout('letters');
     resetCase();
@@ -846,14 +867,26 @@ function KeyboardBody() {
 
   const closeResize = useCallback((saveOffset?: number) => {
     if (typeof saveOffset === 'number') {
-      void updateKeyboardLayoutSetting('keyboardHeightOffset', saveOffset);
+      const baseHeight =
+        theme.keyboardHeightDp +
+        (theme.numberRowEnabled ? theme.keyHeight + theme.keyRowMargin : 0);
+      void updateKeyboardLayoutSetting(
+        'keyboardHeightOffset',
+        clampKeyboardResizeOffset(saveOffset, baseHeight),
+      );
     }
     // Clear live so the height effect immediately falls back to the (possibly just saved or previous) persisted value.
     setResizeLiveOffset(0);
     setMode({type: 'typing'});
     setLayout('letters');
     resetCase();
-  }, [resetCase]);
+  }, [
+    resetCase,
+    theme.keyboardHeightDp,
+    theme.keyHeight,
+    theme.keyRowMargin,
+    theme.numberRowEnabled,
+  ]);
 
   const openFormatPanel = useCallback(async () => {
     if (isListening) {
@@ -984,6 +1017,12 @@ function KeyboardBody() {
       setMode({type: 'typing'});
       setLayout('letters');
       resetCase();
+      return;
+    }
+    if (mode.type === 'touchpad') {
+      keyboardBridge.setTouchpadGestureConsuming(false);
+      setTouchpadGestureActive(false);
+      closeItemsFlow();
       return;
     }
     if (mode.type === 'rewrite') {
@@ -1476,27 +1515,23 @@ function KeyboardBody() {
   ]);
 
   useEffect(() => {
-    let height =
-      layout === 'numpad'
-        ? theme.numpadKeyboardHeightDp
-        : theme.keyboardHeightDp;
-
-    // Apply user resize offset (or live drag value) only for the letters layout.
-    if (layout === 'letters') {
-      const offset = isResizeMode
-        ? resizeLiveOffset
-        : (theme.keyboardHeightOffset ?? 0);
-      height += offset;
-
-      if (theme.numberRowEnabled) {
-        height += theme.keyHeight + theme.keyRowMargin;
-      }
-    }
-
-    // Enforce sane bounds (very small or huge keyboards are bad for IME).
-    const minHeight = 245;
-    const maxHeight = 510;
-    const finalHeight = Math.max(minHeight, Math.min(maxHeight, Math.round(height)));
+    const finalHeight =
+      layout === 'letters'
+        ? computeResizedKeyboardHeightDp(
+            letterResizeBaseHeight,
+            isResizeMode ? resizeLiveOffset : (theme.keyboardHeightOffset ?? 0),
+          )
+        : Math.max(
+            MIN_KEYBOARD_HEIGHT_DP,
+            Math.min(
+              MAX_KEYBOARD_HEIGHT_DP,
+              Math.round(
+                layout === 'numpad'
+                  ? theme.numpadKeyboardHeightDp
+                  : theme.keyboardHeightDp,
+              ),
+            ),
+          );
 
     keyboardBridge.setKeyboardHeight(finalHeight);
 
@@ -1513,11 +1548,12 @@ function KeyboardBody() {
     }
     return undefined;
   }, [
-    layout,
-    theme,
-    layoutContext,
     isResizeMode,
+    layout,
+    layoutContext,
+    letterResizeBaseHeight,
     resizeLiveOffset,
+    theme,
     theme.keyboardHeightOffset,
     theme.numberRowEnabled,
   ]);
@@ -2381,6 +2417,19 @@ function KeyboardBody() {
           }}
           isUppercase={isUppercase}
           onWordCommitted={handleWordCommitted}>
+        {isTouchpadMode && touchpadGestureActive ? (
+          <View
+            pointerEvents="auto"
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              height: theme.suggestionBarHeight,
+              zIndex: 60,
+            }}
+          />
+        ) : null}
         <SuggestionBar
           suggestions={suggestions}
           prefix={currentPrefix}
@@ -2455,7 +2504,13 @@ function KeyboardBody() {
           showUndoRedo={gestureSettings.undoRedo && stoppedTyping}
           onUndo={handleUndo}
           onRedo={handleRedo}
-          leadingBack={isFormMode || isTranslateMode || isRewriteMode || isFormatMode}
+          leadingBack={
+            isFormMode ||
+            isTranslateMode ||
+            isRewriteMode ||
+            isFormatMode ||
+            isTouchpadMode
+          }
           onTranslatePress={() => {
             void toggleTranslatePanel();
           }}
@@ -2571,7 +2626,9 @@ function KeyboardBody() {
             />
           ) : null}
 
-          {mode.type === 'touchpad' ? <TouchpadPanel /> : null}
+          {mode.type === 'touchpad' ? (
+            <TouchpadPanel onGestureActiveChange={setTouchpadGestureActive} />
+          ) : null}
 
           {isResizeMode ? (
             <View
@@ -2585,10 +2642,7 @@ function KeyboardBody() {
               }}
               pointerEvents="box-none">
               <KeyboardResizeOverlay
-                baseHeight={
-                  theme.keyboardHeightDp +
-                  (theme.numberRowEnabled ? theme.keyHeight + theme.keyRowMargin : 0)
-                }
+                baseHeight={letterResizeBaseHeight}
                 currentOffset={resizeLiveOffset}
                 onOffsetChange={setResizeLiveOffset}
                 onDone={(finalOffset) => closeResize(finalOffset)}

@@ -16,6 +16,7 @@ import android.provider.MediaStore
 import android.provider.Settings
 import android.view.HapticFeedbackConstants
 import android.view.KeyEvent
+import android.view.inputmethod.ExtractedText
 import android.view.inputmethod.ExtractedTextRequest
 import android.view.inputmethod.InputConnection
 import android.R
@@ -727,6 +728,11 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   }
 
   @ReactMethod
+  fun setTouchpadGestureConsuming(active: Boolean) {
+    KeyboardInputBridge.setTouchpadGestureConsuming(active)
+  }
+
+  @ReactMethod
   fun getKeyboardColorScheme(promise: Promise) {
     try {
       val scheme =
@@ -840,6 +846,7 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     try {
       val saved =
           learnedWordsPrefs().edit().putString(KEYBOARD_LAYOUT_KEY, json).commit()
+      KeyTapSoundPlayer.sync(reactApplicationContext)
       if (saved && reactApplicationContext.hasActiveReactInstance()) {
         reactApplicationContext
             .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
@@ -1138,35 +1145,152 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
           promise.resolve(false)
           return@runOnUiThread
         }
-        val keyCode =
-            when (direction) {
-              "left" -> KeyEvent.KEYCODE_DPAD_LEFT
-              "right" -> KeyEvent.KEYCODE_DPAD_RIGHT
-              "up" -> KeyEvent.KEYCODE_DPAD_UP
-              "down" -> KeyEvent.KEYCODE_DPAD_DOWN
-              else -> {
-                promise.resolve(false)
-                return@runOnUiThread
-              }
-            }
-        val metaState =
-            if (extendSelection) {
-              KeyEvent.META_SHIFT_ON or KeyEvent.META_SHIFT_LEFT_ON
-            } else {
-              0
-            }
-        val eventTime = SystemClock.uptimeMillis()
-        connection.sendKeyEvent(
-            KeyEvent(eventTime, eventTime, KeyEvent.ACTION_DOWN, keyCode, 0, metaState),
-        )
-        connection.sendKeyEvent(
-            KeyEvent(eventTime, eventTime, KeyEvent.ACTION_UP, keyCode, 0, metaState),
-        )
-        promise.resolve(true)
+        val moved =
+            moveCursorDirectionInternal(connection, direction, extendSelection) ||
+                sendCursorDirectionKeyEvent(connection, direction, extendSelection)
+        promise.resolve(moved)
       } catch (error: Exception) {
         promise.reject("MOVE_CURSOR_DIRECTION_FAILED", error)
       }
     }
+  }
+
+  private fun moveCursorDirectionInternal(
+      connection: InputConnection,
+      direction: String,
+      extendSelection: Boolean,
+  ): Boolean {
+    val extracted =
+        connection.getExtractedText(
+            ExtractedTextRequest().apply {
+              flags = ExtractedText.FLAG_SELECTING
+              hintMaxLines = 200
+              hintMaxChars = 50000
+              token = 0
+            },
+            0,
+        ) ?: return false
+
+    val text = extracted.text?.toString() ?: return false
+    val length = text.length
+    val selStart = extracted.selectionStart.coerceIn(0, length)
+    val selEnd = extracted.selectionEnd.coerceIn(0, length)
+    if (selStart < 0 || selEnd < 0) {
+      return false
+    }
+
+    val low = minOf(selStart, selEnd)
+    val high = maxOf(selStart, selEnd)
+    val moveFrom =
+        when (direction) {
+          "left", "up" -> if (extendSelection) low else selEnd
+          "right", "down" -> if (extendSelection) high else selEnd
+          else -> return false
+        }
+    val newFocus =
+        stepCursorOffset(text, moveFrom, direction) ?: return false
+
+    if (!extendSelection) {
+      connection.setSelection(newFocus, newFocus)
+      return true
+    }
+
+    val anchor =
+        if (selStart == selEnd) {
+          moveFrom
+        } else {
+          when (direction) {
+            "left", "up" -> high
+            "right", "down" -> low
+            else -> moveFrom
+          }
+        }
+    connection.setSelection(minOf(anchor, newFocus), maxOf(anchor, newFocus))
+    return true
+  }
+
+  private fun stepCursorOffset(text: String, offset: Int, direction: String): Int? {
+    val length = text.length
+    val safeOffset = offset.coerceIn(0, length)
+    return when (direction) {
+      "left" -> {
+        if (safeOffset <= 0) {
+          0
+        } else {
+          Character.offsetByCodePoints(text, safeOffset, -1).coerceAtLeast(0)
+        }
+      }
+      "right" -> {
+        if (safeOffset >= length) {
+          length
+        } else {
+          Character.offsetByCodePoints(text, safeOffset, 1).coerceAtMost(length)
+        }
+      }
+      "up" -> stepCursorVertical(text, safeOffset, -1)
+      "down" -> stepCursorVertical(text, safeOffset, 1)
+      else -> null
+    }
+  }
+
+  private fun stepCursorVertical(text: String, offset: Int, lineDelta: Int): Int {
+    if (lineDelta == 0) {
+      return offset
+    }
+    val lines = text.split('\n')
+    if (lines.size <= 1) {
+      return offset
+    }
+
+    var lineIndex = 0
+    var lineStart = 0
+    for (index in lines.indices) {
+      val lineEnd = lineStart + lines[index].length
+      if (offset <= lineEnd) {
+        lineIndex = index
+        break
+      }
+      lineStart = lineEnd + 1
+      lineIndex = index + 1
+    }
+
+    val column = (offset - lineStart).coerceAtLeast(0)
+    val nextLineIndex = (lineIndex + lineDelta).coerceIn(0, lines.lastIndex)
+    var nextLineStart = 0
+    for (index in 0 until nextLineIndex) {
+      nextLineStart += lines[index].length + 1
+    }
+    val nextColumn = column.coerceAtMost(lines[nextLineIndex].length)
+    return nextLineStart + nextColumn
+  }
+
+  private fun sendCursorDirectionKeyEvent(
+      connection: InputConnection,
+      direction: String,
+      extendSelection: Boolean,
+  ): Boolean {
+    val keyCode =
+        when (direction) {
+          "left" -> KeyEvent.KEYCODE_DPAD_LEFT
+          "right" -> KeyEvent.KEYCODE_DPAD_RIGHT
+          "up" -> KeyEvent.KEYCODE_DPAD_UP
+          "down" -> KeyEvent.KEYCODE_DPAD_DOWN
+          else -> return false
+        }
+    val metaState =
+        if (extendSelection) {
+          KeyEvent.META_SHIFT_ON or KeyEvent.META_SHIFT_LEFT_ON
+        } else {
+          0
+        }
+    val eventTime = SystemClock.uptimeMillis()
+    connection.sendKeyEvent(
+        KeyEvent(eventTime, eventTime, KeyEvent.ACTION_DOWN, keyCode, 0, metaState),
+    )
+    connection.sendKeyEvent(
+        KeyEvent(eventTime, eventTime, KeyEvent.ACTION_UP, keyCode, 0, metaState),
+    )
+    return true
   }
 
   @ReactMethod
@@ -1363,6 +1487,17 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     performKeyHapticInternal()
   }
 
+  @ReactMethod
+  fun syncCustomTapSound() {
+    KeyTapSoundPlayer.sync(reactApplicationContext)
+  }
+
+  @ReactMethod
+  fun playCustomTapSound() {
+    KeyTapSoundPlayer.sync(reactApplicationContext)
+    KeyTapSoundPlayer.play(reactApplicationContext)
+  }
+
   private fun performKeyHapticInternal() {
     val view =
         KeyboardInputBridge.inputService?.popupAnchorView
@@ -1374,6 +1509,7 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
           HapticFeedbackConstants.KEYBOARD_TAP,
           HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING,
       )
+      KeyTapSoundPlayer.play(reactApplicationContext)
     }
 
     if (UiThreadUtil.isOnUiThread()) {

@@ -313,7 +313,7 @@ function SuggestionBarComponent({
     <View style={styles.container}>
       <View style={styles.toolbarLeading}>
         <Pressable
-          onPressIn={() => {
+          onPress={() => {
             triggerKeyHaptic();
             if (isFormMode) {
               essentialsForm?.onBack();

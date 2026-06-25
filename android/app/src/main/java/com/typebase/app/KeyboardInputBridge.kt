@@ -129,6 +129,7 @@ object KeyboardInputBridge {
     inputService
         ?.keyboardViewForFeedback
         ?.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+    inputService?.applicationContext?.let { KeyTapSoundPlayer.play(it) }
   }
 
   fun setPrefersNumpad(prefers: Boolean) {
@@ -245,4 +246,12 @@ object KeyboardInputBridge {
       else -> false
     }
   }
+
+  @Volatile private var touchpadGestureConsuming: Boolean = false
+
+  fun setTouchpadGestureConsuming(active: Boolean) {
+    touchpadGestureConsuming = active
+  }
+
+  fun isTouchpadGestureConsuming(): Boolean = touchpadGestureConsuming
 }

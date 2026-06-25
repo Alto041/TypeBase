@@ -48,7 +48,10 @@ type KeyboardModuleType = {
   dismissKeyboard: () => void;
   openInputMethodSettings: () => void;
   performKeyHaptic: () => void;
+  syncCustomTapSound: () => void;
+  playCustomTapSound: () => void;
   setKeyboardHeight: (heightDp: number) => void;
+  setTouchpadGestureConsuming: (active: boolean) => void;
   setNativeKeyFastPathConfig: (json: string) => void;
   getGestureSettings: () => Promise<string>;
   setGestureSettings: (json: string) => Promise<boolean>;
@@ -351,9 +354,24 @@ export const keyboardBridge: KeyboardModuleType = {
       KeyboardModule.performKeyHaptic();
     }
   },
+  syncCustomTapSound: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.syncCustomTapSound) {
+      KeyboardModule.syncCustomTapSound();
+    }
+  },
+  playCustomTapSound: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.playCustomTapSound) {
+      KeyboardModule.playCustomTapSound();
+    }
+  },
   setKeyboardHeight: (heightDp: number) => {
     if (Platform.OS === 'android' && KeyboardModule?.setKeyboardHeight) {
       KeyboardModule.setKeyboardHeight(heightDp);
+    }
+  },
+  setTouchpadGestureConsuming: (active: boolean) => {
+    if (Platform.OS === 'android' && KeyboardModule?.setTouchpadGestureConsuming) {
+      KeyboardModule.setTouchpadGestureConsuming(active);
     }
   },
   setNativeKeyFastPathConfig: (json: string) => {

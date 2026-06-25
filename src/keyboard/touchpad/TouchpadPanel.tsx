@@ -1,7 +1,6 @@
-import React, {useCallback, useMemo, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
   PanResponder,
-  PixelRatio,
   Pressable,
   StyleSheet,
   Text,
@@ -17,15 +16,14 @@ import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
 import type {KeyboardTheme} from '../theme';
 
 const TRACKPAD_STEP_PX = 12;
-const TRACKPAD_ACTIVATION_SLOP_DP = 8;
 
 type CursorDirection = 'left' | 'right' | 'up' | 'down';
 
-function dp(value: number): number {
-  return value * PixelRatio.get();
-}
+type TouchpadPanelProps = {
+  onGestureActiveChange?: (active: boolean) => void;
+};
 
-export function TouchpadPanel() {
+export function TouchpadPanel({onGestureActiveChange}: TouchpadPanelProps) {
   const theme = useKeyboardTheme();
   const panelStyles = usePluginPanelStyles();
   const styles = useThemedStyles(createTouchpadStyles);
@@ -37,8 +35,24 @@ export function TouchpadPanel() {
   const lastDyRef = useRef(0);
   const gridRef = useRef<any>(null);
   const gridWidthRef = useRef(0);
+  const draggingRef = useRef(false);
 
   selectModeRef.current = selectMode;
+
+  const setGestureActive = useCallback(
+    (active: boolean) => {
+      draggingRef.current = active;
+      keyboardBridge.setTouchpadGestureConsuming(active);
+      onGestureActiveChange?.(active);
+    },
+    [onGestureActiveChange],
+  );
+
+  useEffect(() => {
+    return () => {
+      keyboardBridge.setTouchpadGestureConsuming(false);
+    };
+  }, []);
 
   const moveDirection = useCallback((direction: CursorDirection) => {
     triggerKeyHaptic();
@@ -67,29 +81,13 @@ export function TouchpadPanel() {
   const panResponder = useMemo(
     () =>
       PanResponder.create({
-        onStartShouldSetPanResponder: (evt) => {
-          // Only claim pan gestures that start on the trackpad (left) side of the grid.
-          // This keeps the responder target as the full-height grid container so long
-          // swipes (even when the finger travels over buttons or up into the suggestion
-          // bar) do not leak to the app below and accidentally hide the keyboard.
-          const w = gridWidthRef.current;
-          if (w <= 0) {
-            return true;
-          }
-          const startX = (evt.nativeEvent as any).locationX ?? 0;
-          return startX < w * 0.78;
-        },
-        onStartShouldSetPanResponderCapture: (evt) => {
-          const w = gridWidthRef.current;
-          if (w <= 0) {
-            return true;
-          }
-          const startX = (evt.nativeEvent as any).locationX ?? 0;
-          return startX < w * 0.78;
-        },
-        onMoveShouldSetPanResponder: () => false,
+        onStartShouldSetPanResponder: () => true,
+        onStartShouldSetPanResponderCapture: () => true,
+        onMoveShouldSetPanResponder: () => draggingRef.current,
+        onMoveShouldSetPanResponderCapture: () => draggingRef.current,
         onPanResponderTerminationRequest: () => false,
         onPanResponderGrant: () => {
+          setGestureActive(true);
           accumXRef.current = 0;
           accumYRef.current = 0;
           lastDxRef.current = 0;
@@ -111,19 +109,21 @@ export function TouchpadPanel() {
           }
         },
         onPanResponderRelease: () => {
+          setGestureActive(false);
           accumXRef.current = 0;
           accumYRef.current = 0;
           lastDxRef.current = 0;
           lastDyRef.current = 0;
         },
         onPanResponderTerminate: () => {
+          setGestureActive(false);
           accumXRef.current = 0;
           accumYRef.current = 0;
           lastDxRef.current = 0;
           lastDyRef.current = 0;
         },
       }),
-    [stepCursor],
+    [setGestureActive, stepCursor],
   );
 
   const handleCopy = useCallback(() => {
@@ -159,19 +159,19 @@ export function TouchpadPanel() {
           if (w > 0) {
             gridWidthRef.current = w;
           }
-        }}
-        {...panResponder.panHandlers}>
+        }}>
         <View
           style={[
             styles.trackpad,
             selectMode && styles.trackpadSelecting,
           ]}
-          pointerEvents="none"
+          collapsable={false}
+          {...panResponder.panHandlers}
         />
 
-        <View style={styles.actionColumn}>
+        <View style={styles.actionColumn} pointerEvents="box-none">
           <Pressable
-            onPressIn={handleCopy}
+            onPress={handleCopy}
             style={({pressed}) => [
               styles.actionKey,
               pressed && styles.actionKeyPressed,
@@ -180,7 +180,7 @@ export function TouchpadPanel() {
           </Pressable>
 
           <Pressable
-            onPressIn={handleCut}
+            onPress={handleCut}
             style={({pressed}) => [
               styles.actionKey,
               pressed && styles.actionKeyPressed,
@@ -189,7 +189,7 @@ export function TouchpadPanel() {
           </Pressable>
 
           <Pressable
-            onPressIn={handleToggleSelect}
+            onPress={handleToggleSelect}
             style={({pressed}) => [
               styles.actionKey,
               styles.selectKey,
@@ -208,7 +208,7 @@ export function TouchpadPanel() {
           </Pressable>
 
           <Pressable
-            onPressIn={handleBackspace}
+            onPress={handleBackspace}
             style={({pressed}) => [
               styles.actionKey,
               pressed && styles.actionKeyPressed,
