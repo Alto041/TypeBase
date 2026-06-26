@@ -15,7 +15,10 @@ import {keyboardBridge} from '../keyboardBridge';
 import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
 import type {KeyboardTheme} from '../theme';
 
-const TRACKPAD_STEP_PX = 12;
+const TRACKPAD_STEP_PX_HORIZONTAL = 12;
+/** Vertical moves one line per step — use a larger threshold so small drags don't jump many lines. */
+const TRACKPAD_STEP_PX_VERTICAL = 40;
+const MAX_VERTICAL_STEPS_PER_MOVE = 1;
 
 type CursorDirection = 'left' | 'right' | 'up' | 'down';
 
@@ -62,20 +65,25 @@ export function TouchpadPanel({onGestureActiveChange}: TouchpadPanelProps) {
   const stepCursor = useCallback(() => {
     const accumX = accumXRef.current;
     const accumY = accumYRef.current;
-    if (Math.abs(accumX) < TRACKPAD_STEP_PX && Math.abs(accumY) < TRACKPAD_STEP_PX) {
-      return;
-    }
+    const horizontalDominant = Math.abs(accumX) >= Math.abs(accumY);
 
-    if (Math.abs(accumX) >= Math.abs(accumY)) {
+    if (horizontalDominant) {
+      if (Math.abs(accumX) < TRACKPAD_STEP_PX_HORIZONTAL) {
+        return false;
+      }
       const step = accumX > 0 ? 1 : -1;
-      accumXRef.current -= step * TRACKPAD_STEP_PX;
+      accumXRef.current -= step * TRACKPAD_STEP_PX_HORIZONTAL;
       moveDirection(step > 0 ? 'right' : 'left');
-      return;
+      return true;
     }
 
+    if (Math.abs(accumY) < TRACKPAD_STEP_PX_VERTICAL) {
+      return false;
+    }
     const step = accumY > 0 ? 1 : -1;
-    accumYRef.current -= step * TRACKPAD_STEP_PX;
+    accumYRef.current -= step * TRACKPAD_STEP_PX_VERTICAL;
     moveDirection(step > 0 ? 'down' : 'up');
+    return true;
   }, [moveDirection]);
 
   const panResponder = useMemo(
@@ -101,11 +109,23 @@ export function TouchpadPanel({onGestureActiveChange}: TouchpadPanelProps) {
           accumXRef.current += deltaX;
           accumYRef.current += deltaY;
 
+          let verticalSteps = 0;
           while (
-            Math.abs(accumXRef.current) >= TRACKPAD_STEP_PX ||
-            Math.abs(accumYRef.current) >= TRACKPAD_STEP_PX
+            Math.abs(accumXRef.current) >= TRACKPAD_STEP_PX_HORIZONTAL ||
+            Math.abs(accumYRef.current) >= TRACKPAD_STEP_PX_VERTICAL
           ) {
-            stepCursor();
+            const movedVertically =
+              Math.abs(accumYRef.current) >= Math.abs(accumXRef.current) &&
+              Math.abs(accumYRef.current) >= TRACKPAD_STEP_PX_VERTICAL;
+            if (movedVertically) {
+              if (verticalSteps >= MAX_VERTICAL_STEPS_PER_MOVE) {
+                break;
+              }
+              verticalSteps += 1;
+            }
+            if (!stepCursor()) {
+              break;
+            }
           }
         },
         onPanResponderRelease: () => {

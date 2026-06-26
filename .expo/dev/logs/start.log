@@ -14530,3 +14530,30 @@
 {"_e":"metro:bundling:done","_t":1782482856891,"id":"1","total":1056,"ms":2605.6793}
 {"_e":"metro:client_log","_t":1782482862448,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
 {"_e":"metro:client_log","_t":1782482862449,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"root:init","_t":1782489782683,"format":"v0-jsonl","version":"56.1.14"}
+{"_e":"devserver:start","_t":1782489782737,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../..\\..\\src\\app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1782489784398,"serverRoot":"../..\\..","projectRoot":"../..\\..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"metro:instantiate","_t":1782489810110,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"root:init","_t":1782489989365,"format":"v0-jsonl","version":"56.1.14"}
+{"_e":"devserver:start","_t":1782489989409,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../..\\..\\src\\app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1782489990215,"serverRoot":"../..\\..","projectRoot":"../..\\..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"metro:instantiate","_t":1782490013359,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"metro:bundling:started","_t":1782490018528,"id":"1","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1782490018529,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1782490018536,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1782490018636,"id":"1","progress":0.0014567915622632716,"total":131,"current":5}
+{"_e":"metro:bundling:progress","_t":1782490018742,"id":"1","progress":0.0287523629489603,"total":230,"current":39}
+{"_e":"metro:bundling:progress","_t":1782490018842,"id":"1","progress":0.07986767485822305,"total":322,"current":91}
+{"_e":"metro:bundling:progress","_t":1782490018942,"id":"1","progress":0.14175134712373985,"total":417,"current":157}
+{"_e":"metro:bundling:progress","_t":1782490019054,"id":"1","progress":0.2279292403746098,"total":465,"current":222}
+{"_e":"metro:bundling:progress","_t":1782490019158,"id":"1","progress":0.3377374523724679,"total":573,"current":333}
+{"_e":"metro:bundling:progress","_t":1782490019260,"id":"1","progress":0.507288172863783,"total":629,"current":448}
+{"_e":"metro:bundling:progress","_t":1782490019360,"id":"1","progress":0.507288172863783,"total":775,"current":527}
+{"_e":"metro:bundling:progress","_t":1782490019460,"id":"1","progress":0.6920250802950951,"total":803,"current":668}
+{"_e":"metro:bundling:progress","_t":1782490019560,"id":"1","progress":0.8366092478735208,"total":832,"current":761}
+{"_e":"metro:bundling:progress","_t":1782490019662,"id":"1","progress":0.8630172073816781,"total":859,"current":798}
+{"_e":"metro:bundling:progress","_t":1782490019762,"id":"1","progress":0.9395030612611319,"total":944,"current":915}
+{"_e":"metro:bundling:progress","_t":1782490019876,"id":"1","progress":0.9481606458841163,"total":1028,"current":1001}
+{"_e":"metro:bundling:progress","_t":1782490019991,"id":"1","progress":0.9981015666359129,"total":1053,"current":1052}
+{"_e":"metro:bundling:progress","_t":1782490020679,"id":"1","progress":0.999,"total":1053,"current":1053}
+{"_e":"metro:bundling:done","_t":1782490020809,"id":"1","total":1053,"ms":2280.1429}

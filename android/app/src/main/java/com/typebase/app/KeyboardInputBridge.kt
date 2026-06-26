@@ -15,6 +15,18 @@ object KeyboardInputBridge {
   /** Google app search bar: always show submit enter, never newline. */
   private const val GOOGLE_QUICK_SEARCH_BOX = "com.google.android.googlequicksearchbox"
 
+  private val RICH_TEXT_EDITOR_PACKAGES =
+      setOf(
+          "com.google.android.apps.docs",
+          "com.google.android.apps.docs.editors.docs",
+          "com.google.android.apps.docs.editors.sheets",
+          "com.google.android.apps.docs.editors.slides",
+          "com.google.android.keep",
+          "com.microsoft.office.word",
+          "com.samsung.android.app.notes",
+          "com.example.android.notepad",
+      )
+
   @Volatile
   private var numpadPreferred: Boolean = false
 
@@ -39,6 +51,14 @@ object KeyboardInputBridge {
   fun prefersNumpad(): Boolean = numpadPreferred
 
   fun currentInputSupportsNewline(): Boolean = supportsNewline
+
+  fun shouldPreferDeleteKeyEvent(): Boolean {
+    if (supportsNewline) {
+      return true
+    }
+    val packageName = currentEditorInfo?.packageName ?: return false
+    return RICH_TEXT_EDITOR_PACKAGES.any { packageName.startsWith(it) }
+  }
 
   fun shouldForceSubmitEnter(): Boolean =
       currentEditorInfo?.packageName == GOOGLE_QUICK_SEARCH_BOX

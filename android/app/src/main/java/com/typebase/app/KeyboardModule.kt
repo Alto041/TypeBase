@@ -651,7 +651,34 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
       connection.commitText("", 1)
       return
     }
+
+    // Google Docs, Keep, and many multi-line editors ignore deleteSurroundingText.
+    if (KeyboardInputBridge.shouldPreferDeleteKeyEvent()) {
+      sendDeleteKeyEvent(connection)
+      return
+    }
+
+    val before = connection.getTextBeforeCursor(4, 0)?.toString().orEmpty()
+    if (before.isEmpty()) {
+      sendDeleteKeyEvent(connection)
+      return
+    }
+
     connection.deleteSurroundingTextInCodePoints(1, 0)
+    val after = connection.getTextBeforeCursor(4, 0)?.toString().orEmpty()
+    if (after == before) {
+      sendDeleteKeyEvent(connection)
+    }
+  }
+
+  private fun sendDeleteKeyEvent(connection: InputConnection) {
+    val eventTime = SystemClock.uptimeMillis()
+    connection.sendKeyEvent(
+        KeyEvent(eventTime, eventTime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DEL, 0, 0),
+    )
+    connection.sendKeyEvent(
+        KeyEvent(eventTime, eventTime, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DEL, 0, 0),
+    )
   }
 
   private fun stopBackspaceRepeatInternal() {
