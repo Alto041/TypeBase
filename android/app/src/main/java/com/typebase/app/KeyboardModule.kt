@@ -1097,6 +1097,29 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   }
 
   @ReactMethod
+  fun getPeriodRewriteArmed(promise: Promise) {
+    try {
+      promise.resolve(learnedWordsPrefs().getBoolean(PERIOD_REWRITE_ARMED_KEY, false))
+    } catch (error: Exception) {
+      promise.reject("GET_PERIOD_REWRITE_ARMED_FAILED", error)
+    }
+  }
+
+  @ReactMethod
+  fun setPeriodRewriteArmed(armed: Boolean, promise: Promise) {
+    try {
+      val saved =
+          learnedWordsPrefs()
+              .edit()
+              .putBoolean(PERIOD_REWRITE_ARMED_KEY, armed)
+              .commit()
+      promise.resolve(saved)
+    } catch (error: Exception) {
+      promise.reject("SET_PERIOD_REWRITE_ARMED_FAILED", error)
+    }
+  }
+
+  @ReactMethod
   fun moveCursor(offset: Int, promise: Promise) {
     UiThreadUtil.runOnUiThread {
       try {
@@ -1601,6 +1624,7 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     private const val AUTOCORRECT_SETTINGS_KEY = "autocorrect_settings"
     private const val LEARNED_PHRASES_KEY = "learned_phrases"
     private const val COMMA_LAUNCHER_ARMED_KEY = "comma_launcher_armed"
+    private const val PERIOD_REWRITE_ARMED_KEY = "period_rewrite_armed"
     private const val API_KEYS_KEY = "api_keys"
     private const val AI_PROVIDER_KEY = "ai_provider"
     private const val DEFAULT_AI_PROVIDER = "gemini"

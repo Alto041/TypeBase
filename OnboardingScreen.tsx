@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 
+import SkipNextIcon from './assets/skip-next.svg';
 import {AiConfigScreen} from './AiConfigScreen';
 import {useScreenTransition} from './lib/screenTransition';
 import {keyboardBridge} from './src/keyboard/keyboardBridge';
@@ -19,6 +20,7 @@ const C = {
   bg: '#f2f2f4',
   text: '#111111',
   sub: '#6b6b6b',
+  red: '#D71921',
 } as const;
 
 const TEXT_KERNING = -0.7;
@@ -130,6 +132,10 @@ export function OnboardingScreen({
 
   const page = pageIndex === 0 ? welcomePage : finishPage;
 
+  const handleSkip = () => {
+    transitionTo(onComplete);
+  };
+
   return (
     <View style={styles.root}>
       <StatusBar barStyle="dark-content" backgroundColor={C.bg} />
@@ -157,9 +163,18 @@ export function OnboardingScreen({
               </View>
 
               <View style={styles.bottom}>
-                <Pressable style={styles.ctaButton} onPress={page.onPress}>
-                  <Text style={[styles.ctaLabel, monoFont]}>{page.cta}</Text>
-                </Pressable>
+                <View style={styles.ctaRow}>
+                  <Pressable style={styles.ctaButton} onPress={page.onPress}>
+                    <Text style={[styles.ctaLabel, monoFont]}>{page.cta}</Text>
+                  </Pressable>
+                  <Pressable
+                    style={styles.skipButton}
+                    onPress={handleSkip}
+                    accessibilityLabel="Skip"
+                    accessibilityRole="button">
+                    <SkipNextIcon width={20} height={20} color="#FFFFFF" />
+                  </Pressable>
+                </View>
                 <Text style={[styles.footerCompany, interFont]}>
                   Quivox Engineering Technologies
                 </Text>
@@ -253,11 +268,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
-  ctaButton: {
+  ctaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     width: '100%',
+  },
+  ctaButton: {
+    flex: 1,
     backgroundColor: '#111111',
     borderRadius: 999,
     paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  skipButton: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: C.red,
     alignItems: 'center',
     justifyContent: 'center',
   },

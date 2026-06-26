@@ -51,12 +51,16 @@ function PunctuationKeyComponent({
 
   const isPeriod = keyDef.type === 'period';
   const isComma = keyDef.type === 'comma';
+  const launcherOnPeriod = Boolean(keyGestures?.commaLauncher);
+  const isLauncherKey =
+    (isPeriod && launcherOnPeriod) || (isComma && !launcherOnPeriod);
+  const isRewriteKey =
+    (isComma && launcherOnPeriod) || (isPeriod && !launcherOnPeriod);
 
   const showLauncher =
-    isPeriod &&
-    Boolean(keyGestures?.commaLauncher && keyGestures.commaLauncherActive);
+    isLauncherKey && Boolean(keyGestures?.commaLauncherActive);
   const showRewrite =
-    isComma &&
+    isRewriteKey &&
     Boolean(keyGestures?.periodRewrite && keyGestures.periodRewriteActive);
 
   const showLauncherRef = useRef(showLauncher);
@@ -151,7 +155,7 @@ function PunctuationKeyComponent({
       return;
     }
 
-    if (isPeriod && gestures.commaLauncher) {
+    if (isLauncherKey) {
       if (showLauncherRef.current) {
         holdTimerRef.current = setTimeout(() => {
           holdTimerRef.current = null;
@@ -172,7 +176,7 @@ function PunctuationKeyComponent({
       return;
     }
 
-    if (isComma && gestures.periodRewrite) {
+    if (isRewriteKey && gestures.periodRewrite) {
       if (showRewriteRef.current) {
         holdTimerRef.current = setTimeout(() => {
           holdTimerRef.current = null;
@@ -191,7 +195,7 @@ function PunctuationKeyComponent({
         }, REWRITE_HOLD_DELAY_MS);
       }
     }
-  }, [isComma, isPeriod]);
+  }, [isRewriteKey, isLauncherKey]);
 
   const finishTouch = useCallback(() => {
     if (!touchActiveRef.current) {
@@ -204,7 +208,7 @@ function PunctuationKeyComponent({
     const hadPendingHold = holdTimerRef.current !== null;
     clearHold();
 
-    if (isPeriod && gestures?.commaLauncher) {
+    if (isLauncherKey && gestures) {
       if (showLauncherRef.current) {
         if (!suppressTapRef.current && !didHoldRef.current) {
           triggerKeyHaptic();
@@ -219,7 +223,7 @@ function PunctuationKeyComponent({
       return;
     }
 
-    if (isComma && gestures?.periodRewrite) {
+    if (isRewriteKey && gestures?.periodRewrite) {
       if (showRewriteRef.current) {
         if (!suppressTapRef.current && !didHoldRef.current) {
           triggerKeyHaptic();
@@ -235,7 +239,7 @@ function PunctuationKeyComponent({
     }
 
     onPress(keyDef);
-  }, [clearHold, isComma, isPeriod, keyDef, onPress]);
+  }, [clearHold, isLauncherKey, isRewriteKey, keyDef, onPress]);
 
   const panResponder = useMemo(
     () =>

@@ -79,6 +79,8 @@ type KeyboardModuleType = {
   launchApp: (packageName: string) => Promise<boolean>;
   getCommaLauncherArmed: () => Promise<boolean>;
   setCommaLauncherArmed: (armed: boolean) => Promise<boolean>;
+  getPeriodRewriteArmed: () => Promise<boolean>;
+  setPeriodRewriteArmed: (armed: boolean) => Promise<boolean>;
   getKeyboardColorScheme: () => Promise<string>;
   setKeyboardColorScheme: (scheme: string) => Promise<boolean>;
   getKeyboardDesign: () => Promise<string>;
@@ -521,6 +523,18 @@ export const keyboardBridge: KeyboardModuleType = {
   setCommaLauncherArmed: (armed: boolean) => {
     if (Platform.OS === 'android' && KeyboardModule?.setCommaLauncherArmed) {
       return KeyboardModule.setCommaLauncherArmed(armed) as Promise<boolean>;
+    }
+    return Promise.resolve(false);
+  },
+  getPeriodRewriteArmed: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.getPeriodRewriteArmed) {
+      return KeyboardModule.getPeriodRewriteArmed() as Promise<boolean>;
+    }
+    return Promise.resolve(false);
+  },
+  setPeriodRewriteArmed: (armed: boolean) => {
+    if (Platform.OS === 'android' && KeyboardModule?.setPeriodRewriteArmed) {
+      return KeyboardModule.setPeriodRewriteArmed(armed) as Promise<boolean>;
     }
     return Promise.resolve(false);
   },

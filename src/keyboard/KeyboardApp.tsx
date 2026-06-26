@@ -107,10 +107,12 @@ import {
   getCommaLauncherArmed,
   getGestureSettings,
   getLauncherAppPackage,
+  getPeriodRewriteArmed,
   reloadGesturesFromStorage,
   setCommaLauncherArmed,
   setGestureSetting,
   setLauncherAppPackage,
+  setPeriodRewriteArmed,
 } from './gestures/gesturesStore';
 import type {GestureSettings, LaunchableApp} from './gestures/types';
 import {ensureSwipeWordDictionaryLoaded} from './gesture/wordDictionary';
@@ -662,8 +664,6 @@ function KeyboardBody() {
     setFormKeyword('');
     setFormValue('');
     setCalculatorDisplay('0');
-    setCommaLauncherActive(false);
-    setPeriodRewriteActive(false);
     setCurrentPrefix('');
     setSuggestions([]);
     setEssentialSuggestions([]);
@@ -676,8 +676,6 @@ function KeyboardBody() {
     setShiftOn(true);
     setCapsLocked(false);
     setResizeLiveOffset(0);
-
-    void setCommaLauncherArmed(false);
 
     if (typingIdleTimerRef.current) {
       clearTimeout(typingIdleTimerRef.current);
@@ -720,6 +718,14 @@ function KeyboardBody() {
     };
   }, [resetToMainAlphabetView]);
 
+  const reloadGestures = useCallback(async () => {
+    await reloadGesturesFromStorage();
+    setGestureSettings(getGestureSettings());
+    setLauncherAppPackageState(getLauncherAppPackage());
+    setCommaLauncherActive(getCommaLauncherArmed());
+    setPeriodRewriteActive(getPeriodRewriteArmed());
+  }, []);
+
   const syncAutoCapitalizeShift = useCallback((context: string) => {
     if (capsLockedRef.current) {
       return;
@@ -751,13 +757,14 @@ function KeyboardBody() {
     );
     const shownSubscription = DeviceEventEmitter.addListener('keyboardShown', () => {
       hasTypedInFieldRef.current = false;
+      void reloadGestures();
       void keyboardBridge.getTextBeforeCursor(96).then(syncAutoCapitalizeShift);
     });
     return () => {
       capsSubscription.remove();
       shownSubscription.remove();
     };
-  }, [syncAutoCapitalizeShift]);
+  }, [reloadGestures, syncAutoCapitalizeShift]);
 
   const closeItemsFlow = useCallback(() => {
     setMode({type: 'typing'});
@@ -780,13 +787,6 @@ function KeyboardBody() {
     setLayout('letters');
     resetCase();
   }, [reloadEssentials, resetCase]);
-
-  const reloadGestures = useCallback(async () => {
-    await reloadGesturesFromStorage();
-    setGestureSettings(getGestureSettings());
-    setLauncherAppPackageState(getLauncherAppPackage());
-    setCommaLauncherActive(getCommaLauncherArmed());
-  }, []);
 
   const loadLaunchableApps = useCallback(async () => {
     setLaunchableAppsLoading(true);
@@ -2250,13 +2250,6 @@ function KeyboardBody() {
   );
 
   useEffect(() => {
-    if (!gestureSettings.commaLauncher) {
-      setCommaLauncherActive(false);
-      void setCommaLauncherArmed(false);
-    }
-  }, [gestureSettings.commaLauncher]);
-
-  useEffect(() => {
     const preserveArmedKeys =
       mode.type === 'items-menu' ||
       mode.type === 'essentials-list' ||
@@ -2324,12 +2317,14 @@ function KeyboardBody() {
       periodRewriteActive,
       onPeriodLongPress: () => {
         setPeriodRewriteActive(true);
+        void setPeriodRewriteArmed(true);
       },
       onPeriodRewritePress: () => {
         void openRewritePanel();
       },
       onPeriodRewriteDisarm: () => {
         setPeriodRewriteActive(false);
+        void setPeriodRewriteArmed(false);
       },
     };
   }, [
@@ -2347,6 +2342,12 @@ function KeyboardBody() {
   const handleGestureToggle = useCallback(
     (key: keyof GestureSettings, enabled: boolean) => {
       void setGestureSetting(key, enabled).then(() => {
+        if (key === 'commaLauncher') {
+          setCommaLauncherActive(false);
+          setPeriodRewriteActive(false);
+          void setCommaLauncherArmed(false);
+          void setPeriodRewriteArmed(false);
+        }
         reloadGestures();
       });
     },

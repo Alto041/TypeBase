@@ -9,12 +9,14 @@ import {
 type PersistedGestureData = Partial<GestureSettings> & {
   launcherAppPackage?: string;
   commaLauncherArmed?: boolean;
+  periodRewriteArmed?: boolean;
   commaHoldOpenApp?: boolean;
 };
 
 let cached: GestureSettings = {...DEFAULT_GESTURE_SETTINGS};
 let cachedLauncherPackage = DEFAULT_LAUNCHER_APP_PACKAGE;
 let cachedCommaLauncherArmed = false;
+let cachedPeriodRewriteArmed = false;
 let loadPromise: Promise<void> | null = null;
 
 function normalizeSettings(raw: PersistedGestureData): GestureSettings {
@@ -86,10 +88,17 @@ export async function ensureGesturesLoaded(): Promise<void> {
       } catch {
         cachedCommaLauncherArmed = parsedCommaLauncherArmedFallback(raw);
       }
+
+      try {
+        cachedPeriodRewriteArmed = await keyboardBridge.getPeriodRewriteArmed();
+      } catch {
+        cachedPeriodRewriteArmed = parsedPeriodRewriteArmedFallback(raw);
+      }
     } catch {
       cached = {...DEFAULT_GESTURE_SETTINGS};
       cachedLauncherPackage = DEFAULT_LAUNCHER_APP_PACKAGE;
       cachedCommaLauncherArmed = false;
+      cachedPeriodRewriteArmed = false;
     }
   })();
 
@@ -99,6 +108,7 @@ export async function ensureGesturesLoaded(): Promise<void> {
     cached = {...DEFAULT_GESTURE_SETTINGS};
     cachedLauncherPackage = DEFAULT_LAUNCHER_APP_PACKAGE;
     cachedCommaLauncherArmed = false;
+    cachedPeriodRewriteArmed = false;
     loadPromise = null;
   }
 }
@@ -107,6 +117,15 @@ function parsedCommaLauncherArmedFallback(raw: string): boolean {
   try {
     const parsed = JSON.parse(raw) as PersistedGestureData;
     return parsed.commaLauncherArmed === true;
+  } catch {
+    return false;
+  }
+}
+
+function parsedPeriodRewriteArmedFallback(raw: string): boolean {
+  try {
+    const parsed = JSON.parse(raw) as PersistedGestureData;
+    return parsed.periodRewriteArmed === true;
   } catch {
     return false;
   }
@@ -127,6 +146,10 @@ export function getLauncherAppPackage(): string {
 
 export function getCommaLauncherArmed(): boolean {
   return cachedCommaLauncherArmed;
+}
+
+export function getPeriodRewriteArmed(): boolean {
+  return cachedPeriodRewriteArmed;
 }
 
 export async function setGestureSetting(
@@ -150,6 +173,15 @@ export async function setCommaLauncherArmed(armed: boolean): Promise<void> {
   cachedCommaLauncherArmed = armed;
   try {
     await keyboardBridge.setCommaLauncherArmed(armed);
+  } catch {
+    // Keep in-memory armed state even if native persistence is unavailable.
+  }
+}
+
+export async function setPeriodRewriteArmed(armed: boolean): Promise<void> {
+  cachedPeriodRewriteArmed = armed;
+  try {
+    await keyboardBridge.setPeriodRewriteArmed(armed);
   } catch {
     // Keep in-memory armed state even if native persistence is unavailable.
   }

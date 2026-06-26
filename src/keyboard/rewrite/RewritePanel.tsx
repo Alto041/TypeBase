@@ -134,7 +134,7 @@ export function RewritePanel() {
   const styles = useThemedStyles(createRewriteStyles);
 
   return (
-    <View style={panelStyles.container}>
+    <View style={panelStyles.container} collapsable={false}>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
@@ -145,13 +145,14 @@ export function RewritePanel() {
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.toneRowContent}
+          keyboardShouldPersistTaps="always"
           nestedScrollEnabled>
           {REWRITE_TONES.map(tone => {
             const selected = tone.id === toneId;
             return (
               <Pressable
                 key={tone.id}
-                onPressIn={() => handleToneSelect(tone)}
+                onPress={() => handleToneSelect(tone)}
                 style={({pressed}) => [
                   styles.toneChip,
                   selected && styles.toneChipSelected,
