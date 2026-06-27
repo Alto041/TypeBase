@@ -152,7 +152,7 @@ const LETTER_ROWS: Record<string, KeyDefinition[][]> = {
   'en-gb': buildLetterLayout('qwertyuiop', 'asdfghjkl', 'zxcvbnm'),
   'fr-fr': buildLetterLayout('azertyuiop', 'qsdfghjklm', 'wxcvbn'),
   'de-de': buildLetterLayout('qwertzuiopü', 'asdfghjklöä', 'yxcvbnm'),
-  'es-es': buildLetterLayout('qwertyuiop', 'asdfghjkl', 'zxcvbnm'),
+  'es-es': buildLetterLayout('qwertyuiop', 'asdfghjklñ', 'zxcvbnm'),
   'it-it': buildLetterLayout('qwertyuiop', 'asdfghjkl', 'zxcvbnm'),
   'pt-pt': buildLetterLayout('qwertyuiop', 'asdfghjkl', 'zxcvbnm'),
   'pl-pl': buildLetterLayout('qwertyuiop', 'asdfghjkl', 'zxcvbnm'),

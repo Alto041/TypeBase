@@ -2,21 +2,18 @@ import type {KeyDefinition} from './qwerty';
 import {BOTTOM_ROW, SIDE_KEY_FLEX, STAGGER_FLEX} from './sharedRows';
 import type {ParsedKlc} from './parseKlc';
 
-const ROW1_VKS = ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', 'OEM_4', 'OEM_6'] as const;
-const ROW2_VKS = ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 'OEM_1', 'OEM_7'] as const;
-const ROW3_VKS = [
-  'Z',
-  'X',
-  'C',
-  'V',
-  'B',
-  'N',
-  'M',
-  'OEM_COMMA',
-  'OEM_PERIOD',
-  'OEM_2',
-  'OEM_102',
-] as const;
+const ROW1_VKS = ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'] as const;
+const ROW2_VKS = ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'] as const;
+/** Key right of L — ñ on Spanish (OEM_3), varies by locale. */
+const ROW2_TAIL_VKS = ['OEM_3', 'OEM_1', 'OEM_7'] as const;
+const ROW3_VKS = ['Z', 'X', 'C', 'V', 'B', 'N', 'M'] as const;
+
+function isLetterValue(value: string): boolean {
+  if (value.length !== 1) {
+    return false;
+  }
+  return /\p{L}/u.test(value);
+}
 
 function keyId(vk: string, value: string): string {
   if (value.length === 1 && /[a-z0-9]/i.test(value)) {
@@ -58,10 +55,22 @@ function buildRow(vks: readonly string[], parsed: ParsedKlc): KeyDefinition[] {
   return keys;
 }
 
+function buildRow2(parsed: ParsedKlc): KeyDefinition[] {
+  const keys = buildRow(ROW2_VKS, parsed);
+  for (const vk of ROW2_TAIL_VKS) {
+    const key = vkToKey(vk, parsed);
+    if (key && isLetterValue(key.value ?? '')) {
+      keys.push(key);
+      break;
+    }
+  }
+  return keys;
+}
+
 /** Convert parsed KLC data into TypeBase letter rows (+ shared bottom row). */
 export function klcToLetterRows(parsed: ParsedKlc): KeyDefinition[][] {
   const row1 = buildRow(ROW1_VKS, parsed);
-  const row2 = buildRow(ROW2_VKS, parsed);
+  const row2 = buildRow2(parsed);
   const row3 = buildRow(ROW3_VKS, parsed);
 
   if (row1.length === 0 && row2.length === 0 && row3.length === 0) {

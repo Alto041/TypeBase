@@ -1,0 +1,4 @@
+# Copy this file to android/license.properties and paste your Base64 RSA public key from
+# Play Console → Monetize → Monetization setup → Licensing.
+# (license.properties is gitignored — do not commit your production key.)
+PLAY_LICENSE_KEY=

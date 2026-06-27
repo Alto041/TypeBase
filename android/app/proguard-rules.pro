@@ -8,3 +8,7 @@
 #   http://developer.android.com/guide/developing/tools/proguard.html
 
 # Add any project specific keep options here:
+
+-keep class com.google.android.vending.licensing.** { *; }
+-keep class com.android.vending.licensing.** { *; }
+-keep class com.typebase.app.licensing.** { *; }

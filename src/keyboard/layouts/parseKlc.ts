@@ -44,13 +44,15 @@ function parseCodepoint(value: string): string | null {
     return null;
   }
 
-  if (/^[0-9a-fA-F]{1,6}$/.test(trimmed)) {
-    return hexToChar(trimmed);
-  }
-
-  // Some SGCAPS rows use a literal character in the shift column (e.g. "Q", "R").
+  // KLC uses single-character literals for letters/digits (e, E, 1) and multi-digit
+  // hex for Unicode code points (0027, 00e7). Single chars a–f must not be read as hex.
   if (trimmed.length === 1) {
     return trimmed;
+  }
+
+  const withoutDeadSuffix = trimmed.endsWith('@') ? trimmed.slice(0, -1) : trimmed;
+  if (/^[0-9a-fA-F]+$/.test(withoutDeadSuffix)) {
+    return hexToChar(withoutDeadSuffix);
   }
 
   return null;

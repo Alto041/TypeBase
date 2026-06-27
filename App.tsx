@@ -31,6 +31,12 @@ import { keyboardBridge } from './src/keyboard/keyboardBridge';
 import { AiConfigScreen } from './AiConfigScreen';
 import { OnboardingScreen } from './OnboardingScreen';
 import { LanguageLayoutScreen } from './LanguageLayoutScreen';
+import {
+  ensurePlayLicensed,
+  isPlayLicenseCached,
+  type PlayLicenseStatus,
+} from './src/licensing/playLicense';
+import { LicenseGateScreen } from './src/licensing/LicenseGateScreen';
 
 const C = {
   bg: '#f2f2f4',
@@ -465,11 +471,37 @@ function LaunchpadScreen({
 export default function App() {
   const [onboardingComplete, setOnboardingComplete] = useState(false);
   const [hydratingOnboarding, setHydratingOnboarding] = useState(true);
+  const [licensePhase, setLicensePhase] = useState<
+    'checking_cache' | 'activating' | PlayLicenseStatus
+  >('checking_cache');
   const [fontsLoaded] = useFonts({
     FragmentMono: require('./assets/FragmentMono-Regular.ttf'),
     Geist: require('./assets/Geist-VariableFont_wght.ttf'),
     Inter: require('./assets/Inter_24pt-Regular.ttf'),
   });
+
+  const runLicenseCheck = useCallback(async () => {
+    if (Platform.OS !== 'android') {
+      setLicensePhase('licensed');
+      return;
+    }
+    try {
+      const cached = await isPlayLicenseCached();
+      if (cached) {
+        setLicensePhase('licensed');
+        return;
+      }
+      setLicensePhase('activating');
+      const result = await ensurePlayLicensed();
+      setLicensePhase(result);
+    } catch {
+      setLicensePhase('needs_network');
+    }
+  }, []);
+
+  useEffect(() => {
+    void runLicenseCheck();
+  }, [runLicenseCheck]);
 
   useEffect(() => {
     const hydrate = async () => {
@@ -485,6 +517,31 @@ export default function App() {
     };
     hydrate();
   }, []);
+
+  if (licensePhase === 'checking_cache' || licensePhase === 'activating') {
+    return (
+      <SafeAreaProvider>
+        <LicenseGateScreen
+          status="needs_network"
+          checking
+        />
+      </SafeAreaProvider>
+    );
+  }
+
+  if (licensePhase === 'unlicensed' || licensePhase === 'needs_network') {
+    return (
+      <SafeAreaProvider>
+        <LicenseGateScreen
+          status={licensePhase}
+          onRetry={() => {
+            setLicensePhase('activating');
+            void runLicenseCheck();
+          }}
+        />
+      </SafeAreaProvider>
+    );
+  }
 
   return (
     <SafeAreaProvider>

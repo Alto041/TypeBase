@@ -1,21 +1,28 @@
 package com.typebase.app
 
+import android.content.Intent
 import android.content.res.Configuration
+import android.graphics.Color
 import android.inputmethodservice.InputMethodService
+import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.util.TypedValue
+import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.widget.FrameLayout
+import android.widget.LinearLayout
+import android.widget.TextView
 import com.facebook.react.ReactApplication
 import com.facebook.react.ReactInstanceEventListener
 import com.facebook.react.bridge.ReactContext
 import com.facebook.react.bridge.UiThreadUtil
 import com.facebook.react.common.LifecycleState
 import com.facebook.react.interfaces.fabric.ReactSurface
+import com.typebase.app.licensing.PlayLicenseManager
 
 class TypeBaseInputService : InputMethodService() {
 
@@ -60,6 +67,10 @@ class TypeBaseInputService : InputMethodService() {
           setMotionEventSplittingEnabled(true)
         }
     container = frame
+    if (!PlayLicenseManager.isLicensedCached(this)) {
+      mountUnlicensedPlaceholder(frame)
+      return frame
+    }
     resumeReactForKeyboard()
     mountKeyboardSurface(frame)
     return frame
@@ -80,17 +91,27 @@ class TypeBaseInputService : InputMethodService() {
     // Always notify JS when the input view opens; onStartInput may fire before RN mounts.
     KeyboardInputBridge.refreshSupportsNewline(info)
     KeyboardInputBridge.refreshInitialCapsMode(info)
+    val frame = container ?: return
+    if (!PlayLicenseManager.isLicensedCached(this)) {
+      mountUnlicensedPlaceholder(frame)
+      return
+    }
     resumeReactForKeyboard {
       // Reset JS to the main alphabet view after React resumes, before the window is shown.
       KeyboardInputBridge.notifyKeyboardSessionStart()
-      container?.let { mountKeyboardSurface(it) }
+      mountKeyboardSurface(frame)
     }
   }
 
   override fun onWindowShown() {
     super.onWindowShown()
+    val frame = container ?: return
+    if (!PlayLicenseManager.isLicensedCached(this)) {
+      mountUnlicensedPlaceholder(frame)
+      return
+    }
     resumeReactForKeyboard()
-    container?.let { mountKeyboardSurface(it) }
+    mountKeyboardSurface(frame)
     KeyboardInputBridge.notifyKeyboardShown()
   }
 
@@ -147,6 +168,10 @@ class TypeBaseInputService : InputMethodService() {
   }
 
   private fun mountKeyboardSurface(frame: FrameLayout) {
+    if (!PlayLicenseManager.isLicensedCached(this)) {
+      mountUnlicensedPlaceholder(frame)
+      return
+    }
     val app = application as? ReactApplication ?: return
     val host = app.reactHost ?: return
 
@@ -217,6 +242,86 @@ class TypeBaseInputService : InputMethodService() {
       TypedValue.applyDimension(
               TypedValue.COMPLEX_UNIT_DIP,
               heightDp.toFloat(),
+              resources.displayMetrics,
+          )
+          .toInt()
+
+  private fun mountUnlicensedPlaceholder(frame: FrameLayout) {
+    UiThreadUtil.runOnUiThread {
+      keyboardView?.let { view -> (view.parent as? ViewGroup)?.removeView(view) }
+      keyboardView = null
+      reactSurface?.stop()
+      reactSurface = null
+      frame.removeAllViews()
+
+      val panel =
+          LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setBackgroundColor(Color.parseColor("#F2F2F4"))
+            val padding = dpToPx(20)
+            setPadding(padding, padding, padding, padding)
+          }
+
+      val title =
+          TextView(this).apply {
+            text = getString(R.string.license_keyboard_title)
+            setTextColor(Color.parseColor("#111111"))
+            textSize = 18f
+            gravity = Gravity.CENTER
+          }
+      val body =
+          TextView(this).apply {
+            text = getString(R.string.license_keyboard_body)
+            setTextColor(Color.parseColor("#6B6B6B"))
+            textSize = 14f
+            gravity = Gravity.CENTER
+            val top = dpToPx(8)
+            setPadding(0, top, 0, 0)
+          }
+      val action =
+          TextView(this).apply {
+            text = "Open Google Play"
+            setTextColor(Color.parseColor("#D71921"))
+            textSize = 15f
+            gravity = Gravity.CENTER
+            val top = dpToPx(16)
+            setPadding(0, top, 0, 0)
+            setOnClickListener {
+              val marketUri =
+                  Uri.parse("market://details?id=${packageName}")
+              val intent = Intent(Intent.ACTION_VIEW, marketUri)
+              intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+              intent.setPackage("com.android.vending")
+              try {
+                startActivity(intent)
+              } catch (_: Exception) {
+                val webUri =
+                    Uri.parse("https://play.google.com/store/apps/details?id=${packageName}")
+                startActivity(
+                    Intent(Intent.ACTION_VIEW, webUri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                )
+              }
+            }
+          }
+
+      panel.addView(title)
+      panel.addView(body)
+      panel.addView(action)
+      frame.addView(
+          panel,
+          FrameLayout.LayoutParams(
+              FrameLayout.LayoutParams.MATCH_PARENT,
+              keyboardHeightPx(keyboardHeightDp),
+          ),
+      )
+    }
+  }
+
+  private fun dpToPx(dp: Int): Int =
+      TypedValue.applyDimension(
+              TypedValue.COMPLEX_UNIT_DIP,
+              dp.toFloat(),
               resources.displayMetrics,
           )
           .toInt()

@@ -1,5 +1,6 @@
 package com.typebase.app
 
+import com.typebase.app.licensing.PlayLicenseModule
 import com.facebook.react.ReactPackage
 import com.facebook.react.bridge.NativeModule
 import com.facebook.react.bridge.ReactApplicationContext
@@ -15,6 +16,7 @@ class KeyboardModulePackage : ReactPackage {
           VoiceActivationSoundModule(reactContext),
           KeyPreviewModule(reactContext),
           GemmaModule(reactContext),
+          PlayLicenseModule(reactContext),
       )
 
   override fun createViewManagers(

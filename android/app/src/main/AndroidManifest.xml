@@ -8,6 +8,7 @@
         <intent>
             <action android:name="android.speech.RecognitionService" />
         </intent>
+        <package android:name="com.android.vending" />
     </queries>
 
     <uses-permission android:name="android.permission.INTERNET" />

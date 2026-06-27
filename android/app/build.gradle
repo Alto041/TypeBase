@@ -26,10 +26,24 @@ if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
 }
 
+def licensePropertiesFile = rootProject.file("license.properties")
+def licenseProperties = new Properties()
+if (licensePropertiesFile.exists()) {
+    licenseProperties.load(new FileInputStream(licensePropertiesFile))
+}
+def playLicensePublicKey = licenseProperties.getProperty("PLAY_LICENSE_KEY", "")
+    .replace("\\", "\\\\")
+    .replace("\"", "\\\"")
+
 android {
     ndkVersion rootProject.ext.ndkVersion
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
+
+    buildFeatures {
+        buildConfig true
+        aidl true
+    }
 
     namespace "com.typebase.app"
     defaultConfig {
@@ -40,6 +54,7 @@ android {
         versionName "0.9.2"
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
+        buildConfigField "String", "PLAY_LICENSE_PUBLIC_KEY", "\"${playLicensePublicKey}\""
     }
     signingConfigs {
         debug {
@@ -118,4 +133,5 @@ dependencies {
     }
 
     implementation("com.google.mediapipe:tasks-genai:0.10.27")
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
 }
