@@ -29,7 +29,7 @@ import {
   registerMultiTouchKeyVisual,
 } from '../gesture/multiTouchKeys';
 import {gestureSwipeActiveRef} from '../gesture/gestureState';
-import {hideKeyPreview, showKeyPreview} from '../KeyPreview';
+import {showKeyPreview} from '../KeyPreview';
 import {triggerKeyHaptic} from '../haptics';
 import {keyboardBridge} from '../keyboardBridge';
 import {getLetterSymbolHint} from '../keyAlternates';
@@ -250,8 +250,6 @@ function KeyComponent({
               : (keyDef.value ?? '').toLowerCase();
             showKeyPreview(tag, label);
           }
-        } else {
-          hideKeyPreview(80);
         }
       }
       animateMultiTouchPress(pressed);

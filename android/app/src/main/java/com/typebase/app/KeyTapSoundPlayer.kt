@@ -77,9 +77,6 @@ object KeyTapSoundPlayer {
   }
 
   fun play(context: Context) {
-    if (!enabled) {
-      sync(context)
-    }
     val pool = soundPool
     val id = soundId
     if (!enabled || pool == null || id == 0) {

@@ -3,6 +3,9 @@ import {keyboardBridge} from '../keyboardBridge';
 import {normalizeLetterLayoutId} from '../layouts/resolveLetterLayout';
 import {ensureCustomLayoutsLoaded} from './customLayoutStore';
 import {
+  ensureBundledDefaultTapSound,
+} from './tapSoundStore';
+import {
   DEFAULT_KEYBOARD_LAYOUT_SETTINGS,
   type KeyboardLayoutSettings,
 } from '../theme';
@@ -79,6 +82,12 @@ async function loadFromStorage(): Promise<void> {
     cachedLayout = normalizeLayout(JSON.parse(raw));
   } catch {
     cachedLayout = {...DEFAULT_KEYBOARD_LAYOUT_SETTINGS};
+  }
+  try {
+    await ensureBundledDefaultTapSound();
+    keyboardBridge.syncCustomTapSound?.();
+  } catch {
+    // Tap sound install is optional; typing still works without it.
   }
 }
 

@@ -67,7 +67,11 @@ class KeyPreviewModule(private val reactContext: ReactApplicationContext) :
 
     @ReactMethod
     fun hideDelayed(delayMs: Double) {
-        manager.hideDelayed(delayMs.toLong())
+        UiThreadUtil.runOnUiThread {
+            // Invalidate any in-flight Fabric show blocks (same as hide()).
+            showGeneration++
+            manager.hideDelayed(delayMs.toLong())
+        }
     }
 
     @ReactMethod

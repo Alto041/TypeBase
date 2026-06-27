@@ -60,8 +60,8 @@ export const DEFAULT_KEYBOARD_LAYOUT_SETTINGS: KeyboardLayoutSettings = {
   letterSymbolAlternatesEnabled: false,
   numberRowEnabled: false,
   keyboardHeightOffset: 0,
-  customTapSoundEnabled: false,
-  customTapSoundFile: null,
+  customTapSoundEnabled: true,
+  customTapSoundFile: 'haptic.wav',
 };
 
 /** Touch slop into gaps — full visual gap so taps between keys snap to the nearest key. */

@@ -35,8 +35,8 @@ import {
   updateKeyboardLayoutSetting,
 } from './src/keyboard/settings/layoutStore';
 import {
-  clearCustomTapSound,
   importCustomTapSound,
+  installDefaultTapSoundSettings,
   previewCustomTapSound,
 } from './src/keyboard/settings/tapSoundStore';
 import {
@@ -114,9 +114,9 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
 
   const handleReset = () => {
     setLayout(DEFAULT_KEYBOARD_LAYOUT_SETTINGS);
-    void clearCustomTapSound();
+    void installDefaultTapSoundSettings();
     void setKeyboardLayoutSettings(DEFAULT_KEYBOARD_LAYOUT_SETTINGS);
-    tapSoundAnim.setValue(0);
+    tapSoundAnim.setValue(DEFAULT_KEYBOARD_LAYOUT_SETTINGS.customTapSoundEnabled ? 1 : 0);
   };
 
   const animateTapSoundToggle = (enabled: boolean) => {
@@ -514,7 +514,9 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
                   {customTapSoundFile}
                 </Text>
               ) : (
-                <Text style={styles.tapSoundHint}>Import a short MP3, WAV, or OGG</Text>
+                <Text style={styles.tapSoundHint}>
+                  Built-in haptic sound · or import your own
+                </Text>
               )}
             </View>
             <Pressable

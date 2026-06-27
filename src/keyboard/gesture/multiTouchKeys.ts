@@ -1,3 +1,4 @@
+import {isBackspaceKeyType} from '../components/keyboardRowLayout';
 import {hideKeyPreview} from '../KeyPreview';
 import {
   computeAlternatePopupGeometry,
@@ -40,6 +41,7 @@ type MultiTouchSession = {
 };
 
 const activeSessions = new Map<number, MultiTouchSession>();
+const pressedMultiTouchKeyIds = new Set<string>();
 
 export type AlternatePopupState = {
   alternates: string[];
@@ -235,6 +237,20 @@ export function hitTestKey(
   return null;
 }
 
+const BACKSPACE_PRESSABLE_SLOP_HORIZONTAL = 10;
+
+function pressableOnlyBounds(layout: KeyBounds, slop: KeyHitSlop) {
+  const horizontalSlop = isBackspaceKeyType(layout.keyDef)
+    ? Math.max(slop.horizontal, BACKSPACE_PRESSABLE_SLOP_HORIZONTAL)
+    : slop.horizontal;
+  return {
+    left: layout.x - horizontalSlop,
+    right: layout.x + layout.width + horizontalSlop,
+    top: layout.y - slop.vertical,
+    bottom: layout.y + layout.height + slop.vertical,
+  };
+}
+
 /** True when a touch lies in a Pressable-only key zone (blocks multi-touch dispatch). */
 export function touchHitsPressableOnlyKey(
   localX: number,
@@ -243,10 +259,13 @@ export function touchHitsPressableOnlyKey(
   slop: KeyHitSlop = DEFAULT_KEY_HIT_SLOP,
 ): boolean {
   for (const layout of layouts) {
-    if (!isGesturePunctuationKey(layout.keyDef)) {
+    if (
+      layout.keyDef.type === 'spacer' ||
+      isMultiTouchDispatchKey(layout.keyDef)
+    ) {
       continue;
     }
-    const bounds = expandedBounds(layout, slop);
+    const bounds = pressableOnlyBounds(layout, slop);
     if (
       localX >= bounds.left &&
       localX <= bounds.right &&
@@ -270,7 +289,16 @@ export function registerMultiTouchKeyVisual(
 }
 
 export function setMultiTouchKeyPressed(id: string, pressed: boolean): void {
+  const wasPressed = pressedMultiTouchKeyIds.has(id);
+  if (pressed) {
+    pressedMultiTouchKeyIds.add(id);
+  } else if (wasPressed) {
+    pressedMultiTouchKeyIds.delete(id);
+  }
   pressVisualHandlers.get(id)?.(pressed);
+  if (!pressed && pressedMultiTouchKeyIds.size === 0) {
+    hideKeyPreview();
+  }
 }
 
 export function hasActiveAlternatePopup(): boolean {
@@ -549,6 +577,7 @@ export function cancelAllMultiTouchSessions(): void {
     setMultiTouchKeyPressed(session.keyId, false);
   }
   activeSessions.clear();
+  pressedMultiTouchKeyIds.clear();
   hideKeyPreview();
   notifyPopup(null);
 }

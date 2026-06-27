@@ -1,12 +1,15 @@
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
-import {Platform} from 'react-native';
+import {Image, Platform} from 'react-native';
 
 import {keyboardBridge} from '../keyboardBridge';
 import {updateKeyboardLayoutSetting} from './layoutStore';
 
 export const TAP_SOUND_DIR_NAME = 'keyboard_tap_sounds';
+export const DEFAULT_TAP_SOUND_FILE = 'haptic.wav';
 const TAP_SOUND_BASENAME = 'custom_tap';
+
+const DEFAULT_TAP_SOUND_ASSET = require('../../../assets/sounds/haptic.wav');
 
 const AUDIO_MIME_TYPES = [
   'audio/*',
@@ -77,6 +80,33 @@ export function resolveCustomTapSoundPath(fileName: string | null | undefined): 
     return null;
   }
   return `${tapSoundDir()}/${fileName}`;
+}
+
+/** Copies the bundled haptic.wav into keyboard storage if it is not already present. */
+export async function ensureBundledDefaultTapSound(): Promise<void> {
+  if (Platform.OS !== 'android' || !FileSystem.documentDirectory) {
+    return;
+  }
+
+  await ensureTapSoundDir();
+  const destination = `${tapSoundDir()}/${DEFAULT_TAP_SOUND_FILE}`;
+  const info = await FileSystem.getInfoAsync(destination);
+  if (info.exists) {
+    return;
+  }
+
+  const bundledUri = Image.resolveAssetSource(DEFAULT_TAP_SOUND_ASSET)?.uri;
+  if (!bundledUri) {
+    throw new Error('Bundled tap sound could not be loaded.');
+  }
+  await FileSystem.copyAsync({from: bundledUri, to: destination});
+}
+
+export async function installDefaultTapSoundSettings(): Promise<void> {
+  await ensureBundledDefaultTapSound();
+  await updateKeyboardLayoutSetting('customTapSoundFile', DEFAULT_TAP_SOUND_FILE);
+  await updateKeyboardLayoutSetting('customTapSoundEnabled', true);
+  keyboardBridge.syncCustomTapSound?.();
 }
 
 export async function importCustomTapSound(): Promise<string> {

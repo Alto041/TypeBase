@@ -2276,7 +2276,8 @@ function KeyboardBody() {
     }
     return {
       spaceCursorSwipe:
-        layout === 'letters' && gestureSettings.spaceCursorSwipe,
+        (layout === 'letters' || layout === 'numbers' || layout === 'symbols') &&
+        gestureSettings.spaceCursorSwipe,
       backspaceWordSwipe: gestureSettings.backspaceWordSwipe,
       backspaceSentenceHold: gestureSettings.backspaceSentenceHold,
       onCursorMove: offset => {
