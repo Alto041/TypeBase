@@ -125,6 +125,16 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
                 .emit("keyboardNativeFastPathKey", event)
           }
         }
+    try {
+      val layoutJson =
+          learnedWordsPrefs()
+              .getString(KEYBOARD_LAYOUT_KEY, DEFAULT_KEYBOARD_LAYOUT)
+              ?: DEFAULT_KEYBOARD_LAYOUT
+      KeyboardInputBridge.syncLayoutSettings(layoutJson)
+      KeyTapSoundPlayer.sync(reactApplicationContext)
+    } catch (_: Exception) {
+      // Layout sync is optional during module init.
+    }
     val clipboardManager =
         reactApplicationContext.getSystemService(Context.CLIPBOARD_SERVICE) as
             ClipboardManager
@@ -873,6 +883,7 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     try {
       val saved =
           learnedWordsPrefs().edit().putString(KEYBOARD_LAYOUT_KEY, json).commit()
+      KeyboardInputBridge.syncLayoutSettings(json)
       KeyTapSoundPlayer.sync(reactApplicationContext)
       if (saved && reactApplicationContext.hasActiveReactInstance()) {
         reactApplicationContext
@@ -1555,10 +1566,12 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
             ?: return
 
     val feedback = Runnable {
-      view.performHapticFeedback(
-          HapticFeedbackConstants.KEYBOARD_TAP,
-          HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING,
-      )
+      if (KeyboardInputBridge.isKeyHapticEnabled()) {
+        view.performHapticFeedback(
+            HapticFeedbackConstants.KEYBOARD_TAP,
+            HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING,
+        )
+      }
       KeyTapSoundPlayer.play(reactApplicationContext)
     }
 
@@ -1666,7 +1679,7 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     private const val KEYBOARD_LAYOUT_KEY = "keyboard_layout"
     private const val CUSTOM_LETTER_LAYOUTS_KEY = "custom_letter_layouts"
     private const val DEFAULT_KEYBOARD_LAYOUT =
-        """{"keyHeight":47,"keyGap":5,"keyRowMargin":12,"keyRadius":6,"enterKeyPreviewEnabled":true,"developerEyeEnabled":false,"letterSymbolAlternatesEnabled":false,"letterLayoutId":"en-us"}"""
+        """{"keyHeight":47,"keyGap":5,"keyRowMargin":12,"keyRadius":6,"enterKeyPreviewEnabled":true,"developerEyeEnabled":false,"letterSymbolAlternatesEnabled":false,"letterLayoutId":"en-us","keyHapticEnabled":true}"""
     private const val DEFAULT_API_KEYS =
         """{"geminiApiKey":"","speechmaticsApiKey":""}"""
     private const val DEFAULT_GESTURE_SETTINGS =

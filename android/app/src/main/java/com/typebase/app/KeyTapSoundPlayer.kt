@@ -31,6 +31,7 @@ object KeyTapSoundPlayer {
 
     try {
       val layout = JSONObject(layoutJson)
+      KeyboardInputBridge.syncLayoutSettings(layoutJson)
       val nextEnabled = layout.optBoolean("customTapSoundEnabled", false)
       val fileName =
           layout.optString("customTapSoundFile", "").trim().takeIf { it.isNotEmpty() }

@@ -155,7 +155,7 @@ export function TranslatePanel({onResultChange}: TranslatePanelProps) {
   const styles = useThemedStyles(createTranslateStyles);
 
   return (
-    <View style={panelStyles.container}>
+    <View style={panelStyles.container} collapsable={false}>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
@@ -166,6 +166,7 @@ export function TranslatePanel({onResultChange}: TranslatePanelProps) {
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.languageRowContent}
+          keyboardShouldPersistTaps="always"
           nestedScrollEnabled>
           {TARGET_LANGUAGES.map(language => {
             const selected = language.code === targetCode;

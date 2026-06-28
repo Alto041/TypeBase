@@ -7,6 +7,7 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.text.InputType
 import java.util.concurrent.CopyOnWriteArrayList
+import org.json.JSONObject
 
 object KeyboardInputBridge {
   @Volatile
@@ -32,6 +33,9 @@ object KeyboardInputBridge {
 
   @Volatile
   private var supportsNewline: Boolean = false
+
+  @Volatile
+  private var keyHapticEnabled: Boolean = true
 
   @Volatile
   private var currentEditorInfo: EditorInfo? = null
@@ -145,10 +149,26 @@ object KeyboardInputBridge {
     inputService?.setNativeKeyFastPathConfig(json)
   }
 
+  fun isKeyHapticEnabled(): Boolean = keyHapticEnabled
+
+  fun syncLayoutSettings(json: String) {
+    try {
+      val layout = JSONObject(json)
+      keyHapticEnabled = layout.optBoolean("keyHapticEnabled", true)
+    } catch (_: Exception) {
+      keyHapticEnabled = true
+    }
+  }
+
   fun performKeyHaptic() {
-    inputService
-        ?.keyboardViewForFeedback
-        ?.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+    if (keyHapticEnabled) {
+      inputService
+          ?.keyboardViewForFeedback
+          ?.performHapticFeedback(
+              HapticFeedbackConstants.KEYBOARD_TAP,
+              HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING,
+          )
+    }
     inputService?.applicationContext?.let { KeyTapSoundPlayer.play(it) }
   }
 
@@ -231,24 +251,59 @@ object KeyboardInputBridge {
     return { supportsNewlineListeners.remove(listener) }
   }
 
-  fun shouldAllowNewline(info: EditorInfo?): Boolean {
-    if (info?.packageName == GOOGLE_QUICK_SEARCH_BOX) {
-      return false
-    }
+  private fun getImeAction(info: EditorInfo): Int =
+      info.imeOptions and EditorInfo.IME_MASK_ACTION
 
+  private fun isExplicitSubmitImeAction(action: Int): Boolean =
+      when (action) {
+        EditorInfo.IME_ACTION_SEARCH,
+        EditorInfo.IME_ACTION_GO,
+        EditorInfo.IME_ACTION_DONE,
+        EditorInfo.IME_ACTION_SEND,
+        EditorInfo.IME_ACTION_NEXT,
+        EditorInfo.IME_ACTION_PREVIOUS -> true
+        else -> false
+      }
+
+  private fun isSingleLineTextVariation(inputType: Int): Boolean {
+    val variation = inputType and InputType.TYPE_MASK_VARIATION
+    return when (variation) {
+      InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS,
+      InputType.TYPE_TEXT_VARIATION_EMAIL_SUBJECT,
+      InputType.TYPE_TEXT_VARIATION_URI,
+      InputType.TYPE_TEXT_VARIATION_PASSWORD,
+      InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD,
+      InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD,
+      InputType.TYPE_TEXT_VARIATION_FILTER,
+      InputType.TYPE_TEXT_VARIATION_PERSON_NAME,
+      InputType.TYPE_TEXT_VARIATION_POSTAL_ADDRESS,
+      InputType.TYPE_TEXT_VARIATION_PHONETIC -> true
+      else -> false
+    }
+  }
+
+  fun shouldAllowNewline(info: EditorInfo?): Boolean {
     if (info == null) {
       return false
     }
-    val inputType = info.inputType
-    val textFlags = inputType and android.text.InputType.TYPE_MASK_FLAGS
+    if (info.packageName == GOOGLE_QUICK_SEARCH_BOX) {
+      return false
+    }
 
-    // Multi-line text inputs typically set TYPE_TEXT_FLAG_MULTI_LINE.
-    val isMultilineFlag = (inputType and android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE) != 0
-    if (isMultilineFlag) {
+    // Apps like Instagram search set MULTI_LINE but still expect Search/Go/Done on Enter.
+    if (isExplicitSubmitImeAction(getImeAction(info))) {
+      return false
+    }
+
+    val inputType = info.inputType
+    if (isSingleLineTextVariation(inputType)) {
+      return false
+    }
+
+    if ((inputType and InputType.TYPE_TEXT_FLAG_MULTI_LINE) != 0) {
       return true
     }
 
-    // Some editors set IME_FLAG_NO_ENTER_ACTION for multi-line / return-as-newline.
     return (info.imeOptions and EditorInfo.IME_FLAG_NO_ENTER_ACTION) != 0
   }
 

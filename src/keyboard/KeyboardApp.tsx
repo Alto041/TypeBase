@@ -357,6 +357,8 @@ function KeyboardBody() {
   const shiftOnRef = useRef(true);
   const capsLockedRef = useRef(false);
   const hasTypedInFieldRef = useRef(false);
+  const emptyContextTrustworthyRef = useRef(true);
+  const lastLetterCommitAtRef = useRef(0);
   const layoutRef = useRef<KeyboardLayout>('letters');
   const modeRef = useRef<KeyboardMode>({type: 'typing'});
   const isUppercaseRef = useRef(false);
@@ -453,7 +455,8 @@ function KeyboardBody() {
     }
     if (shiftOnRef.current) {
       shiftOnRef.current = false;
-      startTransition(() => setShiftOn(false));
+      setShiftOn(false);
+      lastLetterCommitAtRef.current = Date.now();
       return keyValue.toUpperCase();
     }
     return keyValue.toLowerCase();
@@ -643,11 +646,46 @@ function KeyboardBody() {
     setCapsLocked(false);
   }, []);
 
+  const syncAutoCapitalizeShift = useCallback(
+    (
+      context: string,
+      options: {fieldWasCleared?: boolean} = {},
+    ) => {
+      if (capsLockedRef.current) {
+        return;
+      }
+      if (layoutRef.current !== 'letters' || modeRef.current.type !== 'typing') {
+        return;
+      }
+
+      if (context.length > 0) {
+        emptyContextTrustworthyRef.current = true;
+      } else if (hasTypedInFieldRef.current) {
+        emptyContextTrustworthyRef.current = false;
+      }
+
+      const recentLetterCommit =
+        Date.now() - lastLetterCommitAtRef.current < 150;
+
+      const shouldCap = shouldAutoCapitalizeShift(context, {
+        inputRequestsInitialCaps: inputInitialCapsMode,
+        hasTypedSinceFocus: hasTypedInFieldRef.current,
+        emptyContextTrustworthy: emptyContextTrustworthyRef.current,
+        recentLetterCommit,
+        fieldWasCleared: options.fieldWasCleared ?? false,
+      });
+      if (shouldCap !== shiftOnRef.current) {
+        shiftOnRef.current = shouldCap;
+        setShiftOn(shouldCap);
+      }
+    },
+    [inputInitialCapsMode],
+  );
+
   const resetToMainAlphabetView = useCallback(() => {
     // Update refs immediately so guards and the next paint see the main alphabet view.
     layoutRef.current = 'letters';
     modeRef.current = {type: 'typing'};
-    shiftOnRef.current = true;
     capsLockedRef.current = false;
     emojiCategoryRef.current = DEFAULT_EMOJI_CATEGORY;
     gifSearchActiveRef.current = false;
@@ -673,9 +711,7 @@ function KeyboardBody() {
     setAiAutocorrectSuggestion(null);
     setIsAiAutocorrectProcessing(false);
     setStoppedTyping(true);
-    setShiftOn(true);
     setCapsLocked(false);
-    setResizeLiveOffset(0);
 
     if (typingIdleTimerRef.current) {
       clearTimeout(typingIdleTimerRef.current);
@@ -695,9 +731,21 @@ function KeyboardBody() {
     autocorrectUndoStackRef.current = [];
     autocorrectRedoStackRef.current = [];
     userChoseLettersRef.current = false;
-    shiftOnRef.current = false;
+    hasTypedInFieldRef.current = false;
+    emptyContextTrustworthyRef.current = true;
+    lastLetterCommitAtRef.current = 0;
     capsLockedRef.current = false;
-  }, []);
+    shiftOnRef.current = false;
+    setShiftOn(false);
+    setResizeLiveOffset(0);
+
+    void keyboardBridge.getInputInitialCapsMode().then(mode => {
+      setInputInitialCapsMode(Boolean(mode));
+      void keyboardBridge.getTextBeforeCursor(96).then(context => {
+        syncAutoCapitalizeShift(context, {fieldWasCleared: context.length === 0});
+      });
+    });
+  }, [syncAutoCapitalizeShift]);
 
   useEffect(() => {
     const hiddenSubscription = DeviceEventEmitter.addListener(
@@ -726,23 +774,6 @@ function KeyboardBody() {
     setPeriodRewriteActive(getPeriodRewriteArmed());
   }, []);
 
-  const syncAutoCapitalizeShift = useCallback((context: string) => {
-    if (capsLockedRef.current) {
-      return;
-    }
-    if (layoutRef.current !== 'letters' || modeRef.current.type !== 'typing') {
-      return;
-    }
-    const shouldCap = shouldAutoCapitalizeShift(context, {
-      inputRequestsInitialCaps: inputInitialCapsMode,
-      hasTypedSinceFocus: hasTypedInFieldRef.current,
-    });
-    if (shouldCap !== shiftOnRef.current) {
-      shiftOnRef.current = shouldCap;
-      startTransition(() => setShiftOn(shouldCap));
-    }
-  }, [inputInitialCapsMode]);
-
   useEffect(() => {
     void keyboardBridge.getInputInitialCapsMode().then(mode => {
       setInputInitialCapsMode(Boolean(mode));
@@ -751,14 +782,22 @@ function KeyboardBody() {
       'keyboardInputInitialCapsMode',
       (mode: boolean) => {
         hasTypedInFieldRef.current = false;
+        emptyContextTrustworthyRef.current = true;
+        lastLetterCommitAtRef.current = 0;
         setInputInitialCapsMode(Boolean(mode));
-        void keyboardBridge.getTextBeforeCursor(96).then(syncAutoCapitalizeShift);
+        void keyboardBridge.getTextBeforeCursor(96).then(context => {
+          syncAutoCapitalizeShift(context, {fieldWasCleared: context.length === 0});
+        });
       },
     );
     const shownSubscription = DeviceEventEmitter.addListener('keyboardShown', () => {
       hasTypedInFieldRef.current = false;
+      emptyContextTrustworthyRef.current = true;
+      lastLetterCommitAtRef.current = 0;
       void reloadGestures();
-      void keyboardBridge.getTextBeforeCursor(96).then(syncAutoCapitalizeShift);
+      void keyboardBridge.getTextBeforeCursor(96).then(context => {
+        syncAutoCapitalizeShift(context, {fieldWasCleared: context.length === 0});
+      });
     });
     return () => {
       capsSubscription.remove();
@@ -1115,7 +1154,14 @@ function KeyboardBody() {
 
     await ensureEssentialsLoaded();
     const context = await keyboardBridge.getTextBeforeCursor(96);
-    syncAutoCapitalizeShift(context);
+    if (context.length === 0 && emptyContextTrustworthyRef.current) {
+      hasTypedInFieldRef.current = false;
+      livePrefixRef.current = '';
+    }
+    syncAutoCapitalizeShift(context, {
+      fieldWasCleared:
+        context.length === 0 && emptyContextTrustworthyRef.current,
+    });
     const essentialTrigger = extractEssentialTrigger(context);
     if (essentialTrigger) {
       startTransition(() => {
@@ -1845,7 +1891,13 @@ function KeyboardBody() {
           keyboardBridge.deleteBackward();
           livePrefixRef.current = livePrefixRef.current.slice(0, -1);
           lastTypingAtRef.current = Date.now();
-          void keyboardBridge.getTextBeforeCursor(96).then(syncAutoCapitalizeShift);
+          void keyboardBridge.getTextBeforeCursor(96).then(context => {
+            if (context.length === 0) {
+              hasTypedInFieldRef.current = false;
+              livePrefixRef.current = '';
+            }
+            syncAutoCapitalizeShift(context, {fieldWasCleared: context.length === 0});
+          });
           scheduleRefreshSuggestions();
           return;
         case 'space':
@@ -1898,6 +1950,9 @@ function KeyboardBody() {
             keyboardBridge.insertText(text);
             if (layout === 'letters' && mode.type === 'typing') {
               hasTypedInFieldRef.current = true;
+              if (/[a-z]/i.test(text)) {
+                lastLetterCommitAtRef.current = Date.now();
+              }
               livePrefixRef.current += text;
               lastTypingAtRef.current = Date.now();
               scheduleRefreshSuggestions();
@@ -1930,17 +1985,11 @@ function KeyboardBody() {
 
   const applyCommittedKeyTextSideEffects = useCallback(
     (text: string) => {
-      if (
-        shiftOnRef.current &&
-        !capsLockedRef.current &&
-        layoutRef.current === 'letters'
-      ) {
-        shiftOnRef.current = false;
-        startTransition(() => setShiftOn(false));
-      }
-
       if (layoutRef.current === 'letters' && modeRef.current.type === 'typing') {
         hasTypedInFieldRef.current = true;
+        if (/[a-z]/i.test(text)) {
+          lastLetterCommitAtRef.current = Date.now();
+        }
         livePrefixRef.current += text;
         lastTypingAtRef.current = Date.now();
         applyInstantSuggestionBar(livePrefixRef.current);

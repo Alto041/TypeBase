@@ -19,6 +19,7 @@ import {SafeAreaView} from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 
 import BackIcon from './assets/back.svg';
+import EnterIcon from './assets/enter-icon.svg';
 import ResetIcon from './assets/reset.svg';
 import ThemeIcon from './assets/theme.svg';
 import GraphicEqIcon from './assets/graphic_eq.svg';
@@ -61,6 +62,7 @@ const C = {
   text: '#111111',
   sub: '#6b6b6b',
   border: '#e8e8ea',
+  red: '#D71921',
 } as const;
 
 const CARD_R = 25;
@@ -73,17 +75,20 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
   const [loading, setLoading] = useState(true);
   const [importingTapSound, setImportingTapSound] = useState(false);
   const tapSoundAnim = useRef(new Animated.Value(0)).current;
+  const enterKeyAnim = useRef(new Animated.Value(0)).current;
 
   const syncTapSoundState = useCallback((nextLayout: KeyboardLayoutSettings) => {
     setLayout(current => ({...current, ...nextLayout}));
     tapSoundAnim.setValue(nextLayout.customTapSoundEnabled ? 1 : 0);
-  }, [tapSoundAnim]);
+    enterKeyAnim.setValue(nextLayout.enterKeyPreviewEnabled ? 1 : 0);
+  }, [enterKeyAnim, tapSoundAnim]);
 
   useEffect(() => {
     void ensureLayoutLoaded().then(() => {
       const loaded = getKeyboardLayoutSettings();
       setLayout(loaded);
       tapSoundAnim.setValue(loaded.customTapSoundEnabled ? 1 : 0);
+      enterKeyAnim.setValue(loaded.enterKeyPreviewEnabled ? 1 : 0);
       setLoading(false);
     });
 
@@ -117,6 +122,30 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
     void installDefaultTapSoundSettings();
     void setKeyboardLayoutSettings(DEFAULT_KEYBOARD_LAYOUT_SETTINGS);
     tapSoundAnim.setValue(DEFAULT_KEYBOARD_LAYOUT_SETTINGS.customTapSoundEnabled ? 1 : 0);
+    enterKeyAnim.setValue(DEFAULT_KEYBOARD_LAYOUT_SETTINGS.enterKeyPreviewEnabled ? 1 : 0);
+  };
+
+  const animateEnterKeyToggle = (enabled: boolean) => {
+    Animated.spring(enterKeyAnim, {
+      toValue: enabled ? 1 : 0,
+      useNativeDriver: true,
+      stiffness: 700,
+      damping: 28,
+      mass: 0.8,
+    }).start();
+  };
+
+  const toggleEnterKeyPreview = () => {
+    if (loading) {
+      return;
+    }
+    const next = !layout.enterKeyPreviewEnabled;
+    setLayout(current => ({...current, enterKeyPreviewEnabled: next}));
+    void updateKeyboardLayoutSetting('enterKeyPreviewEnabled', next);
+    animateEnterKeyToggle(next);
+    if (next) playSwitchOnSound();
+    else playSwitchOffSound();
+    void Haptics.selectionAsync().catch(() => {});
   };
 
   const animateTapSoundToggle = (enabled: boolean) => {
@@ -503,6 +532,39 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
                 </View>
               </View>
             </View>
+          </View>
+
+          <View style={styles.themeToggleContainer}>
+            <EnterIcon width={20} height={20} color={C.red} />
+            <View style={styles.tapSoundTextCol}>
+              <Text style={styles.tapSoundTitle}>Red Enter Icon</Text>
+              <Text style={styles.tapSoundHint}>
+                Accent enter key with the red icon style
+              </Text>
+            </View>
+            <Pressable
+              onPress={toggleEnterKeyPreview}
+              style={[
+                styles.toggleTrack,
+                layout.enterKeyPreviewEnabled && styles.toggleTrackOn,
+              ]}
+              disabled={loading}>
+              <Animated.View
+                style={[
+                  styles.toggleThumb,
+                  {
+                    transform: [
+                      {
+                        translateX: enterKeyAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0, 18],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              />
+            </Pressable>
           </View>
 
           <View style={styles.themeToggleContainer}>

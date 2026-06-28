@@ -47,6 +47,8 @@ export type KeyboardLayoutSettings = {
   customTapSoundEnabled: boolean;
   /** File name under keyboard_tap_sounds/ (e.g. custom_tap.mp3). */
   customTapSoundFile: string | null;
+  /** When true, vibrate on each key press. */
+  keyHapticEnabled: boolean;
 };
 
 export const DEFAULT_KEYBOARD_LAYOUT_SETTINGS: KeyboardLayoutSettings = {
@@ -62,6 +64,7 @@ export const DEFAULT_KEYBOARD_LAYOUT_SETTINGS: KeyboardLayoutSettings = {
   keyboardHeightOffset: 0,
   customTapSoundEnabled: true,
   customTapSoundFile: 'haptic.wav',
+  keyHapticEnabled: true,
 };
 
 /** Touch slop into gaps — full visual gap so taps between keys snap to the nearest key. */

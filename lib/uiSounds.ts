@@ -1,5 +1,7 @@
 import {NativeModules, Platform} from 'react-native';
 
+import {isUiSoundsEnabled} from '../src/app/uiSoundsStore';
+
 type VoiceActivationSoundModuleType = {
   playNavigation?: () => Promise<boolean>;
 };
@@ -12,7 +14,7 @@ export type UiSoundName = 'navigation' | 'turnOn' | 'turnOff' | 'noPrem';
 
 /** Plays a short UI sound. Never throws. */
 export function playUiSound(name: UiSoundName): void {
-  if (Platform.OS !== 'android') {
+  if (!isUiSoundsEnabled() || Platform.OS !== 'android') {
     return;
   }
 

@@ -357,11 +357,13 @@ class TypeBaseInputService : InputMethodService() {
       if (nativeKeyFastPath.onTouchEvent(event)) {
         return true
       }
-      val handled = super.dispatchTouchEvent(event)
+      super.dispatchTouchEvent(event)
       if (KeyboardInputBridge.isTouchpadGestureConsuming()) {
         return true
       }
-      return handled
+      // Gboard-style: any tap inside the IME window stays in the keyboard — even on
+      // empty plugin-panel padding. If we return false, Android may hide the IME.
+      return true
     }
   }
 }

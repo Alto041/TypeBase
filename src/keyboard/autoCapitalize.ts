@@ -26,6 +26,15 @@ type AutoCapitalizeShiftOptions = {
   inputRequestsInitialCaps?: boolean;
   /** User has typed at least once since this field gained focus. */
   hasTypedSinceFocus?: boolean;
+  /**
+   * When false, an empty `context` may be a chat-app quirk (always returns "").
+   * In that case we avoid re-enabling shift on empty context mid-typing.
+   */
+  emptyContextTrustworthy?: boolean;
+  /** A letter was committed very recently; context may not have caught up yet. */
+  recentLetterCommit?: boolean;
+  /** User explicitly cleared the field (e.g. backspaced to empty). */
+  fieldWasCleared?: boolean;
 };
 
 /** Whether shift should be on for the next letter key. */
@@ -33,15 +42,30 @@ export function shouldAutoCapitalizeShift(
   context: string,
   options: AutoCapitalizeShiftOptions = {},
 ): boolean {
-  const {inputRequestsInitialCaps = false, hasTypedSinceFocus = false} = options;
+  const {
+    inputRequestsInitialCaps = false,
+    hasTypedSinceFocus = false,
+    emptyContextTrustworthy = true,
+    recentLetterCommit = false,
+    fieldWasCleared = false,
+  } = options;
 
-  // Many chat apps return empty context even after typing — don't re-enable shift.
-  if (hasTypedSinceFocus && context.length === 0) {
+  if (!inputRequestsInitialCaps) {
     return false;
   }
 
-  if (!hasTypedSinceFocus && context.length === 0) {
-    return inputRequestsInitialCaps;
+  if (context.length === 0) {
+    if (fieldWasCleared) {
+      return true;
+    }
+    if (recentLetterCommit) {
+      return false;
+    }
+    // Some chat apps always return "" — don't re-enable shift mid-word.
+    if (hasTypedSinceFocus && !emptyContextTrustworthy) {
+      return false;
+    }
+    return true;
   }
 
   if (shouldAutoCapitalize(context)) {

@@ -89,6 +89,7 @@ const SCALE_SPRING = {
 };
 
 import { playUiSound } from './lib/uiSounds';
+import { ensureUiSoundsLoaded } from './src/app/uiSoundsStore';
 import { hapticTap } from './lib/haptics';
 import { useScreenTransition } from './lib/screenTransition';
 
@@ -506,6 +507,7 @@ export default function App() {
   useEffect(() => {
     const hydrate = async () => {
       try {
+        await ensureUiSoundsLoaded();
         const v = await AsyncStorage.getItem(ONBOARDING_COMPLETE_KEY);
         setOnboardingComplete(v === '1');
       } catch {

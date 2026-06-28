@@ -579,7 +579,7 @@ export const keyboardBridge: KeyboardModuleType = {
       return KeyboardModule.getKeyboardLayoutSettings() as Promise<string>;
     }
     return Promise.resolve(
-      '{"keyHeight":47,"keyGap":5,"keyRowMargin":12,"keyRadius":6,"enterKeyPreviewEnabled":true,"developerEyeEnabled":false,"letterSymbolAlternatesEnabled":false,"letterLayoutId":"en-us"}',
+      '{"keyHeight":47,"keyGap":5,"keyRowMargin":12,"keyRadius":6,"enterKeyPreviewEnabled":true,"developerEyeEnabled":false,"letterSymbolAlternatesEnabled":false,"letterLayoutId":"en-us","keyHapticEnabled":true}',
     );
   },
   setKeyboardLayoutSettings: (json: string) => {

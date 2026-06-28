@@ -13,7 +13,7 @@ import {SafeAreaView} from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 
 import BackIcon from './assets/back.svg';
-import EnterIcon from './assets/enter-icon.svg';
+import HapticIcon from './assets/haptic.svg';
 import DiscordIcon from './assets/discord.svg';
 import FeedbackIcon from './assets/feedback.svg';
 import GraphicEqIcon from './assets/graphic_eq.svg';
@@ -22,6 +22,11 @@ import SymbolToggleIcon from './assets/symbol-toggle.svg';
 import NumberRowIcon from './assets/123.svg';
 
 import {playSwitchOffSound, playSwitchOnSound} from './src/app/switchSound';
+import {
+  ensureUiSoundsLoaded,
+  getUiSoundsEnabled,
+  setUiSoundsEnabled,
+} from './src/app/uiSoundsStore';
 
 import {
   ensureLayoutLoaded,
@@ -43,37 +48,27 @@ const ROW_GAP = 8;
 const ROW_ICON = 20;
 const TEXT_KERNING = -0.7;
 
-// Placeholder for UI sounds - implement actual storage later
-let uiSoundsEnabledCache = true;
-
-async function getUiSoundsEnabled(): Promise<boolean> {
-  return uiSoundsEnabledCache;
-}
-
-async function setUiSoundsEnabled(enabled: boolean): Promise<void> {
-  uiSoundsEnabledCache = enabled;
-}
-
 export function GeneralSettingsScreen({
   onBack,
 }: {
   onBack: () => void;
 }) {
   const [uiSoundsEnabled, setUiSoundsEnabledState] = useState(true);
-  const [enterKeyPreviewEnabled, setEnterKeyPreviewEnabledState] = useState(true);
+  const [keyHapticEnabled, setKeyHapticEnabledState] = useState(true);
   const [developerEyeEnabled, setDeveloperEyeEnabledState] = useState(false);
   const [letterSymbolAlternatesEnabled, setLetterSymbolAlternatesEnabledState] =
     useState(false);
   const [numberRowEnabled, setNumberRowEnabledState] = useState(false);
 
   const uiSoundsAnim = useRef(new Animated.Value(0)).current;
-  const enterKeyAnim = useRef(new Animated.Value(0)).current;
+  const keyHapticAnim = useRef(new Animated.Value(0)).current;
   const developerEyeAnim = useRef(new Animated.Value(0)).current;
   const symbolAlternatesAnim = useRef(new Animated.Value(0)).current;
   const numberRowAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    void getUiSoundsEnabled()
+    void ensureUiSoundsLoaded()
+      .then(() => getUiSoundsEnabled())
       .then((v) => {
         setUiSoundsEnabledState(v);
         uiSoundsAnim.setValue(v ? 1 : 0);
@@ -82,8 +77,8 @@ export function GeneralSettingsScreen({
 
     void ensureLayoutLoaded().then(() => {
       const layout = getKeyboardLayoutSettings();
-      setEnterKeyPreviewEnabledState(layout.enterKeyPreviewEnabled);
-      enterKeyAnim.setValue(layout.enterKeyPreviewEnabled ? 1 : 0);
+      setKeyHapticEnabledState(layout.keyHapticEnabled);
+      keyHapticAnim.setValue(layout.keyHapticEnabled ? 1 : 0);
       setDeveloperEyeEnabledState(layout.developerEyeEnabled);
       developerEyeAnim.setValue(layout.developerEyeEnabled ? 1 : 0);
       setLetterSymbolAlternatesEnabledState(layout.letterSymbolAlternatesEnabled);
@@ -118,15 +113,14 @@ export function GeneralSettingsScreen({
     await setUiSoundsEnabled(next);
     animateToggle(uiSoundsAnim, next ? 1 : 0);
     if (next) playSwitchOnSound();
-    else playSwitchOffSound();
     void Haptics.selectionAsync().catch(() => {});
   };
 
-  const toggleEnterKeyPreview = async () => {
-    const next = !enterKeyPreviewEnabled;
-    setEnterKeyPreviewEnabledState(next);
-    void updateKeyboardLayoutSetting('enterKeyPreviewEnabled', next);
-    animateToggle(enterKeyAnim, next ? 1 : 0);
+  const toggleKeyHaptic = async () => {
+    const next = !keyHapticEnabled;
+    setKeyHapticEnabledState(next);
+    void updateKeyboardLayoutSetting('keyHapticEnabled', next);
+    animateToggle(keyHapticAnim, next ? 1 : 0);
     if (next) playSwitchOnSound();
     else playSwitchOffSound();
     void Haptics.selectionAsync().catch(() => {});
@@ -170,15 +164,15 @@ export function GeneralSettingsScreen({
 
         {/* Settings Stack */}
         <View style={styles.stack}>
-          {/* Red Enter Icon Toggle */}
+          {/* Key Haptic Toggle */}
           <View style={styles.rowCard}>
             <View style={styles.rowInner}>
-              <EnterIcon width={ROW_ICON} height={ROW_ICON} color={C.red} />
-              <Text style={styles.rowTitle}>Red Enter Icon</Text>
+              <HapticIcon width={ROW_ICON} height={ROW_ICON} color={C.text} />
+              <Text style={styles.rowTitle}>Key Haptic</Text>
               <View style={styles.toggleWrap}>
                 <Pressable
-                  onPress={toggleEnterKeyPreview}
-                  style={[styles.toggleTrack, enterKeyPreviewEnabled && styles.toggleTrackOn]}
+                  onPress={toggleKeyHaptic}
+                  style={[styles.toggleTrack, keyHapticEnabled && styles.toggleTrackOn]}
                 >
                   <Animated.View
                     style={[
@@ -186,7 +180,7 @@ export function GeneralSettingsScreen({
                       {
                         transform: [
                           {
-                            translateX: enterKeyAnim.interpolate({
+                            translateX: keyHapticAnim.interpolate({
                               inputRange: [0, 1],
                               outputRange: [0, 18],
                             }),

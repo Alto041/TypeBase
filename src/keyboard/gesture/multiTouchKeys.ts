@@ -477,6 +477,7 @@ export function dispatchMultiTouchStart(
     };
 
     options.onKeyCommit(hit.keyDef, defaultCommit);
+    triggerKeyHaptic();
     markSwipeTypingTapCommitted(pid);
     setMultiTouchKeyPressed(hit.id, true);
 

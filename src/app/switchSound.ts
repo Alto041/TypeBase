@@ -1,5 +1,7 @@
 import {NativeModules, Platform} from 'react-native';
 
+import {isUiSoundsEnabled} from './uiSoundsStore';
+
 type VoiceActivationSoundModuleType = {
   playSwitch?: () => Promise<boolean>;
   playSwitchOff?: () => Promise<boolean>;
@@ -11,7 +13,7 @@ const {VoiceActivationSoundModule} = NativeModules as {
 
 /** Plays the AI provider toggle sound. Never throws. */
 export function playSwitchOnSound(): void {
-  if (Platform.OS !== 'android' || !VoiceActivationSoundModule?.playSwitch) {
+  if (!isUiSoundsEnabled() || Platform.OS !== 'android' || !VoiceActivationSoundModule?.playSwitch) {
     return;
   }
 
@@ -21,6 +23,7 @@ export function playSwitchOnSound(): void {
 /** Plays the AI provider toggle "off" sound. Never throws. */
 export function playSwitchOffSound(): void {
   if (
+    !isUiSoundsEnabled() ||
     Platform.OS !== 'android' ||
     !VoiceActivationSoundModule?.playSwitchOff
   ) {

@@ -16,6 +16,7 @@ import { useVolumeSliderNav } from '../context/VolumeSliderNavContext';
 import { BOTTOM_NAV_BOTTOM_GAP, BOTTOM_NAV_FADE_HEIGHT } from './lib/bottomNavLayout';
 import { hapticTap } from './lib/haptics';
 import { playUiSound } from './lib/uiSounds';
+import { ensureUiSoundsLoaded } from './src/app/uiSoundsStore';
 
 import HomeIcon from '../assets/home.svg';
 import HomeIconW from '../assets/home_w.svg';
@@ -138,6 +139,10 @@ export function BottomNavigation() {
   const pillWidthRef  = useRef(0);
   const selectedRef   = useRef<Option>('home');
   selectedRef.current = selectedOption;
+
+  useEffect(() => {
+    void ensureUiSoundsLoaded();
+  }, []);
 
   const chipLayout = pillWidth > 0 ? getLayoutMetrics(pillWidth) : null;
 

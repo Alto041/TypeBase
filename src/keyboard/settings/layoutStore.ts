@@ -72,6 +72,10 @@ function normalizeLayout(raw: unknown): KeyboardLayoutSettings {
       typeof obj['customTapSoundFile'] === 'string' && obj['customTapSoundFile'].trim()
         ? obj['customTapSoundFile'].trim()
         : defaults.customTapSoundFile,
+    keyHapticEnabled:
+      typeof obj['keyHapticEnabled'] === 'boolean'
+        ? obj['keyHapticEnabled']
+        : defaults.keyHapticEnabled,
   };
 }
 
