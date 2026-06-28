@@ -61,7 +61,8 @@ function normalizeWhitespace(text: string): string {
 }
 
 function hasWeirdInternalCaps(word: string): boolean {
-  return /^[A-Za-z]+$/.test(word) && /[a-z][A-Z]|[A-Z][a-z][A-Z]/.test(word);
+  // Only meaningful for Latin script; for others we won't flag.
+  return /^[\p{L}\p{M}]+$/u.test(word) && /[a-z][A-Z]|[A-Z][a-z][A-Z]/.test(word);
 }
 
 function maxTokensForAutocorrect(input: string): number {
@@ -137,7 +138,7 @@ function lastProofreadSnippet(context: string): string | null {
     console.log(LOG_PREFIX, 'skip: short accepted snippet', {snippet});
     return null;
   }
-  if (!/[a-zA-Z]/.test(snippet)) {
+  if (!/[\p{L}]/.test(snippet)) {
     console.log(LOG_PREFIX, 'skip: no letters in snippet', {snippet});
     return null;
   }

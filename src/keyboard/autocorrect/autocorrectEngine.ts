@@ -3,6 +3,12 @@ import {getExactDictionaryFix, isPreserveTypedWord} from './dictionaryFixes';
 import {getAutocorrectSettings} from './autocorrectStore';
 import {getLearnedCounts} from '../suggestions/learnedDictionary';
 import {applyCaseToWord} from '../suggestions/wordSuggestions';
+import {
+  getActiveLanguage,
+  getBaseWords,
+  lookupCandidatesSync,
+  lookupCompoundSync,
+} from './dictionaryManager';
 
 const WORDS = englishWords as string[];
 const STATIC_RANK = new Map<string, number>(
@@ -10,8 +16,21 @@ const STATIC_RANK = new Map<string, number>(
 );
 const STATIC_BY_FIRST = new Map<string, string[]>();
 
+// ============================================================
+// SYMSPELL-ONLY TEST MODE (old candidate sources disabled)
+// - collectCandidates now only returns learned + SymSpell results
+// - findMissingSpaceCorrection (old split) is bypassed
+// - getSimilar / getAutocorrectCandidate / suggestion bar all go through SymSpell
+//
+// Exact fixes, learned boosts (fed into SymSpell), scoring, confidence,
+// plausibility checks, protections, etc. are still applied after.
+//
+// To revert: uncomment the blocks in collectCandidates + getAutocorrectCandidate
+// and remove the _ prefixes + eslint-disable lines.
+// ============================================================
+
 for (const word of WORDS) {
-  if (word.length < 2 || !/^[a-z]+$/.test(word)) {
+  if (word.length < 2 || !/^[\p{L}\p{M}]+$/u.test(word)) {
     continue;
   }
   const first = word[0];
@@ -25,9 +44,23 @@ for (const word of WORDS) {
 
 const MIN_AUTO_CONFIDENCE = 0.39;
 const COMMON_WORD_RANK = 3500;
-const FREQUENT_WORD_SCAN_LIMIT = 1000;
-const FREQUENT_FALLBACK_LIMIT = 2000;
-const MISSING_SPACE_MIN_LENGTH = 6;
+
+/** For non-English languages we are a bit more conservative on pure fuzzy auto-apply
+ * unless the user has already learned the word or we have a very strong exact fix.
+ */
+function getEffectiveMinAutoConfidence(learnedUses: number, fromExactFix: boolean): number {
+  const lang = getActiveLanguage();
+  if (lang === 'en') return MIN_AUTO_CONFIDENCE;
+  if (learnedUses >= 1 || fromExactFix) return MIN_AUTO_CONFIDENCE;
+  // Italian (and future dedicated dicts) still allow good 1-edit cases,
+  // but we avoid borderline auto-corrects for words the user may have intended.
+  return 0.55;
+}
+// TEMP: these are only used by the disabled old broad-scan logic
+// const FREQUENT_WORD_SCAN_LIMIT = 1000;
+// const FREQUENT_FALLBACK_LIMIT = 2000;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _MISSING_SPACE_MIN_LENGTH = 6; // only used by disabled old split logic
 const MISSING_SPACE_STRONG_RANK = 5_000;
 
 /** Very common 1–2 letter words allowed in a split (blocks junk like "th", "ng"). */
@@ -56,7 +89,8 @@ function isValidSegmentPart(word: string): boolean {
 }
 
 /** Still typing a longer dictionary word (e.g. "somethin" → "something"). */
-function isLikelyIncompleteWord(typed: string): boolean {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function _isLikelyIncompleteWord(typed: string): boolean {
   const bucket = STATIC_BY_FIRST.get(typed[0]) ?? [];
   for (const word of bucket) {
     if (word.length > typed.length && word.startsWith(typed)) {
@@ -69,7 +103,8 @@ function isLikelyIncompleteWord(typed: string): boolean {
   return false;
 }
 
-function findTwoWordSplit(typed: string): string | null {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function _findTwoWordSplit(typed: string): string | null {
   let best: {left: string; right: string; score: number} | null = null;
 
   for (let splitAt = 2; splitAt <= typed.length - 2; splitAt += 1) {
@@ -101,7 +136,8 @@ function findTwoWordSplit(typed: string): string | null {
   return `${best.left} ${best.right}`;
 }
 
-function findThreeWordSplit(typed: string): string | null {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function _findThreeWordSplit(typed: string): string | null {
   let best: {parts: string[]; score: number} | null = null;
 
   for (let first = 2; first <= typed.length - 4; first += 1) {
@@ -128,11 +164,8 @@ function findThreeWordSplit(typed: string): string | null {
   return best ? best.parts.join(' ') : null;
 }
 
-/**
- * Split concatenated words missing a space (e.g. "areyou" → "are you").
- * Conservative: only 2–3 common words, never valid/partial dictionary words.
- */
-function findMissingSpaceCorrection(
+/* TEMP FOR SYMSPELL TEST – old missing-space logic disabled
+function _findMissingSpaceCorrection(
   typed: string,
   learnedUses: number,
 ): string | null {
@@ -159,6 +192,7 @@ function findMissingSpaceCorrection(
 
   return null;
 }
+*/
 
 type CollectOptions = {
   skipFrequentScan?: boolean;
@@ -289,9 +323,15 @@ function findCloseCommonWord(lower: string): string | null {
 }
 
 function isProtectedWord(word: string, learnedUses: number): boolean {
-  const rank = STATIC_RANK.get(word);
-  if (rank != null && rank < COMMON_WORD_RANK) {
-    return true;
+  const lang = getActiveLanguage();
+  if (lang === 'en') {
+    const rank = STATIC_RANK.get(word);
+    if (rank != null && rank < COMMON_WORD_RANK) return true;
+  } else {
+    // Protect words that are common in the active language's dictionary.
+    const base = getBaseWords(lang);
+    const idx = base.indexOf(word);
+    if (idx >= 0 && idx < 4500) return true;
   }
   return learnedUses >= 1;
 }
@@ -412,7 +452,21 @@ function shouldRejectFuzzyCorrection(
     return true;
   }
 
-  const typedRank = STATIC_RANK.get(typed);
+  const lang = getActiveLanguage();
+  const typedRank =
+    lang === 'en'
+      ? STATIC_RANK.get(typed)
+      : getBaseWords(lang).indexOf(typed);
+
+  // Explicit: in non-English, if the typed word is not in our dictionary at all,
+  // reject fuzzy corrections (prevents "scusi" → closest listed word).
+  if (lang !== 'en') {
+    const idx = getBaseWords(lang).indexOf(typed);
+    if (idx < 0 && learnedUses === 0) {
+      return true;
+    }
+  }
+
   if (
     typedRank != null &&
     typedRank < 12_000 &&
@@ -550,7 +604,7 @@ function isLikelyTypoMatch(typed: string, candidate: string, edits: number): boo
 function collectCandidates(
   typed: string,
   editBudget = maxEditDistance(typed.length),
-  options?: CollectOptions,
+  _options?: CollectOptions, // unused while legacy scan paths are disabled for SymSpell test
 ): Array<{
   word: string;
   edits: number;
@@ -590,6 +644,23 @@ function collectCandidates(
     }
   }
 
+  // Primary (and only for this test) fuzzy source: SymSpell.
+  const symCands = lookupCandidatesSync(typed, maxEdits, 80);
+  for (const sc of symCands) {
+    const lu = learned.get(sc.word) ?? 0;
+    const sr = STATIC_RANK.get(sc.word) ?? (sc.count != null ? Math.max(1, 160_000 - Math.floor(sc.count / 3)) : 65_000);
+    consider(sc.word, lu, sr);
+  }
+
+  // ============================================================
+  // TEMP FOR SYMSPELL TESTING: old candidate sources DISABLED
+  // - collectTranspositionNeighbors
+  // - STATIC_BY_FIRST bucket walks
+  // - broad / frequent scan over WORDS
+  // Only learned words + SymSpell results are considered.
+  // Re-enable the block below when you want the hybrid back.
+  // ============================================================
+  /*
   for (const swapped of collectTranspositionNeighbors(typed)) {
     if (!seen.has(swapped)) {
       seen.add(swapped);
@@ -645,6 +716,7 @@ function collectCandidates(
       }
     }
   }
+  */
 
   return results;
 }
@@ -662,9 +734,10 @@ export function getSimilarWordSuggestions(
   options?: CollectOptions,
 ): SimilarWordSuggestion[] {
   const typed = typedWord.trim().toLowerCase();
-  if (typed.length < 2 || !/^[a-z]+$/.test(typed)) {
+  if (typed.length < 2 || !/^[\p{L}\p{M}]+$/u.test(typed)) {
     return [];
   }
+  getActiveLanguage(); // ensures SymSpell for current layout is considered (via dictionaryManager)
 
   const editBudget = typed.length <= 4 ? 2 : typed.length <= 7 ? 2 : 2;
   const candidates = collectCandidates(typed, editBudget, options).filter(candidate => {
@@ -714,9 +787,10 @@ export function getTypoSuggestionPreview(
   fast = false,
 ): string | null {
   const typed = typedWord.trim();
-  if (typed.length < 2 || !/^[a-zA-Z]+$/.test(typed)) {
+  if (typed.length < 2 || !/^[\p{L}\p{M}]+$/u.test(typed)) {
     return null;
   }
+  getActiveLanguage(); // SymSpell language is active
   if (hasIntentionalCasing(typed) || isProbablyProperNoun(typed)) {
     return null;
   }
@@ -729,6 +803,15 @@ export function getTypoSuggestionPreview(
   }
 
   if (isProtectedWord(lower, learnedUses)) {
+    return null;
+  }
+
+  // For non-English (e.g. Italian), do not offer fuzzy "corrections" for words
+  // that are not present in the language dictionary. This prevents perfectly
+  // valid but unlisted words ("scusi", "nessun problema", ...) from being
+  // mangled to the closest seeded word. Exact fixes + learned words still work.
+  const lang = getActiveLanguage();
+  if (lang !== 'en' && !getBaseWords(lang).includes(lower) && learnedUses === 0) {
     return null;
   }
 
@@ -746,9 +829,10 @@ export function getAutocorrectCandidate(
   typedWord: string,
 ): AutocorrectCandidate | null {
   const typed = typedWord.trim();
-  if (typed.length < 2 || !/^[a-zA-Z]+$/.test(typed)) {
+  if (typed.length < 2 || !/^[\p{L}\p{M}]+$/u.test(typed)) {
     return null;
   }
+  getActiveLanguage(); // SymSpell language is active
   if (hasIntentionalCasing(typed)) {
     return null;
   }
@@ -768,15 +852,42 @@ export function getAutocorrectCandidate(
     };
   }
 
-  const missingSpace = findMissingSpaceCorrection(lower, learnedUses);
+  // TEMP FOR SYMSPELL TESTING: disable the old findMissingSpaceCorrection
+  // (it uses STATIC_RANK / old split logic). Let SymSpell's LookupCompound drive this.
+  /*
+  const missingSpace = _findMissingSpaceCorrection(lower, learnedUses);
   if (missingSpace) {
     return {
       correction: applyCaseToWord(missingSpace, typed),
       confidence: 0.9,
     };
   }
+  */
+
+  // SymSpell compound / segmentation – this is now the active path for testing.
+  const compound = lookupCompoundSync(lower);
+  if (compound && compound.term && compound.term.includes(' ') && compound.distance <= 2) {
+    // For non-English, only accept compound splits if the original typed is known
+    // or we have learned uses (keeps behavior conservative for incomplete dicts).
+    const lang = getActiveLanguage();
+    const known = lang === 'en' || getBaseWords(lang).includes(lower) || learnedUses > 0;
+    if (known) {
+      return {
+        correction: applyCaseToWord(compound.term, typed),
+        confidence: 0.88,
+      };
+    }
+  }
 
   if (isProtectedWord(lower, learnedUses)) {
+    return null;
+  }
+
+  // Non-English guard: if the word is unknown to this language's dictionary and
+  // not learned + not an exact fix, do not fuzzy auto-correct it.
+  // (SymSpell may still be used for suggestions, but auto-apply stays conservative.)
+  const lang = getActiveLanguage();
+  if (lang !== 'en' && !getBaseWords(lang).includes(lower) && learnedUses === 0) {
     return null;
   }
 
@@ -837,7 +948,8 @@ export function getAutocorrectCandidate(
     best.learnedUses,
     best.staticRank,
   );
-  if (confidence < MIN_AUTO_CONFIDENCE) {
+  const effMin = getEffectiveMinAutoConfidence(best.learnedUses, false);
+  if (confidence < effMin) {
     return null;
   }
 
@@ -864,9 +976,10 @@ export function getSuggestionBarAutocorrect(
   correction: string | null;
 } {
   const typed = typedWord.trim();
-  if (typed.length < 2 || !/^[a-zA-Z]+$/.test(typed)) {
+  if (typed.length < 2 || !/^[\p{L}\p{M}]+$/u.test(typed)) {
     return {keepTyped: null, correction: null};
   }
+  getActiveLanguage(); // SymSpell language is active
   if (hasIntentionalCasing(typed) || isProbablyProperNoun(typed)) {
     return {keepTyped: null, correction: null};
   }
@@ -914,7 +1027,14 @@ export function shouldAutoApply(
     return false;
   }
 
-  if (!candidate || candidate.confidence < MIN_AUTO_CONFIDENCE) {
+  if (!candidate) return false;
+
+  // Use language-aware threshold so Italian (and others) don't over-auto-correct.
+  const effMin = getEffectiveMinAutoConfidence(
+    /*learnedUses*/ 0, // we don't have it here; the candidate's confidence was already gated with learned info
+    /*fromExactFix*/ candidate.confidence >= 0.88,
+  );
+  if (candidate.confidence < effMin) {
     return false;
   }
 

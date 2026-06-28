@@ -213,7 +213,7 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   fun recordLearnedWord(word: String, promise: Promise) {
     try {
       val normalized = word.trim().lowercase()
-      if (normalized.length < 2 || !normalized.matches(Regex("[a-z]+"))) {
+      if (normalized.length < 2 || !normalized.all { it.isLetter() }) {
         promise.resolve(0)
         return
       }
@@ -1072,7 +1072,8 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     try {
       val normalized = phrase.trim().lowercase().replace(Regex("\\s+"), " ")
       val words = normalized.split(" ")
-      if (words.size < 2 || words.size > 4 || !normalized.matches(Regex("[a-z ]+"))) {
+      val allLettersOrSpace = normalized.all { it.isLetter() || it.isWhitespace() }
+      if (words.size < 2 || words.size > 4 || !allLettersOrSpace || words.any { it.length < 2 || !it.all { ch -> ch.isLetter() } }) {
         promise.resolve(0)
         return
       }

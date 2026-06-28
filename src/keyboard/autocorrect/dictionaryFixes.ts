@@ -70,6 +70,24 @@ const EXACT_FIX_ENTRIES: Array<[string, ExactDictionaryFix]> = [
   ['yall', {correction: "y'all", confidence: 0.91}],
   ['oclock', {correction: "o'clock", confidence: 0.93}],
 
+  // Italian common accent/apostrophe fixes (very high-confidence exact matches).
+  // These complement SymSpell for the most frequent accent-related typos.
+  ['perche', {correction: 'perché', confidence: 0.93}],
+  ["perche'", {correction: 'perché', confidence: 0.94}],
+  ['perché', {correction: 'perché', confidence: 0.92}],
+  ["e'", {correction: 'è', confidence: 0.93}],
+  ['e`', {correction: 'è', confidence: 0.92}],
+  ['piu', {correction: 'più', confidence: 0.92}],
+  ["piu'", {correction: 'più', confidence: 0.93}],
+  ['gia', {correction: 'già', confidence: 0.91}],
+  ["gia'", {correction: 'già', confidence: 0.92}],
+  ['cioe', {correction: 'cioè', confidence: 0.92}],
+  ["cioe'", {correction: 'cioè', confidence: 0.93}],
+  ['percio', {correction: 'perciò', confidence: 0.91}],
+  ["percio'", {correction: 'perciò', confidence: 0.92}],
+  ['percio`', {correction: 'perciò', confidence: 0.91}],
+  ['perche`', {correction: 'perché', confidence: 0.92}],
+
   // Abbreviations that expand to common comma-led phrases. Full words stay as typed.
   ['ig', {correction: 'i guess,', confidence: 0.9}],
   ['idk', {correction: "i don't know,", confidence: 0.86}],

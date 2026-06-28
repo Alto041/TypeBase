@@ -14,7 +14,7 @@ export function isLearnablePhrase(phrase: string): boolean {
   if (words.length < 2 || words.length > 4) {
     return false;
   }
-  return words.every(word => word.length >= 2 && /^[a-z]+$/.test(word));
+  return words.every(word => word.length >= 2 && /^[\p{L}\p{M}]+$/u.test(word));
 }
 
 export function resetLearnedPhrasesCache(): void {
@@ -75,7 +75,8 @@ export function recordLearnedPhrase(phrase: string): void {
 }
 
 export function extractTrailingWords(text: string, maxWords: number): string[] {
-  const match = text.match(/(?:^|\s)([a-zA-Z]+(?:\s+[a-zA-Z]+)*)$/);
+  // Capture trailing 1-4 words made of unicode letters (for learned phrases across scripts).
+  const match = text.match(/(?:^|\s)([\p{L}\p{M}']+(?:\s+[\p{L}\p{M}']+)*)$/u);
   if (!match) {
     return [];
   }

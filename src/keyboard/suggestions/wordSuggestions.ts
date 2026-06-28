@@ -1,6 +1,7 @@
 import englishWords from '../gesture/data/englishWords.json';
 import {getSimilarWordSuggestions} from '../autocorrect/autocorrectEngine';
 import {getLearnedCounts} from './learnedDictionary';
+import {getBaseWords, getActiveLanguage} from '../autocorrect/dictionaryManager';
 
 const WORDS = englishWords as string[];
 const STATIC_RANK = new Map<string, number>(
@@ -11,7 +12,8 @@ const STATIC_SCAN_LIMIT = 40;
 const FUZZY_EDIT_WEIGHT = 650;
 
 export function extractCurrentWord(text: string): string {
-  const match = text.match(/[a-zA-Z]+$/);
+  // Unicode letters + combining marks + apostrophe (for contractions like "don't", "l'école").
+  const match = text.match(/[\p{L}\p{M}']+$/u);
   return match ? match[0] : '';
 }
 
@@ -63,9 +65,11 @@ function getPrefixMatches(
 ): string[] {
   const candidates = new Set<string>();
 
+  // Use the language-appropriate base list from dictionary manager (falls back to English for latin scripts).
+  const base = getBaseWords();
   let scanned = 0;
-  for (const word of WORDS) {
-    if (word.length < 2 || !/^[a-z]+$/.test(word)) {
+  for (const word of base) {
+    if (word.length < 2 || !/^[\p{L}\p{M}]+$/u.test(word)) {
       continue;
     }
     if (word.startsWith(lower) && word !== lower) {
@@ -97,8 +101,10 @@ export function getWordSuggestions(
     return [];
   }
 
+  const _lang = getActiveLanguage(); // selects per-layout dictionary via manager
+
   const lower = prefix.toLowerCase();
-  if (!/^[a-z]+$/.test(lower)) {
+  if (!/^[\p{L}\p{M}]+$/u.test(lower)) {
     return [];
   }
 

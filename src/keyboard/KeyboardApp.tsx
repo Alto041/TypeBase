@@ -95,6 +95,7 @@ import {
   proofreadRecentTypingContext,
   type AiAutocorrectResult,
 } from './autocorrect/aiAutocorrectService';
+import {preloadActiveDictionary} from './autocorrect/dictionaryManager';
 import {GesturesPanel} from './gestures/GesturesPanel';
 import {TranslatePanel} from './translate/TranslatePanel';
 import {RewritePanel} from './rewrite/RewritePanel';
@@ -2845,6 +2846,8 @@ export default function KeyboardApp() {
       setKeyboardDesign(getKeyboardDesign());
       setCustomThemeJson(getKeyboardCustomTheme());
       setLayoutSettings(getKeyboardLayoutSettings());
+      // Kick off dictionary for the active layout (multi-lang autocorrect).
+      preloadActiveDictionary().catch(() => undefined);
       setThemeReady(true);
     });
     const schemeSubscription = DeviceEventEmitter.addListener(
@@ -2868,7 +2871,10 @@ export default function KeyboardApp() {
     const layoutSubscription = DeviceEventEmitter.addListener(
       KEYBOARD_LAYOUT_CHANGED_EVENT,
       (payload: unknown) => {
-        setLayoutSettings(parseLayoutEventPayload(payload));
+        const next = parseLayoutEventPayload(payload);
+        setLayoutSettings(next);
+        // Switch dictionary automatically for the new layout (no manual lang select).
+        preloadActiveDictionary().catch(() => undefined);
       },
     );
     return () => {

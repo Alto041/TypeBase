@@ -1,4 +1,5 @@
 import {keyboardBridge} from '../keyboardBridge';
+import {addLearnedWord} from '../autocorrect/dictionaryManager';
 
 const learnedCounts = new Map<string, number>();
 let loadPromise: Promise<void> | null = null;
@@ -6,7 +7,8 @@ let loadGeneration = 0;
 
 export function isLearnableWord(word: string): boolean {
   const normalized = word.trim().toLowerCase();
-  return normalized.length >= 2 && /^[a-z]+$/.test(normalized);
+  // Accept any unicode letters (supports accented Latin, Cyrillic, Arabic, etc.).
+  return normalized.length >= 2 && /^[\p{L}\p{M}]+$/u.test(normalized);
 }
 
 export function normalizeLearnedWord(word: string): string {
@@ -68,6 +70,8 @@ export function recordLearnedWord(word: string): void {
   const nextCount = (learnedCounts.get(normalized) ?? 0) + 1;
   learnedCounts.set(normalized, nextCount);
   keyboardBridge.recordLearnedWord(normalized);
+  // Boost the live SymSpell instance(s) for the active (and cached) language(s).
+  addLearnedWord(normalized);
 }
 
 /** Lower swipe score is better; scales with how often the user typed the word. */
