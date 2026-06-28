@@ -124,6 +124,10 @@ function KeyComponent({
   const rewriteDidHoldRef = useRef(false);
   const rewriteSuppressPressRef = useRef(false);
 
+  // Long-press on enter (temporary) switches to "next line" (inserts \n) for rare cases
+  // where the field's default enter function (search/send/done) is not what you want.
+  const enterLongDidFireRef = useRef(false);
+
   const isSpecial =
     keyDef.type &&
     keyDef.type !== 'char' &&
@@ -383,9 +387,15 @@ function KeyComponent({
   );
 
   const handlePressIn = useCallback(() => {
+    if (isEnterAction) {
+      // Defer the action to onPress (short tap) or onLongPress (hold for alternate newline).
+      // Give immediate haptic + visual on down for responsiveness.
+      triggerKeyHaptic();
+      return;
+    }
     onPress(keyDef);
     triggerKeyHaptic();
-  }, [keyDef, onPress]);
+  }, [keyDef, onPress, isEnterAction]);
 
   const isSpaceGesture =
     keyDef.type === 'space' && keyGestures?.spaceCursorSwipe;
@@ -498,6 +508,26 @@ function KeyComponent({
     triggerKeyHaptic();
     keyGestures?.onPeriodRewritePress();
   }, [keyGestures, showRewrite]);
+
+  const handleEnterPress = useCallback(() => {
+    // Short press on enter: do the field's respective action (search / send / done / newline)
+    // as decided by submitEnterKey based on current EditorInfo.
+    if (enterLongDidFireRef.current) {
+      enterLongDidFireRef.current = false;
+      return;
+    }
+    triggerKeyHaptic();
+    onPress(keyDef);
+  }, [keyDef, onPress]);
+
+  const handleEnterLongPress = useCallback(() => {
+    // Temp long-press behavior: force a literal newline ("next line").
+    // Use this to address rare cases where the input box requests a submit-style action
+    // (search / send / done) via its IME options but you still need a line break.
+    enterLongDidFireRef.current = true;
+    keyboardBridge.insertNewline();
+    triggerKeyHaptic();
+  }, []);
 
   const handleSpacePressIn = useCallback(() => {
     spaceSwipingRef.current = false;
@@ -645,22 +675,26 @@ function KeyComponent({
           pressRetentionOffset={KEY_PRESS_RETENTION}
           hitSlop={isTextKey ? KEY_HIT_SLOP : undefined}
           onPress={
-            showLauncher
-              ? handleLauncherPress
-              : showRewrite
-                ? handleRewritePress
-                : isSpaceGesture
-                  ? handleSpacePress
-                  : undefined
+            isEnterAction
+              ? handleEnterPress
+              : showLauncher
+                ? handleLauncherPress
+                : showRewrite
+                  ? handleRewritePress
+                  : isSpaceGesture
+                    ? handleSpacePress
+                    : undefined
           }
           onPressIn={
-            isLauncherGesture
-              ? handleLauncherPressIn
-              : isRewriteGesture
-                ? handleRewritePressIn
-                : isSpaceKey
-                  ? handleSpacePressIn
-                  : handlePressIn
+            isEnterAction
+              ? handlePressIn
+              : isLauncherGesture
+                ? handleLauncherPressIn
+                : isRewriteGesture
+                  ? handleRewritePressIn
+                  : isSpaceKey
+                    ? handleSpacePressIn
+                    : handlePressIn
           }
           onPressOut={
             isLauncherGesture
@@ -671,6 +705,8 @@ function KeyComponent({
                   ? undefined
                   : handlePressOut
           }
+          onLongPress={isEnterAction ? handleEnterLongPress : undefined}
+          delayLongPress={380}
           style={({pressed}) => [
             styles.key,
             {

@@ -76,6 +76,14 @@ function normalizeLayout(raw: unknown): KeyboardLayoutSettings {
       typeof obj['keyHapticEnabled'] === 'boolean'
         ? obj['keyHapticEnabled']
         : defaults.keyHapticEnabled,
+    customFontEnabled:
+      typeof obj['customFontEnabled'] === 'boolean'
+        ? obj['customFontEnabled']
+        : defaults.customFontEnabled,
+    customFontFile:
+      typeof obj['customFontFile'] === 'string' && obj['customFontFile'].trim()
+        ? obj['customFontFile'].trim()
+        : defaults.customFontFile,
   };
 }
 

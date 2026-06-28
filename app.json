@@ -2,7 +2,7 @@
   "expo": {
     "name": "TypeBase",
     "slug": "typebase",
-    "version": "0.9.2",
+    "version": "0.9.4",
     "scheme": "typebase",
     "android": {
       "package": "com.typebase.app"

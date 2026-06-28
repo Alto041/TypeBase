@@ -17,6 +17,8 @@ import {
   type ViewStyle,
 } from 'react-native';
 import {useFonts} from 'expo-font';
+import * as Font from 'expo-font';
+import { resolveCustomFontUri } from './settings/fontStore';
 import {KeyboardRow} from './components/KeyboardRows';
 import {SuggestionBar} from './components/SuggestionBar';
 import {CalculatorPanel} from './calculator/CalculatorPanel';
@@ -2830,6 +2832,7 @@ export default function KeyboardApp() {
     DEFAULT_KEYBOARD_LAYOUT_SETTINGS,
   );
   const [themeReady, setThemeReady] = useState(false);
+  const [customUserFontFamily, setCustomUserFontFamily] = useState<string | null>(null);
 
   const effectiveLayoutSettings = useMemo(
     () => layoutSettingsForOrientation(layoutSettings, isLandscape),
@@ -2885,6 +2888,44 @@ export default function KeyboardApp() {
     };
   }, []);
 
+  // Load (or reload) user-provided keyboard font when layout settings indicate one.
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadUserFont = async () => {
+      const enabled = !!layoutSettings.customFontEnabled;
+      const file = layoutSettings.customFontFile;
+
+      if (!enabled || !file) {
+        if (!cancelled) setCustomUserFontFamily(null);
+        return;
+      }
+
+      const uri = resolveCustomFontUri(file);
+      if (!uri) {
+        if (!cancelled) setCustomUserFontFamily(null);
+        return;
+      }
+
+      try {
+        // Register under a stable family name.
+        await Font.loadAsync({ CustomKeyboardFont: { uri } });
+        if (!cancelled) {
+          setCustomUserFontFamily('CustomKeyboardFont');
+        }
+      } catch (err) {
+        // If loading fails (corrupt file, unsupported format, etc.), fall back gracefully.
+        if (!cancelled) setCustomUserFontFamily(null);
+      }
+    };
+
+    void loadUserFont();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [layoutSettings.customFontEnabled, layoutSettings.customFontFile]);
+
   if (!fontsLoaded || !themeReady) {
     return (
       <View style={keyboardAppLoadingStyles.container}>
@@ -2901,6 +2942,7 @@ export default function KeyboardApp() {
       layoutSettings={effectiveLayoutSettings}
       customFontLoaded={fontsLoaded}
       isLandscape={isLandscape}
+      customUserFontFamily={customUserFontFamily}
     >
       <KeyLayoutProvider layoutSettings={effectiveLayoutSettings}>
         <KeyboardBody />

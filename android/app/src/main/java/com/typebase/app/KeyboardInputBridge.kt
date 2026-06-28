@@ -126,7 +126,9 @@ object KeyboardInputBridge {
         currentEditorInfo?.let { it.imeOptions and EditorInfo.IME_MASK_ACTION }
             ?: EditorInfo.IME_ACTION_UNSPECIFIED
 
-    if (actionId == EditorInfo.IME_ACTION_NONE) {
+    // For unspecified / none, just emit a raw enter key event. This lets the target
+    // app decide (some use raw enter for send or newline in their own logic).
+    if (actionId == EditorInfo.IME_ACTION_NONE || actionId == EditorInfo.IME_ACTION_UNSPECIFIED) {
       connection.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER))
       connection.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER))
       return true
@@ -290,18 +292,29 @@ object KeyboardInputBridge {
       return false
     }
 
-    // Apps like Instagram search set MULTI_LINE but still expect Search/Go/Done on Enter.
-    if (isExplicitSubmitImeAction(getImeAction(info))) {
-      return false
-    }
-
     val inputType = info.inputType
     if (isSingleLineTextVariation(inputType)) {
       return false
     }
 
+    val action = getImeAction(info)
+
+    // Search / Go actions should almost always submit (even if an app mistakenly sets multiline).
+    // This covers cases like Instagram search bar that expect the search icon/action on enter.
+    if (action == EditorInfo.IME_ACTION_SEARCH || action == EditorInfo.IME_ACTION_GO) {
+      return false
+    }
+
+    // Multiline inputs (typical chat / notes compose) should allow literal newlines on enter
+    // so the respective function (newline) is used. Submit actions like SEND are handled by
+    // app buttons in most cases; enter = newline here.
     if ((inputType and InputType.TYPE_TEXT_FLAG_MULTI_LINE) != 0) {
       return true
+    }
+
+    if (isExplicitSubmitImeAction(action)) {
+      // Non-multiline field with explicit action (DONE, SEND, NEXT, ...) -> perform the action.
+      return false
     }
 
     return (info.imeOptions and EditorInfo.IME_FLAG_NO_ENTER_ACTION) != 0

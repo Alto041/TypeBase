@@ -24,6 +24,7 @@ import ResetIcon from './assets/reset.svg';
 import ThemeIcon from './assets/theme.svg';
 import GraphicEqIcon from './assets/graphic_eq.svg';
 import UploadIcon from './assets/file-upload.svg';
+import FontIcon from './assets/font.svg';
 
 import {playSwitchOffSound, playSwitchOnSound} from './src/app/switchSound';
 
@@ -40,6 +41,10 @@ import {
   installDefaultTapSoundSettings,
   previewCustomTapSound,
 } from './src/keyboard/settings/tapSoundStore';
+import {
+  clearCustomKeyboardFont,
+  importCustomKeyboardFont,
+} from './src/keyboard/settings/fontStore';
 import {
   ensureThemeLoaded,
   getKeyboardColorScheme,
@@ -120,6 +125,7 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
   const handleReset = () => {
     setLayout(DEFAULT_KEYBOARD_LAYOUT_SETTINGS);
     void installDefaultTapSoundSettings();
+    void clearCustomKeyboardFont();
     void setKeyboardLayoutSettings(DEFAULT_KEYBOARD_LAYOUT_SETTINGS);
     tapSoundAnim.setValue(DEFAULT_KEYBOARD_LAYOUT_SETTINGS.customTapSoundEnabled ? 1 : 0);
     enterKeyAnim.setValue(DEFAULT_KEYBOARD_LAYOUT_SETTINGS.enterKeyPreviewEnabled ? 1 : 0);
@@ -633,7 +639,13 @@ export function ThemesScreen({onBack}: {onBack: () => void}) {
   const [themeJson, setThemeJson] = useState(() => formatCustomThemeJsonForEditor('{}'));
   const [jsonError, setJsonError] = useState<string | null>(null);
 
+  // Custom keyboard font (applies to the whole keyboard)
+  const [customFontFile, setCustomFontFile] = useState<string | null>(null);
+  const [customFontEnabled, setCustomFontEnabled] = useState(false);
+  const [importingFont, setImportingFont] = useState(false);
+
   const toggleAnim = useRef(new Animated.Value(0)).current;
+  const fontToggleAnim = useRef(new Animated.Value(0)).current;
 
   const syncDeveloperEye = useCallback((enabled: boolean) => {
     setDeveloperEyeEnabled(enabled);
@@ -652,12 +664,22 @@ export function ThemesScreen({onBack}: {onBack: () => void}) {
 
     void ensureLayoutLoaded().then(() => {
       syncDeveloperEye(getKeyboardLayoutSettings().developerEyeEnabled);
+      const ls = getKeyboardLayoutSettings();
+      setCustomFontFile(ls.customFontFile ?? null);
+      const fontOn = !!ls.customFontEnabled;
+      setCustomFontEnabled(fontOn);
+      fontToggleAnim.setValue(fontOn ? 1 : 0);
     });
 
     const layoutSubscription = DeviceEventEmitter.addListener(
       KEYBOARD_LAYOUT_CHANGED_EVENT,
       payload => {
-        syncDeveloperEye(parseLayoutEventPayload(payload).developerEyeEnabled);
+        const parsed = parseLayoutEventPayload(payload);
+        syncDeveloperEye(parsed.developerEyeEnabled);
+        setCustomFontFile(parsed.customFontFile ?? null);
+        const fontOn = !!parsed.customFontEnabled;
+        setCustomFontEnabled(fontOn);
+        fontToggleAnim.setValue(fontOn ? 1 : 0);
       },
     );
 
@@ -704,6 +726,69 @@ export function ThemesScreen({onBack}: {onBack: () => void}) {
 
   const isNothing = design === 'typebase';
   const isQuivox = design === 'quivox';
+
+  const handleImportKeyboardFont = async () => {
+    if (loading || importingFont) return;
+    try {
+      setImportingFont(true);
+      const fileName = await importCustomKeyboardFont();
+      setCustomFontFile(fileName);
+      setCustomFontEnabled(true);
+      fontToggleAnim.setValue(1);
+      animateFontToggle(true);
+      void Haptics.selectionAsync().catch(() => {});
+    } catch (error) {
+      if (error instanceof Error && error.message === 'IMPORT_CANCELED') {
+        return;
+      }
+      const message =
+        error instanceof Error ? error.message : 'Could not import that font file.';
+      Alert.alert('Import failed', message);
+    } finally {
+      setImportingFont(false);
+    }
+  };
+
+  const handleResetKeyboardFont = async () => {
+    if (loading) return;
+    try {
+      await clearCustomKeyboardFont();
+      setCustomFontFile(null);
+      setCustomFontEnabled(false);
+      fontToggleAnim.setValue(0);
+      void Haptics.selectionAsync().catch(() => {});
+    } catch {
+      // ignore
+    }
+  };
+
+  const animateFontToggle = (enabled: boolean) => {
+    Animated.spring(fontToggleAnim, {
+      toValue: enabled ? 1 : 0,
+      useNativeDriver: true,
+      stiffness: 700,
+      damping: 28,
+      mass: 0.8,
+    }).start();
+  };
+
+  const toggleCustomFont = () => {
+    if (loading) return;
+    if (!customFontFile) {
+      Alert.alert('Import a font', 'Upload a .ttf or .otf file before enabling custom font.');
+      return;
+    }
+    const next = !customFontEnabled;
+    setCustomFontEnabled(next);
+    void updateKeyboardLayoutSetting('customFontEnabled', next);
+    animateFontToggle(next);
+    if (next) {
+      playSwitchOnSound();
+    } else {
+      playSwitchOffSound();
+    }
+    void Haptics.selectionAsync().catch(() => {});
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -784,6 +869,54 @@ export function ThemesScreen({onBack}: {onBack: () => void}) {
                   transform: [
                     {
                       translateX: toggleAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0, 18],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            />
+          </Pressable>
+        </View>
+
+        {/* Keyboard Font — same row style as Custom Tap Sound in Customize */}
+        <View style={styles.themeToggleContainer}>
+          <FontIcon width={20} height={20} color={C.text} />
+          <View style={styles.tapSoundTextCol}>
+            <Text style={styles.tapSoundTitle}>Keyboard Font</Text>
+            {customFontFile ? (
+              <Text style={styles.tapSoundFileName} numberOfLines={1}>
+                {customFontFile}
+              </Text>
+            ) : (
+              <Text style={styles.tapSoundHint}>
+                Upload .ttf / .otf for the whole keyboard
+              </Text>
+            )}
+          </View>
+          <Pressable
+            onPress={() => void handleImportKeyboardFont()}
+            disabled={loading || importingFont}
+            style={styles.tapSoundUploadBtn}
+            hitSlop={8}>
+            {importingFont ? (
+              <ActivityIndicator color={C.text} size="small" />
+            ) : (
+              <UploadIcon width={18} height={18} />
+            )}
+          </Pressable>
+          <Pressable
+            onPress={toggleCustomFont}
+            style={[styles.toggleTrack, customFontEnabled && styles.toggleTrackOn]}
+            disabled={loading || !customFontFile}>
+            <Animated.View
+              style={[
+                styles.toggleThumb,
+                {
+                  transform: [
+                    {
+                      translateX: fontToggleAnim.interpolate({
                         inputRange: [0, 1],
                         outputRange: [0, 18],
                       }),
@@ -1406,5 +1539,35 @@ const styles = StyleSheet.create({
   },
   toggleThumbOn: {
     // transform is now driven by Animated.Value for smooth slide
+  },
+
+  // Font section (in Themes)
+  fontHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  fontRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  fontTextCol: {
+    flex: 1,
+    marginLeft: 2,
+    paddingRight: 8,
+    gap: 2,
+  },
+  fontResetText: {
+    fontFamily: 'FragmentMono',
+    fontSize: 12,
+    color: C.red,
+    letterSpacing: TEXT_KERNING,
+  },
+  fontNote: {
+    fontFamily: 'FragmentMono',
+    fontSize: 11,
+    color: C.sub,
+    letterSpacing: TEXT_KERNING,
+    marginTop: 6,
   },
 });

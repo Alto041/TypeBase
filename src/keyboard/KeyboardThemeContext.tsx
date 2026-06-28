@@ -22,6 +22,7 @@ type KeyboardThemeProviderProps = {
   layoutSettings?: KeyboardLayoutSettings;
   customFontLoaded?: boolean;
   isLandscape?: boolean;
+  customUserFontFamily?: string | null;
   children: ReactNode;
 };
 
@@ -32,6 +33,7 @@ export function KeyboardThemeProvider({
   layoutSettings = DEFAULT_KEYBOARD_LAYOUT_SETTINGS,
   customFontLoaded = false,
   isLandscape = false,
+  customUserFontFamily,
   children,
 }: KeyboardThemeProviderProps) {
   const theme = useMemo(
@@ -43,6 +45,7 @@ export function KeyboardThemeProvider({
         layoutSettings,
         customFontLoaded,
         isLandscape,
+        customUserFontFamily,
       ),
     [
       customFontLoaded,
@@ -51,6 +54,7 @@ export function KeyboardThemeProvider({
       isLandscape,
       layoutSettings,
       scheme,
+      customUserFontFamily,
     ],
   );
 

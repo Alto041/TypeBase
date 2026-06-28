@@ -49,6 +49,10 @@ export type KeyboardLayoutSettings = {
   customTapSoundFile: string | null;
   /** When true, vibrate on each key press. */
   keyHapticEnabled: boolean;
+  /** When true, use a user-uploaded custom font for the keyboard. */
+  customFontEnabled: boolean;
+  /** Basename of the font file stored under keyboard_fonts/ (e.g. custom_keyboard_font.ttf). */
+  customFontFile: string | null;
 };
 
 export const DEFAULT_KEYBOARD_LAYOUT_SETTINGS: KeyboardLayoutSettings = {
@@ -65,6 +69,8 @@ export const DEFAULT_KEYBOARD_LAYOUT_SETTINGS: KeyboardLayoutSettings = {
   customTapSoundEnabled: true,
   customTapSoundFile: 'haptic.wav',
   keyHapticEnabled: true,
+  customFontEnabled: false,
+  customFontFile: null,
 };
 
 /** Touch slop into gaps — full visual gap so taps between keys snap to the nearest key. */
@@ -420,6 +426,7 @@ export function createKeyboardTheme(
   layout: KeyboardLayoutSettings = DEFAULT_KEYBOARD_LAYOUT_SETTINGS,
   customFontLoaded = false,
   isLandscape = false,
+  customUserFontFamily?: string | null,
 ) {
   let palette =
     design === 'custom'
@@ -531,7 +538,7 @@ export function createKeyboardTheme(
       4 * numpadKeyHeight +
       4 * layout.keyGap +
       imeStripClearance,
-    fontFamily: customFontLoaded ? ('Geist' as const) : undefined,
+    fontFamily: customUserFontFamily ?? (customFontLoaded ? ('Geist' as const) : undefined),
   };
 }
 
