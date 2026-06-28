@@ -9,6 +9,7 @@ import {
   DEFAULT_KEYBOARD_LAYOUT_SETTINGS,
   type KeyboardLayoutSettings,
 } from '../theme';
+import {normalizeControllerSettings} from '../controller/controllerSettings';
 
 export const KEYBOARD_LAYOUT_CHANGED_EVENT = 'keyboardLayoutChanged';
 
@@ -84,6 +85,11 @@ function normalizeLayout(raw: unknown): KeyboardLayoutSettings {
       typeof obj['customFontFile'] === 'string' && obj['customFontFile'].trim()
         ? obj['customFontFile'].trim()
         : defaults.customFontFile,
+    floatingKeyboardEnabled:
+      typeof obj['floatingKeyboardEnabled'] === 'boolean'
+        ? obj['floatingKeyboardEnabled']
+        : defaults.floatingKeyboardEnabled,
+    controller: normalizeControllerSettings(obj['controller']),
   };
 }
 

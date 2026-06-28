@@ -33,6 +33,10 @@ import {
   getKeyboardLayoutSettings,
   updateKeyboardLayoutSetting,
 } from './src/keyboard/settings/layoutStore';
+import {
+  DEFAULT_CONTROLLER_SETTINGS,
+  type ControllerSettings,
+} from './src/keyboard/controller/controllerSettings';
 
 const C = {
   bg: '#f2f2f4',
@@ -50,8 +54,10 @@ const TEXT_KERNING = -0.7;
 
 export function GeneralSettingsScreen({
   onBack,
+  onOpenConsole,
 }: {
   onBack: () => void;
+  onOpenConsole?: () => void;
 }) {
   const [uiSoundsEnabled, setUiSoundsEnabledState] = useState(true);
   const [keyHapticEnabled, setKeyHapticEnabledState] = useState(true);
@@ -59,6 +65,8 @@ export function GeneralSettingsScreen({
   const [letterSymbolAlternatesEnabled, setLetterSymbolAlternatesEnabledState] =
     useState(false);
   const [numberRowEnabled, setNumberRowEnabledState] = useState(false);
+  const [controllerSettings, setControllerSettings] =
+    useState<ControllerSettings>(DEFAULT_CONTROLLER_SETTINGS);
 
   const uiSoundsAnim = useRef(new Animated.Value(0)).current;
   const keyHapticAnim = useRef(new Animated.Value(0)).current;
@@ -85,6 +93,7 @@ export function GeneralSettingsScreen({
       symbolAlternatesAnim.setValue(layout.letterSymbolAlternatesEnabled ? 1 : 0);
       setNumberRowEnabledState(layout.numberRowEnabled ?? false);
       numberRowAnim.setValue(layout.numberRowEnabled ? 1 : 0);
+      setControllerSettings(layout.controller);
     });
   }, []);
 
@@ -162,10 +171,10 @@ export function GeneralSettingsScreen({
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <Text style={styles.pageTitle}>Settings</Text>
 
-        {/* Settings Stack */}
-        <View style={styles.stack}>
-          {/* Key Haptic Toggle */}
-          <View style={styles.rowCard}>
+        {/* Main keyboard settings — separate cards, tighter gaps, Nothing-style outer rounding */}
+        <View style={styles.mainSettingsStack}>
+          {/* Key Haptic Toggle — first card, more rounded top */}
+          <View style={[styles.rowCard, styles.firstSettingCard]}>
             <View style={styles.rowInner}>
               <HapticIcon width={ROW_ICON} height={ROW_ICON} color={C.text} />
               <Text style={styles.rowTitle}>Key Haptic</Text>
@@ -195,7 +204,7 @@ export function GeneralSettingsScreen({
           </View>
 
           {/* UI Sounds Toggle */}
-          <View style={styles.rowCard}>
+          <View style={[styles.rowCard, styles.middleSettingCard]}>
             <View style={styles.rowInner}>
               <GraphicEqIcon width={ROW_ICON} height={ROW_ICON} color={C.text} />
               <Text style={styles.rowTitle}>UI Sounds</Text>
@@ -225,7 +234,7 @@ export function GeneralSettingsScreen({
           </View>
 
           {/* Symbol long-press on letter keys */}
-          <View style={styles.rowCard}>
+          <View style={[styles.rowCard, styles.middleSettingCard]}>
             <View style={styles.rowInner}>
               <SymbolToggleIcon width={ROW_ICON} height={ROW_ICON} color={C.text} />
               <Text style={styles.rowTitle}>Extended Characters</Text>
@@ -256,8 +265,8 @@ export function GeneralSettingsScreen({
             </View>
           </View>
 
-          {/* Number Row Toggle */}
-          <View style={styles.rowCard}>
+          {/* Number Row Toggle — last card, more rounded bottom */}
+          <View style={[styles.rowCard, styles.lastSettingCard]}>
             <View style={styles.rowInner}>
               <NumberRowIcon width={ROW_ICON} height={ROW_ICON} color={C.text} />
               <Text style={styles.rowTitle}>Number Row</Text>
@@ -285,9 +294,12 @@ export function GeneralSettingsScreen({
               </View>
             </View>
           </View>
+        </View>
 
-          {/* Developer Eye Toggle */}
-          <View style={styles.rowCard}>
+        {/* Developer Eye + Console grouped (tighter, shared rounding) */}
+        <View style={styles.mainSettingsStack}>
+          {/* Developer Eye */}
+          <View style={[styles.rowCard, styles.firstSettingCard]}>
             <View style={styles.rowInner}>
               <DevIcon width={ROW_ICON} height={ROW_ICON} color={C.text} />
               <Text style={styles.rowTitle}>Developer Eye</Text>
@@ -315,6 +327,21 @@ export function GeneralSettingsScreen({
               </View>
             </View>
           </View>
+
+          {/* Console (no sublabel) */}
+          <Pressable
+            style={[styles.rowCard, styles.lastSettingCard]}
+            onPress={() => {
+              if (onOpenConsole) onOpenConsole();
+            }}>
+            <View style={styles.rowInner}>
+              <DevIcon width={ROW_ICON} height={ROW_ICON} color={C.text} />
+              <Text style={styles.rowTitle}>Console</Text>
+              <Text style={styles.rowValue}>
+                {controllerSettings.enabled ? 'On' : 'Off'}
+              </Text>
+            </View>
+          </Pressable>
         </View>
 
         {/* Community Stack */}
@@ -384,11 +411,15 @@ const styles = StyleSheet.create({
     fontSize: 40,
     color: C.text,
     marginBottom: 8,
-    letterSpacing: TEXT_KERNING,
+    letterSpacing: -2.5,
     fontFamily: 'FragmentMono',
   },
   stack: {
     gap: ROW_GAP,
+    marginBottom: ROW_GAP,
+  },
+  mainSettingsStack: {
+    gap: 4,
     marginBottom: ROW_GAP,
   },
   rowCard: {
@@ -396,6 +427,21 @@ const styles = StyleSheet.create({
     borderRadius: CARD_R,
     paddingHorizontal: 14,
     paddingVertical: 4,
+  },
+  firstSettingCard: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderBottomLeftRadius: 8,
+    borderBottomRightRadius: 8,
+  },
+  lastSettingCard: {
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+  },
+  middleSettingCard: {
+    borderRadius: 10,
   },
   rowCardStatic: {
     paddingVertical: 8,
@@ -411,6 +457,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'FragmentMono',
     textTransform: 'uppercase',
+    letterSpacing: TEXT_KERNING,
+  },
+  rowTextCol: {
+    flex: 1,
+    gap: 2,
+  },
+  rowHint: {
+    color: C.sub,
+    fontSize: 12,
+    fontFamily: 'FragmentMono',
     letterSpacing: TEXT_KERNING,
   },
   rowSubLabel: {

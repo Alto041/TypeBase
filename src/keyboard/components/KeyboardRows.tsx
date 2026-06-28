@@ -19,6 +19,7 @@ type SharedRowProps = {
   rowStyle?: StyleProp<ViewStyle>;
   enterKeyNextLineEnabled?: boolean;
   multiTouchDispatchEnabled?: boolean;
+  focusedKeyId?: string | null;
 };
 
 type KeyboardRowProps = SharedRowProps & {
@@ -86,6 +87,7 @@ function KeyboardRowComponent({
   rowStyle,
   enterKeyNextLineEnabled,
   multiTouchDispatchEnabled,
+  focusedKeyId,
 }: KeyboardRowProps) {
   const styles = useThemedStyles(createRowStyles);
   const shared: SharedRowProps = {
@@ -107,7 +109,10 @@ function KeyboardRowComponent({
         keyDef.type === 'spacer' ? (
           <View key={keyDef.id} style={{flex: keyDef.flex ?? 1}} />
         ) : (
-          renderRowKey(keyDef, shared, {flex: keyDef.flex ?? 1, minWidth: 0})
+          renderRowKey(keyDef, shared, [
+            {flex: keyDef.flex ?? 1, minWidth: 0},
+            focusedKeyId === keyDef.id && styles.focusedKey,
+          ])
         ),
       )}
     </View>
@@ -135,6 +140,13 @@ function createRowStyles(theme: KeyboardTheme) {
       marginBottom: theme.keyRowMargin,
       paddingHorizontal: theme.keyRowPaddingHorizontal,
       alignItems: 'stretch',
+    },
+    focusedKey: {
+      borderWidth: 2,
+      borderColor: theme.enter,
+      borderRadius: Math.max(6, theme.keyRadius + 2),
+      margin: -2,
+      padding: 2,
     },
   });
 }

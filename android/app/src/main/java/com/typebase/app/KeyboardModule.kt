@@ -47,6 +47,8 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   private var removeSupportsNewlineListener: (() -> Unit)? = null
   private var removeInitialCapsModeListener: (() -> Unit)? = null
   private var removeNativeFastPathKeyListener: (() -> Unit)? = null
+  private var removeControllerInputListener: (() -> Unit)? = null
+  private var removeControllerConnectionListener: (() -> Unit)? = null
   private var clipboardListener: ClipboardManager.OnPrimaryClipChangedListener? = null
   private val backspaceHandler = Handler(Looper.getMainLooper())
   private var backspaceHoldRunnable: Runnable? = null
@@ -125,6 +127,22 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
                 .emit("keyboardNativeFastPathKey", event)
           }
         }
+    removeControllerInputListener =
+        KeyboardInputBridge.addControllerInputListener { json ->
+          if (reactApplicationContext.hasActiveReactInstance()) {
+            reactApplicationContext
+                .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                .emit("keyboardControllerInput", json)
+          }
+        }
+    removeControllerConnectionListener =
+        KeyboardInputBridge.addControllerConnectionListener { connected ->
+          if (reactApplicationContext.hasActiveReactInstance()) {
+            reactApplicationContext
+                .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                .emit("keyboardControllerConnection", connected)
+          }
+        }
     try {
       val layoutJson =
           learnedWordsPrefs()
@@ -145,6 +163,18 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
                 .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
                 .emit("clipboardChanged", null)
           }
+
+          // Proactively snapshot any image currently on the system clipboard.
+          // We do this inside the OnPrimaryClipChanged callback (while any
+          // transient content URI grants from the copying app are still valid).
+          // This ensures copied images appear in the SuggestionBar's quick paste
+          // pill without requiring the user to first open the full clipboard panel.
+          val capturedImageJson = tryCaptureCurrentClipboardImage()
+          if (capturedImageJson != null && reactApplicationContext.hasActiveReactInstance()) {
+            reactApplicationContext
+                .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                .emit("clipboardImageCaptured", capturedImageJson)
+          }
         }
     clipboardManager.addPrimaryClipChangedListener(clipboardListener!!)
   }
@@ -164,6 +194,10 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     removeInitialCapsModeListener = null
     removeNativeFastPathKeyListener?.invoke()
     removeNativeFastPathKeyListener = null
+    removeControllerInputListener?.invoke()
+    removeControllerInputListener = null
+    removeControllerConnectionListener?.invoke()
+    removeControllerConnectionListener = null
     clipboardListener?.let { listener ->
       val clipboardManager =
           reactApplicationContext.getSystemService(Context.CLIPBOARD_SERVICE) as
@@ -286,7 +320,7 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
                 ?: clip.description?.getMimeType(0)
                 ?: "image/*"
         if (mimeType.startsWith("image/")) {
-          val saved = saveClipboardImage(uri, mimeType)
+          val saved = tryCaptureCurrentClipboardImage()
           if (saved != null) {
             promise.resolve(saved)
             return
@@ -762,6 +796,11 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   @ReactMethod
   fun setKeyboardHeight(heightDp: Int) {
     KeyboardInputBridge.setKeyboardHeightDp(heightDp)
+  }
+
+  @ReactMethod
+  fun setFloatingKeyboard(enabled: Boolean) {
+    KeyboardInputBridge.setFloatingKeyboard(enabled)
   }
 
   @ReactMethod
@@ -1655,6 +1694,36 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     return """{"kind":"image","imagePath":${JSONObject.quote(file.absolutePath)},"imageHash":${JSONObject.quote(hash)},"mimeType":${JSONObject.quote(mimeType)}}"""
   }
 
+  /**
+   * Attempt to read the current primary clip (if it holds an image URI) and
+   * persist a copy into our private clipboard_images dir. Returns the JSON
+   * description on success, or null. This is called from the clip listener
+   * while grants are fresh, and also from getClipboardContent.
+   */
+  private fun tryCaptureCurrentClipboardImage(): String? {
+    return try {
+      val manager =
+          reactApplicationContext.getSystemService(Context.CLIPBOARD_SERVICE) as
+              ClipboardManager
+      val clip = manager.primaryClip
+      if (clip == null || clip.itemCount == 0) {
+        return null
+      }
+      val item = clip.getItemAt(0)
+      val uri = item.uri ?: return null
+      val mimeType =
+          reactApplicationContext.contentResolver.getType(uri)
+              ?: clip.description?.getMimeType(0)
+              ?: "image/*"
+      if (!mimeType.startsWith("image/")) {
+        return null
+      }
+      saveClipboardImage(uri, mimeType)
+    } catch (_: Exception) {
+      null
+    }
+  }
+
   companion object {
     private const val PREFS_NAME = "typebase_keyboard"
     private const val LEARNED_WORDS_KEY = "learned_words"
@@ -1680,7 +1749,7 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     private const val KEYBOARD_LAYOUT_KEY = "keyboard_layout"
     private const val CUSTOM_LETTER_LAYOUTS_KEY = "custom_letter_layouts"
     private const val DEFAULT_KEYBOARD_LAYOUT =
-        """{"keyHeight":47,"keyGap":5,"keyRowMargin":12,"keyRadius":6,"enterKeyPreviewEnabled":true,"developerEyeEnabled":false,"letterSymbolAlternatesEnabled":false,"letterLayoutId":"en-us","keyHapticEnabled":true}"""
+        """{"keyHeight":47,"keyGap":5,"keyRowMargin":12,"keyRadius":6,"enterKeyPreviewEnabled":true,"developerEyeEnabled":false,"letterSymbolAlternatesEnabled":false,"letterLayoutId":"en-us","keyHapticEnabled":true,"floatingKeyboardEnabled":false}"""
     private const val DEFAULT_API_KEYS =
         """{"geminiApiKey":"","speechmaticsApiKey":""}"""
     private const val DEFAULT_GESTURE_SETTINGS =

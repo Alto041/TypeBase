@@ -1,4 +1,4 @@
-import React, {useMemo, useRef, useState} from 'react';
+import React, {memo, useMemo, useRef, useState} from 'react';
 import {
   Animated,
   Easing,
@@ -35,7 +35,7 @@ type ClipboardSwipeRowProps = {
   onTogglePin: (item: ClipboardItem) => void;
 };
 
-export function ClipboardSwipeRow({
+function ClipboardSwipeRowImpl({
   item,
   tileStyle,
   onSelect,
@@ -242,6 +242,22 @@ export function ClipboardSwipeRow({
     </Animated.View>
   );
 }
+
+export const ClipboardSwipeRow = memo(
+  ClipboardSwipeRowImpl,
+  (prev, next) => {
+    // Only re-render the row if the underlying item identity or action handlers change.
+    // We intentionally ignore tileStyle (new object each time) to avoid thrash.
+    if (prev.item.id !== next.item.id) return false;
+    if (prev.item.pinned !== next.item.pinned) return false;
+    if (prev.item.kind !== next.item.kind) return false;
+    return (
+      prev.onSelect === next.onSelect &&
+      prev.onDelete === next.onDelete &&
+      prev.onTogglePin === next.onTogglePin
+    );
+  },
+);
 
 function createClipboardSwipeStyles(theme: KeyboardTheme) {
   return StyleSheet.create({

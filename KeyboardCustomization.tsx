@@ -25,6 +25,7 @@ import ThemeIcon from './assets/theme.svg';
 import GraphicEqIcon from './assets/graphic_eq.svg';
 import UploadIcon from './assets/file-upload.svg';
 import FontIcon from './assets/font.svg';
+import KeyboardIcon from './assets/key.svg';
 
 import {playSwitchOffSound, playSwitchOnSound} from './src/app/switchSound';
 
@@ -81,12 +82,14 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
   const [importingTapSound, setImportingTapSound] = useState(false);
   const tapSoundAnim = useRef(new Animated.Value(0)).current;
   const enterKeyAnim = useRef(new Animated.Value(0)).current;
+  const floatingKeyboardAnim = useRef(new Animated.Value(0)).current;
 
   const syncTapSoundState = useCallback((nextLayout: KeyboardLayoutSettings) => {
     setLayout(current => ({...current, ...nextLayout}));
     tapSoundAnim.setValue(nextLayout.customTapSoundEnabled ? 1 : 0);
     enterKeyAnim.setValue(nextLayout.enterKeyPreviewEnabled ? 1 : 0);
-  }, [enterKeyAnim, tapSoundAnim]);
+    floatingKeyboardAnim.setValue(nextLayout.floatingKeyboardEnabled ? 1 : 0);
+  }, [enterKeyAnim, floatingKeyboardAnim, tapSoundAnim]);
 
   useEffect(() => {
     void ensureLayoutLoaded().then(() => {
@@ -94,6 +97,7 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
       setLayout(loaded);
       tapSoundAnim.setValue(loaded.customTapSoundEnabled ? 1 : 0);
       enterKeyAnim.setValue(loaded.enterKeyPreviewEnabled ? 1 : 0);
+      floatingKeyboardAnim.setValue(loaded.floatingKeyboardEnabled ? 1 : 0);
       setLoading(false);
     });
 
@@ -129,6 +133,7 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
     void setKeyboardLayoutSettings(DEFAULT_KEYBOARD_LAYOUT_SETTINGS);
     tapSoundAnim.setValue(DEFAULT_KEYBOARD_LAYOUT_SETTINGS.customTapSoundEnabled ? 1 : 0);
     enterKeyAnim.setValue(DEFAULT_KEYBOARD_LAYOUT_SETTINGS.enterKeyPreviewEnabled ? 1 : 0);
+    floatingKeyboardAnim.setValue(DEFAULT_KEYBOARD_LAYOUT_SETTINGS.floatingKeyboardEnabled ? 1 : 0);
   };
 
   const animateEnterKeyToggle = (enabled: boolean) => {
@@ -149,6 +154,29 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
     setLayout(current => ({...current, enterKeyPreviewEnabled: next}));
     void updateKeyboardLayoutSetting('enterKeyPreviewEnabled', next);
     animateEnterKeyToggle(next);
+    if (next) playSwitchOnSound();
+    else playSwitchOffSound();
+    void Haptics.selectionAsync().catch(() => {});
+  };
+
+  const animateFloatingKeyboardToggle = (enabled: boolean) => {
+    Animated.spring(floatingKeyboardAnim, {
+      toValue: enabled ? 1 : 0,
+      useNativeDriver: true,
+      stiffness: 700,
+      damping: 28,
+      mass: 0.8,
+    }).start();
+  };
+
+  const toggleFloatingKeyboard = () => {
+    if (loading) {
+      return;
+    }
+    const next = !layout.floatingKeyboardEnabled;
+    setLayout(current => ({...current, floatingKeyboardEnabled: next}));
+    void updateKeyboardLayoutSetting('floatingKeyboardEnabled', next);
+    animateFloatingKeyboardToggle(next);
     if (next) playSwitchOnSound();
     else playSwitchOffSound();
     void Haptics.selectionAsync().catch(() => {});
@@ -609,6 +637,39 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
                     transform: [
                       {
                         translateX: tapSoundAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0, 18],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              />
+            </Pressable>
+          </View>
+
+          <View style={styles.themeToggleContainer}>
+            <KeyboardIcon width={20} height={20} color={C.text} />
+            <View style={styles.tapSoundTextCol}>
+              <Text style={styles.tapSoundTitle}>Floating Keyboard</Text>
+              <Text style={styles.tapSoundHint}>
+                Use the same keyboard as a movable-style floating panel
+              </Text>
+            </View>
+            <Pressable
+              onPress={toggleFloatingKeyboard}
+              style={[
+                styles.toggleTrack,
+                layout.floatingKeyboardEnabled && styles.toggleTrackOn,
+              ]}
+              disabled={loading}>
+              <Animated.View
+                style={[
+                  styles.toggleThumb,
+                  {
+                    transform: [
+                      {
+                        translateX: floatingKeyboardAnim.interpolate({
                           inputRange: [0, 1],
                           outputRange: [0, 18],
                         }),

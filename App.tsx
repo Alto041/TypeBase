@@ -27,6 +27,7 @@ import SettingsIcon from './assets/settings.svg';
 
 import { CustomizeScreen, ThemesScreen } from './KeyboardCustomization';
 import { GeneralSettingsScreen } from './GeneralSettingsScreen';
+import { ConsoleSettingsScreen } from './ConsoleSettingsScreen';
 import { keyboardBridge } from './src/keyboard/keyboardBridge';
 import { AiConfigScreen } from './AiConfigScreen';
 import { OnboardingScreen } from './OnboardingScreen';
@@ -330,13 +331,17 @@ function SetupScreen() {
   const [tab, setTab] = useState<NavTab>('home');
   const [showAiConfig, setShowAiConfig] = useState(false);
   const [showLanguageLayout, setShowLanguageLayout] = useState(false);
+  const [showConsoleSettings, setShowConsoleSettings] = useState(false);
   const { animatedStyle, transitionTo } = useScreenTransition();
 
   const changeTab = (next: NavTab) => {
     if (next === tab) {
       return;
     }
-    transitionTo(() => setTab(next));
+    transitionTo(() => {
+      setTab(next);
+      setShowConsoleSettings(false);
+    });
   };
 
   const openAiConfig = () => {
@@ -355,6 +360,14 @@ function SetupScreen() {
     transitionTo(() => setShowLanguageLayout(false));
   };
 
+  const openConsoleSettings = () => {
+    transitionTo(() => setShowConsoleSettings(true));
+  };
+
+  const closeConsoleSettings = () => {
+    transitionTo(() => setShowConsoleSettings(false));
+  };
+
   if (showAiConfig) {
     return (
       <View style={styles.setupRoot}>
@@ -371,11 +384,20 @@ function SetupScreen() {
     );
   }
 
+  if (showConsoleSettings) {
+    return (
+      <View style={styles.setupRoot}>
+        <ConsoleSettingsScreen onBack={closeConsoleSettings} />
+      </View>
+    );
+  }
+
   const screenForTab = (): React.ReactNode => {
     if (tab === 'settings') {
       return (
         <GeneralSettingsScreen
           onBack={() => changeTab('home')}
+          onOpenConsole={openConsoleSettings}
         />
       );
     }

@@ -40,12 +40,18 @@ import {
   captureSystemClipboard,
   deleteClipboardItem,
   ensureClipboardLoaded,
+  ensureMediaPermissionForClipboard,
   getClipboardItems,
   importRecentScreenshots,
   toggleClipboardPin,
 } from './clipboard/clipboardStore';
 import type {ClipboardItem} from './clipboard/types';
 import {useClipboardPasteSuggestion} from './clipboard/useClipboardPasteSuggestion';
+import type {
+  ControllerAction,
+  ControllerButton,
+  ControllerSettings,
+} from './controller/controllerSettings';
 import {EssentialsListPanel} from './essentials/EssentialsListPanel';
 import {ItemsMenuPanel} from './essentials/ItemsMenuPanel';
 import {
@@ -119,7 +125,7 @@ import {
 } from './gestures/gesturesStore';
 import type {GestureSettings, LaunchableApp} from './gestures/types';
 import {ensureSwipeWordDictionaryLoaded} from './gesture/wordDictionary';
-import {deferKeyboardSideEffect} from './haptics';
+import {deferKeyboardSideEffect, triggerKeyHaptic} from './haptics';
 import {keyboardBridge} from './keyboardBridge';
 import {
   CUSTOM_LAYOUTS_CHANGED_EVENT,
@@ -222,6 +228,99 @@ function getAiAutocorrectContextMatch(
   };
 }
 
+type ControllerFocus = {row: number; col: number};
+
+type NativeControllerInput =
+  | {kind: 'key'; action: 'down' | 'up'; key: string; keyCode?: number}
+  | {kind: 'axis'; direction: 'up' | 'down' | 'left' | 'right'};
+
+function isFocusableKey(key: KeyDefinition | undefined): key is KeyDefinition {
+  return Boolean(key && key.type !== 'spacer');
+}
+
+function normalizeControllerFocus(
+  rows: KeyDefinition[][],
+  focus: ControllerFocus,
+): ControllerFocus {
+  const row = Math.max(0, Math.min(rows.length - 1, focus.row));
+  const targetRow = rows[row] ?? [];
+  if (targetRow.length === 0) {
+    return {row: 0, col: 0};
+  }
+  let col = Math.max(0, Math.min(targetRow.length - 1, focus.col));
+  if (isFocusableKey(targetRow[col])) {
+    return {row, col};
+  }
+  for (let offset = 1; offset < targetRow.length; offset += 1) {
+    const right = col + offset;
+    const left = col - offset;
+    if (isFocusableKey(targetRow[right])) return {row, col: right};
+    if (isFocusableKey(targetRow[left])) return {row, col: left};
+  }
+  return {row, col: 0};
+}
+
+function moveControllerFocus(
+  rows: KeyDefinition[][],
+  focus: ControllerFocus,
+  direction: 'up' | 'down' | 'left' | 'right',
+): ControllerFocus {
+  const normalized = normalizeControllerFocus(rows, focus);
+  if (direction === 'left' || direction === 'right') {
+    const row = rows[normalized.row] ?? [];
+    const step = direction === 'right' ? 1 : -1;
+    for (
+      let col = normalized.col + step;
+      col >= 0 && col < row.length;
+      col += step
+    ) {
+      if (isFocusableKey(row[col])) {
+        return {row: normalized.row, col};
+      }
+    }
+    return normalized;
+  }
+
+  const step = direction === 'down' ? 1 : -1;
+  for (
+    let row = normalized.row + step;
+    row >= 0 && row < rows.length;
+    row += step
+  ) {
+    const candidate = normalizeControllerFocus(rows, {
+      row,
+      col: normalized.col,
+    });
+    if (isFocusableKey(rows[candidate.row]?.[candidate.col])) {
+      return candidate;
+    }
+  }
+  return normalized;
+}
+
+function parseControllerInput(raw: unknown): NativeControllerInput | null {
+  if (typeof raw !== 'string') {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(raw) as NativeControllerInput;
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function controllerActionForButton(
+  settings: ControllerSettings,
+  key: string,
+): ControllerAction | null {
+  const button = key as ControllerButton;
+  const entries = Object.entries(settings.mappings) as Array<
+    [ControllerAction, ControllerButton]
+  >;
+  return entries.find(([, mapped]) => mapped === button)?.[0] ?? null;
+}
+
 type LetterKeyboardRowsProps = {
   rows: KeyDefinition[][];
   layout: KeyboardLayout;
@@ -238,6 +337,7 @@ type LetterKeyboardRowsProps = {
   rowStyle?: StyleProp<ViewStyle>;
   enterKeyNextLineEnabled: boolean;
   multiTouchEnabled?: boolean;
+  focusedKeyId?: string | null;
 };
 
 const LetterKeyboardRows = React.memo(function LetterKeyboardRows({
@@ -256,6 +356,7 @@ const LetterKeyboardRows = React.memo(function LetterKeyboardRows({
   rowStyle,
   enterKeyNextLineEnabled,
   multiTouchEnabled,
+  focusedKeyId,
 }: LetterKeyboardRowsProps) {
   const theme = useKeyboardTheme();
   const styles = useThemedStyles(createKeyboardAppStyles);
@@ -290,6 +391,7 @@ const LetterKeyboardRows = React.memo(function LetterKeyboardRows({
           ]}
           enterKeyNextLineEnabled={enterKeyNextLineEnabled}
           multiTouchDispatchEnabled={multiTouchActive}
+          focusedKeyId={focusedKeyId}
         />
       ))}
     </SwipeTypingKeysHost>
@@ -331,7 +433,15 @@ function computeTypingSuggestionBar(
   };
 }
 
-function KeyboardBody() {
+type KeyboardBodyProps = {
+  controllerConnected: boolean;
+  controllerSettings: ControllerSettings;
+};
+
+function KeyboardBody({
+  controllerConnected,
+  controllerSettings,
+}: KeyboardBodyProps) {
   const theme = useKeyboardTheme();
   const layoutContext = useKeyLayoutContext();
   const styles = useThemedStyles(createKeyboardAppStyles);
@@ -367,7 +477,6 @@ function KeyboardBody() {
   const isUppercaseRef = useRef(false);
   const clipboardPasteSuggestionRef =
     useRef<ReturnType<typeof useClipboardPasteSuggestion>['clipboardPasteSuggestion']>(null);
-  const mediaImagesPermissionPromptedRef = useRef(false);
   const [prefersNumpad, setPrefersNumpad] = useState(false);
   const [inputInitialCapsMode, setInputInitialCapsMode] = useState(false);
   // Live offset used only while the resize overlay is active.
@@ -424,6 +533,7 @@ function KeyboardBody() {
   const {
     clipboardPasteSuggestion,
     clearClipboardPasteSuggestion,
+    refreshClipboardPasteSuggestion,
   } = useClipboardPasteSuggestion({enabled: clipboardPasteEnabled});
 
   const emojiCategoryRef = useRef<EmojiCategoryId>(DEFAULT_EMOJI_CATEGORY);
@@ -484,6 +594,8 @@ function KeyboardBody() {
     layout === 'letters' &&
     mode.type === 'typing' &&
     !isSwipeTypingDisabledForLayout(theme.letterLayoutId);
+  const controllerKeyboardActive =
+    controllerSettings.enabled && controllerConnected && theme.isLandscape;
 
   const [customLayoutsTick, setCustomLayoutsTick] = useState(0);
 
@@ -494,6 +606,17 @@ function KeyboardBody() {
     }
     return baseRows;
   }, [layout, theme.letterLayoutId, customLayoutsTick, theme.numberRowEnabled]);
+  const [controllerFocus, setControllerFocus] = useState<ControllerFocus>({
+    row: 0,
+    col: 0,
+  });
+  const controllerFocusRef = useRef(controllerFocus);
+  const rowsRef = useRef(rows);
+  rowsRef.current = rows;
+  controllerFocusRef.current = controllerFocus;
+  const normalizedControllerFocus = normalizeControllerFocus(rows, controllerFocus);
+  const focusedControllerKey =
+    rows[normalizedControllerFocus.row]?.[normalizedControllerFocus.col];
 
   // Effective key height for letters when using keyboard resize (or persisted offset).
   // Positive offset: make keys taller → the rows block occupies more vertical space from the bottom,
@@ -637,10 +760,21 @@ function KeyboardBody() {
   }, []);
 
   const reloadClipboard = useCallback(async () => {
-    await ensureClipboardLoaded();
-    await importRecentScreenshots().catch(() => 0);
+    // Make delete/pin etc. feel instant: the in-memory list was already
+    // mutated by the specific operation; reflect it right away.
     setClipboardItems(getClipboardItems());
-  }, []);
+    refreshClipboardPasteSuggestion?.();
+
+    // Pull in any new external clipboard/screenshots in the background.
+    // The import is now cheap when called repeatedly thanks to the recency
+    // guard inside importRecentScreenshots.
+    void (async () => {
+      await ensureClipboardLoaded().catch(() => {});
+      await importRecentScreenshots().catch(() => 0);
+      setClipboardItems(getClipboardItems());
+      refreshClipboardPasteSuggestion?.();
+    })();
+  }, [refreshClipboardPasteSuggestion]);
 
   const resetCase = useCallback(() => {
     shiftOnRef.current = false;
@@ -901,6 +1035,16 @@ function KeyboardBody() {
     resetCase();
   }, [resetCase]);
 
+  const toggleFloatingKeyboardFromPlugins = useCallback(() => {
+    const next = !theme.floatingKeyboardEnabled;
+    const effective = next && !controllerKeyboardActive;
+    keyboardBridge.setFloatingKeyboard(effective);
+    void updateKeyboardLayoutSetting('floatingKeyboardEnabled', next);
+    setMode({type: 'typing'});
+    setLayout('letters');
+    resetCase();
+  }, [controllerKeyboardActive, resetCase, theme.floatingKeyboardEnabled]);
+
   const openResize = useCallback(() => {
     setMode({type: 'resize'});
     setLayout('letters');
@@ -1001,24 +1145,34 @@ function KeyboardBody() {
     [],
   );
 
-  const openClipboard = useCallback(async () => {
-    if (!mediaImagesPermissionPromptedRef.current) {
-      const hasMediaPermission = await keyboardBridge
-        .hasMediaImagesPermission()
-        .catch(() => false);
-      if (!hasMediaPermission) {
-        mediaImagesPermissionPromptedRef.current = true;
-        await keyboardBridge.openAppForMediaImagesPermission().catch(() => false);
-      }
-    }
-    await ensureClipboardLoaded();
-    await captureSystemClipboard();
-    await importRecentScreenshots({bumpExisting: true}).catch(() => 0);
+  const openClipboard = useCallback(() => {
+    // Start the (one-time) media permission prompt flow immediately if needed,
+    // but *do not await it*. We want the clipboard panel to appear instantly.
+    void ensureMediaPermissionForClipboard().catch(() => {});
+
+    // Render the panel right now using whatever is already in the in-memory
+    // clipboard store (populated at startup or by previous sessions). This is
+    // the main thing that makes "open clipboard" feel fast.
     setClipboardItems(getClipboardItems());
+    // Also refresh the quick-paste suggestion pill state while we're at it.
+    refreshClipboardPasteSuggestion?.();
+
     setMode({type: 'clipboard'});
     setLayout('letters');
     resetCase();
-  }, [resetCase]);
+
+    // Heavy lifting (ensure persisted, capture current system clip which may
+    // materialize an image, and import recent screenshots which may read+hash
+    // several files) happens in the background. When done we patch the items
+    // list so the panel updates live with any newly discovered content.
+    void (async () => {
+      await ensureClipboardLoaded().catch(() => {});
+      await captureSystemClipboard().catch(() => null);
+      await importRecentScreenshots({bumpExisting: true}).catch(() => 0);
+      setClipboardItems(getClipboardItems());
+      refreshClipboardPasteSuggestion?.();
+    })();
+  }, [refreshClipboardPasteSuggestion, resetCase]);
 
   const toggleEmojiPanel = useCallback(async () => {
     if (mode.type === 'emoji') {
@@ -1583,6 +1737,8 @@ function KeyboardBody() {
           );
 
     keyboardBridge.setKeyboardHeight(finalHeight);
+    const effectiveFloating = theme.floatingKeyboardEnabled && !controllerKeyboardActive;
+    keyboardBridge.setFloatingKeyboard(effectiveFloating);
 
     // IMPORTANT for smooth resize drag:
     // Do NOT remeasure keys on every live offset change while the resize overlay is active.
@@ -1597,6 +1753,7 @@ function KeyboardBody() {
     }
     return undefined;
   }, [
+    controllerKeyboardActive,
     isResizeMode,
     layout,
     layoutContext,
@@ -1616,6 +1773,10 @@ function KeyboardBody() {
     );
     return () => subscription.remove();
   }, [layoutContext]);
+
+  useEffect(() => {
+    setControllerFocus(current => normalizeControllerFocus(rows, current));
+  }, [rows]);
 
   const appendToFormField = useCallback(
     (text: string) => {
@@ -1685,7 +1846,7 @@ function KeyboardBody() {
         refreshSuggestions();
       });
     },
-    [essentialTriggerLength, refreshSuggestions],
+    [essentialTriggerLength, markTyping, refreshSuggestions],
   );
 
   const handleSuggestionSelect = useCallback(
@@ -1738,6 +1899,7 @@ function KeyboardBody() {
       autocorrectPreview,
       capsLocked,
       currentPrefix,
+      markTyping,
       refreshSuggestions,
       scheduleAiProofread,
       shiftOn,
@@ -1773,6 +1935,27 @@ function KeyboardBody() {
     markTyping,
     scheduleRefreshSuggestions,
   ]);
+
+  const handleClipboardSelect = useCallback((item: ClipboardItem) => {
+    if (item.kind === 'image' && item.imageUri) {
+      void keyboardBridge
+        .insertClipboardImage(item.imageUri)
+        .then(() => closeItemsFlow());
+      return;
+    }
+    if (item.text) {
+      keyboardBridge.insertText(item.text);
+    }
+    closeItemsFlow();
+  }, [closeItemsFlow]);
+
+  const handleClipboardDelete = useCallback((item: ClipboardItem) => {
+    void deleteClipboardItem(item.id).then(reloadClipboard);
+  }, [reloadClipboard]);
+
+  const handleClipboardTogglePin = useCallback((item: ClipboardItem) => {
+    void toggleClipboardPin(item.id).then(reloadClipboard);
+  }, [reloadClipboard]);
 
   const handleKeyPressImpl = useCallback(
     (keyDef: KeyDefinition) => {
@@ -1986,6 +2169,98 @@ function KeyboardBody() {
     handleKeyPressRef.current(keyDef);
   }, [markTyping]);
 
+  const pressFocusedControllerKey = useCallback(() => {
+    const focus = normalizeControllerFocus(rowsRef.current, controllerFocusRef.current);
+    const keyDef = rowsRef.current[focus.row]?.[focus.col];
+    if (isFocusableKey(keyDef)) {
+      handleKeyPress(keyDef);
+    }
+  }, [handleKeyPress]);
+
+  const handleControllerDirection = useCallback(
+    (direction: 'up' | 'down' | 'left' | 'right') => {
+      setControllerFocus(current =>
+        moveControllerFocus(rowsRef.current, current, direction),
+      );
+      triggerKeyHaptic();
+    },
+    [],
+  );
+
+  const handleControllerAction = useCallback(
+    (action: ControllerAction) => {
+      switch (action) {
+        case 'toggleKeyboard':
+          keyboardBridge.dismissKeyboard();
+          return;
+        case 'submitText':
+          keyboardBridge.submitEnterKey();
+          return;
+        case 'backspace':
+          handleKeyPress({id: 'backspace', label: '⌫', type: 'backspace'});
+          return;
+        case 'enter':
+          handleKeyPress({id: 'enter', label: '↵', type: 'enter'});
+          return;
+        case 'clickKey':
+        case 'selectKey':
+          pressFocusedControllerKey();
+          return;
+        default:
+          return;
+      }
+    },
+    [handleKeyPress, pressFocusedControllerKey],
+  );
+
+  useEffect(() => {
+    if (!controllerKeyboardActive) {
+      return;
+    }
+    const subscription = DeviceEventEmitter.addListener(
+      'keyboardControllerInput',
+      (raw: unknown) => {
+        const event = parseControllerInput(raw);
+        if (!event) {
+          return;
+        }
+        if (event.kind === 'axis') {
+          handleControllerDirection(event.direction);
+          return;
+        }
+        if (event.action !== 'down') {
+          return;
+        }
+        switch (event.key) {
+          case 'dpad_up':
+            handleControllerDirection('up');
+            return;
+          case 'dpad_down':
+            handleControllerDirection('down');
+            return;
+          case 'dpad_left':
+            handleControllerDirection('left');
+            return;
+          case 'dpad_right':
+            handleControllerDirection('right');
+            return;
+          default: {
+            const action = controllerActionForButton(controllerSettings, event.key);
+            if (action) {
+              handleControllerAction(action);
+            }
+          }
+        }
+      },
+    );
+    return () => subscription.remove();
+  }, [
+    controllerKeyboardActive,
+    controllerSettings,
+    handleControllerAction,
+    handleControllerDirection,
+  ]);
+
   const applyCommittedKeyTextSideEffects = useCallback(
     (text: string) => {
       if (layoutRef.current === 'letters' && modeRef.current.type === 'typing') {
@@ -2097,7 +2372,7 @@ function KeyboardBody() {
         void refreshSuggestions();
       });
     },
-    [capsLocked, clearClipboardPasteSuggestion, refreshSuggestions, shiftOn],
+    [capsLocked, clearClipboardPasteSuggestion, markTyping, refreshSuggestions, shiftOn],
   );
 
   const handleUndo = useCallback(() => {
@@ -2591,12 +2866,12 @@ function KeyboardBody() {
                         : mode.type === 'touchpad'
                           ? 'Touchpad'
                           : mode.type === 'translate'
-                          ? 'Translate'
-                          : mode.type === 'rewrite'
-                            ? 'Rewrite'
-                            : mode.type === 'format'
-                              ? 'Format'
-                              : undefined
+                            ? 'Translate'
+                            : mode.type === 'rewrite'
+                              ? 'Rewrite'
+                              : mode.type === 'format'
+                                ? 'Format'
+                                : undefined
           }
           trailingAction={
             isEssentialsListMode
@@ -2662,6 +2937,8 @@ function KeyboardBody() {
               onSelectResize={() => {
                 openResize();
               }}
+              onToggleFloatingKeyboard={toggleFloatingKeyboardFromPlugins}
+              floatingKeyboardEnabled={theme.floatingKeyboardEnabled}
             />
           ) : null}
 
@@ -2711,24 +2988,9 @@ function KeyboardBody() {
           {mode.type === 'clipboard' ? (
             <ClipboardProPanel
               items={clipboardItems}
-              onSelect={item => {
-                if (item.kind === 'image' && item.imageUri) {
-                  void keyboardBridge
-                    .insertClipboardImage(item.imageUri)
-                    .then(() => closeItemsFlow());
-                  return;
-                }
-                if (item.text) {
-                  keyboardBridge.insertText(item.text);
-                }
-                closeItemsFlow();
-              }}
-              onDelete={item => {
-                void deleteClipboardItem(item.id).then(reloadClipboard);
-              }}
-              onTogglePin={item => {
-                void toggleClipboardPin(item.id).then(reloadClipboard);
-              }}
+              onSelect={handleClipboardSelect}
+              onDelete={handleClipboardDelete}
+              onTogglePin={handleClipboardTogglePin}
             />
           ) : null}
 
@@ -2808,6 +3070,11 @@ function KeyboardBody() {
               enterKeyNextLineEnabled={
                 mode.type === 'typing' ? enterKeyNextLineEnabled : false
               }
+              focusedKeyId={
+                controllerKeyboardActive && showKeys
+                  ? focusedControllerKey?.id
+                  : null
+              }
             />
           ) : null}
         </View>
@@ -2831,6 +3098,7 @@ export default function KeyboardApp() {
   const [layoutSettings, setLayoutSettings] = useState<KeyboardLayoutSettings>(
     DEFAULT_KEYBOARD_LAYOUT_SETTINGS,
   );
+  const [controllerConnected, setControllerConnected] = useState(false);
   const [themeReady, setThemeReady] = useState(false);
   const [customUserFontFamily, setCustomUserFontFamily] = useState<string | null>(null);
 
@@ -2880,11 +3148,25 @@ export default function KeyboardApp() {
         preloadActiveDictionary().catch(() => undefined);
       },
     );
+    const controllerSubscription = DeviceEventEmitter.addListener(
+      'keyboardControllerConnection',
+      (connected: unknown) => {
+        setControllerConnected(connected === true);
+      },
+    );
+    const controllerInputSubscription = DeviceEventEmitter.addListener(
+      'keyboardControllerInput',
+      () => {
+        setControllerConnected(true);
+      },
+    );
     return () => {
       schemeSubscription.remove();
       designSubscription.remove();
       customThemeSubscription.remove();
       layoutSubscription.remove();
+      controllerSubscription.remove();
+      controllerInputSubscription.remove();
     };
   }, []);
 
@@ -2913,7 +3195,7 @@ export default function KeyboardApp() {
         if (!cancelled) {
           setCustomUserFontFamily('CustomKeyboardFont');
         }
-      } catch (err) {
+      } catch {
         // If loading fails (corrupt file, unsupported format, etc.), fall back gracefully.
         if (!cancelled) setCustomUserFontFamily(null);
       }
@@ -2945,7 +3227,10 @@ export default function KeyboardApp() {
       customUserFontFamily={customUserFontFamily}
     >
       <KeyLayoutProvider layoutSettings={effectiveLayoutSettings}>
-        <KeyboardBody />
+        <KeyboardBody
+          controllerConnected={controllerConnected}
+          controllerSettings={layoutSettings.controller}
+        />
       </KeyLayoutProvider>
     </KeyboardThemeProvider>
   );

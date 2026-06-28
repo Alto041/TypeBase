@@ -4,6 +4,7 @@ import {
   fetchClipboardPasteSuggestion,
   type ClipboardPasteSuggestion,
 } from './clipboardPasteSuggestion';
+import {addClipboardImage} from './clipboardStore';
 
 type UseClipboardPasteSuggestionOptions = {
   enabled: boolean;
@@ -87,10 +88,44 @@ export function useClipboardPasteSuggestion({
       setSuggestion(null);
     });
 
+    // When native proactively snapshots a clipboard image (in the clip listener,
+    // while grants are fresh), it emits the saved local path/hash. We add it
+    // directly to the store (using our owned file) so that the suggestion bar
+    // can surface the image immediately without waiting for (or depending on)
+    // a later captureSystemClipboard that might no longer have URI access.
+    const capturedSub = DeviceEventEmitter.addListener(
+      'clipboardImageCaptured',
+      (raw: unknown) => {
+        if (typeof raw !== 'string' || !raw) return;
+        try {
+          const data = JSON.parse(raw) as {
+            kind?: string;
+            imagePath?: string;
+            imageHash?: string;
+            mimeType?: string;
+          };
+          if (data?.kind === 'image' && data.imagePath && data.imageHash) {
+            dismissedRef.current = false;
+            void addClipboardImage(
+              data.imagePath,
+              data.imageHash,
+              data.mimeType,
+              {bumpExisting: true},
+            ).then(() => {
+              void refresh();
+            });
+          }
+        } catch {
+          // ignore malformed payloads
+        }
+      },
+    );
+
     return () => {
       clipboardSub.remove();
       shownSub.remove();
       hiddenSub.remove();
+      capturedSub.remove();
     };
   }, [enabled, refresh, resetForKeyboardSession]);
 

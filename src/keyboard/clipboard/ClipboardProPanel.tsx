@@ -1,9 +1,8 @@
-import React from 'react';
-import {Text, View, type ViewStyle} from 'react-native';
+import React, {useCallback} from 'react';
+import {FlatList, Text, View, type ViewStyle} from 'react-native';
 import {
   PLUGIN_INNER_RADIUS,
   PLUGIN_OUTER_RADIUS,
-  PluginScrollView,
   usePluginPanelStyles,
 } from '../components/pluginPanelLayout';
 import {ClipboardSwipeRow} from './ClipboardSwipeRow';
@@ -63,29 +62,49 @@ export function ClipboardProPanel({
 }: ClipboardProPanelProps) {
   const panelStyles = usePluginPanelStyles();
 
+  const renderItem = useCallback(
+    ({item, index}: {item: ClipboardItem; index: number}) => {
+      const tileStyle = getTileStyle(index, items.length);
+      return (
+        <ClipboardSwipeRow
+          item={item}
+          tileStyle={tileStyle}
+          onSelect={onSelect}
+          onDelete={onDelete}
+          onTogglePin={onTogglePin}
+        />
+      );
+    },
+    [items.length, onSelect, onDelete, onTogglePin],
+  );
+
+  const keyExtractor = useCallback((item: ClipboardItem) => item.id, []);
+
   return (
     <View style={panelStyles.container}>
-      <PluginScrollView>
-        {items.length === 0 ? (
+      <FlatList
+        data={items}
+        keyExtractor={keyExtractor}
+        renderItem={renderItem}
+        style={panelStyles.list}
+        contentContainerStyle={panelStyles.listContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        nestedScrollEnabled
+        initialNumToRender={6}
+        windowSize={6}
+        maxToRenderPerBatch={6}
+        updateCellsBatchingPeriod={30}
+        removeClippedSubviews
+        ListEmptyComponent={
           <View style={panelStyles.emptyState}>
             <Text style={panelStyles.emptyTitle}>No clipboard history</Text>
             <Text style={panelStyles.emptyHint}>
               Copy text or images in any app and they will appear here.
             </Text>
           </View>
-        ) : (
-          items.map((item, index) => (
-            <ClipboardSwipeRow
-              key={item.id}
-              item={item}
-              tileStyle={getTileStyle(index, items.length)}
-              onSelect={onSelect}
-              onDelete={onDelete}
-              onTogglePin={onTogglePin}
-            />
-          ))
-        )}
-      </PluginScrollView>
+        }
+      />
     </View>
   );
 }

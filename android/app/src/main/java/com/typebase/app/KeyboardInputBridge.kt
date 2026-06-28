@@ -48,6 +48,11 @@ object KeyboardInputBridge {
   private val initialCapsModeListeners = CopyOnWriteArrayList<(Boolean) -> Unit>()
   private val nativeFastPathKeyListeners =
       CopyOnWriteArrayList<(String, String, String, String) -> Unit>()
+  private val controllerInputListeners = CopyOnWriteArrayList<(String) -> Unit>()
+  private val controllerConnectionListeners = CopyOnWriteArrayList<(Boolean) -> Unit>()
+
+  @Volatile
+  private var controllerConnected: Boolean = false
 
   @Volatile
   private var initialCapsMode: Boolean = false
@@ -147,6 +152,10 @@ object KeyboardInputBridge {
     inputService?.setKeyboardHeightDp(heightDp)
   }
 
+  fun setFloatingKeyboard(enabled: Boolean) {
+    inputService?.setFloatingKeyboardEnabled(enabled)
+  }
+
   fun setNativeKeyFastPathConfig(json: String) {
     inputService?.setNativeKeyFastPathConfig(json)
   }
@@ -157,8 +166,10 @@ object KeyboardInputBridge {
     try {
       val layout = JSONObject(json)
       keyHapticEnabled = layout.optBoolean("keyHapticEnabled", true)
+      setFloatingKeyboard(layout.optBoolean("floatingKeyboardEnabled", false))
     } catch (_: Exception) {
       keyHapticEnabled = true
+      setFloatingKeyboard(false)
     }
   }
 
@@ -227,6 +238,26 @@ object KeyboardInputBridge {
   ): () -> Unit {
     nativeFastPathKeyListeners.add(listener)
     return { nativeFastPathKeyListeners.remove(listener) }
+  }
+
+  fun notifyControllerInput(json: String) {
+    controllerInputListeners.forEach { listener -> listener(json) }
+  }
+
+  fun addControllerInputListener(listener: (String) -> Unit): () -> Unit {
+    controllerInputListeners.add(listener)
+    return { controllerInputListeners.remove(listener) }
+  }
+
+  fun notifyControllerConnection(connected: Boolean) {
+    controllerConnected = connected
+    controllerConnectionListeners.forEach { listener -> listener(connected) }
+  }
+
+  fun addControllerConnectionListener(listener: (Boolean) -> Unit): () -> Unit {
+    controllerConnectionListeners.add(listener)
+    listener(controllerConnected)
+    return { controllerConnectionListeners.remove(listener) }
   }
 
   fun setSupportsNewline(supports: Boolean) {

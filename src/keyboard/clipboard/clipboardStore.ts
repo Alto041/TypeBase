@@ -9,6 +9,7 @@ const items = new Map<string, ClipboardItem>();
 
 let loadPromise: Promise<void> | null = null;
 let lastScreenshotImportAt = 0;
+let mediaPermissionPrompted = false;
 
 function createId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -120,6 +121,23 @@ export function getClipboardItems(): ClipboardItem[] {
   return sortItems(Array.from(items.values()));
 }
 
+/**
+ * Ensure the user has been prompted (once) for media images permission so that
+ * recent screenshots can be imported into clipboard history. This is called
+ * from both the explicit clipboard panel and from the suggestion bar fetch
+ * path so that screenshot paste suggestions work without first opening the panel.
+ */
+export async function ensureMediaPermissionForClipboard(): Promise<void> {
+  if (mediaPermissionPrompted) {
+    return;
+  }
+  mediaPermissionPrompted = true;
+  const has = await keyboardBridge.hasMediaImagesPermission().catch(() => false);
+  if (!has) {
+    await keyboardBridge.openAppForMediaImagesPermission().catch(() => false);
+  }
+}
+
 export async function captureSystemClipboard(): Promise<ClipboardItem | null> {
   const content = await keyboardBridge.getClipboardContent();
   if (content.kind === 'text') {
@@ -200,7 +218,15 @@ export async function importRecentScreenshots(
   if (!hasMediaPermission) {
     return 0;
   }
+
   const now = Date.now();
+  // Fast path: if we did a bump import very recently, skip the MediaStore
+  // query + any re-reads/hashes of screenshots. The panel will use cached
+  // items instantly; a slightly later refresh can pick up anything missed.
+  if (options.bumpExisting && lastScreenshotImportAt > 0 && now - lastScreenshotImportAt < 2000) {
+    return 0;
+  }
+
   const sinceMs =
     options.bumpExisting
       ? now - SCREENSHOT_LOOKBACK_MS
@@ -214,22 +240,42 @@ export async function importRecentScreenshots(
   );
   lastScreenshotImportAt = now;
 
+  // Collect mutations without per-item persist (the previous per-item
+  // addClipboardImage was causing N full history serializes + writes).
+  let touched = false;
   let imported = 0;
+
   // MediaStore returns newest first; insert/update oldest first so the newest
   // screenshot lands at the top of clipboard history.
   for (const screenshot of [...screenshots].reverse()) {
     const before = getClipboardItems().find(
       item => item.kind === 'image' && item.imageHash === screenshot.imageHash,
     );
-    await addClipboardImage(
-      screenshot.imagePath,
-      screenshot.imageHash,
-      screenshot.mimeType,
-      {bumpExisting: options.bumpExisting ?? false},
-    );
-    if (!before) {
+    if (before) {
+      if (options.bumpExisting !== false) {
+        const updated: ClipboardItem = {...before, createdAt: Date.now()};
+        items.set(before.id, updated);
+        touched = true;
+      }
+    } else {
+      const item: ClipboardItem = {
+        id: createId(),
+        kind: 'image',
+        imageUri: screenshot.imagePath,
+        imageHash: screenshot.imageHash,
+        mimeType: screenshot.mimeType,
+        createdAt: Date.now(),
+        pinned: false,
+      };
+      items.set(item.id, item);
+      touched = true;
       imported += 1;
     }
+  }
+
+  if (touched) {
+    trimUnpinnedOverflow();
+    await persist();
   }
   return imported;
 }
