@@ -2,6 +2,7 @@ package com.typebase.app
 
 import android.content.Context
 import android.graphics.Color
+import android.graphics.Rect
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
@@ -16,28 +17,68 @@ import android.widget.FrameLayout
 import android.widget.TextView
 
 /**
- * Key preview drawn as a rounded rectangle overlay inside the IME keyboard container.
- * Matches key cap shape and uses the Geist font.
+ * Key previews drawn as rounded rectangle overlays inside the IME keyboard container.
+ * Supports multiple simultaneous previews for multi-touch typing.
  */
 class KeyPreviewManager(private val fallbackContext: Context) {
 
-    private var previewView: TextView? = null
+    private val activePreviews = HashMap<Int, TextView>()
+    private val dismissRunnables = HashMap<Int, Runnable>()
+    private val viewPool = ArrayDeque<TextView>()
     private val handler = Handler(Looper.getMainLooper())
-    private var dismissRunnable: Runnable? = null
     private var geistTypeface: Typeface? = null
     private var backgroundColorArgb = Color.parseColor(DARK_PREVIEW_BACKGROUND)
     private var textColorArgb = Color.parseColor(DARK_PREVIEW_TEXT)
+    private var previewContainer: FrameLayout? = null
 
     private fun popupContext(): Context =
         KeyboardInputBridge.inputService ?: fallbackContext
 
+    private var removePreviewContainerListener: (() -> Unit)? = null
+
     fun init() {
         runOnMainThread {
-            val container =
-                KeyboardInputBridge.getPopupAnchorView() as? FrameLayout ?: return@runOnMainThread
-            if (!ensurePreviewView(container)) return@runOnMainThread
-            previewView?.context?.let { loadGeistTypeface(it) }
-            applyThemeToPreviewView()
+            removePreviewContainerListener?.invoke()
+            removePreviewContainerListener =
+                KeyboardInputBridge.addPreviewContainerChangedListener(
+                    previewContainerChangedListener,
+                )
+            attachPreviewContainer()
+        }
+    }
+
+    fun onPreviewContainerChanged() {
+        runOnMainThread {
+            attachPreviewContainer()
+        }
+    }
+
+    private val previewContainerChangedListener = { onPreviewContainerChanged() }
+
+    private fun attachPreviewContainer() {
+        val container =
+            KeyboardInputBridge.getPopupAnchorView() as? FrameLayout ?: return
+        if (container === previewContainer) {
+            return
+        }
+        detachPreviewViewsFromOldContainer()
+        previewContainer = container
+        warmPreviewPool(container, POOL_WARM_SIZE)
+        container.context.let { loadGeistTypeface(it) }
+        applyThemeToPreviewView()
+    }
+
+    private fun detachPreviewViewsFromOldContainer() {
+        for (tag in dismissRunnables.keys.toList()) {
+            cancelDismiss(tag)
+        }
+        for (tv in activePreviews.values) {
+            (tv.parent as? ViewGroup)?.removeView(tv)
+        }
+        activePreviews.clear()
+        while (viewPool.isNotEmpty()) {
+            val tv = viewPool.removeFirst()
+            (tv.parent as? ViewGroup)?.removeView(tv)
         }
     }
 
@@ -49,35 +90,110 @@ class KeyPreviewManager(private val fallbackContext: Context) {
         }
     }
 
-    fun show(anchor: View, label: String) {
+    fun show(reactTag: Int, anchor: View, label: String) {
         runOnMainThread {
-            showAtAnchor(anchor, label)
+            showAtAnchor(reactTag, anchor, label)
         }
     }
 
-    fun hide() {
+    fun hide(reactTag: Int) {
         runOnMainThread {
-            cancelDismiss()
-            previewView?.visibility = View.GONE
+            cancelDismiss(reactTag)
+            releasePreview(reactTag)
         }
     }
 
-    fun hideDelayed(delayMs: Long = 80) {
-        cancelDismiss()
-        dismissRunnable = Runnable {
-            previewView?.visibility = View.GONE
+    fun hideAll() {
+        runOnMainThread {
+            val tags = activePreviews.keys.toList()
+            for (tag in tags) {
+                cancelDismiss(tag)
+                releasePreview(tag)
+            }
+        }
+    }
+
+    fun hideAllDelayed(delayMs: Long = 80) {
+        runOnMainThread {
+            val tags = activePreviews.keys.toList()
+            for (tag in tags) {
+                hideDelayed(tag, delayMs)
+            }
+        }
+    }
+
+    fun hideDelayed(reactTag: Int, delayMs: Long = 80) {
+        cancelDismiss(reactTag)
+        if (!activePreviews.containsKey(reactTag)) {
+            return
+        }
+        dismissRunnables[reactTag] = Runnable {
+            dismissRunnables.remove(reactTag)
+            releasePreview(reactTag)
         }.also { handler.postDelayed(it, delayMs) }
     }
 
     fun destroy() {
-        handler.removeCallbacksAndMessages(null)
-        (previewView?.parent as? ViewGroup)?.removeView(previewView)
-        previewView = null
-        geistTypeface = null
+        runOnMainThread {
+            handler.removeCallbacksAndMessages(null)
+            dismissRunnables.clear()
+            removePreviewContainerListener?.invoke()
+            removePreviewContainerListener = null
+            detachPreviewViewsFromOldContainer()
+            previewContainer = null
+            geistTypeface = null
+        }
     }
 
-    private fun showAtAnchor(anchor: View, label: String) {
-        val container = KeyboardInputBridge.getPopupAnchorView() as? FrameLayout ?: return
+    private fun warmPreviewPool(container: FrameLayout, count: Int) {
+        repeat(count) {
+            val tv = createPreviewTextView(container.context)
+            tv.visibility = View.GONE
+            container.addView(
+                tv,
+                FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.WRAP_CONTENT,
+                    FrameLayout.LayoutParams.WRAP_CONTENT,
+                ),
+            )
+            viewPool.addLast(tv)
+        }
+    }
+
+    private fun obtainPreviewView(container: FrameLayout, reactTag: Int): TextView {
+        activePreviews[reactTag]?.let { return it }
+
+        val tv =
+            if (viewPool.isNotEmpty()) {
+                viewPool.removeFirst()
+            } else {
+                createPreviewTextView(container.context).also {
+                    container.addView(
+                        it,
+                        FrameLayout.LayoutParams(
+                            FrameLayout.LayoutParams.WRAP_CONTENT,
+                            FrameLayout.LayoutParams.WRAP_CONTENT,
+                        ),
+                    )
+                }
+            }
+
+        activePreviews[reactTag] = tv
+        return tv
+    }
+
+    private fun releasePreview(reactTag: Int) {
+        val tv = activePreviews.remove(reactTag) ?: return
+        tv.visibility = View.GONE
+        viewPool.addLast(tv)
+    }
+
+    private fun showAtAnchor(reactTag: Int, anchor: View, label: String) {
+        val container = previewContainer
+            ?: KeyboardInputBridge.getPopupAnchorView() as? FrameLayout
+            ?: return
+        previewContainer = container
+
         if (anchor.width <= 0 || anchor.height <= 0) {
             val observer = anchor.viewTreeObserver
             observer.addOnGlobalLayoutListener(
@@ -87,30 +203,44 @@ class KeyPreviewManager(private val fallbackContext: Context) {
                             return
                         }
                         anchor.viewTreeObserver.removeOnGlobalLayoutListener(this)
-                        showAtAnchor(anchor, label)
+                        showAtAnchor(reactTag, anchor, label)
                     }
                 },
             )
             return
         }
-        if (!ensurePreviewView(container)) return
-        cancelDismiss()
 
-        val tv = previewView ?: return
-        applyThemeToPreviewView()
+        cancelDismiss(reactTag)
+
+        val tv = obtainPreviewView(container, reactTag)
+        applyThemeToPreviewView(tv)
         tv.text = label
 
         val previewWidth = anchor.width.coerceAtLeast(dpToPx(MIN_PREVIEW_WIDTH_DP))
         val previewHeight = anchor.height.coerceAtLeast(dpToPx(MIN_PREVIEW_HEIGHT_DP))
         val gapAboveKey = dpToPx(PREVIEW_GAP_ABOVE_KEY_DP)
 
-        val keyLoc = IntArray(2)
-        val containerLoc = IntArray(2)
-        anchor.getLocationInWindow(keyLoc)
-        container.getLocationInWindow(containerLoc)
+        val coordinateRoot =
+            KeyboardInputBridge.getKeyboardCoordinateView() as? ViewGroup
+        val anchorRect = Rect()
+        anchor.getDrawingRect(anchorRect)
+        val positionedInHierarchy =
+            coordinateRoot != null && isDescendantOf(anchor, coordinateRoot)
 
-        val centerX = keyLoc[0] - containerLoc[0] + anchor.width / 2f
-        val topY = keyLoc[1] - containerLoc[1]
+        val centerX: Float
+        val topY: Float
+        if (positionedInHierarchy) {
+            coordinateRoot.offsetDescendantRectToMyCoords(anchor, anchorRect)
+            centerX = anchorRect.exactCenterX()
+            topY = anchorRect.top.toFloat()
+        } else {
+            val keyLoc = IntArray(2)
+            val containerLoc = IntArray(2)
+            anchor.getLocationInWindow(keyLoc)
+            container.getLocationInWindow(containerLoc)
+            centerX = keyLoc[0] - containerLoc[0] + anchor.width / 2f
+            topY = (keyLoc[1] - containerLoc[1]).toFloat()
+        }
 
         val params = tv.layoutParams as FrameLayout.LayoutParams
         params.width = previewWidth
@@ -121,24 +251,6 @@ class KeyPreviewManager(private val fallbackContext: Context) {
         tv.visibility = View.VISIBLE
         tv.bringToFront()
         container.invalidate()
-    }
-
-    private fun ensurePreviewView(container: FrameLayout): Boolean {
-        if (previewView != null && previewView?.parent === container) {
-            return true
-        }
-
-        (previewView?.parent as? ViewGroup)?.removeView(previewView)
-
-        val tv = previewView ?: createPreviewTextView(container.context).also { previewView = it }
-
-        val params = FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.WRAP_CONTENT,
-            FrameLayout.LayoutParams.WRAP_CONTENT,
-        )
-        container.addView(tv, params)
-        tv.visibility = View.GONE
-        return true
     }
 
     private fun createPreviewTextView(context: Context): TextView {
@@ -160,22 +272,29 @@ class KeyPreviewManager(private val fallbackContext: Context) {
         }
     }
 
-    private fun applyThemeToPreviewView() {
-        val tv = previewView ?: return
-        tv.setTextColor(textColorArgb)
-        val background = tv.background
-        if (background is GradientDrawable) {
-            background.setColor(backgroundColorArgb)
-            return
-        }
-
-        val cornerRadius = dpToPx(KEY_CORNER_RADIUS_DP).toFloat()
-        tv.background =
-            GradientDrawable().apply {
-                shape = GradientDrawable.RECTANGLE
-                setColor(backgroundColorArgb)
-                this.cornerRadius = cornerRadius
+    private fun applyThemeToPreviewView(tv: TextView? = null) {
+        val targets =
+            if (tv != null) {
+                listOf(tv)
+            } else {
+                activePreviews.values.toList() + viewPool.toList()
             }
+
+        for (preview in targets) {
+            preview.setTextColor(textColorArgb)
+            val background = preview.background
+            if (background is GradientDrawable) {
+                background.setColor(backgroundColorArgb)
+            } else {
+                val cornerRadius = dpToPx(KEY_CORNER_RADIUS_DP).toFloat()
+                preview.background =
+                    GradientDrawable().apply {
+                        shape = GradientDrawable.RECTANGLE
+                        setColor(backgroundColorArgb)
+                        this.cornerRadius = cornerRadius
+                    }
+            }
+        }
     }
 
     private fun parseColorOrFallback(value: String, fallback: Int): Int =
@@ -212,16 +331,26 @@ class KeyPreviewManager(private val fallbackContext: Context) {
         return typeface
     }
 
-    private fun cancelDismiss() {
-        dismissRunnable?.let { handler.removeCallbacks(it) }
-        dismissRunnable = null
+    private fun cancelDismiss(reactTag: Int) {
+        dismissRunnables.remove(reactTag)?.let { handler.removeCallbacks(it) }
+    }
+
+    private fun isDescendantOf(child: View, ancestor: View): Boolean {
+        var current: View? = child
+        while (current != null) {
+            if (current === ancestor) {
+                return true
+            }
+            current = current.parent as? View
+        }
+        return false
     }
 
     private fun runOnMainThread(action: () -> Unit) {
         if (Looper.myLooper() == Looper.getMainLooper()) {
             action()
         } else {
-            handler.postAtFrontOfQueue(action)
+            handler.post(action)
         }
     }
 
@@ -232,6 +361,7 @@ class KeyPreviewManager(private val fallbackContext: Context) {
         ).toInt()
 
     companion object {
+        private const val POOL_WARM_SIZE = 8
         private const val KEY_CORNER_RADIUS_DP = 6
         private const val PREVIEW_GAP_ABOVE_KEY_DP = 4
         private const val MIN_PREVIEW_WIDTH_DP = 32

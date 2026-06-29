@@ -18,14 +18,18 @@ class KeyPreviewModule(private val reactContext: ReactApplicationContext) :
 
     private val manager = KeyPreviewManager(reactContext)
     private val anchorViewCache = HashMap<Int, WeakReference<View>>()
-    /** Bumped on immediate hide so stale Fabric UIBlock shows are skipped. */
-    private var showGeneration = 0
+    /** Per-key generation — stale Fabric UIBlock shows are skipped without affecting other keys. */
+    private val showGenerations = HashMap<Int, Int>()
 
     override fun getName() = "KeyPreview"
 
     @ReactMethod
     fun init() {
         manager.init()
+        KeyboardInputBridge.registerKeyPreviewCallbacks(
+            show = { reactTag, label -> showPreviewOnUiThread(reactTag, label) },
+            hide = { reactTag -> hidePreviewOnUiThread(reactTag) },
+        )
     }
 
     @ReactMethod
@@ -36,9 +40,11 @@ class KeyPreviewModule(private val reactContext: ReactApplicationContext) :
     @ReactMethod
     fun show(reactTag: Int, label: String) {
         UiThreadUtil.runOnUiThread {
-            val generation = ++showGeneration
+            val generation = (showGenerations[reactTag] ?: 0) + 1
+            showGenerations[reactTag] = generation
+
             resolveAnchorView(reactTag)?.let { view ->
-                manager.show(view, label)
+                manager.show(reactTag, view, label)
                 return@runOnUiThread
             }
 
@@ -48,49 +54,64 @@ class KeyPreviewModule(private val reactContext: ReactApplicationContext) :
 
             uiManager.addUIBlock(
                 UIBlock { resolver ->
-                    if (generation != showGeneration) return@UIBlock
-                    val view = resolver.resolveView(reactTag) ?: return@UIBlock
-                    anchorViewCache[reactTag] = WeakReference(view)
-                    manager.show(view, label)
+                    UiThreadUtil.runOnUiThread {
+                        if (generation != showGenerations[reactTag]) return@runOnUiThread
+                        val view = resolver.resolveView(reactTag) ?: return@runOnUiThread
+                        anchorViewCache[reactTag] = WeakReference(view)
+                        manager.show(reactTag, view, label)
+                    }
                 },
             )
         }
     }
 
     @ReactMethod
-    fun hide() {
+    fun hide(reactTag: Int) {
         UiThreadUtil.runOnUiThread {
-            showGeneration++
-            manager.hide()
+            showGenerations[reactTag] = (showGenerations[reactTag] ?: 0) + 1
+            manager.hide(reactTag)
+        }
+    }
+
+    @ReactMethod
+    fun hideAll() {
+        UiThreadUtil.runOnUiThread {
+            showGenerations.clear()
+            manager.hideAll()
         }
     }
 
     @ReactMethod
     fun hideDelayed(delayMs: Double) {
         UiThreadUtil.runOnUiThread {
-            // Invalidate any in-flight Fabric show blocks (same as hide()).
-            showGeneration++
-            manager.hideDelayed(delayMs.toLong())
+            showGenerations.clear()
+            manager.hideAllDelayed(delayMs.toLong())
         }
     }
 
     @ReactMethod
     fun destroy() {
-        anchorViewCache.clear()
-        manager.destroy()
+        UiThreadUtil.runOnUiThread {
+            anchorViewCache.clear()
+            showGenerations.clear()
+            KeyboardInputBridge.clearKeyPreviewCallbacks()
+            manager.destroy()
+        }
+    }
+
+    private fun showPreviewOnUiThread(reactTag: Int, label: String) {
+        UiThreadUtil.runOnUiThread { show(reactTag, label) }
+    }
+
+    private fun hidePreviewOnUiThread(reactTag: Int) {
+        UiThreadUtil.runOnUiThread { hide(reactTag) }
     }
 
     private fun resolveAnchorView(reactTag: Int): View? {
         anchorViewCache[reactTag]?.get()?.let { return it }
 
-        val container =
-            KeyboardInputBridge.getPopupAnchorView() as? ViewGroup ?: return null
         val searchRoot =
-            if (container.childCount > 0) {
-                container.getChildAt(0)
-            } else {
-                container
-            }
+            KeyboardInputBridge.getKeyboardCoordinateView() as? ViewGroup ?: return null
 
         val found = searchRoot.findViewById<View>(reactTag) ?: return null
         anchorViewCache[reactTag] = WeakReference(found)

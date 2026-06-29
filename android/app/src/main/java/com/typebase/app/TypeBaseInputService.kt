@@ -35,6 +35,7 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
   private var reactSurface: ReactSurface? = null
   private var container: FrameLayout? = null
   private var keyboardView: View? = null
+  private var previewOverlay: FrameLayout? = null
   private var keyboardHeightDp: Int = DEFAULT_KEYBOARD_HEIGHT_DP
   private var surfaceMountAttempts = 0
   private var keyboardResumedReact = false
@@ -82,7 +83,16 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
   }
 
   val popupAnchorView: View?
-    get() = container
+    get() {
+      if (Looper.myLooper() != Looper.getMainLooper()) {
+        return previewOverlay ?: keyboardView ?: container
+      }
+      ensurePreviewOverlay()
+      return previewOverlay ?: keyboardView ?: container
+    }
+
+  val keyboardCoordinateView: View?
+    get() = keyboardView ?: container
 
   val keyboardViewForFeedback: View?
     get() = keyboardView ?: container
@@ -235,6 +245,7 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
     surfaceMountAttempts = 0
 
     if (keyboardView === view && view.parent === frame) {
+      ensurePreviewOverlay()
       return
     }
 
@@ -242,7 +253,64 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
     (view as? ViewGroup)?.setMotionEventSplittingEnabled(true)
     keyboardView = view
     frame.addView(view, createKeyboardLayoutParams(frame.width))
-    frame.post { applyKeyboardSurfaceLayout() }
+    frame.post {
+      applyKeyboardSurfaceLayout()
+      ensurePreviewOverlay()
+    }
+  }
+
+  private fun ensurePreviewOverlay() {
+    if (Looper.myLooper() != Looper.getMainLooper()) {
+      mainHandler.post { ensurePreviewOverlay() }
+      return
+    }
+    val frame = container ?: return
+    val keyboard = keyboardView ?: return
+
+    var overlay = previewOverlay
+    if (overlay == null) {
+      overlay =
+          FrameLayout(this).apply {
+            clipChildren = false
+            clipToPadding = false
+            isClickable = false
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+          }
+      previewOverlay = overlay
+      frame.addView(
+          overlay,
+          FrameLayout.LayoutParams(keyboard.width, keyboard.height),
+      )
+      KeyboardInputBridge.notifyPreviewContainerChanged()
+    } else if (overlay.parent !== frame) {
+      (overlay.parent as? ViewGroup)?.removeView(overlay)
+      frame.addView(
+          overlay,
+          FrameLayout.LayoutParams(keyboard.width, keyboard.height),
+      )
+      KeyboardInputBridge.notifyPreviewContainerChanged()
+    }
+
+    syncPreviewOverlayLayout()
+  }
+
+  private fun syncPreviewOverlayLayout() {
+    if (Looper.myLooper() != Looper.getMainLooper()) {
+      mainHandler.post { syncPreviewOverlayLayout() }
+      return
+    }
+    val keyboard = keyboardView ?: return
+    val overlay = previewOverlay ?: return
+    val lp =
+        (overlay.layoutParams as? FrameLayout.LayoutParams)
+            ?: FrameLayout.LayoutParams(keyboard.width, keyboard.height)
+    lp.width = keyboard.width
+    lp.height = keyboard.height
+    lp.leftMargin = keyboard.left
+    lp.topMargin = keyboard.top
+    lp.gravity = Gravity.NO_GRAVITY
+    overlay.layoutParams = lp
+    overlay.bringToFront()
   }
 
   private fun scheduleSurfaceMountRetry(frame: FrameLayout) {
@@ -270,6 +338,9 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
   fun setNativeKeyFastPathConfig(json: String) {
     nativeKeyFastPath.updateConfig(json)
   }
+
+  fun consumeNativeFastPathPointer(pointerId: Int): Boolean =
+      nativeKeyFastPath.consumePointer(pointerId)
 
   private fun keyboardHeightPx(heightDp: Int): Int =
       TypedValue.applyDimension(
@@ -334,6 +405,7 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
     frame.requestLayout()
     frame.invalidate()
     updateInputViewShown()
+    ensurePreviewOverlay()
   }
 
   private fun applyFloatingSurfaceChrome(view: View) {
@@ -640,6 +712,7 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
     override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
       if (!floatingKeyboardEnabled) {
         super.onLayout(changed, left, top, right, bottom)
+        syncPreviewOverlayLayout()
         return
       }
 
@@ -650,6 +723,7 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
       val childLeft = floatingLeftPx
       val childTop = floatingTopPx
       view.layout(childLeft, childTop, childLeft + childWidth, childTop + childHeight)
+      syncPreviewOverlayLayout()
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {

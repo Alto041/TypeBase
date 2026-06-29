@@ -127,6 +127,7 @@ import type {GestureSettings, LaunchableApp} from './gestures/types';
 import {ensureSwipeWordDictionaryLoaded} from './gesture/wordDictionary';
 import {deferKeyboardSideEffect, triggerKeyHaptic} from './haptics';
 import {keyboardBridge} from './keyboardBridge';
+import {getKeyReactTag, subscribeKeyReactTags} from './keyReactTags';
 import {
   CUSTOM_LAYOUTS_CHANGED_EVENT,
   ensureCustomLayoutsLoaded,
@@ -176,7 +177,7 @@ import type {
   KeyboardLayoutSettings,
   KeyboardTheme,
 } from './theme';
-import {DEFAULT_KEYBOARD_LAYOUT_SETTINGS} from './theme';
+import {DEFAULT_KEYBOARD_LAYOUT_SETTINGS, getNonLettersKeyboardHeightDp, getNumberRowLayoutBoost} from './theme';
 import {
   isLandscapeOrientation,
   layoutSettingsForOrientation,
@@ -187,7 +188,7 @@ const DOUBLE_TAP_MS = 350;
 /** Debounced async refresh (phrases, essentials, native cursor sync). */
 const SUGGESTION_FULL_REFRESH_DEBOUNCE_MS = 120;
 const NATIVE_FAST_PATH_MIN_KEYS = 20;
-const NATIVE_FAST_PATH_ENABLED = false;
+const NATIVE_FAST_PATH_ENABLED = true;
 const AI_AUTOCORRECT_LOG_PREFIX = '[AiAutocorrect]';
 
 type NativeFastPathKeyEvent = {
@@ -195,6 +196,7 @@ type NativeFastPathKeyEvent = {
   type?: string;
   value?: string;
   text?: string;
+  shiftConsumed?: boolean;
 };
 
 type AutocorrectHistoryEdit = {
@@ -606,6 +608,11 @@ function KeyboardBody({
     }
     return baseRows;
   }, [layout, theme.letterLayoutId, customLayoutsTick, theme.numberRowEnabled]);
+
+  const numberRowLayoutBoost = useMemo(
+    () => getNumberRowLayoutBoost(layout, theme),
+    [layout, theme.keyGap, theme.keyHeight, theme.keyRowMargin, theme.numberRowEnabled],
+  );
   const [controllerFocus, setControllerFocus] = useState<ControllerFocus>({
     row: 0,
     col: 0,
@@ -672,11 +679,7 @@ function KeyboardBody({
           MIN_KEYBOARD_HEIGHT_DP,
           Math.min(
             MAX_KEYBOARD_HEIGHT_DP,
-            Math.round(
-              layout === 'numpad'
-                ? theme.numpadKeyboardHeightDp
-                : theme.keyboardHeightDp,
-            ),
+            Math.round(getNonLettersKeyboardHeightDp(layout, theme, letterResizeBaseHeight)),
           ),
         );
 
@@ -1728,11 +1731,7 @@ function KeyboardBody({
             MIN_KEYBOARD_HEIGHT_DP,
             Math.min(
               MAX_KEYBOARD_HEIGHT_DP,
-              Math.round(
-                layout === 'numpad'
-                  ? theme.numpadKeyboardHeightDp
-                  : theme.keyboardHeightDp,
-              ),
+              Math.round(getNonLettersKeyboardHeightDp(layout, theme, letterResizeBaseHeight)),
             ),
           );
 
@@ -2348,6 +2347,10 @@ function KeyboardBody({
         if (!text || modeRef.current.type !== 'typing') {
           return;
         }
+        if (payload?.shiftConsumed) {
+          shiftOnRef.current = false;
+          setShiftOn(false);
+        }
         if (clipboardPasteSuggestionRef.current) {
           clearClipboardPasteSuggestion();
         }
@@ -2540,18 +2543,20 @@ function KeyboardBody({
             y,
             width,
             height,
+            reactTag: getKeyReactTag(id) ?? 0,
           })),
         }),
       );
     };
 
+    publishConfig();
     const raf = requestAnimationFrame(publishConfig);
-    const timer = setTimeout(publishConfig, 80);
+    const unsubscribeTags = subscribeKeyReactTags(publishConfig);
 
     return () => {
       cancelled = true;
       cancelAnimationFrame(raf);
-      clearTimeout(timer);
+      unsubscribeTags();
     };
   }, [
     capsLocked,
@@ -3061,12 +3066,18 @@ function KeyboardBody({
                 isGifSearchMode ||
                 isEmojiSearchMode
               }
-              keyHeight={effectiveLetterKeyHeight}
-              rowStyle={
+              keyHeight={effectiveLetterKeyHeight ?? numberRowLayoutBoost?.keyHeight}
+              rowStyle={[
                 resizeRowsExtraMargin !== undefined
                   ? {marginBottom: resizeRowsExtraMargin}
-                  : undefined
-              }
+                  : undefined,
+                numberRowLayoutBoost
+                  ? {
+                      marginBottom: numberRowLayoutBoost.keyRowMargin,
+                      gap: numberRowLayoutBoost.keyGap,
+                    }
+                  : undefined,
+              ]}
               enterKeyNextLineEnabled={
                 mode.type === 'typing' ? enterKeyNextLineEnabled : false
               }

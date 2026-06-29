@@ -54,6 +54,7 @@ type KeyboardModuleType = {
   setFloatingKeyboard: (enabled: boolean) => void;
   setTouchpadGestureConsuming: (active: boolean) => void;
   setNativeKeyFastPathConfig: (json: string) => void;
+  consumeNativeFastPathPointer: (pointerId: number) => boolean;
   getGestureSettings: () => Promise<string>;
   setGestureSettings: (json: string) => Promise<boolean>;
   getAutocorrectSettings: () => Promise<string>;
@@ -386,6 +387,12 @@ export const keyboardBridge: KeyboardModuleType = {
     if (Platform.OS === 'android' && KeyboardModule?.setNativeKeyFastPathConfig) {
       KeyboardModule.setNativeKeyFastPathConfig(json);
     }
+  },
+  consumeNativeFastPathPointer: (pointerId: number): boolean => {
+    if (Platform.OS === 'android' && KeyboardModule?.consumeNativeFastPathPointer) {
+      return KeyboardModule.consumeNativeFastPathPointer(pointerId);
+    }
+    return false;
   },
   getGestureSettings: () => {
     if (Platform.OS === 'android' && KeyboardModule?.getGestureSettings) {

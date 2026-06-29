@@ -115,13 +115,14 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
           }
         }
     removeNativeFastPathKeyListener =
-        KeyboardInputBridge.addNativeFastPathKeyListener { id, type, value, text ->
+        KeyboardInputBridge.addNativeFastPathKeyListener { id, type, value, text, shiftConsumed ->
           if (reactApplicationContext.hasActiveReactInstance()) {
             val event = Arguments.createMap()
             event.putString("id", id)
             event.putString("type", type)
             event.putString("value", value)
             event.putString("text", text)
+            event.putBoolean("shiftConsumed", shiftConsumed)
             reactApplicationContext
                 .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
                 .emit("keyboardNativeFastPathKey", event)
@@ -624,6 +625,11 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   @ReactMethod
   fun setNativeKeyFastPathConfig(json: String) {
     KeyboardInputBridge.setNativeKeyFastPathConfig(json)
+  }
+
+  @ReactMethod(isBlockingSynchronousMethod = true)
+  fun consumeNativeFastPathPointer(pointerId: Int): Boolean {
+    return KeyboardInputBridge.consumeNativeFastPathPointer(pointerId)
   }
 
   @ReactMethod

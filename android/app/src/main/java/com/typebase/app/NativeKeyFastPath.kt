@@ -13,11 +13,13 @@ class NativeKeyFastPath {
       val top: Float,
       val right: Float,
       val bottom: Float,
+      val reactTag: Int,
   )
 
   private data class TouchSession(
       val pointerId: Int,
       val key: NativeKey,
+      val commitText: String,
   )
 
   @Volatile
@@ -32,6 +34,7 @@ class NativeKeyFastPath {
   private var capsLocked = false
   private var keys = emptyList<NativeKey>()
   private val sessions = mutableMapOf<Int, TouchSession>()
+  private val consumedPointers = mutableSetOf<Int>()
 
   fun updateConfig(json: String) {
     try {
@@ -48,11 +51,13 @@ class NativeKeyFastPath {
       keys = parseKeys(obj.optJSONArray("keys") ?: JSONArray())
       if (!enabled) {
         sessions.clear()
+        consumedPointers.clear()
       }
     } catch (_: Exception) {
       enabled = false
       keys = emptyList()
       sessions.clear()
+      consumedPointers.clear()
     }
   }
 
@@ -60,7 +65,11 @@ class NativeKeyFastPath {
     enabled = false
     keys = emptyList()
     sessions.clear()
+    consumedPointers.clear()
   }
+
+  /** True when this pointer already committed text on the native fast path. */
+  fun consumePointer(pointerId: Int): Boolean = consumedPointers.remove(pointerId)
 
   /**
    * Commits letter keys on touch-down (before React processes the event) for minimal
@@ -79,20 +88,44 @@ class NativeKeyFastPath {
         val rawX = event.rawXForIndex(index)
         val rawY = event.rawYForIndex(index)
         val key = hitTest(rawX, rawY) ?: return false
-        sessions[pointerId] = TouchSession(pointerId, key)
-        commitKey(key)
+        val text = resolveCommitText(key.value)
+        val shiftConsumed =
+            keyboardLayout == "letters" &&
+                shiftOn &&
+                !capsLocked &&
+                text.length == 1 &&
+                text[0].isUpperCase()
+        if (!commitKey(key, text, shiftConsumed)) {
+          return false
+        }
+        consumedPointers.add(pointerId)
+        sessions[pointerId] = TouchSession(pointerId, key, text)
+        if (key.reactTag > 0) {
+          KeyboardInputBridge.showKeyPreview(key.reactTag, text)
+        }
         false
       }
 
       MotionEvent.ACTION_UP,
       MotionEvent.ACTION_POINTER_UP -> {
         val pointerId = event.getPointerId(event.actionIndex)
-        sessions.remove(pointerId)
+        sessions.remove(pointerId)?.key?.reactTag?.let { reactTag ->
+          if (reactTag > 0) {
+            KeyboardInputBridge.hideKeyPreview(reactTag)
+          }
+        }
+        consumedPointers.remove(pointerId)
         false
       }
 
       MotionEvent.ACTION_CANCEL -> {
+        for (session in sessions.values) {
+          if (session.key.reactTag > 0) {
+            KeyboardInputBridge.hideKeyPreview(session.key.reactTag)
+          }
+        }
         sessions.clear()
+        consumedPointers.clear()
         false
       }
 
@@ -109,7 +142,7 @@ class NativeKeyFastPath {
         continue
       }
       val type = obj.optString("type", "char")
-      if (type == "comma" || type == "period") {
+      if (type == "comma" || type == "period" || type == "space") {
         continue
       }
       parsed.add(
@@ -125,6 +158,7 @@ class NativeKeyFastPath {
               bottom =
                   obj.optDouble("y", 0.0).toFloat() +
                       obj.optDouble("height", 0.0).toFloat(),
+              reactTag = obj.optInt("reactTag", 0),
           ),
       )
     }
@@ -156,15 +190,20 @@ class NativeKeyFastPath {
     return match
   }
 
-  private fun commitKey(key: NativeKey): Boolean {
+  private fun commitKey(key: NativeKey, text: String, shiftConsumed: Boolean): Boolean {
     val connection = KeyboardInputBridge.getInputConnection() ?: return false
-    val text = resolveCommitText(key.value)
 
     connection.commitText(text, 1)
     KeyboardInputBridge.performKeyHaptic()
-    KeyboardInputBridge.notifyNativeFastPathKey(key.id, key.type, key.value, text)
+    KeyboardInputBridge.notifyNativeFastPathKey(
+        key.id,
+        key.type,
+        key.value,
+        text,
+        shiftConsumed,
+    )
 
-    if (keyboardLayout == "letters" && shiftOn && !capsLocked) {
+    if (shiftConsumed) {
       shiftOn = false
       uppercase = false
     }

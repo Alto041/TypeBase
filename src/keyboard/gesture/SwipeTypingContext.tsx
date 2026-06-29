@@ -11,7 +11,7 @@ import {PixelRatio, View, type GestureResponderEvent} from 'react-native';
 import {triggerKeyHaptic} from '../haptics';
 import {useKeyboardTheme} from '../KeyboardThemeContext';
 import {keyboardBridge} from '../keyboardBridge';
-import {hideKeyPreview} from '../KeyPreview';
+import {hideAllKeyPreviews} from '../KeyPreview';
 import {clampPoint, decimatePoints, distance} from './coordinates';
 import {decodeSwipeGesture} from './gestureDecoder';
 import {ensureLearnedDictionaryLoaded} from '../suggestions/learnedDictionary';
@@ -295,7 +295,7 @@ export function SwipeTypingProvider({
 
   const beginSwipeTrail = useCallback(
     (session: SwipePointerSession, pageX: number, pageY: number) => {
-      hideKeyPreview();
+      hideAllKeyPreviews();
       gestureSwipeActiveRef.current = true;
       syncTrailBounds(() => {
         localPointsRef.current = [];
@@ -552,6 +552,7 @@ export function SwipeTypingKeysHost({
           getIsUppercase: getIsUppercase ?? (() => isUppercase),
           getLetterCommitText,
           hitSlop: keyHitSlop,
+          consumeNativeFastPathPointer: keyboardBridge.consumeNativeFastPathPointer,
         });
       }
     },

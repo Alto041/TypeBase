@@ -29,7 +29,8 @@ import {
   registerMultiTouchKeyVisual,
 } from '../gesture/multiTouchKeys';
 import {gestureSwipeActiveRef} from '../gesture/gestureState';
-import {showKeyPreview} from '../KeyPreview';
+import {hideKeyPreview, showKeyPreview} from '../KeyPreview';
+import {registerKeyReactTag, unregisterKeyReactTag} from '../keyReactTags';
 import {triggerKeyHaptic} from '../haptics';
 import {keyboardBridge} from '../keyboardBridge';
 import {getLetterSymbolHint} from '../keyAlternates';
@@ -240,20 +241,25 @@ function KeyComponent({
     if (!usesMultiTouchDispatch) {
       return;
     }
-    return registerMultiTouchKeyVisual(keyDef.id, pressed => {
+    return registerMultiTouchKeyVisual(keyDef.id, (pressed, options) => {
       if (usesMultiTouchRouter) {
+        if (gestureSwipeActiveRef.current && pressed) {
+          return;
+        }
+        const tag = reactTagRef.current ?? findNodeHandle(keyRef.current);
+        if (!tag) {
+          return;
+        }
+        reactTagRef.current = tag;
         if (pressed) {
-          if (gestureSwipeActiveRef.current) {
-            return;
-          }
-          const tag = reactTagRef.current ?? findNodeHandle(keyRef.current);
-          if (tag) {
-            reactTagRef.current = tag;
+          if (!options?.nativeCommitted) {
             const label = isUppercase
               ? (keyDef.value ?? '').toUpperCase()
               : (keyDef.value ?? '').toLowerCase();
             showKeyPreview(tag, label);
           }
+        } else {
+          hideKeyPreview(tag);
         }
       }
       animateMultiTouchPress(pressed);
@@ -274,6 +280,9 @@ function KeyComponent({
     measureKey();
     return () => {
       layoutContext?.unregisterKey(keyDef.id);
+      if (usesMultiTouchRouter) {
+        unregisterKeyReactTag(keyDef.id);
+      }
     };
   }, [keyDef.id, layoutContext, measureKey, usesMultiTouchDispatch]);
 
@@ -313,8 +322,11 @@ function KeyComponent({
       clearLauncherHold();
       clearRewriteHold();
       layoutContext?.unregisterKey(keyDef.id);
+      if (usesMultiTouchRouter) {
+        unregisterKeyReactTag(keyDef.id);
+      }
     };
-  }, [clearLauncherHold, clearRewriteHold, keyDef.id, layoutContext]);
+  }, [clearLauncherHold, clearRewriteHold, keyDef.id, layoutContext, usesMultiTouchRouter]);
 
   const isLauncherGesture =
     keyDef.type === 'period' && keyGestures?.commaLauncher;
@@ -639,7 +651,11 @@ function KeyComponent({
         onLayout={() => {
           measureKey();
           if (usesMultiTouchRouter) {
-            reactTagRef.current = findNodeHandle(keyRef.current);
+            const tag = findNodeHandle(keyRef.current);
+            if (tag) {
+              reactTagRef.current = tag;
+              registerKeyReactTag(keyDef.id, tag);
+            }
           }
         }}
         collapsable={false}

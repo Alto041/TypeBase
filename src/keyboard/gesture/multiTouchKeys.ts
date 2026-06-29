@@ -1,5 +1,5 @@
 import {isBackspaceKeyType} from '../components/keyboardRowLayout';
-import {hideKeyPreview} from '../KeyPreview';
+import {hideAllKeyPreviews} from '../KeyPreview';
 import {
   computeAlternatePopupGeometry,
   getKeyAlternates,
@@ -280,7 +280,7 @@ export function touchHitsPressableOnlyKey(
 
 export function registerMultiTouchKeyVisual(
   id: string,
-  handler: (pressed: boolean) => void,
+  handler: (pressed: boolean, options?: {nativeCommitted?: boolean}) => void,
 ): () => void {
   pressVisualHandlers.set(id, handler);
   return () => {
@@ -288,17 +288,18 @@ export function registerMultiTouchKeyVisual(
   };
 }
 
-export function setMultiTouchKeyPressed(id: string, pressed: boolean): void {
+export function setMultiTouchKeyPressed(
+  id: string,
+  pressed: boolean,
+  options?: {nativeCommitted?: boolean},
+): void {
   const wasPressed = pressedMultiTouchKeyIds.has(id);
   if (pressed) {
     pressedMultiTouchKeyIds.add(id);
   } else if (wasPressed) {
     pressedMultiTouchKeyIds.delete(id);
   }
-  pressVisualHandlers.get(id)?.(pressed);
-  if (!pressed && pressedMultiTouchKeyIds.size === 0) {
-    hideKeyPreview();
-  }
+  pressVisualHandlers.get(id)?.(pressed, options);
 }
 
 export function hasActiveAlternatePopup(): boolean {
@@ -357,6 +358,7 @@ type DispatchMultiTouchOptions = {
   getIsUppercase: () => boolean;
   getLetterCommitText?: (keyValue: string) => string;
   hitSlop?: KeyHitSlop;
+  consumeNativeFastPathPointer?: (pointerId: number) => boolean;
 };
 
 function resolveLetterCommitText(
@@ -396,7 +398,7 @@ function openAlternatePopup(
     POPUP_CELL_SIZE,
     areaWidth,
   );
-  hideKeyPreview();
+  hideAllKeyPreviews();
   triggerKeyHaptic();
   notifyPopup(session);
 }
@@ -447,10 +449,10 @@ export function dispatchMultiTouchStart(
         geometry: null,
         longPressTimer: null,
       };
+      setMultiTouchKeyPressed(hit.id, true);
       triggerKeyHaptic();
       options.onKeyCommit(hit.keyDef, ' ');
       markSwipeTypingTapCommitted(pid);
-      setMultiTouchKeyPressed(hit.id, true);
       activeSessions.set(pid, session);
       continue;
     }
@@ -476,10 +478,14 @@ export function dispatchMultiTouchStart(
       longPressTimer: null,
     };
 
-    options.onKeyCommit(hit.keyDef, defaultCommit);
-    triggerKeyHaptic();
+    const nativeCommitted =
+      options.consumeNativeFastPathPointer?.(pid) ?? false;
+
+    setMultiTouchKeyPressed(hit.id, true, {nativeCommitted});
+    if (!nativeCommitted) {
+      options.onKeyCommit(hit.keyDef, defaultCommit);
+    }
     markSwipeTypingTapCommitted(pid);
-    setMultiTouchKeyPressed(hit.id, true);
 
     if (opensAlternatePopup) {
       session.longPressTimer = setTimeout(() => {
@@ -560,14 +566,12 @@ export function cancelMultiTouchPointer(
   if (session) {
     clearSessionTimer(session);
     setMultiTouchKeyPressed(session.keyId, false);
-    hideKeyPreview();
     activeSessions.delete(pointerId);
     notifyPopup(null);
   }
   const keyId = pointerToKeyId.get(pointerId);
   if (keyId) {
     setMultiTouchKeyPressed(keyId, false);
-    hideKeyPreview();
     pointerToKeyId.delete(pointerId);
   }
 }
@@ -579,6 +583,6 @@ export function cancelAllMultiTouchSessions(): void {
   }
   activeSessions.clear();
   pressedMultiTouchKeyIds.clear();
-  hideKeyPreview();
+  hideAllKeyPreviews();
   notifyPopup(null);
 }

@@ -116,7 +116,12 @@ export function ConsoleSettingsScreen({
       <StatusBar barStyle="dark-content" backgroundColor={C.bg} />
       <ScrollView contentContainerStyle={styles.scrollContent}>
 
-        <Text style={styles.pageTitle}>Console</Text>
+        <View style={styles.titleRow}>
+          <Text style={styles.pageTitle}>Console</Text>
+          <View style={styles.betaTag}>
+            <Text style={styles.betaTagText}>BETA</Text>
+          </View>
+        </View>
 
         {/* Controller Stack */}
         <View style={styles.stack}>
@@ -206,9 +211,28 @@ const styles = StyleSheet.create({
   pageTitle: {
     fontSize: 40,
     color: C.text,
-    marginBottom: 8,
     letterSpacing: -2.5,
     fontFamily: 'FragmentMono',
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 8,
+  },
+  betaTag: {
+    backgroundColor: C.red,
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    marginTop: 6,
+  },
+  betaTagText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontFamily: 'FragmentMono',
+    fontWeight: '600',
+    letterSpacing: 0.6,
   },
   stack: {
     gap: ROW_GAP,

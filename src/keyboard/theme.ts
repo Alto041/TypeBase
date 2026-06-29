@@ -1,4 +1,5 @@
 import {Platform} from 'react-native';
+import type {KeyboardLayout} from './layouts/qwerty';
 import {
   DEFAULT_LETTER_LAYOUT_ID,
   type LetterLayoutId,
@@ -555,3 +556,57 @@ export function createKeyboardTheme(
 
 /** Default theme for modules that load before KeyboardThemeProvider mounts. */
 export const keyboardTheme = createKeyboardTheme('light');
+
+/** Numbers/symbols layouts always render four key rows (no dedicated number row). */
+export const NUMBER_SYMBOL_KEYBOARD_ROW_COUNT = 4;
+
+export type NumberRowLayoutBoost = {
+  keyHeight: number;
+  keyGap: number;
+  keyRowMargin: number;
+};
+
+/**
+ * When the dedicated number row is on, letters gain a fifth row. Numbers/symbols
+ * keep four rows — boost key size and gaps so overall keyboard height stays aligned.
+ */
+export function getNumberRowLayoutBoost(
+  layout: KeyboardLayout,
+  theme: Pick<
+    KeyboardTheme,
+    'numberRowEnabled' | 'keyHeight' | 'keyRowMargin' | 'keyGap'
+  >,
+): NumberRowLayoutBoost | null {
+  if (
+    !theme.numberRowEnabled ||
+    (layout !== 'numbers' && layout !== 'symbols')
+  ) {
+    return null;
+  }
+
+  const missingRowHeight = theme.keyHeight + theme.keyRowMargin;
+  const perRow = missingRowHeight / NUMBER_SYMBOL_KEYBOARD_ROW_COUNT;
+
+  return {
+    keyHeight: Math.round(theme.keyHeight + perRow * 0.68),
+    keyRowMargin: Math.round(theme.keyRowMargin + perRow * 0.2),
+    keyGap: Math.round(theme.keyGap + perRow * 0.12),
+  };
+}
+
+export function getNonLettersKeyboardHeightDp(
+  layout: KeyboardLayout,
+  theme: KeyboardTheme,
+  lettersBaseHeightDp: number,
+): number {
+  if (layout === 'numpad') {
+    return theme.numpadKeyboardHeightDp;
+  }
+  if (
+    theme.numberRowEnabled &&
+    (layout === 'numbers' || layout === 'symbols')
+  ) {
+    return Math.round(lettersBaseHeightDp);
+  }
+  return theme.keyboardHeightDp;
+}

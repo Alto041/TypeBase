@@ -1,5 +1,7 @@
 package com.typebase.app
 
+import android.os.Handler
+import android.os.Looper
 import android.view.KeyEvent
 import android.view.HapticFeedbackConstants
 import android.view.View
@@ -47,7 +49,10 @@ object KeyboardInputBridge {
   private val supportsNewlineListeners = CopyOnWriteArrayList<(Boolean) -> Unit>()
   private val initialCapsModeListeners = CopyOnWriteArrayList<(Boolean) -> Unit>()
   private val nativeFastPathKeyListeners =
-      CopyOnWriteArrayList<(String, String, String, String) -> Unit>()
+      CopyOnWriteArrayList<(String, String, String, String, Boolean) -> Unit>()
+  private var showKeyPreviewFn: ((Int, String) -> Unit)? = null
+  private var hideKeyPreviewFn: ((Int) -> Unit)? = null
+  private val previewContainerChangedListeners = CopyOnWriteArrayList<() -> Unit>()
   private val controllerInputListeners = CopyOnWriteArrayList<(String) -> Unit>()
   private val controllerConnectionListeners = CopyOnWriteArrayList<(Boolean) -> Unit>()
 
@@ -229,16 +234,48 @@ object KeyboardInputBridge {
     return { orientationChangeListeners.remove(listener) }
   }
 
-  fun notifyNativeFastPathKey(id: String, type: String, value: String, text: String) {
-    nativeFastPathKeyListeners.forEach { listener -> listener(id, type, value, text) }
+  fun notifyNativeFastPathKey(
+      id: String,
+      type: String,
+      value: String,
+      text: String,
+      shiftConsumed: Boolean,
+  ) {
+    nativeFastPathKeyListeners.forEach { listener ->
+      listener(id, type, value, text, shiftConsumed)
+    }
   }
 
   fun addNativeFastPathKeyListener(
-      listener: (String, String, String, String) -> Unit,
+      listener: (String, String, String, String, Boolean) -> Unit,
   ): () -> Unit {
     nativeFastPathKeyListeners.add(listener)
     return { nativeFastPathKeyListeners.remove(listener) }
   }
+
+  fun registerKeyPreviewCallbacks(
+      show: (Int, String) -> Unit,
+      hide: (Int) -> Unit,
+  ) {
+    showKeyPreviewFn = show
+    hideKeyPreviewFn = hide
+  }
+
+  fun clearKeyPreviewCallbacks() {
+    showKeyPreviewFn = null
+    hideKeyPreviewFn = null
+  }
+
+  fun showKeyPreview(reactTag: Int, label: String) {
+    showKeyPreviewFn?.invoke(reactTag, label)
+  }
+
+  fun hideKeyPreview(reactTag: Int) {
+    hideKeyPreviewFn?.invoke(reactTag)
+  }
+
+  fun consumeNativeFastPathPointer(pointerId: Int): Boolean =
+      inputService?.consumeNativeFastPathPointer(pointerId) ?: false
 
   fun notifyControllerInput(json: String) {
     controllerInputListeners.forEach { listener -> listener(json) }
@@ -352,6 +389,21 @@ object KeyboardInputBridge {
   }
 
   fun getPopupAnchorView(): View? = inputService?.popupAnchorView
+
+  fun getKeyboardCoordinateView(): View? = inputService?.keyboardCoordinateView
+
+  fun notifyPreviewContainerChanged() {
+    if (Looper.myLooper() != Looper.getMainLooper()) {
+      Handler(Looper.getMainLooper()).post { notifyPreviewContainerChanged() }
+      return
+    }
+    previewContainerChangedListeners.forEach { listener -> listener() }
+  }
+
+  fun addPreviewContainerChangedListener(listener: () -> Unit): () -> Unit {
+    previewContainerChangedListeners.add(listener)
+    return { previewContainerChangedListeners.remove(listener) }
+  }
 
   fun shouldPreferNumpad(info: EditorInfo?): Boolean {
     if (info == null) {
