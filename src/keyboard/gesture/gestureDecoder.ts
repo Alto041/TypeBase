@@ -2,51 +2,28 @@ import {
   getLearnedCounts,
   learnedSwipeBonus,
 } from '../suggestions/learnedDictionary';
-import {keyboardBridge} from '../keyboardBridge';
 import {
-  getSwipeCandidates,
+  collapseTracePattern,
+  getSwipeCandidatesSync,
   getWordsByFirstLetter,
+  isCommitableSwipeWord,
+  isKnownWord,
+  isPatternSubsequence,
   isValidSwipeCommit,
+  wordAlignsWithTrace,
 } from './wordDictionary';
 import type {KeyBounds, Point} from './types';
 
-const MIN_RESAMPLE_COUNT = 36;
-const MAX_RESAMPLE_COUNT = 60;
-const SWIPE_CANDIDATE_LIMIT = 650;
+const MIN_RESAMPLE_COUNT = 28;
+const MAX_RESAMPLE_COUNT = 48;
+const SWIPE_CANDIDATE_LIMIT = 140;
+const SWIPE_SCORE_LIMIT = 100;
 
 function resampleCountForPath(pointCount: number): number {
   return Math.min(
     MAX_RESAMPLE_COUNT,
     Math.max(MIN_RESAMPLE_COUNT, Math.round(pointCount * 0.55)),
   );
-}
-
-async function decodeSwipeGestureNative(
-  rawPoints: Point[],
-  layouts: KeyBounds[],
-  isUppercase: boolean,
-): Promise<string | null> {
-  try {
-    const layoutPayload = layouts
-      .filter(layout => layout.letter)
-      .map(layout => ({
-        letter: layout.letter,
-        x: layout.x,
-        y: layout.y,
-        width: layout.width,
-        height: layout.height,
-        centerX: layout.centerX,
-        centerY: layout.centerY,
-      }));
-    const word = await keyboardBridge.decodeSwipeGesture(
-      JSON.stringify(rawPoints),
-      JSON.stringify(layoutPayload),
-      isUppercase,
-    );
-    return word && isValidSwipeCommit(word) ? word : null;
-  } catch {
-    return null;
-  }
 }
 
 function distance(a: Point, b: Point): number {
@@ -704,11 +681,16 @@ function traceTailPenalty(word: string, trace: string): number {
 
 function keySequencePenalty(word: string, trace: string): number {
   const wordKeys = keySequence(word);
-  if (wordKeys === trace) {
-    return -0.35;
+  const collapsed = collapseTracePattern(trace);
+  if (wordKeys === collapsed && isKnownWord(word)) {
+    return -0.9;
   }
 
-  const traceLetters = new Set(trace.split(''));
+  if (isPatternSubsequence(wordKeys, collapsed)) {
+    return -0.4;
+  }
+
+  const traceLetters = new Set(collapsed.split(''));
   let foreignKeys = 0;
   for (const char of wordKeys) {
     if (!traceLetters.has(char)) {
@@ -716,7 +698,7 @@ function keySequencePenalty(word: string, trace: string): number {
     }
   }
 
-  return foreignKeys * 0.18 + Math.abs(wordKeys.length - trace.length) * 0.06;
+  return foreignKeys * 0.35 + Math.abs(wordKeys.length - collapsed.length) * 0.14;
 }
 
 function shortWordPenalty(word: string, trace: string): number {
@@ -771,6 +753,13 @@ function scoreCandidate(
   verticalSpan: number,
   keyboardHeight: number,
 ): number | null {
+  if (!isCommitableSwipeWord(word)) {
+    return null;
+  }
+  if (!wordAlignsWithTrace(word, pattern)) {
+    return null;
+  }
+
   const idealPath = buildIdealPath(word, letterMap);
   if (idealPath.length < 2) {
     return null;
@@ -839,24 +828,25 @@ function shouldPreferCandidate(
     return true;
   }
 
+  // Only break ties with learned history when scores are extremely close.
   return (
-    Math.abs(score - bestScore) <= 0.07 && learnedUses > bestLearnedUses
+    Math.abs(score - bestScore) <= 0.025 && learnedUses > bestLearnedUses
   );
 }
 
-async function getBroadSwipeCandidates(
+function getBroadSwipeCandidates(
   pattern: string,
   rawPoints: Point[],
   layouts: KeyBounds[],
-): Promise<Array<{word: string; rank: number}>> {
+): Array<{word: string; rank: number}> {
   const seen = new Set<string>();
   const results: Array<{word: string; rank: number}> = [];
 
-  const addCandidates = async (candidatePattern: string) => {
+  const addCandidates = (candidatePattern: string) => {
     if (!candidatePattern || !/^[a-z]/.test(candidatePattern)) {
       return;
     }
-    const candidates = await getSwipeCandidates(
+    const candidates = getSwipeCandidatesSync(
       candidatePattern,
       SWIPE_CANDIDATE_LIMIT,
     );
@@ -869,32 +859,23 @@ async function getBroadSwipeCandidates(
     }
   };
 
-  await addCandidates(pattern);
+  addCandidates(pattern);
 
   const startLetter = nearestTraceLetter(rawPoints[0], layouts);
   if (startLetter && startLetter !== pattern[0]) {
-    await addCandidates(`${startLetter}${pattern.slice(1)}`);
+    addCandidates(`${startLetter}${pattern.slice(1)}`);
   }
 
   return results;
 }
 
-export async function decodeSwipeGesture(
+export function decodeSwipeGesture(
   rawPoints: Point[],
   layouts: KeyBounds[],
   isUppercase: boolean,
-): Promise<string | null> {
+): string | null {
   if (rawPoints.length < 2 || layouts.length === 0) {
     return null;
-  }
-
-  const nativeWord = await decodeSwipeGestureNative(
-    rawPoints,
-    layouts,
-    isUppercase,
-  );
-  if (nativeWord) {
-    return nativeWord;
   }
 
   const scale = keyboardScale(layouts);
@@ -926,7 +907,10 @@ export async function decodeSwipeGesture(
     );
   }
 
-  const candidates = await getBroadSwipeCandidates(pattern, rawPoints, layouts);
+  const candidates = getBroadSwipeCandidates(pattern, rawPoints, layouts).slice(
+    0,
+    SWIPE_SCORE_LIMIT,
+  );
   const learned = getLearnedCounts();
 
   let bestWord: string | null = null;
@@ -966,7 +950,7 @@ export async function decodeSwipeGesture(
 
   if (!bestWord) {
     return finalizeSwipeWord(
-      (await pickByProximityOnly(
+      pickByProximityOnly(
         pattern,
         swipePath,
         rawPoints,
@@ -977,7 +961,7 @@ export async function decodeSwipeGesture(
         keyboardHeight,
         verticalSpan,
         isUppercase,
-      )) ??
+      ) ??
         decodeByPathShape(
           rawPoints,
           swipePath,
@@ -989,6 +973,7 @@ export async function decodeSwipeGesture(
           verticalSpan,
           isUppercase,
         ),
+      pattern,
     );
   }
 
@@ -1000,7 +985,7 @@ export async function decodeSwipeGesture(
     (bestScore > 1.12 && margin < 0.008 && pattern.length < 7)
   ) {
     return finalizeSwipeWord(
-      (await pickByProximityOnly(
+      pickByProximityOnly(
         pattern,
         swipePath,
         rawPoints,
@@ -1011,7 +996,7 @@ export async function decodeSwipeGesture(
         keyboardHeight,
         verticalSpan,
         isUppercase,
-      )) ??
+      ) ??
         decodeByPathShape(
           rawPoints,
           swipePath,
@@ -1079,7 +1064,7 @@ function decodeByPathShape(
   return bestWord ? formatWord(bestWord, isUppercase) : null;
 }
 
-async function pickByProximityOnly(
+function pickByProximityOnly(
   pattern: string,
   swipePath: Point[],
   rawSwipePath: Point[],
@@ -1090,12 +1075,15 @@ async function pickByProximityOnly(
   keyboardHeight: number,
   verticalSpan: number,
   isUppercase: boolean,
-): Promise<string | null> {
+): string | null {
   if (pattern.length < 2) {
     return null;
   }
 
-  const candidates = await getSwipeCandidates(pattern, SWIPE_CANDIDATE_LIMIT);
+  const candidates = getSwipeCandidatesSync(pattern, SWIPE_CANDIDATE_LIMIT).slice(
+    0,
+    SWIPE_SCORE_LIMIT,
+  );
   let bestWord: string | null = null;
   let bestScore = Infinity;
 

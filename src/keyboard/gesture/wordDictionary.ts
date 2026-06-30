@@ -1,50 +1,25 @@
-import {Platform} from 'react-native';
-import {keyboardBridge} from '../keyboardBridge';
+import {
+  getBaseWords,
+  hasDictionaryWord,
+  lookupSwipeCandidatesSync,
+  symSpellRank,
+} from '../autocorrect/dictionaryManager';
 import {
   getLearnedCounts,
   learnedRankBoost,
 } from '../suggestions/learnedDictionary';
-import {ENGLISH_WORDS} from './englishWordsSource';
 
-const WORDS = ENGLISH_WORDS;
-
-const byFirstLetter = new Map<string, Array<{word: string; rank: number}>>();
-const STATIC_RANK = new Map<string, number>();
-
-for (let rank = 0; rank < WORDS.length; rank++) {
-  const word = WORDS[rank].toLowerCase();
-  if (word.length < 2 || word.length > 16 || !/^[a-z]+$/.test(word)) {
-    continue;
+/** Collapse consecutive duplicate letters in a crossed-key trace. */
+export function collapseTracePattern(trace: string): string {
+  let previous = '';
+  let sequence = '';
+  for (const char of trace) {
+    if (char !== previous) {
+      sequence += char;
+      previous = char;
+    }
   }
-  STATIC_RANK.set(word, rank);
-  const first = word[0];
-  const bucket = byFirstLetter.get(first) ?? [];
-  bucket.push({word, rank});
-  byFirstLetter.set(first, bucket);
-}
-
-let nativeDictionaryReady = false;
-let nativeDictionaryPromise: Promise<void> | null = null;
-
-export async function ensureSwipeWordDictionaryLoaded(): Promise<void> {
-  if (nativeDictionaryReady) {
-    return;
-  }
-  if (Platform.OS !== 'android') {
-    nativeDictionaryReady = true;
-    return;
-  }
-  if (!nativeDictionaryPromise) {
-    nativeDictionaryPromise = keyboardBridge
-      .preloadSwipeWordDictionary()
-      .then(() => {
-        nativeDictionaryReady = true;
-      })
-      .catch(() => {
-        nativeDictionaryPromise = null;
-      });
-  }
-  await nativeDictionaryPromise;
+  return sequence;
 }
 
 export function isPatternSubsequence(pattern: string, word: string): boolean {
@@ -63,15 +38,61 @@ export function isPatternSubsequence(pattern: string, word: string): boolean {
   return false;
 }
 
+export function wordKeySequence(word: string): string {
+  return collapseTracePattern(word.toLowerCase());
+}
+
+/** Words we may insert after a swipe — never the raw crossed-key trail. */
+export function isCommitableSwipeWord(word: string): boolean {
+  const lower = word.trim().toLowerCase();
+  if (lower.length < 2 || lower.length > 16 || !/^[a-z]+$/.test(lower)) {
+    return false;
+  }
+  return hasDictionaryWord(lower) || (getLearnedCounts().get(lower) ?? 0) > 0;
+}
+
+/** Whether the word's key path follows the finger's crossed-key trace in order. */
+export function wordAlignsWithTrace(word: string, trace: string): boolean {
+  const collapsed = collapseTracePattern(trace.toLowerCase());
+  const wordKeys = wordKeySequence(word);
+  if (!collapsed || wordKeys.length < 1) {
+    return false;
+  }
+
+  // The noisy key trail itself is not a word (e.g. jkokijnbhg).
+  if (wordKeys === collapsed || word.toLowerCase() === collapsed) {
+    return hasDictionaryWord(word);
+  }
+
+  // Real words are shorter than the keys the finger crossed.
+  if (wordKeys.length > collapsed.length) {
+    return false;
+  }
+
+  if (isPatternSubsequence(wordKeys, collapsed)) {
+    return true;
+  }
+
+  if (
+    isPatternSubsequence(collapsed, wordKeys) &&
+    Math.abs(wordKeys.length - collapsed.length) <= 1
+  ) {
+    return true;
+  }
+
+  const fuzzyBudget = Math.min(
+    1,
+    Math.max(1, Math.floor(collapsed.length / 5)),
+  );
+  return fuzzyMatchesPattern(wordKeys, collapsed, fuzzyBudget);
+}
+
 export function wordMatchesTrace(
   word: string,
   trace: string,
-  maxEdits = 2,
+  _maxEdits = 2,
 ): boolean {
-  if (isPatternSubsequence(word, trace)) {
-    return true;
-  }
-  return fuzzyMatchesPattern(word, trace, maxEdits);
+  return wordAlignsWithTrace(word, trace);
 }
 
 export function traceEditBudget(trace: string): number {
@@ -124,9 +145,14 @@ export function fuzzyMatchesPattern(
   return dp[pattern.length][word.length] <= maxEdits;
 }
 
+/**
+ * Swipe candidates come from SymSpell (same dictionary as autocorrect) plus
+ * learned words. Dictionary source: src/keyboard/gesture/data/englishWords.txt
+ * synced via `npm run sync:words` — do not edit Android assets by hand.
+ */
 function getSwipeCandidatesJs(
   pattern: string,
-  maxCandidates = 420,
+  maxCandidates = 140,
 ): Array<{word: string; rank: number}> {
   const normalized = pattern.toLowerCase();
   const first = normalized[0];
@@ -134,104 +160,74 @@ function getSwipeCandidatesJs(
     return [];
   }
 
-  const maxEdits = traceEditBudget(normalized);
-  const seen = new Set<string>();
-  const results: Array<{word: string; rank: number}> = [];
+  const collapsed = collapseTracePattern(normalized);
+  const seen = new Map<string, number>();
 
-  const push = (word: string, rank: number, requireTraceMatch: boolean) => {
-    if (seen.has(word)) {
-      return false;
+  const tryAdd = (word: string, rank: number) => {
+    if (word.length < 2 || word.length > 16 || word[0] !== first) {
+      return;
     }
-    if (word.length < 2 || word.length > 16) {
-      return false;
+    if (!isCommitableSwipeWord(word)) {
+      return;
     }
-    if (requireTraceMatch && !wordMatchesTrace(word, normalized, maxEdits)) {
-      return false;
+    if (!wordAlignsWithTrace(word, normalized)) {
+      return;
     }
-    seen.add(word);
-    results.push({word, rank});
-    return true;
+    const existing = seen.get(word);
+    if (existing == null || rank < existing) {
+      seen.set(word, rank);
+    }
   };
 
+  const lookupPatterns =
+    collapsed === normalized ? [normalized] : [collapsed, normalized];
+
+  for (const lookupPattern of lookupPatterns) {
+    const maxEd = Math.min(2, traceEditBudget(lookupPattern.length));
+    const symMatches = lookupSwipeCandidatesSync(
+      lookupPattern,
+      maxEd,
+      maxCandidates,
+    );
+    for (const match of symMatches) {
+      tryAdd(match.word, symSpellRank(match.word, match.edits));
+    }
+  }
+
   const learned = getLearnedCounts();
-  const learnedByCount = [...learned.entries()]
-    .filter(([word, count]) => count > 0 && word[0] === first)
-    .sort((a, b) => b[1] - a[1]);
-
-  for (const [word, count] of learnedByCount) {
-    const staticRank = STATIC_RANK.get(word);
-    const rank =
-      staticRank != null
-        ? Math.max(0, staticRank - learnedRankBoost(count))
-        : Math.max(0, 2500 - learnedRankBoost(count));
-    if (push(word, rank, false) && results.length >= maxCandidates) {
-      return results;
-    }
-  }
-
-  // First pass: strong trace candidates.
-  for (let rank = 0; rank < WORDS.length; rank++) {
-    const word = WORDS[rank].toLowerCase();
-    if (word[0] !== first) {
+  for (const [word, count] of learned.entries()) {
+    if (count <= 0 || word[0] !== first) {
       continue;
     }
-    if (push(word, rank, true) && results.length >= maxCandidates) {
-      return results;
-    }
+    tryAdd(word, Math.max(0, 2500 - learnedRankBoost(count)));
   }
 
-  // Second pass: broad first-letter candidates. Production gesture keyboards
-  // score by path shape, not only by the noisy key trace a finger happened to cross.
-  for (let rank = 0; rank < WORDS.length; rank++) {
-    const word = WORDS[rank].toLowerCase();
-    if (word[0] !== first) {
-      continue;
-    }
-    if (push(word, rank, false) && results.length >= maxCandidates) {
-      return results;
-    }
-  }
+  return [...seen.entries()]
+    .map(([word, rank]) => ({word, rank}))
+    .sort((a, b) => a.rank - b.rank)
+    .slice(0, maxCandidates);
+}
 
-  return results;
+export function getSwipeCandidatesSync(
+  pattern: string,
+  maxCandidates = 140,
+): Array<{word: string; rank: number}> {
+  return getSwipeCandidatesJs(pattern, maxCandidates);
 }
 
 export async function getSwipeCandidates(
   pattern: string,
-  maxCandidates = 420,
+  maxCandidates = 140,
 ): Promise<Array<{word: string; rank: number}>> {
-  if (Platform.OS === 'android') {
-    await ensureSwipeWordDictionaryLoaded();
-    if (nativeDictionaryReady) {
-      try {
-        return await keyboardBridge.getSwipeCandidates(pattern, maxCandidates);
-      } catch {
-        // Fall back to the bundled JS dictionary.
-      }
-    }
-  }
-
-  return getSwipeCandidatesJs(pattern, maxCandidates);
+  return getSwipeCandidatesSync(pattern, maxCandidates);
 }
 
 export function isKnownWord(word: string): boolean {
-  return STATIC_RANK.has(word.toLowerCase());
+  return hasDictionaryWord(word);
 }
 
 export function isValidSwipeCommit(word: string): boolean {
-  if (!word || !/^[a-zA-Z]+$/.test(word)) {
-    return false;
-  }
-
-  const lower = word.toLowerCase();
-  if (lower.length < 2 || lower.length > 16) {
-    return false;
-  }
-
-  if (isKnownWord(lower)) {
-    return true;
-  }
-
-  return (getLearnedCounts().get(lower) ?? 0) > 0;
+  return isCommitableSwipeWord(word);
 }
 
 export function getWordsByFirstLetter(
@@ -242,5 +238,9 @@ export function getWordsByFirstLetter(
   if (!/^[a-z]$/.test(normalized)) {
     return [];
   }
-  return (byFirstLetter.get(normalized) ?? []).slice(0, maxWords);
+
+  return getBaseWords()
+    .map((word, rank) => ({word: word.toLowerCase(), rank}))
+    .filter(({word}) => word[0] === normalized && word.length >= 2 && word.length <= 16)
+    .slice(0, maxWords);
 }

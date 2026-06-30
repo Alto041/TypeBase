@@ -359,6 +359,8 @@ type DispatchMultiTouchOptions = {
   getLetterCommitText?: (keyValue: string) => string;
   hitSlop?: KeyHitSlop;
   consumeNativeFastPathPointer?: (pointerId: number) => boolean;
+  /** When true, letter keys commit on lift so swipes do not leave a stray start letter. */
+  swipeTypingEnabled?: boolean;
 };
 
 function resolveLetterCommitText(
@@ -465,13 +467,15 @@ export function dispatchMultiTouchStart(
     );
     const defaultCommit = resolveLetterCommitText(hit.keyDef.value ?? '', options);
     const opensAlternatePopup = shouldShowAlternatePopup(alternates);
+    const deferLetterCommit =
+      Boolean(options.swipeTypingEnabled) && isMultiTouchTextKey(hit.keyDef);
 
     const session: MultiTouchSession = {
       keyId: hit.id,
       keyDef: hit.keyDef,
       alternates,
       defaultCommit,
-      committedOnDown: true,
+      committedOnDown: !deferLetterCommit,
       phase: 'holding',
       selectedIndex: 0,
       geometry: null,
@@ -479,13 +483,16 @@ export function dispatchMultiTouchStart(
     };
 
     const nativeCommitted =
-      options.consumeNativeFastPathPointer?.(pid) ?? false;
+      !deferLetterCommit &&
+      (options.consumeNativeFastPathPointer?.(pid) ?? false);
 
     setMultiTouchKeyPressed(hit.id, true, {nativeCommitted});
-    if (!nativeCommitted) {
+    if (!deferLetterCommit && !nativeCommitted) {
       options.onKeyCommit(hit.keyDef, defaultCommit);
     }
-    markSwipeTypingTapCommitted(pid);
+    if (!deferLetterCommit) {
+      markSwipeTypingTapCommitted(pid);
+    }
 
     if (opensAlternatePopup) {
       session.longPressTimer = setTimeout(() => {
@@ -565,6 +572,9 @@ export function cancelMultiTouchPointer(
   const session = activeSessions.get(pointerId);
   if (session) {
     clearSessionTimer(session);
+    if (session.committedOnDown) {
+      keyboardBridge.deleteBackward();
+    }
     setMultiTouchKeyPressed(session.keyId, false);
     activeSessions.delete(pointerId);
     notifyPopup(null);

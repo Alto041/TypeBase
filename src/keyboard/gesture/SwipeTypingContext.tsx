@@ -15,7 +15,6 @@ import {hideAllKeyPreviews} from '../KeyPreview';
 import {clampPoint, decimatePoints, distance} from './coordinates';
 import {decodeSwipeGesture} from './gestureDecoder';
 import {ensureLearnedDictionaryLoaded} from '../suggestions/learnedDictionary';
-import {ensureSwipeWordDictionaryLoaded, isValidSwipeCommit} from './wordDictionary';
 import {
   activeSwipePointerIdRef,
   gestureSwipeActiveRef,
@@ -252,43 +251,37 @@ export function SwipeTypingProvider({
     pagePointsRef.current = decimatePoints([...points, {pageX, pageY}], SWIPE_MAX_POINTS);
   }, []);
 
+  useEffect(() => {
+    if (!enabled) {
+      return;
+    }
+    void ensureLearnedDictionaryLoaded();
+  }, [enabled]);
+
   const decodeAndCommit = useCallback(
     (localPoints: Point[], tapCommitted: boolean) => {
-      const attemptDecode = async (retriesLeft: number) => {
-        const layouts = layoutContext?.getLayouts() ?? [];
-        const letterKeyCount = layouts.filter(layout => layout.letter).length;
+      const layouts = layoutContext?.getLayouts() ?? [];
+      const letterKeyCount = layouts.filter(layout => layout.letter).length;
 
-        if (letterKeyCount < 20 && retriesLeft > 0) {
-          layoutContext?.refreshAreaBounds();
-          requestAnimationFrame(() => {
-            void attemptDecode(retriesLeft - 1);
-          });
-          return;
+      if (letterKeyCount < 20) {
+        layoutContext?.refreshAreaBounds();
+      }
+
+      if (
+        localPoints.length < 2 ||
+        pathDistance(localPoints) < dp(SWIPE_TAP_SLOP_DP)
+      ) {
+        return;
+      }
+
+      const word = decodeSwipeGesture(localPoints, layouts, isUppercase);
+      if (word) {
+        if (tapCommitted) {
+          keyboardBridge.deleteBackward();
         }
-
-        if (
-          localPoints.length < 2 ||
-          pathDistance(localPoints) < dp(SWIPE_TAP_SLOP_DP)
-        ) {
-          return;
-        }
-
-        const word = await decodeSwipeGesture(localPoints, layouts, isUppercase);
-        if (word && isValidSwipeCommit(word)) {
-          if (tapCommitted) {
-            keyboardBridge.deleteBackward();
-          }
-          triggerKeyHaptic();
-          onWordCommitted(word);
-        }
-      };
-
-      void Promise.all([
-        ensureLearnedDictionaryLoaded(),
-        ensureSwipeWordDictionaryLoaded(),
-      ]).then(() => {
-        void attemptDecode(3);
-      });
+        triggerKeyHaptic();
+        onWordCommitted(word);
+      }
     },
     [isUppercase, layoutContext, onWordCommitted],
   );
@@ -553,6 +546,7 @@ export function SwipeTypingKeysHost({
           getLetterCommitText,
           hitSlop: keyHitSlop,
           consumeNativeFastPathPointer: keyboardBridge.consumeNativeFastPathPointer,
+          swipeTypingEnabled: Boolean(ctx?.enabled),
         });
       }
     },

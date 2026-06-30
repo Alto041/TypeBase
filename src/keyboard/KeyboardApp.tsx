@@ -124,7 +124,6 @@ import {
   setPeriodRewriteArmed,
 } from './gestures/gesturesStore';
 import type {GestureSettings, LaunchableApp} from './gestures/types';
-import {ensureSwipeWordDictionaryLoaded} from './gesture/wordDictionary';
 import {deferKeyboardSideEffect, triggerKeyHaptic} from './haptics';
 import {keyboardBridge} from './keyboardBridge';
 import {getKeyReactTag, subscribeKeyReactTags} from './keyReactTags';
@@ -1697,7 +1696,6 @@ function KeyboardBody({
         ensureEssentialsLoaded(),
         ensureClipboardLoaded(),
         ensureLearnedDictionaryLoaded(),
-        ensureSwipeWordDictionaryLoaded(),
         ensureLearnedPhrasesLoaded(),
         ensureAutocorrectLoaded(),
         ensureApiKeysLoaded(),
@@ -2488,7 +2486,8 @@ function KeyboardBody({
     NATIVE_FAST_PATH_ENABLED &&
     mode.type === 'typing' &&
     layout === 'letters' &&
-    !isFormMode;
+    !isFormMode &&
+    !gestureEnabled;
 
   useEffect(() => {
     if (!nativeFastPathEligible || !layoutContext) {

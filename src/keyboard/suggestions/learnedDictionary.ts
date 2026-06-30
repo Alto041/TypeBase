@@ -74,13 +74,13 @@ export function recordLearnedWord(word: string): void {
   addLearnedWord(normalized);
 }
 
-/** Lower swipe score is better; scales with how often the user typed the word. */
+/** Lower swipe score is better; small nudge for words the user has typed before. */
 export function learnedSwipeBonus(uses: number): number {
   if (uses <= 0) {
     return 0;
   }
 
-  return Math.min(uses * 0.24 + Math.log10(uses + 1) * 0.2, 1.35);
+  return Math.min(uses * 0.08 + Math.log10(uses + 1) * 0.08, 0.45);
 }
 
 export function learnedRankBoost(uses: number): number {

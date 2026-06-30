@@ -187,6 +187,31 @@ export function getReadySymSpell(): SymSpell | null {
   return readySymSpell;
 }
 
+/** True when the active SymSpell dictionary contains this exact term. */
+export function hasDictionaryWord(word: string): boolean {
+  const lower = word.trim().toLowerCase();
+  if (lower.length < 2) {
+    return false;
+  }
+  const ss = resolveSymSpellForLanguage();
+  if (!ss) {
+    return false;
+  }
+  const exact = ss.Lookup(lower, Verbosity.Top, 0);
+  return exact.length > 0 && exact[0].distance === 0;
+}
+
+/** Rank from SymSpell frequency (lower = more common). */
+export function symSpellRank(term: string, edits = 0): number {
+  const ss = resolveSymSpellForLanguage();
+  if (!ss) {
+    return 50_000 + edits * 100;
+  }
+  const hit = ss.Lookup(term.toLowerCase(), Verbosity.Top, 0);
+  const count = hit[0]?.count ?? 0;
+  return Math.max(0, 120_000 - count) + edits * 45;
+}
+
 /**
  * Lookup fuzzy candidates from the active SymSpell (async path ensures load).
  */
@@ -204,6 +229,37 @@ export async function lookupCandidates(
   }));
 }
 
+function resolveSymSpellForLanguage(): SymSpell | null {
+  const lang = getActiveLanguage();
+  let ss = ssCache.get(lang) || null;
+
+  if (!ss && (lang === 'en' || !ssCache.has(lang))) {
+    ss = readySymSpell ?? ssCache.get('en') ?? null;
+  }
+
+  if (!ss) {
+    return null;
+  }
+
+  if (ss === readySymSpell && !readyLearnedBoosted) {
+    readyLearnedBoosted = true;
+    ensureLearnedDictionaryLoaded()
+      .then(() => {
+        const learned = getLearnedCounts();
+        for (const [w, uses] of learned) {
+          if (uses > 0) {
+            ss!.CreateDictionaryEntry(w, 200_000 + uses * 800);
+          }
+        }
+      })
+      .catch(() => {
+        /* ignore */
+      });
+  }
+
+  return ss;
+}
+
 /** Synchronous fuzzy lookup. Prefers the language-specific SymSpell.
  * Never falls back to English for non-English languages.
  */
@@ -212,30 +268,39 @@ export function lookupCandidatesSync(
   maxEd = 2,
   limit = 10,
 ): Candidate[] {
-  const lang = getActiveLanguage();
-  let ss = ssCache.get(lang) || null;
-
-  // Only fall back to ready/en when the active language is English (or has no dedicated data yet).
-  if (!ss && (lang === 'en' || !ssCache.has(lang))) {
-    ss = readySymSpell ?? ssCache.get('en') ?? null;
+  const ss = resolveSymSpellForLanguage();
+  if (!ss) {
+    return [];
   }
 
-  if (!ss) return [];
-
-  if (ss === readySymSpell && !readyLearnedBoosted) {
-    readyLearnedBoosted = true;
-    ensureLearnedDictionaryLoaded()
-      .then(() => {
-        const learned = getLearnedCounts();
-        for (const [w, uses] of learned) {
-          if (uses > 0) ss!.CreateDictionaryEntry(w, 200_000 + uses * 800);
-        }
-      })
-      .catch(() => {
-        /* ignore */
-      });
-  }
   const results = ss.Lookup(typedLower, Verbosity.Closest, maxEd);
+  return results.slice(0, limit).map(r => ({
+    word: r.term,
+    edits: r.distance,
+    count: r.count,
+  }));
+}
+
+/**
+ * Broader SymSpell lookup for swipe typing: returns all candidates within edit
+ * distance, sorted by distance then frequency.
+ */
+export function lookupSwipeCandidatesSync(
+  pattern: string,
+  maxEd = 2,
+  limit = 420,
+): Candidate[] {
+  const ss = resolveSymSpellForLanguage();
+  if (!ss || !pattern) {
+    return [];
+  }
+
+  const normalized = pattern.toLowerCase();
+  if (!/^[a-z]/.test(normalized)) {
+    return [];
+  }
+
+  const results = ss.Lookup(normalized, Verbosity.All, maxEd);
   return results.slice(0, limit).map(r => ({
     word: r.term,
     edits: r.distance,
