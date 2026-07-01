@@ -73,6 +73,7 @@ import {SwipeTypingKeysHost} from './gesture/SwipeTypingContext';
 import {KeyLayoutProvider, useKeyLayoutContext} from './gesture/KeyLayoutContext';
 import {
   destroyKeyPreview,
+  hideAllKeyPreviews,
   initKeyPreview,
   setKeyPreviewTheme,
 } from './KeyPreview';
@@ -729,6 +730,10 @@ function KeyboardBody({
   }, []);
 
   useEffect(() => {
+    hideAllKeyPreviews();
+  }, [layout]);
+
+  useEffect(() => {
     setKeyPreviewTheme(theme.letterKey, theme.label);
   }, [theme.label, theme.letterKey]);
 
@@ -1036,16 +1041,6 @@ function KeyboardBody({
     setLayout('letters');
     resetCase();
   }, [resetCase]);
-
-  const toggleFloatingKeyboardFromPlugins = useCallback(() => {
-    const next = !theme.floatingKeyboardEnabled;
-    const effective = next && !controllerKeyboardActive;
-    keyboardBridge.setFloatingKeyboard(effective);
-    void updateKeyboardLayoutSetting('floatingKeyboardEnabled', next);
-    setMode({type: 'typing'});
-    setLayout('letters');
-    resetCase();
-  }, [controllerKeyboardActive, resetCase, theme.floatingKeyboardEnabled]);
 
   const openResize = useCallback(() => {
     setMode({type: 'resize'});
@@ -1734,8 +1729,6 @@ function KeyboardBody({
           );
 
     keyboardBridge.setKeyboardHeight(finalHeight);
-    const effectiveFloating = theme.floatingKeyboardEnabled && !controllerKeyboardActive;
-    keyboardBridge.setFloatingKeyboard(effectiveFloating);
 
     // IMPORTANT for smooth resize drag:
     // Do NOT remeasure keys on every live offset change while the resize overlay is active.
@@ -1750,7 +1743,6 @@ function KeyboardBody({
     }
     return undefined;
   }, [
-    controllerKeyboardActive,
     isResizeMode,
     layout,
     layoutContext,
@@ -2941,8 +2933,6 @@ function KeyboardBody({
               onSelectResize={() => {
                 openResize();
               }}
-              onToggleFloatingKeyboard={toggleFloatingKeyboardFromPlugins}
-              floatingKeyboardEnabled={theme.floatingKeyboardEnabled}
             />
           ) : null}
 

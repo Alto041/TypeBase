@@ -252,12 +252,14 @@ function KeyComponent({
         }
         reactTagRef.current = tag;
         if (pressed) {
-          if (!options?.nativeCommitted) {
-            const label = isUppercase
-              ? (keyDef.value ?? '').toUpperCase()
-              : (keyDef.value ?? '').toLowerCase();
-            showKeyPreview(tag, label);
-          }
+          const raw = keyDef.value ?? keyDef.label ?? '';
+          const label =
+            /^[a-z]$/i.test(raw) && isUppercase
+              ? raw.toUpperCase()
+              : /^[a-z]$/i.test(raw)
+                ? raw.toLowerCase()
+                : raw;
+          showKeyPreview(tag, label);
         } else {
           hideKeyPreview(tag);
         }

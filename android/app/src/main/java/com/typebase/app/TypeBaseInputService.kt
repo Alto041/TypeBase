@@ -202,9 +202,13 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
     val app = application as? ReactApplication ?: return
     UiThreadUtil.runOnUiThread {
       val host = app.reactHost ?: return@runOnUiThread
-      if (host.lifecycleState != LifecycleState.RESUMED) {
+      keyboardResumedReact = true
+      // MainActivity owns the shared React host while it is visible.
+      if (
+          host.lifecycleState != LifecycleState.RESUMED &&
+              !KeyboardInputBridge.isMainAppInForeground()
+      ) {
         host.onHostResume(null)
-        keyboardResumedReact = true
       }
       onResumed?.invoke()
     }
@@ -214,10 +218,15 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
     if (!keyboardResumedReact) {
       return
     }
+    keyboardResumedReact = false
+    // Never pause the shared React host while TypeBase is on screen — the IME and app
+    // share one ReactHost and onHostPause here freezes the main app.
+    if (KeyboardInputBridge.isMainAppInForeground()) {
+      return
+    }
     val app = application as? ReactApplication ?: return
     UiThreadUtil.runOnUiThread {
       app.reactHost?.onHostPause()
-      keyboardResumedReact = false
     }
   }
 
@@ -311,6 +320,12 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
     lp.gravity = Gravity.NO_GRAVITY
     overlay.layoutParams = lp
     overlay.bringToFront()
+    // Docked mode no longer calls super.onLayout(), so assign overlay bounds here.
+    val overlayLeft = lp.leftMargin
+    val overlayTop = lp.topMargin
+    val overlayRight = overlayLeft + overlay.measuredWidth.coerceAtLeast(lp.width)
+    val overlayBottom = overlayTop + overlay.measuredHeight.coerceAtLeast(lp.height)
+    overlay.layout(overlayLeft, overlayTop, overlayRight, overlayBottom)
   }
 
   private fun scheduleSurfaceMountRetry(frame: FrameLayout) {
@@ -693,13 +708,25 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
 
   private inner class KeyboardFrameLayout : FrameLayout(this@TypeBaseInputService) {
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+      val width = MeasureSpec.getSize(widthMeasureSpec)
+      val keyboardHeightPx = keyboardHeightPx(keyboardHeightDp)
+
       if (!floatingKeyboardEnabled) {
-        super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+        keyboardView?.measure(
+            MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY),
+            MeasureSpec.makeMeasureSpec(keyboardHeightPx, MeasureSpec.EXACTLY),
+        )
+        previewOverlay?.measure(
+            MeasureSpec.makeMeasureSpec(keyboardView?.measuredWidth ?: width, MeasureSpec.EXACTLY),
+            MeasureSpec.makeMeasureSpec(
+                keyboardView?.measuredHeight ?: keyboardHeightPx,
+                MeasureSpec.EXACTLY,
+            ),
+        )
+        setMeasuredDimension(width, keyboardHeightPx)
         return
       }
 
-      val width = MeasureSpec.getSize(widthMeasureSpec)
-      val keyboardHeightPx = keyboardHeightPx(keyboardHeightDp)
       val rootHeight = floatingRootHeightPx(keyboardHeightPx, MeasureSpec.getSize(heightMeasureSpec))
       val childWidth = floatingKeyboardWidthPx(width)
       keyboardView?.measure(
@@ -711,7 +738,10 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
 
     override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
       if (!floatingKeyboardEnabled) {
-        super.onLayout(changed, left, top, right, bottom)
+        val view = keyboardView
+        if (view != null) {
+          view.layout(0, 0, view.measuredWidth, view.measuredHeight)
+        }
         syncPreviewOverlayLayout()
         return
       }

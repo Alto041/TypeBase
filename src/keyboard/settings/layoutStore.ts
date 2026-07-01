@@ -85,10 +85,6 @@ function normalizeLayout(raw: unknown): KeyboardLayoutSettings {
       typeof obj['customFontFile'] === 'string' && obj['customFontFile'].trim()
         ? obj['customFontFile'].trim()
         : defaults.customFontFile,
-    floatingKeyboardEnabled:
-      typeof obj['floatingKeyboardEnabled'] === 'boolean'
-        ? obj['floatingKeyboardEnabled']
-        : defaults.floatingKeyboardEnabled,
     controller: normalizeControllerSettings(obj['controller']),
   };
 }

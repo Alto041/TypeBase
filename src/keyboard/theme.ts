@@ -58,8 +58,6 @@ export type KeyboardLayoutSettings = {
   customFontEnabled: boolean;
   /** Basename of the font file stored under keyboard_fonts/ (e.g. custom_keyboard_font.ttf). */
   customFontFile: string | null;
-  /** When true, render the same keyboard surface as a floating panel. */
-  floatingKeyboardEnabled: boolean;
   /** Controller/gamepad navigation and button mapping settings. */
   controller: ControllerSettings;
 };
@@ -80,7 +78,6 @@ export const DEFAULT_KEYBOARD_LAYOUT_SETTINGS: KeyboardLayoutSettings = {
   keyHapticEnabled: true,
   customFontEnabled: false,
   customFontFile: null,
-  floatingKeyboardEnabled: false,
   controller: DEFAULT_CONTROLLER_SETTINGS,
 };
 
@@ -550,7 +547,6 @@ export function createKeyboardTheme(
       4 * layout.keyGap +
       imeStripClearance,
     fontFamily: customUserFontFamily ?? (customFontLoaded ? ('Geist' as const) : undefined),
-    floatingKeyboardEnabled: layout.floatingKeyboardEnabled,
   };
 }
 

@@ -18,8 +18,9 @@ class KeyPreviewModule(private val reactContext: ReactApplicationContext) :
 
     private val manager = KeyPreviewManager(reactContext)
     private val anchorViewCache = HashMap<Int, WeakReference<View>>()
-    /** Per-key generation — stale Fabric UIBlock shows are skipped without affecting other keys. */
-    private val showGenerations = HashMap<Int, Int>()
+    /** Bumped only on hide so in-flight Fabric resolves are not cancelled by duplicate shows. */
+    private val hideGenerations = HashMap<Int, Int>()
+    private var globalHideGeneration = 0
 
     override fun getName() = "KeyPreview"
 
@@ -40,11 +41,13 @@ class KeyPreviewModule(private val reactContext: ReactApplicationContext) :
     @ReactMethod
     fun show(reactTag: Int, label: String) {
         UiThreadUtil.runOnUiThread {
-            val generation = (showGenerations[reactTag] ?: 0) + 1
-            showGenerations[reactTag] = generation
+            val hideGenAtShow = hideGenerations[reactTag] ?: 0
+            val globalAtShow = globalHideGeneration
 
             resolveAnchorView(reactTag)?.let { view ->
-                manager.show(reactTag, view, label)
+                if (!isShowStale(reactTag, hideGenAtShow, globalAtShow)) {
+                    manager.show(reactTag, view, label)
+                }
                 return@runOnUiThread
             }
 
@@ -55,7 +58,7 @@ class KeyPreviewModule(private val reactContext: ReactApplicationContext) :
             uiManager.addUIBlock(
                 UIBlock { resolver ->
                     UiThreadUtil.runOnUiThread {
-                        if (generation != showGenerations[reactTag]) return@runOnUiThread
+                        if (isShowStale(reactTag, hideGenAtShow, globalAtShow)) return@runOnUiThread
                         val view = resolver.resolveView(reactTag) ?: return@runOnUiThread
                         anchorViewCache[reactTag] = WeakReference(view)
                         manager.show(reactTag, view, label)
@@ -68,7 +71,8 @@ class KeyPreviewModule(private val reactContext: ReactApplicationContext) :
     @ReactMethod
     fun hide(reactTag: Int) {
         UiThreadUtil.runOnUiThread {
-            showGenerations[reactTag] = (showGenerations[reactTag] ?: 0) + 1
+            hideGenerations[reactTag] = (hideGenerations[reactTag] ?: 0) + 1
+            globalHideGeneration++
             manager.hide(reactTag)
         }
     }
@@ -76,7 +80,10 @@ class KeyPreviewModule(private val reactContext: ReactApplicationContext) :
     @ReactMethod
     fun hideAll() {
         UiThreadUtil.runOnUiThread {
-            showGenerations.clear()
+            globalHideGeneration++
+            for (tag in (hideGenerations.keys + anchorViewCache.keys).toSet()) {
+                hideGenerations[tag] = (hideGenerations[tag] ?: 0) + 1
+            }
             manager.hideAll()
         }
     }
@@ -84,7 +91,10 @@ class KeyPreviewModule(private val reactContext: ReactApplicationContext) :
     @ReactMethod
     fun hideDelayed(delayMs: Double) {
         UiThreadUtil.runOnUiThread {
-            showGenerations.clear()
+            globalHideGeneration++
+            for (tag in (hideGenerations.keys + anchorViewCache.keys).toSet()) {
+                hideGenerations[tag] = (hideGenerations[tag] ?: 0) + 1
+            }
             manager.hideAllDelayed(delayMs.toLong())
         }
     }
@@ -93,7 +103,8 @@ class KeyPreviewModule(private val reactContext: ReactApplicationContext) :
     fun destroy() {
         UiThreadUtil.runOnUiThread {
             anchorViewCache.clear()
-            showGenerations.clear()
+            hideGenerations.clear()
+            globalHideGeneration = 0
             KeyboardInputBridge.clearKeyPreviewCallbacks()
             manager.destroy()
         }
@@ -107,13 +118,29 @@ class KeyPreviewModule(private val reactContext: ReactApplicationContext) :
         UiThreadUtil.runOnUiThread { hide(reactTag) }
     }
 
+    private fun isShowStale(
+        reactTag: Int,
+        hideGenAtShow: Int,
+        globalAtShow: Int,
+    ): Boolean =
+        hideGenAtShow != (hideGenerations[reactTag] ?: 0) ||
+            globalAtShow != globalHideGeneration
+
     private fun resolveAnchorView(reactTag: Int): View? {
-        anchorViewCache[reactTag]?.get()?.let { return it }
+        anchorViewCache[reactTag]?.get()?.let { cached ->
+            if (cached.isAttachedToWindow && cached.width > 0 && cached.height > 0) {
+                return cached
+            }
+            anchorViewCache.remove(reactTag)
+        }
 
         val searchRoot =
             KeyboardInputBridge.getKeyboardCoordinateView() as? ViewGroup ?: return null
 
         val found = searchRoot.findViewById<View>(reactTag) ?: return null
+        if (found.width <= 0 || found.height <= 0) {
+            return null
+        }
         anchorViewCache[reactTag] = WeakReference(found)
         return found
     }

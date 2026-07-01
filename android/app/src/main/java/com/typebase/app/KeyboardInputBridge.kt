@@ -62,6 +62,16 @@ object KeyboardInputBridge {
   @Volatile
   private var initialCapsMode: Boolean = false
 
+  /** True while MainActivity is in the foreground (shared React host must stay alive for the app). */
+  @Volatile
+  private var mainAppInForeground: Boolean = false
+
+  fun setMainAppInForeground(inForeground: Boolean) {
+    mainAppInForeground = inForeground
+  }
+
+  fun isMainAppInForeground(): Boolean = mainAppInForeground
+
   fun prefersNumpad(): Boolean = numpadPreferred
 
   fun currentInputSupportsNewline(): Boolean = supportsNewline
@@ -171,11 +181,10 @@ object KeyboardInputBridge {
     try {
       val layout = JSONObject(json)
       keyHapticEnabled = layout.optBoolean("keyHapticEnabled", true)
-      setFloatingKeyboard(layout.optBoolean("floatingKeyboardEnabled", false))
     } catch (_: Exception) {
       keyHapticEnabled = true
-      setFloatingKeyboard(false)
     }
+    setFloatingKeyboard(false)
   }
 
   fun performKeyHaptic() {

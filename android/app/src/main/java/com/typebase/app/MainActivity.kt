@@ -10,6 +10,8 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
+import com.facebook.react.ReactApplication
+import com.facebook.react.bridge.UiThreadUtil
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnabled
 import com.facebook.react.defaults.DefaultReactActivityDelegate
 import expo.modules.ReactActivityDelegateWrapper
@@ -25,6 +27,25 @@ class MainActivity : ReactActivity() {
     }
     if (intent?.getBooleanExtra(EXTRA_REQUEST_MEDIA_IMAGES, false) == true) {
       requestMediaImagesPermissionIfNeeded()
+    }
+  }
+
+  override fun onResume() {
+    KeyboardInputBridge.setMainAppInForeground(true)
+    super.onResume()
+    reclaimReactHostForActivity()
+  }
+
+  override fun onPause() {
+    KeyboardInputBridge.setMainAppInForeground(false)
+    super.onPause()
+  }
+
+  /** Re-bind the shared React host to this Activity after the IME resumed it with a null Activity. */
+  private fun reclaimReactHostForActivity() {
+    val app = application as? ReactApplication ?: return
+    UiThreadUtil.runOnUiThread {
+      app.reactHost?.onHostResume(this)
     }
   }
 

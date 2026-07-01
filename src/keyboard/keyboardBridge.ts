@@ -51,7 +51,6 @@ type KeyboardModuleType = {
   syncCustomTapSound: () => void;
   playCustomTapSound: () => void;
   setKeyboardHeight: (heightDp: number) => void;
-  setFloatingKeyboard: (enabled: boolean) => void;
   setTouchpadGestureConsuming: (active: boolean) => void;
   setNativeKeyFastPathConfig: (json: string) => void;
   consumeNativeFastPathPointer: (pointerId: number) => boolean;
@@ -373,11 +372,6 @@ export const keyboardBridge: KeyboardModuleType = {
       KeyboardModule.setKeyboardHeight(heightDp);
     }
   },
-  setFloatingKeyboard: (enabled: boolean) => {
-    if (Platform.OS === 'android' && KeyboardModule?.setFloatingKeyboard) {
-      KeyboardModule.setFloatingKeyboard(enabled);
-    }
-  },
   setTouchpadGestureConsuming: (active: boolean) => {
     if (Platform.OS === 'android' && KeyboardModule?.setTouchpadGestureConsuming) {
       KeyboardModule.setTouchpadGestureConsuming(active);
@@ -592,7 +586,7 @@ export const keyboardBridge: KeyboardModuleType = {
       return KeyboardModule.getKeyboardLayoutSettings() as Promise<string>;
     }
     return Promise.resolve(
-      '{"keyHeight":47,"keyGap":5,"keyRowMargin":12,"keyRadius":6,"enterKeyPreviewEnabled":true,"developerEyeEnabled":false,"letterSymbolAlternatesEnabled":false,"letterLayoutId":"en-us","keyHapticEnabled":true,"floatingKeyboardEnabled":false}',
+      '{"keyHeight":47,"keyGap":5,"keyRowMargin":12,"keyRadius":6,"enterKeyPreviewEnabled":true,"developerEyeEnabled":false,"letterSymbolAlternatesEnabled":false,"letterLayoutId":"en-us","keyHapticEnabled":true}',
     );
   },
   setKeyboardLayoutSettings: (json: string) => {

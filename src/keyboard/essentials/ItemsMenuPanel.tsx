@@ -17,7 +17,6 @@ import AutocorrectIcon from '../../../assets/plugins/autocorrect.svg';
 import ArtificialIcon from '../../../assets/Artificial.svg';
 import GesturesIcon from '../../../assets/gesture.svg';
 import ResizeIcon from '../../../assets/resize.svg';
-import FloatingIcon from '../../../assets/floating.svg';
 import {
   PLUGIN_INNER_RADIUS,
   PLUGIN_OUTER_RADIUS,
@@ -39,8 +38,6 @@ type ItemsMenuPanelProps = {
   onSelectCalculator: () => void;
   onSelectTouchpad: () => void;
   onSelectResize: () => void;
-  onToggleFloatingKeyboard: () => void;
-  floatingKeyboardEnabled: boolean;
 };
 
 type PluginTileProps = {
@@ -118,7 +115,6 @@ const PLUGINS = [
   {id: 'gestures', title: 'Gestures', Icon: GesturesIcon},
   {id: 'calculator', title: 'Calculator', Icon: CalculatorIcon},
   {id: 'touchpad', title: 'Touchpad', Icon: TouchpadIcon},
-  {id: 'floating', title: 'Floating Keyboard', Icon: FloatingIcon},
   {id: 'resize', title: 'Keyboard Resize', Icon: ResizeIcon},
 ] as const;
 
@@ -131,8 +127,6 @@ export function ItemsMenuPanel({
   onSelectCalculator,
   onSelectTouchpad,
   onSelectResize,
-  onToggleFloatingKeyboard,
-  floatingKeyboardEnabled,
 }: ItemsMenuPanelProps) {
   const theme = useKeyboardTheme();
   const panelStyles = usePluginPanelStyles();
@@ -145,7 +139,6 @@ export function ItemsMenuPanel({
     gestures: onSelectGestures,
     calculator: onSelectCalculator,
     touchpad: onSelectTouchpad,
-    floating: onToggleFloatingKeyboard,
     resize: onSelectResize,
   };
 
@@ -155,11 +148,7 @@ export function ItemsMenuPanel({
         {PLUGINS.map((plugin, index) => (
           <PluginTile
             key={plugin.id}
-            title={
-              plugin.id === 'floating' && floatingKeyboardEnabled
-                ? 'Dock Keyboard'
-                : plugin.title
-            }
+            title={plugin.title}
             Icon={plugin.Icon}
             tileStyle={getTileStyle(index, PLUGINS.length)}
             onPress={handlers[plugin.id]}

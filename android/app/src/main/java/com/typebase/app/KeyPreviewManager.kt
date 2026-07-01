@@ -30,6 +30,16 @@ class KeyPreviewManager(private val fallbackContext: Context) {
     private var backgroundColorArgb = Color.parseColor(DARK_PREVIEW_BACKGROUND)
     private var textColorArgb = Color.parseColor(DARK_PREVIEW_TEXT)
     private var previewContainer: FrameLayout? = null
+    /** Incremented on hide so deferred layout shows cannot resurrect after finger lift. */
+    private val showSeq = HashMap<Int, Int>()
+
+    private data class PendingLayoutShow(
+        val seq: Int,
+        val anchor: View,
+        val listener: ViewTreeObserver.OnGlobalLayoutListener,
+    )
+
+    private val pendingLayoutShows = HashMap<Int, PendingLayoutShow>()
 
     private fun popupContext(): Context =
         KeyboardInputBridge.inputService ?: fallbackContext
@@ -98,6 +108,8 @@ class KeyPreviewManager(private val fallbackContext: Context) {
 
     fun hide(reactTag: Int) {
         runOnMainThread {
+            showSeq[reactTag] = (showSeq[reactTag] ?: 0) + 1
+            cancelPendingLayoutShow(reactTag)
             cancelDismiss(reactTag)
             releasePreview(reactTag)
         }
@@ -105,8 +117,10 @@ class KeyPreviewManager(private val fallbackContext: Context) {
 
     fun hideAll() {
         runOnMainThread {
-            val tags = activePreviews.keys.toList()
-            for (tag in tags) {
+            val tags = activePreviews.keys.toList() + pendingLayoutShows.keys.toList()
+            for (tag in tags.toSet()) {
+                showSeq[tag] = (showSeq[tag] ?: 0) + 1
+                cancelPendingLayoutShow(tag)
                 cancelDismiss(tag)
                 releasePreview(tag)
             }
@@ -137,6 +151,10 @@ class KeyPreviewManager(private val fallbackContext: Context) {
         runOnMainThread {
             handler.removeCallbacksAndMessages(null)
             dismissRunnables.clear()
+            for (tag in pendingLayoutShows.keys.toList()) {
+                cancelPendingLayoutShow(tag)
+            }
+            showSeq.clear()
             removePreviewContainerListener?.invoke()
             removePreviewContainerListener = null
             detachPreviewViewsFromOldContainer()
@@ -195,21 +213,35 @@ class KeyPreviewManager(private val fallbackContext: Context) {
         previewContainer = container
 
         if (anchor.width <= 0 || anchor.height <= 0) {
+            cancelPendingLayoutShow(reactTag)
+            val seq = showSeq[reactTag] ?: 0
             val observer = anchor.viewTreeObserver
-            observer.addOnGlobalLayoutListener(
+            val listener =
                 object : ViewTreeObserver.OnGlobalLayoutListener {
                     override fun onGlobalLayout() {
+                        if ((showSeq[reactTag] ?: 0) != seq) {
+                            if (observer.isAlive) {
+                                observer.removeOnGlobalLayoutListener(this)
+                            }
+                            pendingLayoutShows.remove(reactTag)
+                            return
+                        }
                         if (anchor.width <= 0 || anchor.height <= 0) {
                             return
                         }
-                        anchor.viewTreeObserver.removeOnGlobalLayoutListener(this)
+                        if (observer.isAlive) {
+                            observer.removeOnGlobalLayoutListener(this)
+                        }
+                        pendingLayoutShows.remove(reactTag)
                         showAtAnchor(reactTag, anchor, label)
                     }
-                },
-            )
+                }
+            pendingLayoutShows[reactTag] = PendingLayoutShow(seq, anchor, listener)
+            observer.addOnGlobalLayoutListener(listener)
             return
         }
 
+        cancelPendingLayoutShow(reactTag)
         cancelDismiss(reactTag)
 
         val tv = obtainPreviewView(container, reactTag)
@@ -333,6 +365,15 @@ class KeyPreviewManager(private val fallbackContext: Context) {
 
     private fun cancelDismiss(reactTag: Int) {
         dismissRunnables.remove(reactTag)?.let { handler.removeCallbacks(it) }
+    }
+
+    private fun cancelPendingLayoutShow(reactTag: Int) {
+        pendingLayoutShows.remove(reactTag)?.let { pending ->
+            val observer = pending.anchor.viewTreeObserver
+            if (observer.isAlive) {
+                observer.removeOnGlobalLayoutListener(pending.listener)
+            }
+        }
     }
 
     private fun isDescendantOf(child: View, ancestor: View): Boolean {
