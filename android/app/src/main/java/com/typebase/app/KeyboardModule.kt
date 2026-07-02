@@ -7,6 +7,8 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.AudioAttributes
+import android.media.MediaPlayer
 import android.net.Uri
 import android.os.Build
 import android.os.Handler
@@ -14,7 +16,6 @@ import android.os.Looper
 import android.os.SystemClock
 import android.provider.MediaStore
 import android.provider.Settings
-import android.view.HapticFeedbackConstants
 import android.view.KeyEvent
 import android.view.inputmethod.ExtractedText
 import android.view.inputmethod.ExtractedTextRequest
@@ -53,6 +54,7 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   private val backspaceHandler = Handler(Looper.getMainLooper())
   private var backspaceHoldRunnable: Runnable? = null
   private var backspaceTickRunnable: Runnable? = null
+  private var previewPlayer: MediaPlayer? = null
 
   override fun getName(): String = "KeyboardModule"
 
@@ -355,26 +357,121 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
         return
       }
 
-      val mimeType = guessImageMimeType(file)
-      val authority = "${reactApplicationContext.packageName}.clipboard"
-      val contentUri = FileProvider.getUriForFile(reactApplicationContext, authority, file)
-      val connection = KeyboardInputBridge.getInputConnection()
-      if (connection == null) {
+      promise.resolve(commitContentFile(file, guessMediaMimeType(file)))
+    } catch (error: Exception) {
+      promise.reject("INSERT_CLIPBOARD_IMAGE_FAILED", error)
+    }
+  }
+
+  @ReactMethod
+  fun insertClipboardFile(filePath: String, promise: Promise) {
+    try {
+      if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N_MR1) {
         promise.resolve(false)
         return
       }
 
-      val description = ClipDescription("clipboard image", arrayOf(mimeType))
-      val inputContentInfo = InputContentInfo(contentUri, description, null)
-      val committed =
-          connection.commitContent(
-              inputContentInfo,
-              InputConnection.INPUT_CONTENT_GRANT_READ_URI_PERMISSION,
-              null,
-          )
-      promise.resolve(committed)
+      val file = File(filePath)
+      if (!file.exists()) {
+        promise.resolve(false)
+        return
+      }
+
+      promise.resolve(commitContentFile(file, guessMediaMimeType(file)))
     } catch (error: Exception) {
-      promise.reject("INSERT_CLIPBOARD_IMAGE_FAILED", error)
+      promise.reject("INSERT_CLIPBOARD_FILE_FAILED", error)
+    }
+  }
+
+  @ReactMethod
+  fun previewSoundUrl(url: String, promise: Promise) {
+    try {
+      previewPlayer?.let {
+        try {
+          it.release()
+        } catch (_: Exception) {}
+      }
+      previewPlayer = null
+
+      if (url.isBlank()) {
+        promise.resolve(false)
+        return
+      }
+
+      val player = MediaPlayer()
+      player.setAudioAttributes(
+          AudioAttributes.Builder()
+              .setUsage(AudioAttributes.USAGE_MEDIA)
+              .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+              .build(),
+      )
+      player.setDataSource(url)
+      player.setOnPreparedListener { it.start() }
+      player.setOnCompletionListener { mp ->
+        try {
+          mp.release()
+        } catch (_: Exception) {}
+        if (previewPlayer === mp) {
+          previewPlayer = null
+        }
+      }
+      player.setOnErrorListener { mp, _, _ ->
+        try {
+          mp.release()
+        } catch (_: Exception) {}
+        if (previewPlayer === mp) {
+          previewPlayer = null
+        }
+        true
+      }
+      player.prepareAsync()
+      previewPlayer = player
+      promise.resolve(true)
+    } catch (error: Exception) {
+      promise.reject("PREVIEW_SOUND_FAILED", error)
+    }
+  }
+
+  @ReactMethod
+  fun shareMediaFile(filePath: String, promise: Promise) {
+    try {
+      val file = File(filePath)
+      if (!file.exists()) {
+        promise.resolve(false)
+        return
+      }
+
+      val mimeType = guessMediaMimeType(file)
+      val authority = "${reactApplicationContext.packageName}.clipboard"
+      val contentUri = FileProvider.getUriForFile(reactApplicationContext, authority, file)
+
+      val sendIntent =
+          Intent(Intent.ACTION_SEND).apply {
+            type = mimeType
+            putExtra(Intent.EXTRA_STREAM, contentUri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+          }
+
+      val editorPackage = KeyboardInputBridge.getCurrentEditorPackage()
+      val launchIntent =
+          if (!editorPackage.isNullOrBlank() &&
+              sendIntent
+                  .setPackage(editorPackage)
+                  .resolveActivity(reactApplicationContext.packageManager) != null) {
+            // Target app can receive shared files directly – skip the chooser.
+            sendIntent
+          } else {
+            // Reset the package (setPackage above narrows it) and let the user pick.
+            sendIntent.setPackage(null)
+            Intent.createChooser(sendIntent, "Send sound")
+          }
+
+      launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      launchIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+      reactApplicationContext.startActivity(launchIntent)
+      promise.resolve(true)
+    } catch (error: Exception) {
+      promise.reject("SHARE_MEDIA_FILE_FAILED", error)
     }
   }
 
@@ -618,8 +715,9 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
 
   @ReactMethod
   fun insertKeyText(text: String) {
+    // Haptic is fired by the press layer (triggerKeyHaptic), not on text commit,
+    // to avoid double feedback per key press.
     KeyboardInputBridge.getInputConnection()?.commitText(text, 1)
-    performKeyHapticInternal()
   }
 
   @ReactMethod
@@ -1606,26 +1704,9 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   }
 
   private fun performKeyHapticInternal() {
-    val view =
-        KeyboardInputBridge.inputService?.popupAnchorView
-            ?: reactApplicationContext.currentActivity?.window?.decorView
-            ?: return
-
-    val feedback = Runnable {
-      if (KeyboardInputBridge.isKeyHapticEnabled()) {
-        view.performHapticFeedback(
-            HapticFeedbackConstants.KEYBOARD_TAP,
-            HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING,
-        )
-      }
-      KeyTapSoundPlayer.play(reactApplicationContext)
-    }
-
-    if (UiThreadUtil.isOnUiThread()) {
-      feedback.run()
-    } else {
-      UiThreadUtil.runOnUiThread(feedback)
-    }
+    // Delegate to centralized haptic implementation that uses Vibrator directly
+    // for low-latency, unthrottled feedback. No UI thread queuing needed.
+    KeyboardInputBridge.performKeyHaptic()
   }
 
   private fun clipboardImagesDir(): File {
@@ -1646,14 +1727,31 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     }
   }
 
-  private fun guessImageMimeType(file: File): String {
+  private fun guessMediaMimeType(file: File): String {
     return when (file.extension.lowercase()) {
       "jpg", "jpeg" -> "image/jpeg"
       "png" -> "image/png"
       "webp" -> "image/webp"
       "gif" -> "image/gif"
-      else -> "image/*"
+      "mp3" -> "audio/mpeg"
+      "wav" -> "audio/wav"
+      "ogg" -> "audio/ogg"
+      "m4a", "aac" -> "audio/mp4"
+      else -> "application/octet-stream"
     }
+  }
+
+  private fun commitContentFile(file: File, mimeType: String): Boolean {
+    val authority = "${reactApplicationContext.packageName}.clipboard"
+    val contentUri = FileProvider.getUriForFile(reactApplicationContext, authority, file)
+    val connection = KeyboardInputBridge.getInputConnection() ?: return false
+    val description = ClipDescription("shared media", arrayOf(mimeType))
+    val inputContentInfo = InputContentInfo(contentUri, description, null)
+    return connection.commitContent(
+        inputContentInfo,
+        InputConnection.INPUT_CONTENT_GRANT_READ_URI_PERMISSION,
+        null,
+    )
   }
 
   private fun hasMediaImagesPermissionInternal(): Boolean {

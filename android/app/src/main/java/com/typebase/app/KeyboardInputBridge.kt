@@ -1,9 +1,11 @@
 package com.typebase.app
 
+import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import android.os.VibrationEffect
+import android.os.Vibrator
 import android.view.KeyEvent
-import android.view.HapticFeedbackConstants
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
@@ -91,6 +93,8 @@ object KeyboardInputBridge {
     currentEditorInfo = info
     refreshInitialCapsMode(info)
   }
+
+  fun getCurrentEditorPackage(): String? = currentEditorInfo?.packageName
 
   fun getInitialCapsMode(): Boolean = initialCapsMode
 
@@ -187,16 +191,41 @@ object KeyboardInputBridge {
     setFloatingKeyboard(false)
   }
 
+  /** Amplitude (1-255) and duration for the oneShot fallback on API 26-28. */
+  private const val KEY_HAPTIC_AMPLITUDE = 255
+  private const val KEY_HAPTIC_DURATION_MS = 20L
+
   fun performKeyHaptic() {
-    if (keyHapticEnabled) {
-      inputService
-          ?.keyboardViewForFeedback
-          ?.performHapticFeedback(
-              HapticFeedbackConstants.KEYBOARD_TAP,
-              HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING,
-          )
+    inputService?.applicationContext?.let { ctx ->
+      if (keyHapticEnabled) {
+        // Vibrator directly (not performHapticFeedback) for low-latency, unthrottled feedback.
+        val vibrator = ctx.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+        if (vibrator != null && vibrator.hasVibrator()) {
+          when {
+            android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q -> {
+              // Hardware-tuned strong click: drives the LRA motor at its resonant
+              // profile, so it feels noticeably punchier/crisper than a raw oneShot.
+              vibrator.vibrate(
+                  VibrationEffect.createPredefined(VibrationEffect.EFFECT_HEAVY_CLICK),
+              )
+            }
+            android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O -> {
+              vibrator.vibrate(
+                  VibrationEffect.createOneShot(
+                      KEY_HAPTIC_DURATION_MS,
+                      KEY_HAPTIC_AMPLITUDE,
+                  ),
+              )
+            }
+            else -> {
+              @Suppress("DEPRECATION")
+              vibrator.vibrate(KEY_HAPTIC_DURATION_MS)
+            }
+          }
+        }
+      }
+      KeyTapSoundPlayer.play(ctx)
     }
-    inputService?.applicationContext?.let { KeyTapSoundPlayer.play(it) }
   }
 
   fun setPrefersNumpad(prefers: Boolean) {

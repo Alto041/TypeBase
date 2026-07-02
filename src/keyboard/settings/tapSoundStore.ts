@@ -145,6 +145,50 @@ export async function clearCustomTapSound(): Promise<void> {
   keyboardBridge.syncCustomTapSound?.();
 }
 
+export async function installTapSoundFromLocalFile(
+  sourceUri: string,
+  soundId: string,
+): Promise<string> {
+  if (Platform.OS !== 'android') {
+    throw new Error('Custom tap sounds are only supported on Android.');
+  }
+
+  await ensureTapSoundDir();
+  await removeExistingTapSounds();
+
+  const safeId = soundId.replace(/[^a-z0-9_-]/gi, '_').slice(0, 48) || 'sound';
+  const fileName = `myinstants_${safeId}.mp3`;
+  const destination = `${tapSoundDir()}/${fileName}`;
+  await FileSystem.copyAsync({from: sourceUri, to: destination});
+
+  await updateKeyboardLayoutSetting('customTapSoundFile', fileName);
+  await updateKeyboardLayoutSetting('customTapSoundEnabled', true);
+  keyboardBridge.syncCustomTapSound?.();
+
+  return fileName;
+}
+
+export async function installTapSoundFromUrl(
+  mp3Url: string,
+  soundId: string,
+): Promise<string> {
+  if (Platform.OS !== 'android') {
+    throw new Error('Custom tap sounds are only supported on Android.');
+  }
+  if (!mp3Url.trim()) {
+    throw new Error('Sound URL is missing.');
+  }
+
+  const safeId = soundId.replace(/[^a-z0-9_-]/gi, '_').slice(0, 48) || 'sound';
+  const tempDestination = `${FileSystem.cacheDirectory ?? ''}myinstants_${safeId}.mp3`;
+  const download = await FileSystem.downloadAsync(mp3Url, tempDestination);
+  if (download.status !== 200) {
+    throw new Error('Could not download sound.');
+  }
+
+  return installTapSoundFromLocalFile(download.uri, soundId);
+}
+
 export async function previewCustomTapSound(): Promise<void> {
   keyboardBridge.playCustomTapSound?.();
 }

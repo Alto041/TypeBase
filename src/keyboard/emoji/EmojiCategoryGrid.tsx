@@ -18,7 +18,7 @@ import {
 } from './emojis';
 
 type EmojiCategoryGridProps = {
-  category: Exclude<EmojiCategoryId, 'gif'>;
+  category: Exclude<EmojiCategoryId, 'gif' | 'sfx'>;
   width: number;
   height: number;
   recentEmojis: readonly string[];

@@ -1,5 +1,6 @@
 import englishWords from '../gesture/data/englishWords.json';
 import italianWords from './data/italianWords.json';
+import germanWords from './data/de_words.json';
 import {getAutocorrectLanguage} from './languageMap';
 import {SymSpell, Verbosity} from './symspell/SymSpell';
 import {ensureLearnedDictionaryLoaded, getLearnedCounts} from '../suggestions/learnedDictionary';
@@ -14,12 +15,16 @@ import {getKeyboardLayoutSettings} from '../settings/layoutStore';
  * Current state:
  * - 'en' is eagerly seeded from englishWords.json (with derived freq).
  * - 'it' (Italian) is eagerly seeded from italianWords.json for full SymSpell support.
+ * - 'de' (German) is lazily seeded from de_words.json (~50k words) via getLangBase.
+ *   It is materialized on demand by preloadActiveDictionary() (fired on keyboard mount
+ *   and on every layout switch), so the large list never inflates cold startup for
+ *   users on other languages.
  * - Other languages start empty or with minimal data (learned words still work).
  * - Learned words are boosted into all materialized SymSpell instances.
  *
  * Adding a new language (example: French):
  * 1. Add a word list under src/keyboard/autocorrect/data/ (e.g. frenchWords.json).
- * 2. Import it here and extend getLangBase + eager seeding for lang==='fr'.
+ * 2. Import it here and extend getLangBase (+ optional eager seeding) for lang==='fr'.
  * 3. languageMap already maps 'fr-fr' -> 'fr'.
  *
  * SymSpell gives us fast fuzzy + LookupCompound for missing-space / run-ons.
@@ -33,9 +38,18 @@ type Candidate = {
 
 const ssCache = new Map<string, SymSpell>();
 const baseCache = new Map<string, string[]>();
+const inFlightSeeds = new Map<string, Promise<SymSpell>>();
+
+/**
+ * Languages that ship a dedicated base word list. Sync lookups must never fall back
+ * to English for these — doing so would surface English corrections on, e.g., German
+ * text during the brief window before the (lazily seeded) dictionary finishes loading.
+ */
+const DEDICATED_DICTIONARY_LANGS = new Set(['en', 'it', 'de']);
 
 let englishBase: string[] | null = null;
 let italianBase: string[] | null = null;
+let germanBase: string[] | null = null;
 
 /** The SymSpell we can use synchronously right now (populated eagerly for 'en'). */
 let readySymSpell: SymSpell | null = null;
@@ -66,6 +80,22 @@ function getItalianBase(): string[] {
     });
   }
   return italianBase;
+}
+
+function getGermanBase(): string[] {
+  if (!germanBase) {
+    // de_words.json is an array ordered by descending frequency (most frequent first),
+    // matching italianWords.json. Dedup while preserving that order so the index-derived
+    // seeding counts stay aligned with real frequency.
+    const seen = new Set<string>();
+    germanBase = (germanWords as string[]).filter(w => {
+      const k = w.toLowerCase();
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+  }
+  return germanBase;
 }
 
 // Eagerly seed English dictionary synchronously so the engine stays sync for fast path.
@@ -103,6 +133,9 @@ function getLangBase(lang: string): string[] {
   } else if (lang === 'it') {
     // Dedicated Italian list for proper SymSpell autocorrect + suggestions.
     list = getItalianBase();
+  } else if (lang === 'de') {
+    // Dedicated German list (~50k words) for proper SymSpell autocorrect + suggestions.
+    list = getGermanBase();
   } else if (lang === 'ru' || lang === 'ar') {
     // No base list yet for these scripts; only learned words.
     list = [];
@@ -138,13 +171,23 @@ async function ensureSymSpell(lang: string): Promise<SymSpell> {
   const cached = ssCache.get(lang);
   if (cached) return cached;
 
-  const ss = new SymSpell(64, 2, 7);
-  await seedSymSpell(lang, ss);
-  ssCache.set(lang, ss);
-  if (!readySymSpell) {
-    readySymSpell = ss;
-  }
-  return ss;
+  // Dedupe concurrent seeds (a lazy language can be requested by several sync
+  // lookups before its first seed finishes).
+  const pending = inFlightSeeds.get(lang);
+  if (pending) return pending;
+
+  const promise = (async () => {
+    const ss = new SymSpell(64, 2, 7);
+    await seedSymSpell(lang, ss);
+    ssCache.set(lang, ss);
+    if (!readySymSpell) {
+      readySymSpell = ss;
+    }
+    inFlightSeeds.delete(lang);
+    return ss;
+  })();
+  inFlightSeeds.set(lang, promise);
+  return promise;
 }
 
 /** Returns the active autocorrect language based on current keyboard layout settings. */
@@ -233,7 +276,11 @@ function resolveSymSpellForLanguage(): SymSpell | null {
   const lang = getActiveLanguage();
   let ss = ssCache.get(lang) || null;
 
-  if (!ss && (lang === 'en' || !ssCache.has(lang))) {
+  if (!ss && lang !== 'en' && DEDICATED_DICTIONARY_LANGS.has(lang)) {
+    // Dedicated non-English dictionary not materialized yet: seed it lazily and
+    // return null (no suggestions) rather than polluting with English.
+    void ensureSymSpell(lang);
+  } else if (!ss && (lang === 'en' || !ssCache.has(lang))) {
     ss = readySymSpell ?? ssCache.get('en') ?? null;
   }
 
@@ -327,7 +374,9 @@ export function lookupCompoundSync(
   const lang = getActiveLanguage();
   let ss = ssCache.get(lang) || null;
 
-  if (!ss && (lang === 'en' || !ssCache.has(lang))) {
+  if (!ss && lang !== 'en' && DEDICATED_DICTIONARY_LANGS.has(lang)) {
+    void ensureSymSpell(lang);
+  } else if (!ss && (lang === 'en' || !ssCache.has(lang))) {
     ss = readySymSpell ?? ssCache.get('en') ?? null;
   }
 
@@ -364,6 +413,8 @@ export async function preloadActiveDictionary(): Promise<void> {
 export function __resetDictionaryManagerForTests() {
   ssCache.clear();
   baseCache.clear();
+  inFlightSeeds.clear();
   englishBase = null;
   italianBase = null;
+  germanBase = null;
 }

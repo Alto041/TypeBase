@@ -5,8 +5,10 @@ import type {KeyboardTheme} from '../theme';
 import {EmojiCategoryGrid} from './EmojiCategoryGrid';
 import {EmojiSearchGrid} from './EmojiSearchGrid';
 import {GifCategoryGrid} from './GifCategoryGrid';
+import {SfxCategoryGrid} from './SfxCategoryGrid';
 import type {EmojiCategoryId} from './emojis';
 import type {GiphyGif} from './giphyService';
+import type {MyInstantsSound} from './myinstantsService';
 import {
   ensureRecentEmojisLoaded,
   getRecentEmojis,
@@ -21,6 +23,10 @@ type EmojiPanelProps = {
   onSelect: (emoji: string) => void;
   onGifSelect: (gif: GiphyGif) => void;
   gifSearchQuery: string;
+  sfxSearchQuery: string;
+  onSfxSelect: (sound: MyInstantsSound) => void;
+  onSfxPreview: (sound: MyInstantsSound) => void;
+  installingSfxId?: string | null;
 };
 
 export function EmojiPanel({
@@ -30,6 +36,10 @@ export function EmojiPanel({
   onSelect,
   onGifSelect,
   gifSearchQuery,
+  sfxSearchQuery,
+  onSfxSelect,
+  onSfxPreview,
+  installingSfxId = null,
 }: EmojiPanelProps) {
   const theme = useKeyboardTheme();
   const emojiScrollHeight = Math.max(120, Math.round(panelHeight));
@@ -81,6 +91,15 @@ export function EmojiPanel({
           height={emojiScrollHeight}
           query={gifSearchQuery}
           onSelect={onGifSelect}
+        />
+      ) : category === 'sfx' ? (
+        <SfxCategoryGrid
+          width={panelWidth}
+          height={emojiScrollHeight}
+          query={sfxSearchQuery}
+          onSelect={onSfxSelect}
+          onPreview={onSfxPreview}
+          installingId={installingSfxId}
         />
       ) : emojiSearchQuery.trim().length > 0 ? (
         <EmojiSearchGrid

@@ -36,6 +36,9 @@ type KeyboardModuleType = {
     maxCount: number,
   ) => Promise<ImportedScreenshot[]>;
   insertClipboardImage: (imagePath: string) => Promise<boolean>;
+  insertClipboardFile: (filePath: string) => Promise<boolean>;
+  shareMediaFile: (filePath: string) => Promise<boolean>;
+  previewSoundUrl: (url: string) => Promise<boolean>;
   deleteClipboardImageFile: (imagePath: string) => Promise<boolean>;
   getClipboardHistory: () => Promise<string>;
   setClipboardHistory: (json: string) => Promise<boolean>;
@@ -111,7 +114,6 @@ export const keyboardBridge: KeyboardModuleType = {
     }
     if (Platform.OS === 'android' && KeyboardModule?.insertText) {
       KeyboardModule.insertText(text);
-      KeyboardModule.performKeyHaptic?.();
     }
   },
   deleteBackward: () => {
@@ -288,6 +290,24 @@ export const keyboardBridge: KeyboardModuleType = {
   insertClipboardImage: (imagePath: string) => {
     if (Platform.OS === 'android' && KeyboardModule?.insertClipboardImage) {
       return KeyboardModule.insertClipboardImage(imagePath) as Promise<boolean>;
+    }
+    return Promise.resolve(false);
+  },
+  insertClipboardFile: (filePath: string) => {
+    if (Platform.OS === 'android' && KeyboardModule?.insertClipboardFile) {
+      return KeyboardModule.insertClipboardFile(filePath) as Promise<boolean>;
+    }
+    return Promise.resolve(false);
+  },
+  shareMediaFile: (filePath: string) => {
+    if (Platform.OS === 'android' && KeyboardModule?.shareMediaFile) {
+      return KeyboardModule.shareMediaFile(filePath) as Promise<boolean>;
+    }
+    return Promise.resolve(false);
+  },
+  previewSoundUrl: (url: string) => {
+    if (Platform.OS === 'android' && KeyboardModule?.previewSoundUrl) {
+      return KeyboardModule.previewSoundUrl(url) as Promise<boolean>;
     }
     return Promise.resolve(false);
   },

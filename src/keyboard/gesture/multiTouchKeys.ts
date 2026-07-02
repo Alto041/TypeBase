@@ -487,6 +487,10 @@ export function dispatchMultiTouchStart(
       (options.consumeNativeFastPathPointer?.(pid) ?? false);
 
     setMultiTouchKeyPressed(hit.id, true, {nativeCommitted});
+    // Haptic: native fast path handles it in NativeKeyFastPath; otherwise trigger here.
+    if (!nativeCommitted) {
+      triggerKeyHaptic();
+    }
     if (!deferLetterCommit && !nativeCommitted) {
       options.onKeyCommit(hit.keyDef, defaultCommit);
     }

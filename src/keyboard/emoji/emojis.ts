@@ -1,6 +1,7 @@
 import type {FC} from 'react';
 import type {SvgProps} from 'react-native-svg';
 import GifIcon from '../../../assets/gif.svg';
+import SfxIcon from '../../../assets/sfx.svg';
 import FlagIcon from '../../../assets/emojiCategories/flag.svg';
 import ForkSpoonIcon from '../../../assets/emojiCategories/fork_spoon.svg';
 import GlyphsIcon from '../../../assets/emojiCategories/glyphs.svg';
@@ -25,7 +26,8 @@ export type EmojiCategoryId =
   | 'objects'
   | 'symbols'
   | 'flags'
-  | 'gif';
+  | 'gif'
+  | 'sfx';
 
 type EmojiCategoryConfig = {
   id: EmojiCategoryId;
@@ -33,7 +35,7 @@ type EmojiCategoryConfig = {
 };
 
 const EMOJI_CATEGORY_ICONS: Record<
-  Exclude<EmojiCategoryId, 'gif'>,
+  Exclude<EmojiCategoryId, 'gif' | 'sfx'>,
   FC<SvgProps>
 > = {
   smileys_people: MoodIcon,
@@ -48,14 +50,15 @@ const EMOJI_CATEGORY_ICONS: Record<
 
 export const EMOJI_CATEGORIES: EmojiCategoryConfig[] = [
   ...GBOARD_EMOJI_CATEGORY_ORDER.map(id => ({
-    id: id as Exclude<EmojiCategoryId, 'gif'>,
-    Icon: EMOJI_CATEGORY_ICONS[id as Exclude<EmojiCategoryId, 'gif'>],
+    id: id as Exclude<EmojiCategoryId, 'gif' | 'sfx'>,
+    Icon: EMOJI_CATEGORY_ICONS[id as Exclude<EmojiCategoryId, 'gif' | 'sfx'>],
   })),
   {id: 'gif', Icon: GifIcon},
+  {id: 'sfx', Icon: SfxIcon},
 ];
 
 export const EMOJIS_BY_CATEGORY: Record<
-  Exclude<EmojiCategoryId, 'gif'>,
+  Exclude<EmojiCategoryId, 'gif' | 'sfx'>,
   readonly string[]
 > = {
   smileys_people: GBOARD_EMOJIS_BY_CATEGORY.smileys_people ?? [],
@@ -68,11 +71,11 @@ export const EMOJIS_BY_CATEGORY: Record<
   flags: GBOARD_EMOJIS_BY_CATEGORY.flags ?? [],
 };
 
-export const DEFAULT_EMOJI_CATEGORY: Exclude<EmojiCategoryId, 'gif'> =
+export const DEFAULT_EMOJI_CATEGORY: Exclude<EmojiCategoryId, 'gif' | 'sfx'> =
   'smileys_people';
 
 export function getEmojisForCategory(
-  category: Exclude<EmojiCategoryId, 'gif'>,
+  category: Exclude<EmojiCategoryId, 'gif' | 'sfx'>,
 ): readonly string[] {
   return EMOJIS_BY_CATEGORY[category];
 }
@@ -89,14 +92,14 @@ export function chunkEmojis(
 }
 
 export const EMOJI_ROWS_BY_CATEGORY = Object.fromEntries(
-  EMOJI_CATEGORIES.filter(({id}) => id !== 'gif').map(({id}) => [
+  EMOJI_CATEGORIES.filter(({id}) => id !== 'gif' && id !== 'sfx').map(({id}) => [
     id,
-    chunkEmojis(EMOJIS_BY_CATEGORY[id], EMOJI_COLUMNS),
+    chunkEmojis(EMOJIS_BY_CATEGORY[id as Exclude<EmojiCategoryId, 'gif' | 'sfx'>], EMOJI_COLUMNS),
   ]),
-) as Record<Exclude<EmojiCategoryId, 'gif'>, readonly (readonly string[])[]>;
+) as Record<Exclude<EmojiCategoryId, 'gif' | 'sfx'>, readonly (readonly string[])[]>;
 
 export function getEmojiRowsForCategory(
-  category: Exclude<EmojiCategoryId, 'gif'>,
+  category: Exclude<EmojiCategoryId, 'gif' | 'sfx'>,
 ): readonly (readonly string[])[] {
   return EMOJI_ROWS_BY_CATEGORY[category];
 }
