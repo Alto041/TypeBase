@@ -36,7 +36,12 @@ object KeyTapSoundPlayer {
       val fileName =
           layout.optString("customTapSoundFile", "").trim().takeIf { it.isNotEmpty() }
 
-      if (!nextEnabled || fileName == null) {
+      // Meme SFX (named `myinstants_*`) must never be used as a key tap sound.
+      // An earlier build accidentally installed selected sounds here; guard so
+      // they can never play on keypress even if the setting is still stale.
+      val isMemeSound = fileName?.startsWith("myinstants_") == true
+
+      if (!nextEnabled || fileName == null || isMemeSound) {
         release()
         enabled = false
         loadedFile = null

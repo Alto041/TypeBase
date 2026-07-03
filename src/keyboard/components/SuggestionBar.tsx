@@ -210,15 +210,28 @@ function SuggestionBarComponent({
       <View style={styles.container}>
         {panelSearch.active ? (
           <View style={styles.gifSearchOnly}>
-            <Text
-              style={[
-                styles.gifSearchOnlyText,
-                !panelSearch.query && styles.gifSearchPlaceholder,
-              ]}
-              numberOfLines={1}>
-              {panelSearch.query || panelSearch.placeholder}
-            </Text>
-            <View style={styles.cursor} />
+            <View style={styles.gifSearchField}>
+              {panelSearch.query ? (
+                <>
+                  <Text
+                    style={styles.gifSearchOnlyText}
+                    numberOfLines={1}
+                    ellipsizeMode="head">
+                    {panelSearch.query}
+                  </Text>
+                  <View style={styles.cursor} />
+                </>
+              ) : (
+                <>
+                  <View style={styles.cursor} />
+                  <Text
+                    style={[styles.gifSearchOnlyText, styles.gifSearchPlaceholder]}
+                    numberOfLines={1}>
+                    {panelSearch.placeholder}
+                  </Text>
+                </>
+              )}
+            </View>
             {panelSearch.query ? (
               <Pressable
                 onPressIn={() => {
@@ -752,8 +765,15 @@ function createSuggestionBarStyles(theme: KeyboardTheme) {
     paddingHorizontal: 12,
     gap: 6,
   },
-  gifSearchOnlyText: {
+  gifSearchField: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    minWidth: 0,
+    gap: 6,
+  },
+  gifSearchOnlyText: {
+    flexShrink: 1,
     color: theme.label,
     fontSize: 16,
     ...keyboardTypefaceStyle(theme, '500'),

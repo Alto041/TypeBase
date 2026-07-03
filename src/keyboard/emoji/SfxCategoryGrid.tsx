@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -11,12 +11,9 @@ import {
 import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
 import {triggerKeyHaptic} from '../haptics';
 import type {KeyboardTheme} from '../theme';
-import SpeakerIcon from '../../../assets/speaker.svg';
 import {
-  chunkSounds,
   fetchTrendingSounds,
   searchSounds,
-  SFX_COLUMNS,
   type MyInstantsSound,
 } from './myinstantsService';
 
@@ -28,8 +25,6 @@ type SfxCategoryGridProps = {
   onPreview: (sound: MyInstantsSound) => void;
   installingId?: string | null;
 };
-
-type SfxRow = readonly MyInstantsSound[];
 
 export function SfxCategoryGrid({
   width,
@@ -47,8 +42,6 @@ export function SfxCategoryGrid({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const requestIdRef = useRef(0);
-
-  const rows = useMemo(() => chunkSounds(sounds, SFX_COLUMNS), [sounds]);
 
   const loadSounds = useCallback(async (searchQuery: string) => {
     const requestId = requestIdRef.current + 1;
@@ -111,56 +104,47 @@ export function SfxCategoryGrid({
     [onPreview],
   );
 
-  const renderRow: ListRenderItem<SfxRow> = ({item: row, index: rowIndex}) => (
-    <View style={styles.row}>
-      {row.map(sound => {
-        const isInstalling = installingId === sound.id;
-        return (
-          <Pressable
-            key={sound.id}
-            onPress={() => {
-              handleSoundPress(sound);
-            }}
-            disabled={Boolean(installingId)}
-            style={({pressed}) => [
-              styles.cell,
-              pressed && !installingId && styles.cellPressed,
-              installingId && !isInstalling && styles.cellDisabled,
-            ]}>
-            <Text style={styles.cellTitle} numberOfLines={2}>
-              {sound.title}
-            </Text>
-            <View style={styles.cellFooter}>
-              <Pressable
-                onPress={() => {
-                  handlePreviewPress(sound);
-                }}
-                hitSlop={8}
-                style={({pressed}) => [
-                  styles.previewButton,
-                  pressed && styles.previewButtonPressed,
-                ]}>
-                <SpeakerIcon width={16} height={16} fill={theme.label} />
-              </Pressable>
-              {isInstalling ? (
-                <ActivityIndicator color={theme.label} size="small" />
-              ) : (
-                <Text style={styles.cellHint}>Tap to send</Text>
-              )}
-            </View>
-          </Pressable>
-        );
-      })}
-      {row.length < SFX_COLUMNS
-        ? Array.from({length: SFX_COLUMNS - row.length}).map((_, index) => (
-            <View
-              key={`sfx-spacer-${rowIndex}-${index}`}
-              style={styles.cellSpacer}
-            />
-          ))
-        : null}
-    </View>
-  );
+  const renderSound: ListRenderItem<MyInstantsSound> = ({item: sound}) => {
+    const isInstalling = installingId === sound.id;
+
+    return (
+      <View
+        style={[
+          styles.row,
+          isInstalling && styles.rowDisabled,
+        ]}>
+        <Pressable
+          onPress={() => {
+            handlePreviewPress(sound);
+          }}
+          hitSlop={10}
+          style={({pressed}) => [
+            styles.playButton,
+            pressed && styles.playButtonPressed,
+          ]}>
+          <Text style={styles.playSymbol}>▶</Text>
+        </Pressable>
+
+        <Pressable
+          onPress={() => {
+            handleSoundPress(sound);
+          }}
+          disabled={Boolean(installingId)}
+          style={({pressed}) => [
+            styles.titleArea,
+            pressed && !installingId && styles.titleAreaPressed,
+          ]}>
+          <Text style={styles.title} numberOfLines={1}>
+            {sound.title}
+          </Text>
+        </Pressable>
+
+        {isInstalling ? (
+          <ActivityIndicator color={theme.label} size="small" />
+        ) : null}
+      </View>
+    );
+  };
 
   return (
     <View style={[styles.container, {width, height}]}>
@@ -180,12 +164,13 @@ export function SfxCategoryGrid({
         <FlatList
           style={styles.scroll}
           contentContainerStyle={styles.content}
-          data={rows}
-          keyExtractor={(_, rowIndex) => `sfx-row-${rowIndex}`}
-          renderItem={renderRow}
+          data={sounds}
+          keyExtractor={item => item.id}
+          renderItem={renderSound}
           keyboardShouldPersistTaps="handled"
           nestedScrollEnabled
           showsVerticalScrollIndicator={false}
+          ItemSeparatorComponent={() => <View style={styles.separator} />}
           ListFooterComponent={
             <Text style={styles.attribution}>
               Sounds via{' '}
@@ -208,61 +193,53 @@ function createSfxCategoryGridStyles(theme: KeyboardTheme, panelHeight: number) 
       flex: 1,
     },
     content: {
+      paddingHorizontal: 4,
       paddingBottom: 8,
     },
     row: {
       flexDirection: 'row',
-      gap: 6,
-      marginBottom: 6,
-    },
-    cell: {
-      flex: 1,
-      minHeight: 72,
-      borderRadius: 10,
-      backgroundColor: theme.modifierKey,
-      paddingHorizontal: 10,
-      paddingVertical: 10,
-      justifyContent: 'space-between',
-    },
-    cellPressed: {
-      opacity: 0.82,
-    },
-    cellDisabled: {
-      opacity: 0.55,
-    },
-    cellSpacer: {
-      flex: 1,
-    },
-    cellTitle: {
-      fontFamily: 'Geist',
-      fontSize: 13,
-      lineHeight: 16,
-      color: theme.label,
-      letterSpacing: -0.3,
-    },
-    cellFooter: {
-      marginTop: 6,
-      flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'space-between',
-      gap: 8,
+      paddingHorizontal: 8,
+      paddingVertical: 10,
+      borderRadius: 10,
+      backgroundColor: theme.letterKey,
+      gap: 10,
     },
-    previewButton: {
-      width: 28,
-      height: 28,
-      borderRadius: 14,
+    rowDisabled: {
+      opacity: 0.6,
+    },
+    playButton: {
+      width: 34,
+      height: 34,
+      borderRadius: 17,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: theme.letterKey,
+      backgroundColor: theme.modifierKey,
     },
-    previewButtonPressed: {
+    playButtonPressed: {
+      opacity: 0.65,
+    },
+    playSymbol: {
+      color: theme.label,
+      fontSize: 15,
+      marginLeft: 1,
+    },
+    titleArea: {
+      flex: 1,
+      paddingVertical: 2,
+    },
+    titleAreaPressed: {
       opacity: 0.7,
     },
-    cellHint: {
-      fontFamily: 'Inter',
-      fontSize: 11,
-      color: theme.icon,
-      opacity: 0.7,
+    title: {
+      fontFamily: 'Geist',
+      fontSize: 15,
+      lineHeight: 20,
+      color: theme.label,
+      letterSpacing: -0.2,
+    },
+    separator: {
+      height: 6,
     },
     centered: {
       flex: 1,
@@ -283,8 +260,8 @@ function createSfxCategoryGridStyles(theme: KeyboardTheme, panelHeight: number) 
       textAlign: 'center',
     },
     attribution: {
-      marginTop: 4,
-      marginBottom: 6,
+      marginTop: 8,
+      marginBottom: 4,
       textAlign: 'center',
       fontFamily: 'Inter',
       fontSize: 11,

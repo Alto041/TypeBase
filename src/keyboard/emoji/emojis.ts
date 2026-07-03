@@ -4,16 +4,11 @@ import GifIcon from '../../../assets/gif.svg';
 import SfxIcon from '../../../assets/sfx.svg';
 import FlagIcon from '../../../assets/emojiCategories/flag.svg';
 import ForkSpoonIcon from '../../../assets/emojiCategories/fork_spoon.svg';
-import GlyphsIcon from '../../../assets/emojiCategories/glyphs.svg';
-import LanguageIcon from '../../../assets/emojiCategories/language.svg';
 import MoodIcon from '../../../assets/emojiCategories/mood.svg';
 import ObjectsIcon from '../../../assets/emojiCategories/desktop_windows.svg';
 import ParkIcon from '../../../assets/emojiCategories/park.svg';
 import TravelIcon from '../../../assets/emojiCategories/travel.svg';
-import {
-  GBOARD_EMOJI_CATEGORY_ORDER,
-  GBOARD_EMOJIS_BY_CATEGORY,
-} from './gboardEmojiData';
+import {GBOARD_EMOJIS_BY_CATEGORY} from './gboardEmojiData';
 
 export const EMOJI_COLUMNS = 9;
 
@@ -21,10 +16,8 @@ export type EmojiCategoryId =
   | 'smileys_people'
   | 'animals_nature'
   | 'food_drink'
-  | 'travel_places'
-  | 'activities'
-  | 'objects'
-  | 'symbols'
+  | 'travel_activities'
+  | 'objects_symbols'
   | 'flags'
   | 'gif'
   | 'sfx';
@@ -41,18 +34,18 @@ const EMOJI_CATEGORY_ICONS: Record<
   smileys_people: MoodIcon,
   animals_nature: ParkIcon,
   food_drink: ForkSpoonIcon,
-  travel_places: TravelIcon,
-  activities: LanguageIcon,
-  objects: ObjectsIcon,
-  symbols: GlyphsIcon,
+  travel_activities: TravelIcon,
+  objects_symbols: ObjectsIcon,
   flags: FlagIcon,
 };
 
 export const EMOJI_CATEGORIES: EmojiCategoryConfig[] = [
-  ...GBOARD_EMOJI_CATEGORY_ORDER.map(id => ({
-    id: id as Exclude<EmojiCategoryId, 'gif' | 'sfx'>,
-    Icon: EMOJI_CATEGORY_ICONS[id as Exclude<EmojiCategoryId, 'gif' | 'sfx'>],
-  })),
+  {id: 'smileys_people', Icon: EMOJI_CATEGORY_ICONS.smileys_people},
+  {id: 'animals_nature', Icon: EMOJI_CATEGORY_ICONS.animals_nature},
+  {id: 'food_drink', Icon: EMOJI_CATEGORY_ICONS.food_drink},
+  {id: 'travel_activities', Icon: EMOJI_CATEGORY_ICONS.travel_activities},
+  {id: 'objects_symbols', Icon: EMOJI_CATEGORY_ICONS.objects_symbols},
+  {id: 'flags', Icon: EMOJI_CATEGORY_ICONS.flags},
   {id: 'gif', Icon: GifIcon},
   {id: 'sfx', Icon: SfxIcon},
 ];
@@ -64,10 +57,14 @@ export const EMOJIS_BY_CATEGORY: Record<
   smileys_people: GBOARD_EMOJIS_BY_CATEGORY.smileys_people ?? [],
   animals_nature: GBOARD_EMOJIS_BY_CATEGORY.animals_nature ?? [],
   food_drink: GBOARD_EMOJIS_BY_CATEGORY.food_drink ?? [],
-  travel_places: GBOARD_EMOJIS_BY_CATEGORY.travel_places ?? [],
-  activities: GBOARD_EMOJIS_BY_CATEGORY.activities ?? [],
-  objects: GBOARD_EMOJIS_BY_CATEGORY.objects ?? [],
-  symbols: GBOARD_EMOJIS_BY_CATEGORY.symbols ?? [],
+  travel_activities: [
+    ...(GBOARD_EMOJIS_BY_CATEGORY.travel_places ?? []),
+    ...(GBOARD_EMOJIS_BY_CATEGORY.activities ?? []),
+  ],
+  objects_symbols: [
+    ...(GBOARD_EMOJIS_BY_CATEGORY.objects ?? []),
+    ...(GBOARD_EMOJIS_BY_CATEGORY.symbols ?? []),
+  ],
   flags: GBOARD_EMOJIS_BY_CATEGORY.flags ?? [],
 };
 

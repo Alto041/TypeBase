@@ -10,7 +10,7 @@ type EmojiCategoryBarProps = {
   onSelect: (category: EmojiCategoryId) => void;
 };
 
-const ICON_SIZE = 22;
+const ICON_SIZE = 20;
 
 export function EmojiCategoryBar({selected, onSelect}: EmojiCategoryBarProps) {
   const theme = useKeyboardTheme();
@@ -53,7 +53,7 @@ function createEmojiCategoryBarStyles(theme: KeyboardTheme) {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      gap: 6,
+      gap: 4,
       minHeight: theme.keyHeight,
     },
     button: {

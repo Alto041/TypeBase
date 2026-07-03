@@ -17400,3 +17400,78 @@
 {"_e":"metro:client_log","_t":1783020420250,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
 {"_e":"metro:client_log","_t":1783020425934,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":11,\"initialProps\":{},\"fabric\":true}"]}
 {"_e":"metro:client_log","_t":1783020426338,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"root:init","_t":1783049003493,"format":"v0-jsonl","version":"56.1.14"}
+{"_e":"devserver:start","_t":1783049003592,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../..\\..\\src\\app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1783049005235,"serverRoot":"../..\\..","projectRoot":"../..\\..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"metro:instantiate","_t":1783049032384,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"metro:bundling:started","_t":1783049036700,"id":"1","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1783049036701,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1783049036707,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1783049036816,"id":"1","progress":0.0019753086419753087,"total":135,"current":6}
+{"_e":"metro:bundling:progress","_t":1783049036918,"id":"1","progress":0.013272738856208456,"total":217,"current":25}
+{"_e":"metro:bundling:progress","_t":1783049037021,"id":"1","progress":0.04938271604938271,"total":297,"current":66}
+{"_e":"metro:bundling:progress","_t":1783049037120,"id":"1","progress":0.16143176020408165,"total":448,"current":180}
+{"_e":"metro:bundling:progress","_t":1783049037220,"id":"1","progress":0.3003883136094675,"total":520,"current":285}
+{"_e":"metro:bundling:progress","_t":1783049037321,"id":"1","progress":0.4212896878978434,"total":644,"current":418}
+{"_e":"metro:bundling:progress","_t":1783049037433,"id":"1","progress":0.4212896878978434,"total":750,"current":483}
+{"_e":"metro:bundling:progress","_t":1783049037533,"id":"1","progress":0.5879650128734378,"total":819,"current":628}
+{"_e":"metro:bundling:progress","_t":1783049037633,"id":"1","progress":0.8227557093425606,"total":850,"current":771}
+{"_e":"metro:bundling:progress","_t":1783049037736,"id":"1","progress":0.8897588594916362,"total":899,"current":848}
+{"_e":"metro:bundling:progress","_t":1783049037835,"id":"1","progress":0.952245780889185,"total":993,"current":969}
+{"_e":"metro:bundling:progress","_t":1783049037935,"id":"1","progress":0.9943794022295831,"total":1066,"current":1063}
+{"_e":"metro:bundling:progress","_t":1783049038061,"id":"1","progress":0.9981404002163332,"total":1075,"current":1074}
+{"_e":"metro:bundling:progress","_t":1783049038641,"id":"1","progress":0.999,"total":1075,"current":1075}
+{"_e":"metro:bundling:done","_t":1783049038783,"id":"1","total":1075,"ms":2082.1201}
+{"_e":"metro:client_log","_t":1783049041490,"level":"warn","data":["Require cycle: src/keyboard/settings/layoutStore.ts -> src/keyboard/settings/tapSoundStore.ts -> src/keyboard/settings/layoutStore.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1783049041490,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1783049041491,"level":"warn","data":["Require cycle: src/keyboard/suggestions/learnedDictionary.ts -> src/keyboard/autocorrect/dictionaryManager.ts -> src/keyboard/suggestions/learnedDictionary.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1783049041491,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1783049070780,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":11,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1783049071263,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"root:init","_t":1783049465193,"format":"v0-jsonl","version":"56.1.14"}
+{"_e":"devserver:start","_t":1783049465239,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../..\\..\\src\\app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1783049466177,"serverRoot":"../..\\..","projectRoot":"../..\\..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"metro:instantiate","_t":1783049489236,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"metro:bundling:started","_t":1783049493551,"id":"1","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1783049493551,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1783049493557,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1783049493661,"id":"1","progress":0.0019753086419753087,"total":135,"current":6}
+{"_e":"metro:bundling:progress","_t":1783049493763,"id":"1","progress":0.03207841390064602,"total":268,"current":48}
+{"_e":"metro:bundling:progress","_t":1783049493892,"id":"1","progress":0.13531171810615567,"total":367,"current":135}
+{"_e":"metro:bundling:progress","_t":1783049493994,"id":"1","progress":0.2382828977175085,"total":506,"current":247}
+{"_e":"metro:bundling:progress","_t":1783049494095,"id":"1","progress":0.3448038400000001,"total":625,"current":367}
+{"_e":"metro:bundling:progress","_t":1783049494195,"id":"1","progress":0.5041,"total":700,"current":497}
+{"_e":"metro:bundling:progress","_t":1783049494296,"id":"1","progress":0.5823609303462782,"total":819,"current":625}
+{"_e":"metro:bundling:progress","_t":1783049494397,"id":"1","progress":0.7933089764964026,"total":869,"current":774}
+{"_e":"metro:bundling:progress","_t":1783049494497,"id":"1","progress":0.8635444923457275,"total":919,"current":854}
+{"_e":"metro:bundling:progress","_t":1783049494597,"id":"1","progress":0.9542577395965329,"total":994,"current":971}
+{"_e":"metro:bundling:progress","_t":1783049494697,"id":"1","progress":0.9962825310978909,"total":1075,"current":1073}
+{"_e":"metro:bundling:done","_t":1783049494829,"id":"1","total":1075,"ms":1277.5614}
+{"_e":"metro:client_log","_t":1783049497537,"level":"warn","data":["Require cycle: src/keyboard/settings/layoutStore.ts -> src/keyboard/settings/tapSoundStore.ts -> src/keyboard/settings/layoutStore.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1783049497537,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1783049497538,"level":"warn","data":["Require cycle: src/keyboard/suggestions/learnedDictionary.ts -> src/keyboard/autocorrect/dictionaryManager.ts -> src/keyboard/suggestions/learnedDictionary.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1783049497538,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1783049507327,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":11,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1783049507829,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"metro:client_log","_t":1783049901695,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1783049904359,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:bundling:started","_t":1783049930672,"id":"2","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1783049930672,"id":"2","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1783049930674,"id":"2","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1783049930774,"id":"2","progress":0.020766194389885778,"total":229,"current":33}
+{"_e":"metro:bundling:progress","_t":1783049930874,"id":"2","progress":0.1371742112482853,"total":378,"current":140}
+{"_e":"metro:bundling:progress","_t":1783049930974,"id":"2","progress":0.2266740105968858,"total":544,"current":259}
+{"_e":"metro:bundling:progress","_t":1783049931075,"id":"2","progress":0.34668544,"total":625,"current":368}
+{"_e":"metro:bundling:progress","_t":1783049931175,"id":"2","progress":0.43486470684085915,"total":646,"current":426}
+{"_e":"metro:bundling:progress","_t":1783049931275,"id":"2","progress":0.5929224165146438,"total":687,"current":529}
+{"_e":"metro:bundling:progress","_t":1783049931375,"id":"2","progress":0.7725161645305951,"total":859,"current":755}
+{"_e":"metro:bundling:progress","_t":1783049931475,"id":"2","progress":0.8715245968587544,"total":903,"current":843}
+{"_e":"metro:bundling:progress","_t":1783049931575,"id":"2","progress":0.9548930879440212,"total":1052,"current":1028}
+{"_e":"metro:bundling:done","_t":1783049931739,"id":"2","total":1052,"ms":1066.788}
+{"_e":"metro:client_log","_t":1783049934393,"level":"warn","data":["Require cycle: src/keyboard/settings/layoutStore.ts -> src/keyboard/settings/tapSoundStore.ts -> src/keyboard/settings/layoutStore.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1783049934393,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1783049934393,"level":"warn","data":["Require cycle: src/keyboard/suggestions/learnedDictionary.ts -> src/keyboard/autocorrect/dictionaryManager.ts -> src/keyboard/suggestions/learnedDictionary.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1783049934393,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1783049939111,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":31,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1783049939433,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"metro:client_log","_t":1783050265134,"level":"error","data":["[ReferenceError: Property 'chunkSounds' doesn't exist]"]}

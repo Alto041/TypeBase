@@ -97,6 +97,23 @@ async function loadFromStorage(): Promise<void> {
   } catch {
     cachedLayout = {...DEFAULT_KEYBOARD_LAYOUT_SETTINGS};
   }
+  // Self-heal: earlier builds mistakenly installed a selected meme SFX as the
+  // key tap sound. Those files are named `myinstants_*`. If one is still set,
+  // restore the bundled default so the keyboard stops playing memes on tap.
+  // Rewrite the persisted setting FIRST (that is the part that actually stops
+  // the meme); copying the bundled asset is best-effort and can fail in dev.
+  if (cachedLayout.customTapSoundFile?.startsWith('myinstants_')) {
+    try {
+      await setKeyboardLayoutSettings({
+        ...cachedLayout,
+        customTapSoundFile: DEFAULT_KEYBOARD_LAYOUT_SETTINGS.customTapSoundFile,
+        customTapSoundEnabled:
+          DEFAULT_KEYBOARD_LAYOUT_SETTINGS.customTapSoundEnabled,
+      });
+    } catch {
+      // Ignore; the native guard also refuses to play `myinstants_*` files.
+    }
+  }
   try {
     await ensureBundledDefaultTapSound();
     keyboardBridge.syncCustomTapSound?.();
