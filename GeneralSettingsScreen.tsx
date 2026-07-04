@@ -368,7 +368,7 @@ export function GeneralSettingsScreen({
           <View style={[styles.rowCard, styles.rowCardStatic]}>
             <View style={styles.rowInner}>
               <Text style={styles.rowSubLabel}>App Version</Text>
-              <Text style={styles.rowValue}>0.9.5</Text>
+              <Text style={styles.rowValue}>0.9.7</Text>
             </View>
           </View>
         </View>

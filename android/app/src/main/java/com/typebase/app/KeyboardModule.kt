@@ -56,6 +56,18 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   private var backspaceTickRunnable: Runnable? = null
   private var previewPlayer: MediaPlayer? = null
 
+  private fun stopCurrentPreview() {
+    previewPlayer?.let { player ->
+      try {
+        if (player.isPlaying) {
+          player.stop()
+        }
+        player.release()
+      } catch (_: Exception) {}
+    }
+    previewPlayer = null
+  }
+
   override fun getName(): String = "KeyboardModule"
 
   override fun initialize() {
@@ -209,6 +221,7 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     }
     clipboardListener = null
     stopBackspaceRepeatInternal()
+    stopCurrentPreview()
     super.invalidate()
   }
 
@@ -386,12 +399,7 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   @ReactMethod
   fun previewSoundUrl(url: String, promise: Promise) {
     try {
-      previewPlayer?.let {
-        try {
-          it.release()
-        } catch (_: Exception) {}
-      }
-      previewPlayer = null
+      stopCurrentPreview()
 
       if (url.isBlank()) {
         promise.resolve(false)
@@ -429,6 +437,16 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
       promise.resolve(true)
     } catch (error: Exception) {
       promise.reject("PREVIEW_SOUND_FAILED", error)
+    }
+  }
+
+  @ReactMethod
+  fun stopPreviewSound(promise: Promise) {
+    try {
+      stopCurrentPreview()
+      promise.resolve(true)
+    } catch (error: Exception) {
+      promise.reject("STOP_PREVIEW_SOUND_FAILED", error)
     }
   }
 
@@ -728,6 +746,11 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   @ReactMethod(isBlockingSynchronousMethod = true)
   fun consumeNativeFastPathPointer(pointerId: Int): Boolean {
     return KeyboardInputBridge.consumeNativeFastPathPointer(pointerId)
+  }
+
+  @ReactMethod(isBlockingSynchronousMethod = true)
+  fun consumeNativeHapticPointer(pointerId: Int): Boolean {
+    return KeyboardInputBridge.consumeNativeHapticPointer(pointerId)
   }
 
   @ReactMethod
@@ -1687,9 +1710,14 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     }
   }
 
-  @ReactMethod
-  fun performKeyHaptic() {
+  /**
+   * Fire haptic from JS. Marked blocking-synchronous for lowest dispatch latency
+   * from the JS thread (no extra promise/microtask queuing on the way to native).
+   */
+  @ReactMethod(isBlockingSynchronousMethod = true)
+  fun performKeyHaptic(): Boolean {
     performKeyHapticInternal()
+    return true
   }
 
   @ReactMethod
@@ -1701,6 +1729,12 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   fun playCustomTapSound() {
     KeyTapSoundPlayer.sync(reactApplicationContext)
     KeyTapSoundPlayer.play(reactApplicationContext)
+  }
+
+  @ReactMethod(isBlockingSynchronousMethod = true)
+  fun playKeyTapSound(): Boolean {
+    KeyboardInputBridge.playKeyTapSound()
+    return true
   }
 
   private fun performKeyHapticInternal() {

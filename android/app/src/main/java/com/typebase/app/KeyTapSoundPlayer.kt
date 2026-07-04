@@ -83,13 +83,19 @@ object KeyTapSoundPlayer {
   }
 
   fun play(context: Context) {
+    if (!enabled) {
+      return
+    }
     val pool = soundPool
     val id = soundId
-    if (!enabled || pool == null || id == 0) {
+    if (pool == null || id == 0) {
       return
     }
     pool.play(id, 0.45f, 0.45f, 1, 0, 1f)
   }
+
+  /** Cheap guard — avoids posting audio work when tap sound is off. */
+  fun isEnabled(): Boolean = enabled
 
   private fun createSoundPool(): SoundPool {
     val attributes =

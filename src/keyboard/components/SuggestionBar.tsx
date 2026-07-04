@@ -9,6 +9,7 @@ import ItemsIcon from '../../../assets/items.svg';
 import UndoIcon from '../../../assets/undo.svg';
 import RedoIcon from '../../../assets/redo.svg';
 import ClipboardIcon from '../../../assets/plugins/clipboard.svg';
+import SearchIcon from '../../../assets/enter.svg';
 import TranslateIcon from '../../../assets/plugins/translate.svg';
 import {VoiceConnectingDots} from './VoiceConnectingDots';
 import {VoiceEqualizerIcon} from './VoiceEqualizerIcon';
@@ -207,7 +208,7 @@ function SuggestionBarComponent({
 
   if (panelSearch?.visible) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, styles.panelSearchContainer]}>
         {panelSearch.active ? (
           <View style={styles.gifSearchOnly}>
             <View style={styles.gifSearchField}>
@@ -245,7 +246,9 @@ function SuggestionBarComponent({
                 ]}>
                 <Text style={styles.gifSearchClearLabel}>✕</Text>
               </Pressable>
-            ) : null}
+            ) : (
+              <SearchIcon width={18} height={18} color={theme.iconMuted} />
+            )}
           </View>
         ) : (
           <Pressable
@@ -257,9 +260,12 @@ function SuggestionBarComponent({
               styles.gifSearchOnly,
               pressed && styles.gifSearchTriggerPressed,
             ]}>
-            <Text style={styles.gifSearchPlaceholder}>
+            <Text
+              style={[styles.gifSearchPlaceholder, {flex: 1}]}
+              numberOfLines={1}>
               {panelSearch.placeholder}
             </Text>
+            <SearchIcon width={18} height={18} color={theme.iconMuted} />
           </Pressable>
         )}
       </View>
@@ -650,6 +656,9 @@ function createSuggestionBarStyles(theme: KeyboardTheme) {
     alignItems: 'center',
     paddingHorizontal: 4,
   },
+  panelSearchContainer: {
+    paddingHorizontal: 0,
+  },
   toolbarLeading: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -759,7 +768,8 @@ function createSuggestionBarStyles(theme: KeyboardTheme) {
     flexDirection: 'row',
     alignItems: 'center',
     minHeight: 36,
-    marginHorizontal: 8,
+    marginHorizontal: 0,
+    marginTop: 6,
     borderRadius: theme.keyRadius,
     backgroundColor: theme.letterKey,
     paddingHorizontal: 12,

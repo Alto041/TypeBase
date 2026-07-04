@@ -1,5 +1,7 @@
 package com.typebase.app
 
+import android.os.Handler
+import android.os.Looper
 import android.view.MotionEvent
 import org.json.JSONArray
 import org.json.JSONObject
@@ -24,6 +26,8 @@ class NativeKeyFastPath {
 
   @Volatile
   private var enabled = false
+  @Volatile
+  private var commitOnDown = true
   private var areaPageX = 0f
   private var areaPageY = 0f
   private var hitSlopHorizontal = 0f
@@ -35,11 +39,13 @@ class NativeKeyFastPath {
   private var keys = emptyList<NativeKey>()
   private val sessions = mutableMapOf<Int, TouchSession>()
   private val consumedPointers = mutableSetOf<Int>()
+  private val previewHandler = Handler(Looper.getMainLooper())
 
   fun updateConfig(json: String) {
     try {
       val obj = JSONObject(json)
       enabled = obj.optBoolean("enabled", false)
+      commitOnDown = obj.optBoolean("commitOnDown", true)
       areaPageX = obj.optDouble("areaPageX", 0.0).toFloat()
       areaPageY = obj.optDouble("areaPageY", 0.0).toFloat()
       hitSlopHorizontal = obj.optDouble("hitSlopHorizontal", 0.0).toFloat()
@@ -88,6 +94,11 @@ class NativeKeyFastPath {
         val rawX = event.rawXForIndex(index)
         val rawY = event.rawYForIndex(index)
         val key = hitTest(rawX, rawY) ?: return false
+
+        if (!commitOnDown) {
+          return false
+        }
+
         val text = resolveCommitText(key.value)
         val shiftConsumed =
             keyboardLayout == "letters" &&
@@ -95,13 +106,14 @@ class NativeKeyFastPath {
                 !capsLocked &&
                 text.length == 1 &&
                 text[0].isUpperCase()
-        if (!commitKey(key, text, shiftConsumed)) {
-          return false
-        }
-        consumedPointers.add(pointerId)
-        sessions[pointerId] = TouchSession(pointerId, key, text)
-        if (key.reactTag > 0) {
-          KeyboardInputBridge.showKeyPreview(key.reactTag, text)
+        if (commitKeyTextOnly(key, text, shiftConsumed)) {
+          consumedPointers.add(pointerId)
+          sessions[pointerId] = TouchSession(pointerId, key, text)
+          KeyboardInputBridge.playKeyTapSound()
+          if (key.reactTag > 0) {
+            val tag = key.reactTag
+            previewHandler.post { KeyboardInputBridge.showKeyPreview(tag, text) }
+          }
         }
         false
       }
@@ -190,11 +202,14 @@ class NativeKeyFastPath {
     return match
   }
 
-  private fun commitKey(key: NativeKey, text: String, shiftConsumed: Boolean): Boolean {
+  /**
+   * Commits text + notifies (used only for the fast-commit-on-down case).
+   * Haptic is intentionally fired *before* calling this, in the touch handler.
+   */
+  private fun commitKeyTextOnly(key: NativeKey, text: String, shiftConsumed: Boolean): Boolean {
     val connection = KeyboardInputBridge.getInputConnection() ?: return false
 
     connection.commitText(text, 1)
-    KeyboardInputBridge.performKeyHaptic()
     KeyboardInputBridge.notifyNativeFastPathKey(
         key.id,
         key.type,

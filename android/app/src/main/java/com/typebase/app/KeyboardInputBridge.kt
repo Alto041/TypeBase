@@ -1,10 +1,13 @@
 package com.typebase.app
 
 import android.content.Context
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.os.VibrationEffect
 import android.os.Vibrator
+import android.view.HapticFeedbackConstants
 import android.view.KeyEvent
 import android.view.View
 import android.view.inputmethod.EditorInfo
@@ -191,41 +194,108 @@ object KeyboardInputBridge {
     setFloatingKeyboard(false)
   }
 
-  /** Amplitude (1-255) and duration for the oneShot fallback on API 26-28. */
-  private const val KEY_HAPTIC_AMPLITUDE = 255
-  private const val KEY_HAPTIC_DURATION_MS = 20L
+  /** Cached for vibrator fallback only (no view attached). */
+  @Volatile
+  private var vibrator: Vibrator? = null
 
-  fun performKeyHaptic() {
-    inputService?.applicationContext?.let { ctx ->
-      if (keyHapticEnabled) {
-        // Vibrator directly (not performHapticFeedback) for low-latency, unthrottled feedback.
-        val vibrator = ctx.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
-        if (vibrator != null && vibrator.hasVibrator()) {
-          when {
-            android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q -> {
-              // Hardware-tuned strong click: drives the LRA motor at its resonant
-              // profile, so it feels noticeably punchier/crisper than a raw oneShot.
-              vibrator.vibrate(
-                  VibrationEffect.createPredefined(VibrationEffect.EFFECT_HEAVY_CLICK),
-              )
-            }
-            android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O -> {
-              vibrator.vibrate(
-                  VibrationEffect.createOneShot(
-                      KEY_HAPTIC_DURATION_MS,
-                      KEY_HAPTIC_AMPLITUDE,
-                  ),
-              )
-            }
-            else -> {
-              @Suppress("DEPRECATION")
-              vibrator.vibrate(KEY_HAPTIC_DURATION_MS)
-            }
-          }
-        }
-      }
-      KeyTapSoundPlayer.play(ctx)
+  /** Pointers that already received IME-level haptic on ACTION_DOWN. */
+  private val hapticHandledPointers = mutableSetOf<Int>()
+
+  private val mainHandler = Handler(Looper.getMainLooper())
+
+  @Volatile
+  private var lastHapticMs = 0L
+
+  /** Minimum gap between JS-only haptics (frame already fired for keyboard touches). */
+  private const val JS_HAPTIC_DEBOUNCE_MS = 20L
+
+  /**
+   * IME touch-down haptic — fires before React on every keyboard touch so feedback
+   * is never blocked by JS/main-thread lag during fast typing.
+   */
+  fun performKeyHapticForPointer(pointerId: Int) {
+    if (keyHapticEnabled) {
+      fireHapticPulse()
+      lastHapticMs = SystemClock.uptimeMillis()
     }
+    synchronized(hapticHandledPointers) { hapticHandledPointers.add(pointerId) }
+  }
+
+  fun playKeyTapSound() {
+    scheduleTapSound()
+  }
+
+  fun releaseHapticPointer(pointerId: Int) {
+    synchronized(hapticHandledPointers) { hapticHandledPointers.remove(pointerId) }
+  }
+
+  fun clearAllHapticPointers() {
+    synchronized(hapticHandledPointers) { hapticHandledPointers.clear() }
+  }
+
+  fun consumeNativeHapticPointer(pointerId: Int): Boolean {
+    synchronized(hapticHandledPointers) { return hapticHandledPointers.remove(pointerId) }
+  }
+
+  /**
+   * Haptic from JS/UI (suggestion bar, emoji, special keys, etc.).
+   * Skips when the IME already pulsed for this pointer or very recently.
+   */
+  fun performKeyHaptic() {
+    val now = SystemClock.uptimeMillis()
+    if (now - lastHapticMs < JS_HAPTIC_DEBOUNCE_MS) {
+      return
+    }
+    lastHapticMs = now
+
+    if (!keyHapticEnabled) {
+      scheduleTapSound()
+      return
+    }
+    fireHapticPulse()
+    scheduleTapSound()
+  }
+
+  private fun fireHapticPulse() {
+    val ctx = inputService?.applicationContext ?: return
+    val vib =
+        vibrator
+            ?: (ctx.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator)?.also { vibrator = it }
+    if (vib != null && vib.hasVibrator()) {
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        vib.cancel()
+        vib.vibrate(VibrationEffect.createOneShot(7, 175))
+      } else {
+        @Suppress("DEPRECATION")
+        vib.cancel()
+        @Suppress("DEPRECATION")
+        vib.vibrate(7)
+      }
+      return
+    }
+
+    val view = inputService?.keyboardViewForFeedback
+    if (view != null) {
+      val constant =
+          if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            HapticFeedbackConstants.KEYBOARD_TAP
+          } else {
+            @Suppress("DEPRECATION")
+            HapticFeedbackConstants.VIRTUAL_KEY
+          }
+      view.performHapticFeedback(
+          constant,
+          HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING,
+      )
+    }
+  }
+
+  private fun scheduleTapSound() {
+    if (!KeyTapSoundPlayer.isEnabled()) {
+      return
+    }
+    val ctx = inputService?.applicationContext ?: return
+    mainHandler.post { KeyTapSoundPlayer.play(ctx) }
   }
 
   fun setPrefersNumpad(prefers: Boolean) {

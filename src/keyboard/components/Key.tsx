@@ -10,6 +10,7 @@ import {
   View,
   type StyleProp,
   type ViewStyle,
+  type GestureResponderEvent,
 } from 'react-native';
 import ShiftNormalIcon from '../../../assets/normal.svg';
 import ShiftFilledIcon from '../../../assets/filled.svg';
@@ -400,15 +401,17 @@ function KeyComponent({
     </>
   );
 
-  const handlePressIn = useCallback(() => {
+  const handlePressIn = useCallback((event: GestureResponderEvent) => {
+    const pointerId = event.nativeEvent.identifier;
     if (isEnterAction) {
       // Defer the action to onPress (short tap) or onLongPress (hold for alternate newline).
       // Give immediate haptic + visual on down for responsiveness.
-      triggerKeyHaptic();
+      triggerKeyHaptic(pointerId);
       return;
     }
+    const nativeCommitted = keyboardBridge.consumeNativeFastPathPointer(pointerId);
     onPress(keyDef);
-    triggerKeyHaptic();
+    triggerKeyHaptic(pointerId, {nativeCommitted});
   }, [keyDef, onPress, isEnterAction]);
 
   const isSpaceGesture =

@@ -39,6 +39,7 @@ type KeyboardModuleType = {
   insertClipboardFile: (filePath: string) => Promise<boolean>;
   shareMediaFile: (filePath: string) => Promise<boolean>;
   previewSoundUrl: (url: string) => Promise<boolean>;
+  stopPreviewSound: () => Promise<boolean>;
   deleteClipboardImageFile: (imagePath: string) => Promise<boolean>;
   getClipboardHistory: () => Promise<string>;
   setClipboardHistory: (json: string) => Promise<boolean>;
@@ -51,12 +52,14 @@ type KeyboardModuleType = {
   dismissKeyboard: () => void;
   openInputMethodSettings: () => void;
   performKeyHaptic: () => void;
+  playKeyTapSound: () => void;
   syncCustomTapSound: () => void;
   playCustomTapSound: () => void;
   setKeyboardHeight: (heightDp: number) => void;
   setTouchpadGestureConsuming: (active: boolean) => void;
   setNativeKeyFastPathConfig: (json: string) => void;
   consumeNativeFastPathPointer: (pointerId: number) => boolean;
+  consumeNativeHapticPointer: (pointerId: number) => boolean;
   getGestureSettings: () => Promise<string>;
   setGestureSettings: (json: string) => Promise<boolean>;
   getAutocorrectSettings: () => Promise<string>;
@@ -311,6 +314,12 @@ export const keyboardBridge: KeyboardModuleType = {
     }
     return Promise.resolve(false);
   },
+  stopPreviewSound: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.stopPreviewSound) {
+      return KeyboardModule.stopPreviewSound() as Promise<boolean>;
+    }
+    return Promise.resolve(false);
+  },
   deleteClipboardImageFile: (imagePath: string) => {
     if (Platform.OS === 'android' && KeyboardModule?.deleteClipboardImageFile) {
       return KeyboardModule.deleteClipboardImageFile(imagePath) as Promise<boolean>;
@@ -377,6 +386,11 @@ export const keyboardBridge: KeyboardModuleType = {
       KeyboardModule.performKeyHaptic();
     }
   },
+  playKeyTapSound: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.playKeyTapSound) {
+      KeyboardModule.playKeyTapSound();
+    }
+  },
   syncCustomTapSound: () => {
     if (Platform.OS === 'android' && KeyboardModule?.syncCustomTapSound) {
       KeyboardModule.syncCustomTapSound();
@@ -405,6 +419,12 @@ export const keyboardBridge: KeyboardModuleType = {
   consumeNativeFastPathPointer: (pointerId: number): boolean => {
     if (Platform.OS === 'android' && KeyboardModule?.consumeNativeFastPathPointer) {
       return KeyboardModule.consumeNativeFastPathPointer(pointerId);
+    }
+    return false;
+  },
+  consumeNativeHapticPointer: (pointerId: number): boolean => {
+    if (Platform.OS === 'android' && KeyboardModule?.consumeNativeHapticPointer) {
+      return KeyboardModule.consumeNativeHapticPointer(pointerId);
     }
     return false;
   },

@@ -546,6 +546,7 @@ export function SwipeTypingKeysHost({
           getLetterCommitText,
           hitSlop: keyHitSlop,
           consumeNativeFastPathPointer: keyboardBridge.consumeNativeFastPathPointer,
+          consumeNativeHapticPointer: keyboardBridge.consumeNativeHapticPointer,
           swipeTypingEnabled: Boolean(ctx?.enabled),
         });
       }

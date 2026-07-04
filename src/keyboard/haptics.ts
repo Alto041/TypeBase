@@ -1,8 +1,29 @@
 import {keyboardBridge} from './keyboardBridge';
 
-/** Fire haptic feedback immediately (no microtask deferral) for lowest latency. */
-export function triggerKeyHaptic() {
-  keyboardBridge.performKeyHaptic();
+type TriggerKeyHapticOptions = {
+  /** Native fast path already committed this key (skip duplicate tap sound). */
+  nativeCommitted?: boolean;
+};
+
+/**
+ * Fire haptic + tap sound for a key press.
+ * IME fires haptic on touch-down before React; this fills in tap sound / JS-only keys.
+ */
+export function triggerKeyHaptic(
+  pointerId?: number,
+  options?: TriggerKeyHapticOptions,
+) {
+  const frameHapticHandled =
+    pointerId != null && keyboardBridge.consumeNativeHapticPointer(pointerId);
+
+  if (!frameHapticHandled) {
+    keyboardBridge.performKeyHaptic();
+    return;
+  }
+
+  if (!options?.nativeCommitted) {
+    keyboardBridge.playKeyTapSound();
+  }
 }
 
 /** Deferred side effects for non-time-critical work (kept for compat). */

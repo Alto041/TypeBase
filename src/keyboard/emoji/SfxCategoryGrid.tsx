@@ -11,11 +11,14 @@ import {
 import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
 import {triggerKeyHaptic} from '../haptics';
 import type {KeyboardTheme} from '../theme';
+import PlayIcon from '../../../assets/play.svg';
+import PauseIcon from '../../../assets/pause.svg';
 import {
   fetchTrendingSounds,
   searchSounds,
   type MyInstantsSound,
 } from './myinstantsService';
+import {stopSfxPreview} from './sfxInsert';
 
 type SfxCategoryGridProps = {
   width: number;
@@ -41,6 +44,7 @@ export function SfxCategoryGrid({
   const [sounds, setSounds] = useState<MyInstantsSound[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [previewingId, setPreviewingId] = useState<string | null>(null);
   const requestIdRef = useRef(0);
 
   const loadSounds = useCallback(async (searchQuery: string) => {
@@ -85,6 +89,22 @@ export function SfxCategoryGrid({
     return () => clearTimeout(timer);
   }, [loadSounds, query]);
 
+  // Ensure any playing preview is stopped when this grid unmounts
+  // (e.g. switching emoji categories or closing the emoji panel)
+  useEffect(() => {
+    return () => {
+      stopSfxPreview();
+    };
+  }, []);
+
+  // If the currently previewing sound is no longer in the loaded list
+  // (e.g. after a search refinement), clear the UI state without stopping audio.
+  useEffect(() => {
+    if (previewingId != null && !sounds.some(s => s.id === previewingId)) {
+      setPreviewingId(null);
+    }
+  }, [sounds, previewingId]);
+
   const handleSoundPress = useCallback(
     (sound: MyInstantsSound) => {
       if (installingId) {
@@ -99,9 +119,15 @@ export function SfxCategoryGrid({
   const handlePreviewPress = useCallback(
     (sound: MyInstantsSound) => {
       triggerKeyHaptic();
-      onPreview(sound);
+      if (previewingId === sound.id) {
+        setPreviewingId(null);
+        stopSfxPreview();
+      } else {
+        setPreviewingId(sound.id);
+        onPreview(sound);
+      }
     },
-    [onPreview],
+    [previewingId, onPreview],
   );
 
   const renderSound: ListRenderItem<MyInstantsSound> = ({item: sound}) => {
@@ -122,7 +148,11 @@ export function SfxCategoryGrid({
             styles.playButton,
             pressed && styles.playButtonPressed,
           ]}>
-          <Text style={styles.playSymbol}>▶</Text>
+          {previewingId === sound.id ? (
+            <PauseIcon width={16} height={16} color={theme.label} />
+          ) : (
+            <PlayIcon width={16} height={16} color={theme.label} />
+          )}
         </Pressable>
 
         <Pressable
@@ -218,11 +248,6 @@ function createSfxCategoryGridStyles(theme: KeyboardTheme, panelHeight: number) 
     },
     playButtonPressed: {
       opacity: 0.65,
-    },
-    playSymbol: {
-      color: theme.label,
-      fontSize: 15,
-      marginLeft: 1,
     },
     titleArea: {
       flex: 1,

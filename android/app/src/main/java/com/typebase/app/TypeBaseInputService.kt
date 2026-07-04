@@ -101,6 +101,7 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
     surfaceMountAttempts = 0
     val frame =
         KeyboardFrameLayout().apply {
+          isHapticFeedbackEnabled = true
           // Allow two+ letter keys to receive touches at the same time (Gboard-style).
           setMotionEventSplittingEnabled(true)
           clipChildren = false
@@ -260,6 +261,7 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
 
     (view.parent as? FrameLayout)?.removeView(view)
     (view as? ViewGroup)?.setMotionEventSplittingEnabled(true)
+    view.isHapticFeedbackEnabled = true
     keyboardView = view
     frame.addView(view, createKeyboardLayoutParams(frame.width))
     frame.post {
@@ -777,9 +779,24 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
       if (handleFloatingKeyboardDrag(event)) {
         return true
       }
-      if (nativeKeyFastPath.onTouchEvent(event)) {
-        return true
+
+      when (event.actionMasked) {
+        MotionEvent.ACTION_DOWN,
+        MotionEvent.ACTION_POINTER_DOWN -> {
+          KeyboardInputBridge.performKeyHapticForPointer(
+              event.getPointerId(event.actionIndex),
+          )
+        }
+        MotionEvent.ACTION_UP,
+        MotionEvent.ACTION_POINTER_UP -> {
+          KeyboardInputBridge.releaseHapticPointer(event.getPointerId(event.actionIndex))
+        }
+        MotionEvent.ACTION_CANCEL -> {
+          KeyboardInputBridge.clearAllHapticPointers()
+        }
       }
+
+      nativeKeyFastPath.onTouchEvent(event)
       super.dispatchTouchEvent(event)
       if (KeyboardInputBridge.isTouchpadGestureConsuming()) {
         return true

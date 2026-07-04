@@ -27,6 +27,11 @@ export function previewSfx(sound: MyInstantsSound): void {
   void keyboardBridge.previewSoundUrl(sound.mp3).catch(() => {});
 }
 
+/** Stops any currently previewing SFX sound. */
+export function stopSfxPreview(): void {
+  void keyboardBridge.stopPreviewSound?.().catch(() => {});
+}
+
 /** Downloads the mp3 and hands it to the target app as a shareable file. */
 export async function downloadAndSendSfx(sound: MyInstantsSound): Promise<boolean> {
   if (!sound.mp3?.trim()) {

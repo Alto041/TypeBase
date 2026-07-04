@@ -35,7 +35,7 @@ import {EmojiBottomRow} from './emoji/EmojiBottomRow';
 import {EmojiPanel} from './emoji/EmojiPanel';
 import {DEFAULT_EMOJI_CATEGORY, type EmojiCategoryId} from './emoji/emojis';
 import {downloadAndInsertGif} from './emoji/gifInsert';
-import {downloadAndSendSfx, previewSfx} from './emoji/sfxInsert';
+import {downloadAndSendSfx, previewSfx, stopSfxPreview} from './emoji/sfxInsert';
 import type {GiphyGif} from './emoji/giphyService';
 import type {MyInstantsSound} from './emoji/myinstantsService';
 import {
@@ -856,6 +856,7 @@ function KeyboardBody({
     setSfxSearchQuery('');
     setSfxSearchActive(false);
     setInstallingSfxId(null);
+    stopSfxPreview();
     setFormKeyword('');
     setFormValue('');
     setCalculatorDisplay('0');
@@ -908,6 +909,7 @@ function KeyboardBody({
     const hiddenSubscription = DeviceEventEmitter.addListener(
       'keyboardHidden',
       () => {
+        stopSfxPreview();
         resetToMainAlphabetView();
       },
     );
@@ -1193,6 +1195,7 @@ function KeyboardBody({
       setSfxSearchQuery('');
       setSfxSearchActive(false);
       setInstallingSfxId(null);
+      stopSfxPreview();
       setMode({type: 'typing'});
       setLayout('letters');
       resetCase();
@@ -1206,12 +1209,13 @@ function KeyboardBody({
     setGifSearchActive(false);
     setEmojiSearchQuery('');
     setEmojiSearchActive(false);
-    setSfxSearchQuery('');
-    setSfxSearchActive(false);
-    setInstallingSfxId(null);
-    setMode({type: 'emoji'});
-    setLayout('letters');
-    resetCase();
+            setSfxSearchQuery('');
+            setSfxSearchActive(false);
+            setInstallingSfxId(null);
+            stopSfxPreview();
+            setMode({type: 'emoji'});
+            setLayout('letters');
+            resetCase();
   }, [isListening, mode.type, resetCase, toggleListening]);
 
   useEffect(() => {
@@ -1220,6 +1224,7 @@ function KeyboardBody({
       setEmojiSearchActive(false);
       setSfxSearchQuery('');
       setSfxSearchActive(false);
+      stopSfxPreview();
     } else if (emojiCategory === 'sfx') {
       setGifSearchQuery('');
       setGifSearchActive(false);
@@ -1230,6 +1235,7 @@ function KeyboardBody({
       setGifSearchActive(false);
       setSfxSearchQuery('');
       setSfxSearchActive(false);
+      stopSfxPreview();
     }
   }, [emojiCategory]);
 
@@ -2004,6 +2010,7 @@ function KeyboardBody({
             setEmojiSearchActive(false);
             setSfxSearchQuery('');
             setSfxSearchActive(false);
+            stopSfxPreview();
             setMode({type: 'typing'});
             setLayout('letters');
             resetCase();
@@ -2557,8 +2564,7 @@ function KeyboardBody({
     NATIVE_FAST_PATH_ENABLED &&
     mode.type === 'typing' &&
     layout === 'letters' &&
-    !isFormMode &&
-    !gestureEnabled;
+    !isFormMode;
 
   useEffect(() => {
     if (!nativeFastPathEligible || !layoutContext) {
@@ -2597,6 +2603,7 @@ function KeyboardBody({
       keyboardBridge.setNativeKeyFastPathConfig(
         JSON.stringify({
           enabled: true,
+          commitOnDown: !gestureEnabled,
           areaPageX: origin.pageX,
           areaPageY: origin.pageY,
           hitSlopHorizontal: theme.keyHitSlop.horizontal,
@@ -2639,6 +2646,7 @@ function KeyboardBody({
     layoutContext?.layoutEpoch,
     mode.type,
     nativeFastPathEligible,
+    gestureEnabled,
     shiftOn,
     theme.keyHitSlop.horizontal,
     theme.keyHitSlop.vertical,
