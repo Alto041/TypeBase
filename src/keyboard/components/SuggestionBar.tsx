@@ -125,6 +125,7 @@ type PanelSearchBarState = {
 type SuggestionBarProps = {
   suggestions: string[];
   prefix: string;
+  swipePreview?: string | null;
   autocorrectPreview?: string | null;
   /** What you typed — tap to keep it and add to adaptive dictionary. */
   typedKeepSuggestion?: string | null;
@@ -166,6 +167,7 @@ type SuggestionBarProps = {
 function SuggestionBarComponent({
   suggestions,
   prefix,
+  swipePreview = null,
   autocorrectPreview = null,
   typedKeepSuggestion = null,
   onSelect,
@@ -289,8 +291,15 @@ function SuggestionBarComponent({
         autocorrectPreview,
         suggestions,
       );
-  const showEssentials = hasEssentials;
-  const showWordSuggestions = wordSuggestionChips.length > 0;
+  const showSwipePreview =
+    !isFormMode &&
+    !centerTitle &&
+    Boolean(swipePreview) &&
+    !showPartial &&
+    !showVoiceProcessing &&
+    !isAiAutocorrectProcessing;
+  const showEssentials = hasEssentials && !showSwipePreview;
+  const showWordSuggestions = wordSuggestionChips.length > 0 && !showSwipePreview;
   const wordSuggestionDisplayMax = suggestionDisplayMaxLength(
     wordSuggestionChips.length,
   );
@@ -428,6 +437,12 @@ function SuggestionBarComponent({
           </View>
         ) : showPartial ? (
           <VoiceTranscriptPreview transcript={partialTranscript} />
+        ) : showSwipePreview ? (
+          <View style={styles.swipePreviewContainer}>
+            <Text style={styles.swipePreviewText} numberOfLines={1}>
+              {middleTruncateSuggestion(swipePreview ?? '', ONE_CHIP_TEXT_LENGTH)}
+            </Text>
+          </View>
         ) : hasAiAutocorrectSuggestion && aiAutocorrectSuggestion ? (
           <View style={styles.clipboardPasteContainer}>
             <Pressable
@@ -843,6 +858,18 @@ function createSuggestionBarStyles(theme: KeyboardTheme) {
     justifyContent: 'center',
     alignItems: 'flex-end',
     paddingHorizontal: 4,
+  },
+  swipePreviewContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+  },
+  swipePreviewText: {
+    color: theme.label,
+    fontSize: 20,
+    ...keyboardTypefaceStyle(theme, '600'),
+    textAlign: 'center',
   },
   partialText: {
     color: theme.spaceLabel,

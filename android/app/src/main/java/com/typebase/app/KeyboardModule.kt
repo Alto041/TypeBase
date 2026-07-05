@@ -37,6 +37,8 @@ import com.facebook.react.bridge.WritableMap
 import com.facebook.react.modules.core.DeviceEventManagerModule
 import org.json.JSONArray
 import org.json.JSONObject
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicInteger
 
 class KeyboardModule(reactContext: ReactApplicationContext) :
     ReactContextBaseJavaModule(reactContext) {
@@ -55,6 +57,8 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   private var backspaceHoldRunnable: Runnable? = null
   private var backspaceTickRunnable: Runnable? = null
   private var previewPlayer: MediaPlayer? = null
+  private val swipeDecodeExecutor = Executors.newSingleThreadExecutor()
+  private val swipePreviewGeneration = AtomicInteger(0)
 
   private fun stopCurrentPreview() {
     previewPlayer?.let { player ->
@@ -222,6 +226,8 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     clipboardListener = null
     stopBackspaceRepeatInternal()
     stopCurrentPreview()
+    swipePreviewGeneration.incrementAndGet()
+    swipeDecodeExecutor.shutdownNow()
     super.invalidate()
   }
 
@@ -709,21 +715,65 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
       pointsJson: String,
       layoutsJson: String,
       isUppercase: Boolean,
+      timedPointsJson: String,
       promise: Promise,
   ) {
-    try {
-      val word =
-          SwipeWordDictionary.decodeSwipeGesture(
-              reactApplicationContext,
-              learnedWordsPrefs(),
-              pointsJson,
-              layoutsJson,
-              isUppercase,
-          )
-      promise.resolve(word ?: "")
-    } catch (error: Exception) {
-      promise.reject("DECODE_SWIPE_GESTURE_FAILED", error)
+    swipeDecodeExecutor.execute {
+      try {
+        val word =
+            SwipeWordDictionary.decodeSwipeGesture(
+                reactApplicationContext,
+                learnedWordsPrefs(),
+                pointsJson,
+                layoutsJson,
+                isUppercase,
+                timedPointsJson,
+            )
+        promise.resolve(word ?: "")
+      } catch (error: Exception) {
+        promise.reject("DECODE_SWIPE_GESTURE_FAILED", error)
+      }
     }
+  }
+
+  @ReactMethod
+  fun previewSwipeGesture(
+      pointsJson: String,
+      layoutsJson: String,
+      isUppercase: Boolean,
+      timedPointsJson: String,
+      promise: Promise,
+  ) {
+    val generation = swipePreviewGeneration.get()
+    swipeDecodeExecutor.execute {
+      try {
+        if (generation != swipePreviewGeneration.get()) {
+          promise.resolve("")
+          return@execute
+        }
+        val word =
+            SwipeWordDictionary.previewSwipeGesture(
+                reactApplicationContext,
+                learnedWordsPrefs(),
+                pointsJson,
+                layoutsJson,
+                isUppercase,
+                timedPointsJson,
+            )
+        if (generation != swipePreviewGeneration.get()) {
+          promise.resolve("")
+          return@execute
+        }
+        promise.resolve(word ?: "")
+      } catch (error: Exception) {
+        promise.reject("PREVIEW_SWIPE_GESTURE_FAILED", error)
+      }
+    }
+  }
+
+  @ReactMethod
+  fun cancelSwipePreview() {
+    swipePreviewGeneration.incrementAndGet()
   }
 
   @ReactMethod

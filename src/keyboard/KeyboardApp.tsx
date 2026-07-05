@@ -487,6 +487,7 @@ function KeyboardBody({
   const [resizeLiveOffset, setResizeLiveOffset] = useState(0);
   const [touchpadGestureActive, setTouchpadGestureActive] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [swipePreview, setSwipePreview] = useState<string | null>(null);
   const [essentialSuggestions, setEssentialSuggestions] = useState<Essential[]>(
     [],
   );
@@ -2421,6 +2422,7 @@ function KeyboardBody({
 
   const handleWordCommitted = useCallback(
     (word: string) => {
+      setSwipePreview(null);
       markTyping();
       clearClipboardPasteSuggestion();
       recordLearnedWord(word);
@@ -2828,7 +2830,13 @@ function KeyboardBody({
             void keyboardBridge.moveCursor(offset);
           }}
           isUppercase={isUppercase}
-          onWordCommitted={handleWordCommitted}>
+          onWordCommitted={handleWordCommitted}
+          onSwipePreviewChange={setSwipePreview}
+          onSwipeActiveChange={active => {
+            if (!active) {
+              setSwipePreview(null);
+            }
+          }}>
         {isTouchpadMode && touchpadGestureActive ? (
           <View
             pointerEvents="auto"
@@ -2845,6 +2853,7 @@ function KeyboardBody({
         <SuggestionBar
           suggestions={suggestions}
           prefix={currentPrefix}
+          swipePreview={swipePreview}
           typedKeepSuggestion={typedKeepSuggestion}
           autocorrectPreview={autocorrectPreview}
           onSelect={handleSuggestionSelect}

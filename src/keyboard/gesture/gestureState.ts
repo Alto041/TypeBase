@@ -1,5 +1,16 @@
 export const gestureSwipeActiveRef = {current: false};
 
+/** Live swipe trail geometry — updated on the touch path, rendered at display refresh rate. */
+export const swipeTrailPointsRef = {
+  current: [] as Array<{x: number; y: number; timestampMs: number}>,
+};
+
+/** Latest finger position (updated every move, even between trail samples). */
+export const swipeTrailHeadRef = {current: null as {x: number; y: number} | null};
+
+/** Bumped whenever trail geometry changes so the renderer can skip redundant frames. */
+export const swipeTrailRevisionRef = {current: 0};
+
 export type SwipePointerSession = {
   rawStartX: number;
   rawStartY: number;

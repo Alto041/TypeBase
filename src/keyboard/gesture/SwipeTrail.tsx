@@ -1,12 +1,17 @@
-import React, {useEffect, useRef, useState} from 'react';
+import React, {useEffect, useMemo, useRef} from 'react';
 import {Animated, PixelRatio, StyleSheet} from 'react-native';
 import Svg, {Path} from 'react-native-svg';
 import {useKeyboardTheme} from '../KeyboardThemeContext';
-import {buildFadingTrailSegments} from './swipeTrailPath';
+import {
+  gestureSwipeActiveRef,
+  swipeTrailHeadRef,
+  swipeTrailPointsRef,
+  swipeTrailRevisionRef,
+} from './gestureState';
+import {buildSmoothSwipeTrailPath} from './swipeTrailPath';
 import type {TrailPoint} from './types';
 
 type SwipeTrailProps = {
-  points: TrailPoint[];
   width: number;
   height: number;
   fading: boolean;
@@ -14,16 +19,42 @@ type SwipeTrailProps = {
 };
 
 const FADE_OUT_MS = 180;
-const DRAW_FADE_MS = 420;
-const HEAD_DP = 3;
+const HEAD_DP = 3.6;
 const TAIL_DP = 0.4;
 
 function dp(value: number): number {
   return value * PixelRatio.get();
 }
 
+function trailPointsForRender(
+  fading: boolean,
+  fadeSnapshot: TrailPoint[],
+): TrailPoint[] {
+  const base =
+    fading && fadeSnapshot.length >= 2
+      ? fadeSnapshot
+      : [...swipeTrailPointsRef.current];
+
+  if (!gestureSwipeActiveRef.current || fading) {
+    return base;
+  }
+
+  const head = swipeTrailHeadRef.current;
+  if (!head || base.length === 0) {
+    return base;
+  }
+
+  const last = base[base.length - 1];
+  const dx = head.x - last.x;
+  const dy = head.y - last.y;
+  if (dx * dx + dy * dy < 0.25) {
+    return base;
+  }
+
+  return [...base, {x: head.x, y: head.y, timestampMs: Date.now()}];
+}
+
 export function SwipeTrail({
-  points,
   width,
   height,
   fading,
@@ -31,10 +62,20 @@ export function SwipeTrail({
 }: SwipeTrailProps) {
   const theme = useKeyboardTheme();
   const opacity = useRef(new Animated.Value(1)).current;
-  const [nowMs, setNowMs] = useState(() => Date.now());
+  const fadeSnapshotRef = useRef<TrailPoint[]>([]);
+  const [renderRevision, setRenderRevision] = React.useState(0);
+  const lastPolledRevisionRef = useRef(-1);
+  const lastHeadRef = useRef<{x: number; y: number} | null>(null);
+  const rafRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (fading) {
+      fadeSnapshotRef.current = [...swipeTrailPointsRef.current];
+      if (rafRef.current != null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+
       const animation = Animated.timing(opacity, {
         toValue: 0,
         duration: FADE_OUT_MS,
@@ -47,38 +88,67 @@ export function SwipeTrail({
       });
       return () => animation.stop();
     }
+
     opacity.setValue(1);
+    fadeSnapshotRef.current = [];
   }, [fading, onFadeComplete, opacity]);
 
+  // Repaint when trail geometry changes — not on every vsync if nothing moved.
   useEffect(() => {
-    if (fading || points.length < 2) {
+    if (fading) {
       return;
     }
 
-    let frame = 0;
-    const tick = () => {
-      setNowMs(Date.now());
-      frame = requestAnimationFrame(tick);
+    const loop = () => {
+      let needsPaint = false;
+      const revision = swipeTrailRevisionRef.current;
+      if (revision !== lastPolledRevisionRef.current) {
+        lastPolledRevisionRef.current = revision;
+        needsPaint = true;
+      }
+
+      if (gestureSwipeActiveRef.current) {
+        const head = swipeTrailHeadRef.current;
+        if (head) {
+          const prev = lastHeadRef.current;
+          if (!prev || head.x !== prev.x || head.y !== prev.y) {
+            lastHeadRef.current = {x: head.x, y: head.y};
+            needsPaint = true;
+          }
+        }
+      } else {
+        lastHeadRef.current = null;
+      }
+
+      if (needsPaint) {
+        setRenderRevision(current => current + 1);
+      }
+
+      rafRef.current = requestAnimationFrame(loop);
     };
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
-  }, [fading, points]);
 
-  if (points.length < 2 || width <= 0 || height <= 0) {
-    return null;
-  }
+    rafRef.current = requestAnimationFrame(loop);
+    return () => {
+      if (rafRef.current != null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+    };
+  }, [fading]);
 
-  const headWidth = dp(HEAD_DP);
-  const tailWidth = dp(TAIL_DP);
-  const segments = buildFadingTrailSegments(
-    points,
-    tailWidth,
-    headWidth,
-    nowMs,
-    DRAW_FADE_MS,
+  const points = useMemo(
+    () => trailPointsForRender(fading, fadeSnapshotRef.current),
+    [fading, renderRevision],
   );
 
-  if (segments.length === 0) {
+  const corePath = useMemo(() => {
+    if (points.length < 2) {
+      return '';
+    }
+    return buildSmoothSwipeTrailPath(points, dp(TAIL_DP), dp(HEAD_DP));
+  }, [points]);
+
+  if (!corePath || width <= 0 || height <= 0) {
     return null;
   }
 
@@ -87,18 +157,7 @@ export function SwipeTrail({
       style={[styles.overlay, {width, height, opacity}]}
       pointerEvents="none">
       <Svg width={width} height={height}>
-        {segments.map((segment, index) => (
-          <Path
-            key={index}
-            d={segment.d}
-            stroke={theme.swipeTrail}
-            strokeWidth={segment.strokeWidth}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            fill="none"
-            opacity={segment.opacity}
-          />
-        ))}
+        <Path d={corePath} fill={theme.swipeTrail} />
       </Svg>
     </Animated.View>
   );

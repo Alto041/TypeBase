@@ -81,8 +81,8 @@ export function wordAlignsWithTrace(word: string, trace: string): boolean {
   }
 
   const fuzzyBudget = Math.min(
-    1,
-    Math.max(1, Math.floor(collapsed.length / 5)),
+    3,
+    Math.max(1, Math.floor(collapsed.length / 4)),
   );
   return fuzzyMatchesPattern(wordKeys, collapsed, fuzzyBudget);
 }
@@ -152,7 +152,7 @@ export function fuzzyMatchesPattern(
  */
 function getSwipeCandidatesJs(
   pattern: string,
-  maxCandidates = 140,
+  maxCandidates = 280,
 ): Array<{word: string; rank: number}> {
   const normalized = pattern.toLowerCase();
   const first = normalized[0];
@@ -183,7 +183,7 @@ function getSwipeCandidatesJs(
     collapsed === normalized ? [normalized] : [collapsed, normalized];
 
   for (const lookupPattern of lookupPatterns) {
-    const maxEd = Math.min(2, traceEditBudget(lookupPattern.length));
+    const maxEd = Math.min(3, traceEditBudget(lookupPattern.length));
     const symMatches = lookupSwipeCandidatesSync(
       lookupPattern,
       maxEd,
@@ -210,14 +210,14 @@ function getSwipeCandidatesJs(
 
 export function getSwipeCandidatesSync(
   pattern: string,
-  maxCandidates = 140,
+  maxCandidates = 280,
 ): Array<{word: string; rank: number}> {
   return getSwipeCandidatesJs(pattern, maxCandidates);
 }
 
 export async function getSwipeCandidates(
   pattern: string,
-  maxCandidates = 140,
+  maxCandidates = 280,
 ): Promise<Array<{word: string; rank: number}>> {
   return getSwipeCandidatesSync(pattern, maxCandidates);
 }

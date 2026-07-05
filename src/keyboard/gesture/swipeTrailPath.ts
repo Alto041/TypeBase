@@ -63,6 +63,120 @@ function fmt(p: Point): string {
   return `${p.x.toFixed(1)},${p.y.toFixed(1)}`;
 }
 
+function catmullRomPoint(
+  p0: Point,
+  p1: Point,
+  p2: Point,
+  p3: Point,
+  t: number,
+): Point {
+  const t2 = t * t;
+  const t3 = t2 * t;
+  return {
+    x:
+      0.5 *
+      (2 * p1.x +
+        (-p0.x + p2.x) * t +
+        (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 +
+        (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3),
+    y:
+      0.5 *
+      (2 * p1.y +
+        (-p0.y + p2.y) * t +
+        (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 +
+        (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3),
+  };
+}
+
+/** Densify a polyline with Catmull-Rom splines so bends stay round. */
+export function sampleCatmullRomSpline(
+  points: Point[],
+  samplesPerSegment = 5,
+  maxPoints = 72,
+): Point[] {
+  if (points.length < 2) {
+    return points;
+  }
+  if (points.length === 2) {
+    return points;
+  }
+
+  const result: Point[] = [];
+  const lastIndex = points.length - 1;
+
+  for (let i = 0; i < lastIndex; i++) {
+    const p0 = points[Math.max(0, i - 1)];
+    const p1 = points[i];
+    const p2 = points[i + 1];
+    const p3 = points[Math.min(lastIndex, i + 2)];
+
+    for (let s = 0; s < samplesPerSegment; s++) {
+      result.push(catmullRomPoint(p0, p1, p2, p3, s / samplesPerSegment));
+    }
+  }
+  result.push(points[lastIndex]);
+
+  if (result.length <= maxPoints) {
+    return result;
+  }
+
+  const stride = result.length / maxPoints;
+  const capped: Point[] = [];
+  for (let i = 0; i < maxPoints; i++) {
+    capped.push(result[Math.min(result.length - 1, Math.round(i * stride))]);
+  }
+  capped[capped.length - 1] = result[result.length - 1];
+  return capped;
+}
+
+/**
+ * Smooth tapered swipe ribbon: spline centerline + dense offset edges (no arc kinks).
+ */
+export function buildSmoothSwipeTrailPath(
+  points: Point[],
+  tailWidth: number,
+  headWidth: number,
+): string {
+  const smooth = sampleCatmullRomSpline(points, 4, 80);
+  const n = smooth.length;
+  if (n < 2) {
+    return '';
+  }
+
+  const halfWidths = smooth.map((_, i) => {
+    const t = i / (n - 1);
+    const eased = t * t * (3 - 2 * t);
+    return (tailWidth + (headWidth - tailWidth) * eased) / 2;
+  });
+
+  const left: Point[] = [];
+  const right: Point[] = [];
+  for (let i = 0; i < n; i++) {
+    const prev = smooth[Math.max(0, i - 1)];
+    const next = smooth[Math.min(n - 1, i + 1)];
+    let dx = next.x - prev.x;
+    let dy = next.y - prev.y;
+    const len = Math.hypot(dx, dy) || 1;
+    dx /= len;
+    dy /= len;
+    const nx = -dy;
+    const ny = dx;
+    const hw = halfWidths[i];
+    left.push({x: smooth[i].x + nx * hw, y: smooth[i].y + ny * hw});
+    right.push({x: smooth[i].x - nx * hw, y: smooth[i].y - ny * hw});
+  }
+
+  let d = `M ${fmt(left[0])}`;
+  for (let i = 1; i < n; i++) {
+    d += ` L ${fmt(left[i])}`;
+  }
+  for (let i = n - 1; i >= 0; i--) {
+    d += ` L ${fmt(right[i])}`;
+  }
+  d += ' Z';
+  return d;
+}
+
 function arcMidpointOnCircle(
   center: Point,
   radius: number,

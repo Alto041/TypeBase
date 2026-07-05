@@ -18,6 +18,8 @@ type GestureTypingLayerProps = {
   compact?: boolean;
   isUppercase: boolean;
   onWordCommitted: (word: string) => void;
+  onSwipePreviewChange?: (word: string | null) => void;
+  onSwipeActiveChange?: (active: boolean) => void;
   trackpadEnabled?: boolean;
   onCursorStep?: (offset: number) => void;
   children: React.ReactNode;
@@ -29,6 +31,8 @@ function GestureTypingLayerComponent({
   compact = false,
   isUppercase,
   onWordCommitted,
+  onSwipePreviewChange,
+  onSwipeActiveChange,
   trackpadEnabled = false,
   onCursorStep,
   children,
@@ -85,7 +89,9 @@ function GestureTypingLayerComponent({
     <SwipeTypingProvider
       enabled={enabled}
       isUppercase={isUppercase}
-      onWordCommitted={onWordCommitted}>
+      onWordCommitted={onWordCommitted}
+      onSwipePreviewChange={onSwipePreviewChange}
+      onSwipeActiveChange={onSwipeActiveChange}>
       <View
         style={
           compact

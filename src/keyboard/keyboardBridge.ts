@@ -21,7 +21,15 @@ type KeyboardModuleType = {
     pointsJson: string,
     layoutsJson: string,
     isUppercase: boolean,
+    timedPointsJson?: string,
   ) => Promise<string>;
+  previewSwipeGesture: (
+    pointsJson: string,
+    layoutsJson: string,
+    isUppercase: boolean,
+    timedPointsJson?: string,
+  ) => Promise<string>;
+  cancelSwipePreview: () => void;
   getEssentials: () => Promise<string>;
   setEssentials: (json: string) => Promise<boolean>;
   getPrefersNumpad: () => Promise<boolean>;
@@ -190,15 +198,42 @@ export const keyboardBridge: KeyboardModuleType = {
     }
     return Promise.resolve(false);
   },
-  decodeSwipeGesture: (pointsJson: string, layoutsJson: string, isUppercase: boolean) => {
+  decodeSwipeGesture: (
+    pointsJson: string,
+    layoutsJson: string,
+    isUppercase: boolean,
+    timedPointsJson = '[]',
+  ) => {
     if (Platform.OS === 'android' && KeyboardModule?.decodeSwipeGesture) {
       return KeyboardModule.decodeSwipeGesture(
         pointsJson,
         layoutsJson,
         isUppercase,
+        timedPointsJson,
       ) as Promise<string>;
     }
     return Promise.resolve('');
+  },
+  previewSwipeGesture: (
+    pointsJson: string,
+    layoutsJson: string,
+    isUppercase: boolean,
+    timedPointsJson = '[]',
+  ) => {
+    if (Platform.OS === 'android' && KeyboardModule?.previewSwipeGesture) {
+      return KeyboardModule.previewSwipeGesture(
+        pointsJson,
+        layoutsJson,
+        isUppercase,
+        timedPointsJson,
+      ) as Promise<string>;
+    }
+    return Promise.resolve('');
+  },
+  cancelSwipePreview: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.cancelSwipePreview) {
+      KeyboardModule.cancelSwipePreview();
+    }
   },
   getEssentials: () => {
     if (Platform.OS === 'android' && KeyboardModule?.getEssentials) {
