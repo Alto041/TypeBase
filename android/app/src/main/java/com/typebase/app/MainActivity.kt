@@ -25,9 +25,6 @@ class MainActivity : ReactActivity() {
     if (intent?.getBooleanExtra(EXTRA_REQUEST_MIC, false) == true) {
       requestMicPermissionIfNeeded()
     }
-    if (intent?.getBooleanExtra(EXTRA_REQUEST_MEDIA_IMAGES, false) == true) {
-      requestMediaImagesPermissionIfNeeded()
-    }
   }
 
   override fun onResume() {
@@ -54,9 +51,6 @@ class MainActivity : ReactActivity() {
     super.onNewIntent(intent)
     if (intent.getBooleanExtra(EXTRA_REQUEST_MIC, false)) {
       requestMicPermissionIfNeeded()
-    }
-    if (intent.getBooleanExtra(EXTRA_REQUEST_MEDIA_IMAGES, false)) {
-      requestMediaImagesPermissionIfNeeded()
     }
   }
 
@@ -105,24 +99,6 @@ class MainActivity : ReactActivity() {
     }
   }
 
-  private fun requestMediaImagesPermissionIfNeeded() {
-    val permission =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-          Manifest.permission.READ_MEDIA_IMAGES
-        } else {
-          Manifest.permission.READ_EXTERNAL_STORAGE
-        }
-
-    if (ContextCompat.checkSelfPermission(this, permission) !=
-        PackageManager.PERMISSION_GRANTED) {
-      ActivityCompat.requestPermissions(
-          this,
-          arrayOf(permission),
-          MEDIA_IMAGES_PERMISSION_REQUEST,
-      )
-    }
-  }
-
   override fun getMainComponentName(): String = "main"
 
   override fun createReactActivityDelegate(): ReactActivityDelegate {
@@ -135,9 +111,7 @@ class MainActivity : ReactActivity() {
 
   companion object {
     const val EXTRA_REQUEST_MIC = "request_mic"
-    const val EXTRA_REQUEST_MEDIA_IMAGES = "request_media_images"
     private const val MIC_PERMISSION_REQUEST = 1001
-    private const val MEDIA_IMAGES_PERMISSION_REQUEST = 1002
   }
 
   override fun invokeDefaultOnBackPressed() {

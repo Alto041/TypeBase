@@ -42,9 +42,7 @@ import {
   captureSystemClipboard,
   deleteClipboardItem,
   ensureClipboardLoaded,
-  ensureMediaPermissionForClipboard,
   getClipboardItems,
-  importRecentScreenshots,
   toggleClipboardPin,
 } from './clipboard/clipboardStore';
 import type {ClipboardItem} from './clipboard/types';
@@ -786,12 +784,10 @@ function KeyboardBody({
     setClipboardItems(getClipboardItems());
     refreshClipboardPasteSuggestion?.();
 
-    // Pull in any new external clipboard/screenshots in the background.
-    // The import is now cheap when called repeatedly thanks to the recency
-    // guard inside importRecentScreenshots.
+    // Pull in any new system clipboard content in the background.
     void (async () => {
       await ensureClipboardLoaded().catch(() => {});
-      await importRecentScreenshots().catch(() => 0);
+      await captureSystemClipboard().catch(() => null);
       setClipboardItems(getClipboardItems());
       refreshClipboardPasteSuggestion?.();
     })();
@@ -1166,10 +1162,6 @@ function KeyboardBody({
   );
 
   const openClipboard = useCallback(() => {
-    // Start the (one-time) media permission prompt flow immediately if needed,
-    // but *do not await it*. We want the clipboard panel to appear instantly.
-    void ensureMediaPermissionForClipboard().catch(() => {});
-
     // Render the panel right now using whatever is already in the in-memory
     // clipboard store (populated at startup or by previous sessions). This is
     // the main thing that makes "open clipboard" feel fast.
@@ -1181,14 +1173,10 @@ function KeyboardBody({
     setLayout('letters');
     resetCase();
 
-    // Heavy lifting (ensure persisted, capture current system clip which may
-    // materialize an image, and import recent screenshots which may read+hash
-    // several files) happens in the background. When done we patch the items
-    // list so the panel updates live with any newly discovered content.
+    // Capture current system clip (text/image) in the background.
     void (async () => {
       await ensureClipboardLoaded().catch(() => {});
       await captureSystemClipboard().catch(() => null);
-      await importRecentScreenshots({bumpExisting: true}).catch(() => 0);
       setClipboardItems(getClipboardItems());
       refreshClipboardPasteSuggestion?.();
     })();

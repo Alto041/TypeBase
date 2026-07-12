@@ -2,7 +2,6 @@ import {
   captureSystemClipboard,
   ensureClipboardLoaded,
   getClipboardItems,
-  importRecentScreenshots,
 } from './clipboardStore';
 import type {ClipboardContent, ClipboardItem} from './types';
 
@@ -65,7 +64,6 @@ function clipboardItemToPasteSuggestion(
 export async function fetchClipboardPasteSuggestion(): Promise<ClipboardPasteSuggestion | null> {
   await ensureClipboardLoaded();
   await captureSystemClipboard().catch(() => null);
-  await importRecentScreenshots({bumpExisting: true}).catch(() => 0);
   return clipboardItemToPasteSuggestion(getClipboardItems()[0]);
 }
 

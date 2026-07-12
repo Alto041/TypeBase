@@ -1,6 +1,5 @@
 package com.typebase.app
 
-import android.Manifest
 import android.content.ClipData
 import android.content.ClipDescription
 import android.content.ClipboardManager
@@ -14,7 +13,6 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
-import android.provider.MediaStore
 import android.provider.Settings
 import android.view.KeyEvent
 import android.view.inputmethod.ExtractedText
@@ -23,7 +21,6 @@ import android.view.inputmethod.InputConnection
 import android.R
 import android.view.inputmethod.InputContentInfo
 import androidx.core.content.FileProvider
-import androidx.core.content.ContextCompat
 import java.io.File
 import java.io.FileOutputStream
 import java.security.MessageDigest
@@ -511,101 +508,19 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
 
   @ReactMethod
   fun hasMediaImagesPermission(promise: Promise) {
-    try {
-      promise.resolve(hasMediaImagesPermissionInternal())
-    } catch (error: Exception) {
-      promise.reject("MEDIA_PERMISSION_CHECK_FAILED", error)
-    }
+    // Screenshot gallery import is disabled (Play Photo/Video policy).
+    promise.resolve(false)
   }
 
   @ReactMethod
   fun openAppForMediaImagesPermission(promise: Promise) {
-    try {
-      if (hasMediaImagesPermissionInternal()) {
-        promise.resolve(true)
-        return
-      }
-      val intent =
-          Intent(reactApplicationContext, MainActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            putExtra(MainActivity.EXTRA_REQUEST_MEDIA_IMAGES, true)
-          }
-      reactApplicationContext.startActivity(intent)
-      promise.resolve(true)
-    } catch (error: Exception) {
-      promise.reject("OPEN_MEDIA_PERMISSION_FAILED", error)
-    }
+    promise.resolve(false)
   }
 
   @ReactMethod
   fun importRecentScreenshots(sinceMs: Double, maxCount: Int, promise: Promise) {
-    try {
-      if (!hasMediaImagesPermissionInternal()) {
-        promise.resolve("[]")
-        return
-      }
-      val resolver = reactApplicationContext.contentResolver
-      val collection =
-          if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
-          } else {
-            MediaStore.Images.Media.EXTERNAL_CONTENT_URI
-          }
-
-      val pathColumn =
-          if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            MediaStore.Images.Media.RELATIVE_PATH
-          } else {
-            MediaStore.Images.Media.DATA
-          }
-      val projection =
-          arrayOf(
-              MediaStore.Images.Media._ID,
-              MediaStore.Images.Media.DISPLAY_NAME,
-              MediaStore.Images.Media.MIME_TYPE,
-              MediaStore.Images.Media.DATE_ADDED,
-              MediaStore.Images.Media.DATE_MODIFIED,
-              pathColumn,
-          )
-
-      val sinceSeconds = (sinceMs / 1000.0).toLong().coerceAtLeast(0L)
-      val selection =
-          "(${MediaStore.Images.Media.DATE_ADDED} >= ? OR ${MediaStore.Images.Media.DATE_MODIFIED} >= ?)"
-      val selectionArgs = arrayOf(sinceSeconds.toString(), sinceSeconds.toString())
-      val sortOrder = "${MediaStore.Images.Media.DATE_ADDED} DESC"
-      val imported = JSONArray()
-      val limit = maxCount.coerceIn(1, 8)
-
-      resolver
-          .query(collection, projection, selection, selectionArgs, sortOrder)
-          ?.use { cursor ->
-            val idIndex = cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
-            val nameIndex = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DISPLAY_NAME)
-            val mimeIndex = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.MIME_TYPE)
-            val pathIndex = cursor.getColumnIndex(pathColumn)
-
-            while (cursor.moveToNext() && imported.length() < limit) {
-              val name = cursor.getString(nameIndex).orEmpty()
-              val relativePath = if (pathIndex >= 0) cursor.getString(pathIndex).orEmpty() else ""
-              if (!looksLikeScreenshot(name, relativePath)) {
-                continue
-              }
-
-              val mimeType = cursor.getString(mimeIndex) ?: "image/png"
-              val id = cursor.getLong(idIndex)
-              val uri = Uri.withAppendedPath(collection, id.toString())
-              val saved = saveClipboardImage(uri, mimeType) ?: continue
-              imported.put(JSONObject(saved))
-            }
-          }
-
-      promise.resolve(imported.toString())
-    } catch (_: SecurityException) {
-      // Media permission is not granted; keep keyboard behavior silent and non-blocking.
-      promise.resolve("[]")
-    } catch (error: Exception) {
-      promise.reject("IMPORT_RECENT_SCREENSHOTS_FAILED", error)
-    }
+    // Disabled: do not query MediaStore / request READ_MEDIA_IMAGES.
+    promise.resolve("[]")
   }
 
   @ReactMethod
@@ -1840,26 +1755,6 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
         InputConnection.INPUT_CONTENT_GRANT_READ_URI_PERMISSION,
         null,
     )
-  }
-
-  private fun hasMediaImagesPermissionInternal(): Boolean {
-    val permission =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-          Manifest.permission.READ_MEDIA_IMAGES
-        } else {
-          Manifest.permission.READ_EXTERNAL_STORAGE
-        }
-    return ContextCompat.checkSelfPermission(reactApplicationContext, permission) ==
-        PackageManager.PERMISSION_GRANTED
-  }
-
-  private fun looksLikeScreenshot(name: String, relativePath: String): Boolean {
-    val haystack = "$relativePath/$name".lowercase()
-    return haystack.contains("screenshot") ||
-        haystack.contains("screen_shot") ||
-        haystack.contains("screen shot") ||
-        haystack.contains("screenshots/") ||
-        haystack.contains("pictures/screenshots")
   }
 
   private fun sha256Hex(bytes: ByteArray): String {
