@@ -661,7 +661,7 @@ export const keyboardBridge: KeyboardModuleType = {
       return KeyboardModule.getKeyboardLayoutSettings() as Promise<string>;
     }
     return Promise.resolve(
-      '{"keyHeight":47,"keyGap":5,"keyRowMargin":12,"keyRadius":6,"enterKeyPreviewEnabled":true,"developerEyeEnabled":false,"letterSymbolAlternatesEnabled":false,"letterLayoutId":"en-us","keyHapticEnabled":true}',
+      '{"keyHeight":47,"keyGap":5,"keyRowMargin":12,"keyRadius":6,"enterKeyPreviewEnabled":true,"developerEyeEnabled":false,"letterSymbolAlternatesEnabled":false,"letterLayoutId":"en-us","keyHapticEnabled":true,"autoCapitalizeEnabled":true}',
     );
   },
   setKeyboardLayoutSettings: (json: string) => {

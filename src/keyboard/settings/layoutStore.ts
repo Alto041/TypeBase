@@ -77,6 +77,10 @@ function normalizeLayout(raw: unknown): KeyboardLayoutSettings {
       typeof obj['keyHapticEnabled'] === 'boolean'
         ? obj['keyHapticEnabled']
         : defaults.keyHapticEnabled,
+    autoCapitalizeEnabled:
+      typeof obj['autoCapitalizeEnabled'] === 'boolean'
+        ? obj['autoCapitalizeEnabled']
+        : defaults.autoCapitalizeEnabled,
     customFontEnabled:
       typeof obj['customFontEnabled'] === 'boolean'
         ? obj['customFontEnabled']

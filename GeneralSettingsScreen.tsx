@@ -20,6 +20,7 @@ import GraphicEqIcon from './assets/graphic_eq.svg';
 import DevIcon from './assets/dev.svg';
 import SymbolToggleIcon from './assets/symbol-toggle.svg';
 import NumberRowIcon from './assets/123.svg';
+import AutoCapIcon from './assets/format-letter-case-upper.svg';
 
 import {playSwitchOffSound, playSwitchOnSound} from './src/app/switchSound';
 import {
@@ -65,6 +66,7 @@ export function GeneralSettingsScreen({
   const [letterSymbolAlternatesEnabled, setLetterSymbolAlternatesEnabledState] =
     useState(false);
   const [numberRowEnabled, setNumberRowEnabledState] = useState(false);
+  const [autoCapitalizeEnabled, setAutoCapitalizeEnabledState] = useState(true);
   const [controllerSettings, setControllerSettings] =
     useState<ControllerSettings>(DEFAULT_CONTROLLER_SETTINGS);
 
@@ -73,6 +75,7 @@ export function GeneralSettingsScreen({
   const developerEyeAnim = useRef(new Animated.Value(0)).current;
   const symbolAlternatesAnim = useRef(new Animated.Value(0)).current;
   const numberRowAnim = useRef(new Animated.Value(0)).current;
+  const autoCapitalizeAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     void ensureUiSoundsLoaded()
@@ -93,6 +96,8 @@ export function GeneralSettingsScreen({
       symbolAlternatesAnim.setValue(layout.letterSymbolAlternatesEnabled ? 1 : 0);
       setNumberRowEnabledState(layout.numberRowEnabled ?? false);
       numberRowAnim.setValue(layout.numberRowEnabled ? 1 : 0);
+      setAutoCapitalizeEnabledState(layout.autoCapitalizeEnabled);
+      autoCapitalizeAnim.setValue(layout.autoCapitalizeEnabled ? 1 : 0);
       setControllerSettings(layout.controller);
     });
   }, []);
@@ -160,6 +165,16 @@ export function GeneralSettingsScreen({
     setNumberRowEnabledState(next);
     void updateKeyboardLayoutSetting('numberRowEnabled', next);
     animateToggle(numberRowAnim, next ? 1 : 0);
+    if (next) playSwitchOnSound();
+    else playSwitchOffSound();
+    void Haptics.selectionAsync().catch(() => {});
+  };
+
+  const toggleAutoCapitalize = async () => {
+    const next = !autoCapitalizeEnabled;
+    setAutoCapitalizeEnabledState(next);
+    void updateKeyboardLayoutSetting('autoCapitalizeEnabled', next);
+    animateToggle(autoCapitalizeAnim, next ? 1 : 0);
     if (next) playSwitchOnSound();
     else playSwitchOffSound();
     void Haptics.selectionAsync().catch(() => {});
@@ -265,8 +280,8 @@ export function GeneralSettingsScreen({
             </View>
           </View>
 
-          {/* Number Row Toggle — last card, more rounded bottom */}
-          <View style={[styles.rowCard, styles.lastSettingCard]}>
+          {/* Number Row Toggle */}
+          <View style={[styles.rowCard, styles.middleSettingCard]}>
             <View style={styles.rowInner}>
               <NumberRowIcon width={ROW_ICON} height={ROW_ICON} color={C.text} />
               <Text style={styles.rowTitle}>Number Row</Text>
@@ -282,6 +297,39 @@ export function GeneralSettingsScreen({
                         transform: [
                           {
                             translateX: numberRowAnim.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [0, 18],
+                            }),
+                          },
+                        ],
+                      },
+                    ]}
+                  />
+                </Pressable>
+              </View>
+            </View>
+          </View>
+
+          {/* Auto Capitalize — last card, more rounded bottom */}
+          <View style={[styles.rowCard, styles.lastSettingCard]}>
+            <View style={styles.rowInner}>
+              <AutoCapIcon width={ROW_ICON} height={ROW_ICON} color={C.text} />
+              <Text style={styles.rowTitle}>Auto Capitalize</Text>
+              <View style={styles.toggleWrap}>
+                <Pressable
+                  onPress={toggleAutoCapitalize}
+                  style={[
+                    styles.toggleTrack,
+                    autoCapitalizeEnabled && styles.toggleTrackOn,
+                  ]}
+                >
+                  <Animated.View
+                    style={[
+                      styles.toggleThumb,
+                      {
+                        transform: [
+                          {
+                            translateX: autoCapitalizeAnim.interpolate({
                               inputRange: [0, 1],
                               outputRange: [0, 18],
                             }),
@@ -368,7 +416,7 @@ export function GeneralSettingsScreen({
           <View style={[styles.rowCard, styles.rowCardStatic]}>
             <View style={styles.rowInner}>
               <Text style={styles.rowSubLabel}>App Version</Text>
-              <Text style={styles.rowValue}>0.9.7</Text>
+              <Text style={styles.rowValue}>1.0.0</Text>
             </View>
           </View>
         </View>

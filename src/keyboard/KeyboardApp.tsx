@@ -744,8 +744,12 @@ function KeyboardBody({
   }, [layout]);
 
   useEffect(() => {
-    setKeyPreviewTheme(theme.letterKey, theme.label);
-  }, [theme.label, theme.letterKey]);
+    const fontAsset =
+      theme.design === 'macintosh'
+        ? 'fonts/Chicago.ttf'
+        : 'fonts/Geist-VariableFont_wght.ttf';
+    setKeyPreviewTheme(theme.letterKey, theme.label, fontAsset);
+  }, [theme.design, theme.label, theme.letterKey]);
 
   useEffect(() => {
     void keyboardBridge.getPrefersNumpad().then(setPrefersNumpad);
@@ -805,6 +809,9 @@ function KeyboardBody({
       context: string,
       options: {fieldWasCleared?: boolean} = {},
     ) => {
+      if (!theme.autoCapitalizeEnabled) {
+        return;
+      }
       if (capsLockedRef.current) {
         return;
       }
@@ -833,7 +840,7 @@ function KeyboardBody({
         setShiftOn(shouldCap);
       }
     },
-    [inputInitialCapsMode],
+    [inputInitialCapsMode, theme.autoCapitalizeEnabled],
   );
 
   const resetToMainAlphabetView = useCallback(() => {
@@ -1719,6 +1726,16 @@ function KeyboardBody({
     }
     void keyboardBridge.getTextBeforeCursor(96).then(syncAutoCapitalizeShift);
   }, [layout, mode.type, syncAutoCapitalizeShift]);
+
+  useEffect(() => {
+    if (theme.autoCapitalizeEnabled || capsLockedRef.current) {
+      return;
+    }
+    if (shiftOnRef.current) {
+      shiftOnRef.current = false;
+      setShiftOn(false);
+    }
+  }, [theme.autoCapitalizeEnabled]);
 
   useEffect(() => {
     const interaction = InteractionManager.runAfterInteractions(() => {
@@ -3212,6 +3229,8 @@ export default function KeyboardApp() {
   const isLandscape = isLandscapeOrientation(width, height);
   const [fontsLoaded] = useFonts({
     Geist: require('../../assets/Geist-VariableFont_wght.ttf'),
+    Chicago: require('../../assets/Chicago.ttf'),
+    Ndot: require('../../assets/Ndot-55.otf'),
   });
   const [colorScheme, setColorScheme] =
     useState<KeyboardColorScheme>('light');

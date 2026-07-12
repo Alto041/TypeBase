@@ -112,7 +112,12 @@ class NativeKeyFastPath {
           KeyboardInputBridge.playKeyTapSound()
           if (key.reactTag > 0) {
             val tag = key.reactTag
-            previewHandler.post { KeyboardInputBridge.showKeyPreview(tag, text) }
+            // Show immediately on the main looper — delayed posts race finger-up hides.
+            if (Looper.myLooper() == Looper.getMainLooper()) {
+              KeyboardInputBridge.showKeyPreview(tag, text)
+            } else {
+              previewHandler.post { KeyboardInputBridge.showKeyPreview(tag, text) }
+            }
           }
         }
         false

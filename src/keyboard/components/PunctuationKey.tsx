@@ -14,7 +14,9 @@ import {triggerKeyHaptic} from '../haptics';
 import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
 import type {KeyDefinition} from '../layouts/qwerty';
 import type {KeyboardTheme} from '../theme';
+import {keyboardKeyChromeStyle} from '../theme';
 import type {KeyGesturesConfig} from './Key';
+import {MacintoshKeyBevels} from './MacintoshKeyBevels';
 
 const LAUNCHER_HOLD_DELAY_MS = 400;
 const REWRITE_HOLD_DELAY_MS = 400;
@@ -255,10 +257,11 @@ function PunctuationKeyComponent({
   );
 
   const label = keyDef.label;
+  const featureIconColor = theme.icon;
   const content = showLauncher ? (
-    <RocketLaunchIcon width={20} height={20} color={theme.icon} />
+    <RocketLaunchIcon width={20} height={20} color={featureIconColor} />
   ) : showRewrite ? (
-    <ArtificialIcon width={18} height={17} color="#000000" />
+    <ArtificialIcon width={18} height={17} color={featureIconColor} />
   ) : (
     <Text style={styles.keyLabel}>{label}</Text>
   );
@@ -274,9 +277,13 @@ function PunctuationKeyComponent({
         style={[
           styles.key,
           {borderRadius: theme.keyRadius, minHeight: keyHeight},
-          showRewrite && styles.rewriteKey,
+          showRewrite && theme.design !== 'macintosh' && styles.rewriteKey,
+          keyboardKeyChromeStyle(theme, pressed),
           pressed && styles.keyPressed,
         ]}>
+        {theme.design === 'macintosh' ? (
+          <MacintoshKeyBevels pressed={pressed} />
+        ) : null}
         {content}
       </View>
     </View>
@@ -293,6 +300,8 @@ function createPunctuationKeyStyles(theme: KeyboardTheme) {
       alignItems: 'center',
       justifyContent: 'center',
       paddingHorizontal: 5,
+      overflow: 'hidden',
+      position: 'relative',
     },
     rewriteKey: {
       backgroundColor: theme.essentialsAccent,

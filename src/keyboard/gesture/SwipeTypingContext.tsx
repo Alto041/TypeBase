@@ -60,7 +60,7 @@ const SWIPE_TAP_SLOP_DP = 10;
 const SWIPE_MIN_STEP_DP = 1.5;
 const SWIPE_MAX_POINTS = 240;
 const SWIPE_PREVIEW_INTERVAL_MS = 160;
-const TRAIL_MIN_STEP_DP = 0.55;
+const TRAIL_MIN_STEP_DP = 1.15;
 
 function keyLayoutsToJson(layouts: KeyBounds[]): string {
   return JSON.stringify(

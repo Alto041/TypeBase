@@ -632,7 +632,7 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
 }
 
 export function ThemesScreen({onBack}: {onBack: () => void}) {
-  const [design, setDesign] = useState<'typebase' | 'quivox'>('typebase');
+  const [design, setDesign] = useState<'typebase' | 'quivox' | 'macintosh'>('typebase');
   const [isDark, setIsDark] = useState(false);
   const [loading, setLoading] = useState(true);
   const [developerEyeEnabled, setDeveloperEyeEnabled] = useState(false);
@@ -655,7 +655,13 @@ export function ThemesScreen({onBack}: {onBack: () => void}) {
     void ensureThemeLoaded().then(() => {
       const current = getKeyboardDesign();
       const dark = getKeyboardColorScheme() === 'dark';
-      setDesign(current === 'quivox' ? 'quivox' : 'typebase');
+      setDesign(
+        current === 'quivox'
+          ? 'quivox'
+          : current === 'macintosh'
+            ? 'macintosh'
+            : 'typebase',
+      );
       setIsDark(dark);
       toggleAnim.setValue(dark ? 1 : 0);
       setThemeJson(formatCustomThemeJsonForEditor(getKeyboardCustomTheme()));
@@ -700,7 +706,7 @@ export function ThemesScreen({onBack}: {onBack: () => void}) {
     void Haptics.selectionAsync().catch(() => {});
   };
 
-  const select = (which: 'typebase' | 'quivox') => {
+  const select = (which: 'typebase' | 'quivox' | 'macintosh') => {
     if (loading) return;
     setDesign(which);
     void setKeyboardDesign(which);
@@ -726,6 +732,7 @@ export function ThemesScreen({onBack}: {onBack: () => void}) {
 
   const isNothing = design === 'typebase';
   const isQuivox = design === 'quivox';
+  const isMacintosh = design === 'macintosh';
 
   const handleImportKeyboardFont = async () => {
     if (loading || importingFont) return;
@@ -846,6 +853,34 @@ export function ThemesScreen({onBack}: {onBack: () => void}) {
               >
                 <Text style={styles.themeBtnText}>
                   {isQuivox ? 'Selected' : 'Choose'}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+
+        {/* Macintosh Theme card */}
+        <View style={styles.themeCard}>
+          <View style={styles.themeImageWrap}>
+            <Image source={require('./assets/macintosh.png')} style={styles.themeImage} resizeMode="cover" />
+          </View>
+
+          <View style={styles.themeBottomArea}>
+            <View style={styles.themeBottomRow}>
+              <View style={styles.themeTextCol}>
+                <Text style={styles.themeTitle}>Macintosh Theme</Text>
+                <Text style={styles.themeSubtitle}>
+                  Classic beige keys with 3D caps
+                </Text>
+              </View>
+
+              <Pressable
+                style={[styles.themeBtn, isMacintosh && styles.themeBtnActive]}
+                onPress={() => select('macintosh')}
+                disabled={loading}
+              >
+                <Text style={styles.themeBtnText}>
+                  {isMacintosh ? 'Selected' : 'Choose'}
                 </Text>
               </Pressable>
             </View>

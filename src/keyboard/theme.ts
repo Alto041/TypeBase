@@ -1,4 +1,4 @@
-import {Platform} from 'react-native';
+import {Platform, type ViewStyle} from 'react-native';
 import type {KeyboardLayout} from './layouts/qwerty';
 import {
   DEFAULT_LETTER_LAYOUT_ID,
@@ -54,6 +54,11 @@ export type KeyboardLayoutSettings = {
   customTapSoundFile: string | null;
   /** When true, vibrate on each key press. */
   keyHapticEnabled: boolean;
+  /**
+   * When true, automatically enable shift for the first letter of a field /
+   * sentence (and after `.?!`).
+   */
+  autoCapitalizeEnabled: boolean;
   /** When true, use a user-uploaded custom font for the keyboard. */
   customFontEnabled: boolean;
   /** Basename of the font file stored under keyboard_fonts/ (e.g. custom_keyboard_font.ttf). */
@@ -76,6 +81,7 @@ export const DEFAULT_KEYBOARD_LAYOUT_SETTINGS: KeyboardLayoutSettings = {
   customTapSoundEnabled: true,
   customTapSoundFile: 'haptic.wav',
   keyHapticEnabled: true,
+  autoCapitalizeEnabled: true,
   customFontEnabled: false,
   customFontFile: null,
   controller: DEFAULT_CONTROLLER_SETTINGS,
@@ -89,7 +95,7 @@ export const KEY_HIT_SLOP = {
 const NUMPAD_KEYS_PADDING_TOP = 2;
 
 export type KeyboardColorScheme = 'light' | 'dark';
-export type KeyboardDesign = 'typebase' | 'quivox' | 'custom';
+export type KeyboardDesign = 'typebase' | 'quivox' | 'macintosh' | 'custom';
 
 type KeyboardPalette = {
   container: string;
@@ -391,6 +397,73 @@ const QUIVOX_DARK_PALETTE: KeyboardPalette = {
   chipSelectedText: '#FFFFFF',
 };
 
+/**
+ * Macintosh — classic beige keyboard caps with warm off-white keys.
+ */
+const MACINTOSH_KEYS = {
+  letterKey: '#EEEAE0',
+  letterKeyPressed: '#D8D3C7',
+  modifierKey: '#DCD7CB',
+  modifierKeyPressed: '#C8C3B7',
+  spaceKey: '#DCD7CB',
+  spaceKeyPressed: '#C8C3B7',
+  pluginCard: '#E4E0D6',
+  pluginCardSecondary: '#D4CFC3',
+  enter: '#DCD7CB',
+  enterPressed: '#C8C3B7',
+  label: '#1A1A1A',
+  spaceLabel: '#4A4A4A',
+  icon: '#1A1A1A',
+  iconMuted: '#5C5C5C',
+  iconOnEnter: '#1A1A1A',
+  suggestionDivider: '#9A9588',
+  essentialsAccent: '#1A1A1A',
+  swipeTrail: '#4A4A4A',
+  launcherKey: '#DCD7CB',
+  chipSelectedBackground: '#1A1A1A',
+  chipSelectedText: '#EEEAE0',
+  borderSubtle: '#6B665A',
+  keyRipple: 'transparent',
+} as const;
+
+const MACINTOSH_LIGHT_PALETTE: KeyboardPalette = {
+  ...LIGHT_PALETTE,
+  ...MACINTOSH_KEYS,
+  container: '#DAD7CE',
+};
+
+/**
+ * Macintosh dark — warm charcoal tray with raised graphite caps,
+ * same 3D chrome language as light, inverted contrast.
+ */
+const MACINTOSH_DARK_PALETTE: KeyboardPalette = {
+  ...DARK_PALETTE,
+  container: '#1E1C19',
+  letterKey: '#3A3732',
+  letterKeyPressed: '#2C2A26',
+  modifierKey: '#4A4640',
+  modifierKeyPressed: '#383530',
+  spaceKey: '#4A4640',
+  spaceKeyPressed: '#383530',
+  pluginCard: '#3A3732',
+  pluginCardSecondary: '#4A4640',
+  enter: '#4A4640',
+  enterPressed: '#383530',
+  label: '#EDE9E0',
+  spaceLabel: '#A8A297',
+  icon: '#EDE9E0',
+  iconMuted: '#A8A297',
+  iconOnEnter: '#EDE9E0',
+  suggestionDivider: '#5C574E',
+  essentialsAccent: '#EDE9E0',
+  swipeTrail: '#C8C3B7',
+  launcherKey: '#4A4640',
+  chipSelectedBackground: '#EDE9E0',
+  chipSelectedText: '#1E1C19',
+  borderSubtle: '#0F0E0C',
+  keyRipple: 'transparent',
+};
+
 function paletteFor(
   scheme: KeyboardColorScheme,
   design: KeyboardDesign,
@@ -398,7 +471,59 @@ function paletteFor(
   if (design === 'quivox') {
     return scheme === 'light' ? QUIVOX_LIGHT_PALETTE : QUIVOX_DARK_PALETTE;
   }
+  if (design === 'macintosh') {
+    return scheme === 'light' ? MACINTOSH_LIGHT_PALETTE : MACINTOSH_DARK_PALETTE;
+  }
   return scheme === 'light' ? LIGHT_PALETTE : DARK_PALETTE;
+}
+
+/**
+ * Macintosh key outline — full 1px ring around the whole key so it
+ * frames the inner corner/bottom bevels from MacintoshKeyBevels.
+ */
+export function keyboardKeyChromeStyle(
+  theme: KeyboardTheme,
+  pressed = false,
+): ViewStyle {
+  if (theme.design !== 'macintosh') {
+    return {};
+  }
+
+  const outline = theme.borderSubtle;
+
+  if (pressed) {
+    return {
+      borderWidth: 1,
+      borderColor: outline,
+      overflow: 'hidden',
+      transform: [{translateY: 3}],
+      ...(Platform.OS === 'android'
+        ? {elevation: 0}
+        : {
+            shadowColor: 'transparent',
+            shadowOpacity: 0,
+          }),
+    };
+  }
+
+  const raised: ViewStyle = {
+    borderWidth: 1,
+    borderColor: outline,
+    overflow: 'hidden',
+  };
+
+  if (Platform.OS === 'android') {
+    return {...raised, elevation: 2};
+  }
+
+  return {
+    ...raised,
+    shadowColor:
+      theme.scheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(90, 86, 78, 0.4)',
+    shadowOffset: {width: 0, height: 3},
+    shadowOpacity: theme.scheme === 'dark' ? 0.45 : 0.22,
+    shadowRadius: 0,
+  };
 }
 
 export type KeyboardTheme = ReturnType<typeof createKeyboardTheme>;
@@ -442,7 +567,7 @@ export function createKeyboardTheme(
       : paletteFor(scheme, design);
 
   // When disabled, Enter uses the same cap colors as other action keys.
-  if (layout.enterKeyPreviewEnabled === false) {
+  if (layout.enterKeyPreviewEnabled === false || design === 'macintosh') {
     palette = {
       ...palette,
       enter: palette.modifierKey,
@@ -523,11 +648,12 @@ export function createKeyboardTheme(
     keyHeight: layout.keyHeight,
     keyRowMargin: layout.keyRowMargin,
     keyGap: layout.keyGap,
-    keyRadius: layout.keyRadius,
+    keyRadius: design === 'macintosh' ? 8 : layout.keyRadius,
     enterKeyPreviewEnabled: layout.enterKeyPreviewEnabled,
     letterSymbolAlternatesEnabled: layout.letterSymbolAlternatesEnabled,
     letterLayoutId: layout.letterLayoutId,
     numberRowEnabled: layout.numberRowEnabled,
+    autoCapitalizeEnabled: layout.autoCapitalizeEnabled,
     keyboardHeightOffset: layout.keyboardHeightOffset ?? 0,
     keyHitSlop: {
       horizontal: layout.keyGap,
@@ -546,7 +672,13 @@ export function createKeyboardTheme(
       4 * numpadKeyHeight +
       4 * layout.keyGap +
       imeStripClearance,
-    fontFamily: customUserFontFamily ?? (customFontLoaded ? ('Geist' as const) : undefined),
+    fontFamily:
+      customUserFontFamily ??
+      (customFontLoaded
+        ? design === 'macintosh'
+          ? ('Chicago' as const)
+          : ('Geist' as const)
+        : undefined),
   };
 }
 

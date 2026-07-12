@@ -91,8 +91,8 @@ function catmullRomPoint(
 /** Densify a polyline with Catmull-Rom splines so bends stay round. */
 export function sampleCatmullRomSpline(
   points: Point[],
-  samplesPerSegment = 5,
-  maxPoints = 72,
+  samplesPerSegment = 6,
+  maxPoints = 160,
 ): Point[] {
   if (points.length < 2) {
     return points;
@@ -130,6 +130,33 @@ export function sampleCatmullRomSpline(
 }
 
 /**
+ * Smooth doodle stroke (round caps/joins) — densified Catmull-Rom centerline.
+ * Full-opacity companion for SVG Path stroke rendering.
+ */
+export function buildDoodleSwipeTrailPath(points: Point[]): string {
+  const smooth = sampleCatmullRomSpline(points, 6, 180);
+  if (smooth.length < 2) {
+    return '';
+  }
+
+  let d = `M ${smooth[0].x.toFixed(1)} ${smooth[0].y.toFixed(1)}`;
+  if (smooth.length === 2) {
+    return `${d} L ${smooth[1].x.toFixed(1)} ${smooth[1].y.toFixed(1)}`;
+  }
+
+  for (let i = 1; i < smooth.length - 1; i++) {
+    const current = smooth[i];
+    const next = smooth[i + 1];
+    const midX = (current.x + next.x) * 0.5;
+    const midY = (current.y + next.y) * 0.5;
+    d += ` Q ${current.x.toFixed(1)} ${current.y.toFixed(1)} ${midX.toFixed(1)} ${midY.toFixed(1)}`;
+  }
+  const last = smooth[smooth.length - 1];
+  d += ` L ${last.x.toFixed(1)} ${last.y.toFixed(1)}`;
+  return d;
+}
+
+/**
  * Smooth tapered swipe ribbon: spline centerline + dense offset edges (no arc kinks).
  */
 export function buildSmoothSwipeTrailPath(
@@ -137,7 +164,7 @@ export function buildSmoothSwipeTrailPath(
   tailWidth: number,
   headWidth: number,
 ): string {
-  const smooth = sampleCatmullRomSpline(points, 4, 80);
+  const smooth = sampleCatmullRomSpline(points, 5, 120);
   const n = smooth.length;
   if (n < 2) {
     return '';

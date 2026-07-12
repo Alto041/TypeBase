@@ -6,6 +6,7 @@ import BackIcon from '../../../assets/back.svg';
 import CheckIcon from '../../../assets/check.svg';
 import EmojiIcon from '../../../assets/emoji.svg';
 import ItemsIcon from '../../../assets/items.svg';
+import AppleComputerLogo from '../../../assets/Apple_Computer_Logo_rainbow.svg';
 import UndoIcon from '../../../assets/undo.svg';
 import RedoIcon from '../../../assets/redo.svg';
 import ClipboardIcon from '../../../assets/plugins/clipboard.svg';
@@ -20,7 +21,8 @@ import {triggerKeyHaptic} from '../haptics';
 import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
 import {applyCaseToWord} from '../suggestions/wordSuggestions';
 import type {KeyboardTheme} from '../theme';
-import {keyboardTypefaceStyle} from '../theme';
+import {keyboardKeyChromeStyle, keyboardTypefaceStyle} from '../theme';
+import {MacintoshKeyBevels} from './MacintoshKeyBevels';
 
 export type EssentialSuggestion = {
   keyword: string;
@@ -336,6 +338,7 @@ function SuggestionBarComponent({
   const voiceActive = isListening || isVoiceConnecting;
   const voiceIconColor = voiceActive ? toolbarIconActive : toolbarIconMuted;
   const showUndoRedoButtons = showUndoRedo && !isFormMode && !centerTitle;
+  const isMacintosh = theme.design === 'macintosh';
 
   return (
     <View style={styles.container}>
@@ -356,6 +359,11 @@ function SuggestionBarComponent({
           hitSlop={6}>
           {showLeadingBack ? (
             <BackIcon width={22} height={14} color={theme.icon} />
+          ) : isMacintosh ? (
+            <AppleComputerLogo
+              width={toolbarIconSize}
+              height={toolbarIconSize}
+            />
           ) : (
             <ItemsIcon
               width={toolbarIconSize}
@@ -472,26 +480,33 @@ function SuggestionBarComponent({
               }}
               style={({pressed}) => [
                 styles.clipboardPastePill,
+                isMacintosh && styles.clipboardPastePillDepth,
+                isMacintosh && keyboardKeyChromeStyle(theme, pressed),
                 pressed && styles.clipboardPastePillPressed,
               ]}>
-              <ClipboardIcon
-                width={16}
-                height={16}
-                color={theme.icon}
-              />
-              {clipboardPasteSuggestion.kind === 'image' &&
-              clipboardPasteSuggestion.imageUri ? (
-                <Image
-                  source={{uri: clipboardPasteSuggestion.imageUri}}
-                  style={styles.clipboardPasteImage}
-                  resizeMode="cover"
-                />
-              ) : (
-                <Text style={styles.clipboardPasteText} numberOfLines={1}>
-                  {clipboardPastePreviewText(
-                    clipboardPasteSuggestion.text ?? '',
+              {({pressed}) => (
+                <>
+                  {isMacintosh ? <MacintoshKeyBevels pressed={pressed} /> : null}
+                  <ClipboardIcon
+                    width={16}
+                    height={16}
+                    color={theme.icon}
+                  />
+                  {clipboardPasteSuggestion.kind === 'image' &&
+                  clipboardPasteSuggestion.imageUri ? (
+                    <Image
+                      source={{uri: clipboardPasteSuggestion.imageUri}}
+                      style={styles.clipboardPasteImage}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <Text style={styles.clipboardPasteText} numberOfLines={1}>
+                      {clipboardPastePreviewText(
+                        clipboardPasteSuggestion.text ?? '',
+                      )}
+                    </Text>
                   )}
-                </Text>
+                </>
               )}
             </Pressable>
           </View>
@@ -900,6 +915,9 @@ function createSuggestionBarStyles(theme: KeyboardTheme) {
     borderRadius: 999,
     backgroundColor: theme.letterKey,
     maxWidth: '88%',
+  },
+  clipboardPastePillDepth: {
+    borderRadius: theme.keyRadius,
   },
   clipboardPastePillPressed: {
     backgroundColor: theme.letterKeyPressed,

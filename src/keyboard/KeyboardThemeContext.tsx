@@ -73,6 +73,11 @@ export function useKeyboardTheme(): KeyboardTheme {
   return theme;
 }
 
+/** Returns null when rendered outside KeyboardThemeProvider. */
+export function useKeyboardThemeOrNull(): KeyboardTheme | null {
+  return useContext(KeyboardThemeContext);
+}
+
 export function useThemedStyles<T extends Record<string, unknown>>(
   factory: (theme: KeyboardTheme) => T,
 ): T {

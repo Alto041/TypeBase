@@ -8,6 +8,7 @@ import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
@@ -24,9 +25,14 @@ class KeyPreviewManager(private val fallbackContext: Context) {
 
     private val activePreviews = HashMap<Int, TextView>()
     private val dismissRunnables = HashMap<Int, Runnable>()
+    private val shownAtMs = HashMap<Int, Long>()
+    /** Keys whose finger already lifted; show must still honor a delayed dismiss. */
+    private val hideRequested = HashSet<Int>()
     private val viewPool = ArrayDeque<TextView>()
     private val handler = Handler(Looper.getMainLooper())
     private var geistTypeface: Typeface? = null
+    private var labelTypeface: Typeface? = null
+    private var fontAssetPath: String = DEFAULT_FONT_ASSET
     private var backgroundColorArgb = Color.parseColor(DARK_PREVIEW_BACKGROUND)
     private var textColorArgb = Color.parseColor(DARK_PREVIEW_TEXT)
     private var previewContainer: FrameLayout? = null
@@ -74,7 +80,7 @@ class KeyPreviewManager(private val fallbackContext: Context) {
         detachPreviewViewsFromOldContainer()
         previewContainer = container
         warmPreviewPool(container, POOL_WARM_SIZE)
-        container.context.let { loadGeistTypeface(it) }
+        container.context.let { loadLabelTypeface(it) }
         applyThemeToPreviewView()
     }
 
@@ -86,65 +92,151 @@ class KeyPreviewManager(private val fallbackContext: Context) {
             (tv.parent as? ViewGroup)?.removeView(tv)
         }
         activePreviews.clear()
+        shownAtMs.clear()
+        hideRequested.clear()
         while (viewPool.isNotEmpty()) {
             val tv = viewPool.removeFirst()
             (tv.parent as? ViewGroup)?.removeView(tv)
         }
     }
 
-    fun setTheme(backgroundColor: String, textColor: String) {
+    fun setTheme(backgroundColor: String, textColor: String, fontAsset: String? = null) {
         runOnMainThread {
             backgroundColorArgb = parseColorOrFallback(backgroundColor, backgroundColorArgb)
             textColorArgb = parseColorOrFallback(textColor, textColorArgb)
+            val nextFont = fontAsset?.trim().orEmpty()
+            if (nextFont.isNotEmpty() && nextFont != fontAssetPath) {
+                fontAssetPath = nextFont
+                labelTypeface = null
+                geistTypeface = null
+            }
+            previewContainer?.context?.let { loadLabelTypeface(it) }
             applyThemeToPreviewView()
         }
     }
 
     fun show(reactTag: Int, anchor: View, label: String) {
         runOnMainThread {
+            // New press cancels any pending release for this key.
+            hideRequested.remove(reactTag)
             showAtAnchor(reactTag, anchor, label)
         }
     }
 
+    /**
+     * Finger-up hide — Gboard-style: tiny hold for flash taps, then a quick fade.
+     */
     fun hide(reactTag: Int) {
         runOnMainThread {
-            showSeq[reactTag] = (showSeq[reactTag] ?: 0) + 1
-            cancelPendingLayoutShow(reactTag)
             cancelDismiss(reactTag)
-            releasePreview(reactTag)
+            hideRequested.add(reactTag)
+            val tv = activePreviews[reactTag]
+            if (tv == null) {
+                // Show still in flight; dismiss as soon as it appears.
+                return@runOnMainThread
+            }
+            scheduleFadeDismiss(reactTag, tv)
         }
     }
 
     fun hideAll() {
         runOnMainThread {
-            val tags = activePreviews.keys.toList() + pendingLayoutShows.keys.toList()
-            for (tag in tags.toSet()) {
+            val tags = (
+                activePreviews.keys +
+                    pendingLayoutShows.keys +
+                    dismissRunnables.keys +
+                    shownAtMs.keys
+                ).toSet()
+            for (tag in tags) {
                 showSeq[tag] = (showSeq[tag] ?: 0) + 1
                 cancelPendingLayoutShow(tag)
                 cancelDismiss(tag)
+                hideRequested.remove(tag)
+                activePreviews[tag]?.animate()?.cancel()
                 releasePreview(tag)
             }
         }
     }
 
-    fun hideAllDelayed(delayMs: Long = 80) {
+    fun hideAllDelayed(delayMs: Long = DEFAULT_HIDE_AFTER_RELEASE_MS) {
         runOnMainThread {
-            val tags = activePreviews.keys.toList()
+            val tags = (
+                activePreviews.keys +
+                    pendingLayoutShows.keys +
+                    dismissRunnables.keys
+                ).toSet()
             for (tag in tags) {
-                hideDelayed(tag, delayMs)
+                val tv = activePreviews[tag]
+                if (tv != null) {
+                    hideRequested.add(tag)
+                    scheduleFadeDismiss(tag, tv, delayMs)
+                } else {
+                    hideDelayed(tag, delayMs)
+                }
             }
         }
     }
 
-    fun hideDelayed(reactTag: Int, delayMs: Long = 80) {
+    fun hideDelayed(reactTag: Int, delayMs: Long = DEFAULT_HIDE_AFTER_RELEASE_MS) {
+        hideRequested.add(reactTag)
         cancelDismiss(reactTag)
-        if (!activePreviews.containsKey(reactTag)) {
-            return
-        }
+        val waitMs = delayMs.coerceAtLeast(0L)
         dismissRunnables[reactTag] = Runnable {
             dismissRunnables.remove(reactTag)
-            releasePreview(reactTag)
-        }.also { handler.postDelayed(it, delayMs) }
+            val tv = activePreviews[reactTag]
+            if (tv != null) {
+                scheduleFadeDismiss(reactTag, tv, 0L)
+            } else {
+                hideRequested.remove(reactTag)
+                showSeq[reactTag] = (showSeq[reactTag] ?: 0) + 1
+                cancelPendingLayoutShow(reactTag)
+                releasePreview(reactTag)
+            }
+        }.also { handler.postDelayed(it, waitMs) }
+    }
+
+    private fun scheduleFadeDismiss(
+        reactTag: Int,
+        tv: TextView,
+        startDelayOverrideMs: Long? = null,
+    ) {
+        cancelDismiss(reactTag)
+        hideRequested.add(reactTag)
+        tv.animate().cancel()
+
+        val shownAt = shownAtMs[reactTag]
+        val elapsed =
+            if (shownAt != null) SystemClock.uptimeMillis() - shownAt else 0L
+        val startDelay =
+            startDelayOverrideMs
+                ?: (FLASH_MIN_VISIBLE_MS - elapsed)
+                    .coerceAtLeast(0L)
+                    .coerceAtMost(FLASH_MIN_VISIBLE_MS)
+
+        dismissRunnables[reactTag] = Runnable {
+            dismissRunnables.remove(reactTag)
+            if (!activePreviews.containsKey(reactTag)) {
+                hideRequested.remove(reactTag)
+                return@Runnable
+            }
+            tv.animate()
+                .alpha(0f)
+                .setDuration(FADE_OUT_MS)
+                .withEndAction {
+                    tv.alpha = 1f
+                    hideRequested.remove(reactTag)
+                    showSeq[reactTag] = (showSeq[reactTag] ?: 0) + 1
+                    cancelPendingLayoutShow(reactTag)
+                    releasePreview(reactTag)
+                }
+                .start()
+        }.also {
+            if (startDelay <= 0L) {
+                it.run()
+            } else {
+                handler.postDelayed(it, startDelay)
+            }
+        }
     }
 
     fun destroy() {
@@ -154,12 +246,18 @@ class KeyPreviewManager(private val fallbackContext: Context) {
             for (tag in pendingLayoutShows.keys.toList()) {
                 cancelPendingLayoutShow(tag)
             }
+            for (tag in activePreviews.keys.toList()) {
+                activePreviews[tag]?.animate()?.cancel()
+            }
             showSeq.clear()
+            shownAtMs.clear()
+            hideRequested.clear()
             removePreviewContainerListener?.invoke()
             removePreviewContainerListener = null
             detachPreviewViewsFromOldContainer()
             previewContainer = null
             geistTypeface = null
+            labelTypeface = null
         }
     }
 
@@ -202,6 +300,10 @@ class KeyPreviewManager(private val fallbackContext: Context) {
 
     private fun releasePreview(reactTag: Int) {
         val tv = activePreviews.remove(reactTag) ?: return
+        shownAtMs.remove(reactTag)
+        hideRequested.remove(reactTag)
+        tv.animate().cancel()
+        tv.alpha = 1f
         tv.visibility = View.GONE
         viewPool.addLast(tv)
     }
@@ -245,8 +347,17 @@ class KeyPreviewManager(private val fallbackContext: Context) {
         cancelDismiss(reactTag)
 
         val tv = obtainPreviewView(container, reactTag)
+        tv.animate().cancel()
+        tv.alpha = 1f
         applyThemeToPreviewView(tv)
+        tv.typeface = loadLabelTypeface(tv.context)
         tv.text = label
+        shownAtMs[reactTag] = SystemClock.uptimeMillis()
+
+        // Finger already up before the async show landed — flash then fade.
+        if (hideRequested.contains(reactTag)) {
+            scheduleFadeDismiss(reactTag, tv, FLASH_MIN_VISIBLE_MS)
+        }
 
         val previewWidth = anchor.width.coerceAtLeast(dpToPx(MIN_PREVIEW_WIDTH_DP))
         val previewHeight = anchor.height.coerceAtLeast(dpToPx(MIN_PREVIEW_HEIGHT_DP))
@@ -297,7 +408,7 @@ class KeyPreviewManager(private val fallbackContext: Context) {
             gravity = Gravity.CENTER
             setTextColor(textColorArgb)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, LABEL_TEXT_SIZE_SP)
-            typeface = loadGeistTypeface(context)
+            typeface = loadLabelTypeface(context)
             background = keyBackground
             elevation = dpToPx(6).toFloat()
             includeFontPadding = false
@@ -312,8 +423,12 @@ class KeyPreviewManager(private val fallbackContext: Context) {
                 activePreviews.values.toList() + viewPool.toList()
             }
 
+        val face = previewContainer?.context?.let { loadLabelTypeface(it) }
         for (preview in targets) {
             preview.setTextColor(textColorArgb)
+            if (face != null) {
+                preview.typeface = face
+            }
             val background = preview.background
             if (background is GradientDrawable) {
                 background.setColor(backgroundColorArgb)
@@ -336,35 +451,54 @@ class KeyPreviewManager(private val fallbackContext: Context) {
             fallback
         }
 
-    private fun loadGeistTypeface(context: Context): Typeface {
-        geistTypeface?.let { return it }
+    private fun loadLabelTypeface(context: Context): Typeface {
+        labelTypeface?.let { return it }
 
-        val base =
-            try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    Typeface.Builder(context.assets, GEIST_FONT_PATH)
-                        .setFontVariationSettings("'wght' $GEIST_WEIGHT")
-                        .build()
-                } else {
-                    Typeface.createFromAsset(context.assets, GEIST_FONT_PATH)
-                }
-            } catch (_: Exception) {
-                Typeface.DEFAULT
+        val candidates =
+            listOf(
+                fontAssetPath,
+                DEFAULT_FONT_ASSET,
+                "Geist-VariableFont_wght.ttf",
+                "fonts/Geist-VariableFont_wght.ttf",
+            ).distinct()
+
+        for (path in candidates) {
+            val loaded = loadTypefaceFromAsset(context, path)
+            if (loaded != null) {
+                labelTypeface = loaded
+                geistTypeface = loaded
+                return loaded
             }
+        }
 
-        val typeface =
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                Typeface.create(base, GEIST_WEIGHT, false)
+        val fallback = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        labelTypeface = fallback
+        return fallback
+    }
+
+    private fun loadTypefaceFromAsset(context: Context, assetPath: String): Typeface? {
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+                assetPath.contains("Variable", ignoreCase = true)
+            ) {
+                Typeface.Builder(context.assets, assetPath)
+                    .setFontVariationSettings("'wght' $GEIST_WEIGHT")
+                    .build()
             } else {
-                base
+                Typeface.createFromAsset(context.assets, assetPath)
             }
-
-        geistTypeface = typeface
-        return typeface
+        } catch (_: Exception) {
+            try {
+                Typeface.createFromAsset(context.assets, assetPath)
+            } catch (_: Exception) {
+                null
+            }
+        }
     }
 
     private fun cancelDismiss(reactTag: Int) {
         dismissRunnables.remove(reactTag)?.let { handler.removeCallbacks(it) }
+        activePreviews[reactTag]?.animate()?.cancel()
     }
 
     private fun cancelPendingLayoutShow(reactTag: Int) {
@@ -408,9 +542,14 @@ class KeyPreviewManager(private val fallbackContext: Context) {
         private const val MIN_PREVIEW_WIDTH_DP = 32
         private const val MIN_PREVIEW_HEIGHT_DP = 40
         private const val LABEL_TEXT_SIZE_SP = 22f
-        private const val GEIST_FONT_PATH = "fonts/Geist-VariableFont_wght.ttf"
         private const val GEIST_WEIGHT = 500
         private const val DARK_PREVIEW_BACKGROUND = "#454545"
         private const val DARK_PREVIEW_TEXT = "#FFFFFF"
+        /** Shortest flash so ultra-fast taps still register visually. */
+        private const val FLASH_MIN_VISIBLE_MS = 40L
+        /** Gboard-like fade out duration. */
+        private const val FADE_OUT_MS = 55L
+        private const val DEFAULT_HIDE_AFTER_RELEASE_MS = 40L
+        private const val DEFAULT_FONT_ASSET = "fonts/Geist-VariableFont_wght.ttf"
     }
 }

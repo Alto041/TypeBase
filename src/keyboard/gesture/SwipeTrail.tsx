@@ -1,15 +1,14 @@
-import React, {useEffect, useMemo, useRef} from 'react';
+import React, {useEffect, useRef} from 'react';
 import {Animated, PixelRatio, StyleSheet} from 'react-native';
 import Svg, {Path} from 'react-native-svg';
 import {useKeyboardTheme} from '../KeyboardThemeContext';
 import {
-  gestureSwipeActiveRef,
   swipeTrailHeadRef,
   swipeTrailPointsRef,
   swipeTrailRevisionRef,
 } from './gestureState';
-import {buildSmoothSwipeTrailPath} from './swipeTrailPath';
-import type {TrailPoint} from './types';
+import {rebuildSmoothPath} from './swipeTrailPath';
+import type {Point} from './types';
 
 type SwipeTrailProps = {
   width: number;
@@ -18,42 +17,55 @@ type SwipeTrailProps = {
   onFadeComplete: () => void;
 };
 
-const FADE_OUT_MS = 180;
-const HEAD_DP = 3.6;
-const TAIL_DP = 0.4;
+const FADE_OUT_MS = 120;
+const STROKE_DP = 4;
+/** Cap path complexity — more points = frame drops on Android SVG. */
+const MAX_RENDER_POINTS = 48;
 
 function dp(value: number): number {
   return value * PixelRatio.get();
 }
 
-function trailPointsForRender(
-  fading: boolean,
-  fadeSnapshot: TrailPoint[],
-): TrailPoint[] {
-  const base =
-    fading && fadeSnapshot.length >= 2
-      ? fadeSnapshot
-      : [...swipeTrailPointsRef.current];
+function decimatePoints(points: Point[], maxPoints: number): Point[] {
+  const n = points.length;
+  if (n <= maxPoints) {
+    return points;
+  }
+  const out: Point[] = new Array(maxPoints);
+  const last = maxPoints - 1;
+  for (let i = 0; i < last; i++) {
+    out[i] = points[Math.round((i * (n - 1)) / last)];
+  }
+  out[last] = points[n - 1];
+  return out;
+}
 
-  if (!gestureSwipeActiveRef.current || fading) {
-    return base;
+function buildTrailPath(): string {
+  const trail = swipeTrailPointsRef.current;
+  if (trail.length < 2) {
+    return '';
   }
 
   const head = swipeTrailHeadRef.current;
-  if (!head || base.length === 0) {
-    return base;
+  const renderPoints: Point[] = [];
+  for (let i = 0; i < trail.length; i++) {
+    renderPoints.push(trail[i]);
+  }
+  if (head) {
+    const last = trail[trail.length - 1];
+    const dx = head.x - last.x;
+    const dy = head.y - last.y;
+    if (dx * dx + dy * dy >= 1) {
+      renderPoints.push({x: head.x, y: head.y});
+    }
   }
 
-  const last = base[base.length - 1];
-  const dx = head.x - last.x;
-  const dy = head.y - last.y;
-  if (dx * dx + dy * dy < 0.25) {
-    return base;
-  }
-
-  return [...base, {x: head.x, y: head.y, timestampMs: Date.now()}];
+  return rebuildSmoothPath(decimatePoints(renderPoints, MAX_RENDER_POINTS));
 }
 
+/**
+ * Swipe doodle trail — updates Path via setNativeProps (no React re-render loop).
+ */
 export function SwipeTrail({
   width,
   height,
@@ -61,22 +73,33 @@ export function SwipeTrail({
   onFadeComplete,
 }: SwipeTrailProps) {
   const theme = useKeyboardTheme();
-  const opacity = useRef(new Animated.Value(1)).current;
-  const fadeSnapshotRef = useRef<TrailPoint[]>([]);
-  const [renderRevision, setRenderRevision] = React.useState(0);
-  const lastPolledRevisionRef = useRef(-1);
+  const fadeOpacity = useRef(new Animated.Value(1)).current;
+  const pathRef = useRef<Path>(null);
+  const lastPathRef = useRef('');
+  const lastRevisionRef = useRef(-1);
   const lastHeadRef = useRef<{x: number; y: number} | null>(null);
   const rafRef = useRef<number | null>(null);
+  const fadePathRef = useRef('');
+
+  const paintPath = (d: string) => {
+    if (d === lastPathRef.current) {
+      return;
+    }
+    lastPathRef.current = d;
+    pathRef.current?.setNativeProps({d});
+  };
 
   useEffect(() => {
     if (fading) {
-      fadeSnapshotRef.current = [...swipeTrailPointsRef.current];
       if (rafRef.current != null) {
         cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
       }
+      fadePathRef.current =
+        lastPathRef.current || rebuildSmoothPath(swipeTrailPointsRef.current);
+      paintPath(fadePathRef.current);
 
-      const animation = Animated.timing(opacity, {
+      const animation = Animated.timing(fadeOpacity, {
         toValue: 0,
         duration: FADE_OUT_MS,
         useNativeDriver: true,
@@ -89,45 +112,44 @@ export function SwipeTrail({
       return () => animation.stop();
     }
 
-    opacity.setValue(1);
-    fadeSnapshotRef.current = [];
-  }, [fading, onFadeComplete, opacity]);
+    fadeOpacity.setValue(1);
+    fadePathRef.current = '';
+  }, [fading, onFadeComplete, fadeOpacity]);
 
-  // Repaint when trail geometry changes — not on every vsync if nothing moved.
   useEffect(() => {
     if (fading) {
       return;
     }
 
     const loop = () => {
-      let needsPaint = false;
       const revision = swipeTrailRevisionRef.current;
-      if (revision !== lastPolledRevisionRef.current) {
-        lastPolledRevisionRef.current = revision;
-        needsPaint = true;
-      }
+      const head = swipeTrailHeadRef.current;
+      const prevHead = lastHeadRef.current;
 
-      if (gestureSwipeActiveRef.current) {
-        const head = swipeTrailHeadRef.current;
+      const revisionChanged = revision !== lastRevisionRef.current;
+      const headMoved =
+        !!head &&
+        (!prevHead ||
+          (head.x - prevHead.x) * (head.x - prevHead.x) +
+            (head.y - prevHead.y) * (head.y - prevHead.y) >=
+            2.25);
+
+      if (revisionChanged || headMoved) {
+        lastRevisionRef.current = revision;
         if (head) {
-          const prev = lastHeadRef.current;
-          if (!prev || head.x !== prev.x || head.y !== prev.y) {
-            lastHeadRef.current = {x: head.x, y: head.y};
-            needsPaint = true;
-          }
+          lastHeadRef.current = {x: head.x, y: head.y};
         }
-      } else {
-        lastHeadRef.current = null;
-      }
-
-      if (needsPaint) {
-        setRenderRevision(current => current + 1);
+        paintPath(buildTrailPath());
       }
 
       rafRef.current = requestAnimationFrame(loop);
     };
 
+    // Seed immediately so the first segment appears without waiting a frame.
+    lastRevisionRef.current = swipeTrailRevisionRef.current;
+    paintPath(buildTrailPath());
     rafRef.current = requestAnimationFrame(loop);
+
     return () => {
       if (rafRef.current != null) {
         cancelAnimationFrame(rafRef.current);
@@ -136,28 +158,25 @@ export function SwipeTrail({
     };
   }, [fading]);
 
-  const points = useMemo(
-    () => trailPointsForRender(fading, fadeSnapshotRef.current),
-    [fading, renderRevision],
-  );
-
-  const corePath = useMemo(() => {
-    if (points.length < 2) {
-      return '';
-    }
-    return buildSmoothSwipeTrailPath(points, dp(TAIL_DP), dp(HEAD_DP));
-  }, [points]);
-
-  if (!corePath || width <= 0 || height <= 0) {
+  if (width <= 0 || height <= 0) {
     return null;
   }
 
   return (
     <Animated.View
-      style={[styles.overlay, {width, height, opacity}]}
+      style={[styles.overlay, {width, height, opacity: fadeOpacity}]}
       pointerEvents="none">
       <Svg width={width} height={height}>
-        <Path d={corePath} fill={theme.swipeTrail} />
+        <Path
+          ref={pathRef}
+          d={lastPathRef.current || 'M 0 0'}
+          stroke={theme.swipeTrail}
+          strokeWidth={dp(STROKE_DP)}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          fill="none"
+          opacity={1}
+        />
       </Svg>
     </Animated.View>
   );

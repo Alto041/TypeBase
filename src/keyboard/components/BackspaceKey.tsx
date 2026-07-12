@@ -15,6 +15,8 @@ import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
 import {keyboardBridge} from '../keyboardBridge';
 import type {KeyDefinition} from '../layouts/qwerty';
 import type {KeyboardTheme} from '../theme';
+import {keyboardKeyChromeStyle} from '../theme';
+import {MacintoshKeyBevels} from './MacintoshKeyBevels';
 import type {KeyGesturesConfig} from './Key';
 
 const BACKSPACE_HOLD_DELAY_MS = 280;
@@ -231,9 +233,18 @@ function BackspaceKeyComponent({
             borderRadius,
             minHeight: keyHeight,
           },
+          keyboardKeyChromeStyle(theme, pressed),
           pressed && styles.modifierKeyPressed,
-          pressed && styles.symbolKeyPressedFade,
+          pressed &&
+            theme.design !== 'macintosh' &&
+            styles.symbolKeyPressedFade,
         ]}>
+        {theme.design === 'macintosh' ? (
+          <MacintoshKeyBevels
+            pressed={pressed}
+            shape={isEnterBackspace ? 'pill' : 'rect'}
+          />
+        ) : null}
         {icon}
       </Pressable>
     </View>

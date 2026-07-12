@@ -1,6 +1,7 @@
 package com.typebase.app
 
 import android.content.Context
+import android.content.res.AssetFileDescriptor
 import android.media.AudioAttributes
 import android.media.SoundPool
 import android.util.Log
@@ -11,7 +12,10 @@ object KeyTapSoundPlayer {
   private const val TAG = "KeyTapSoundPlayer"
   private const val PREFS_NAME = "typebase_keyboard"
   private const val LAYOUT_KEY = "keyboard_layout"
+  private const val DESIGN_KEY = "keyboard_design"
   private const val TAP_SOUND_DIR = "keyboard_tap_sounds"
+  private const val MACINTOSH_ASSET = "sounds/mac-sfx.mp3"
+  private const val MACINTOSH_LOADED_TOKEN = "asset:$MACINTOSH_ASSET"
 
   @Volatile private var enabled: Boolean = false
 
@@ -23,25 +27,34 @@ object KeyTapSoundPlayer {
 
   fun sync(context: Context) {
     val appContext = context.applicationContext
-    val layoutJson =
-        appContext
-            .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .getString(LAYOUT_KEY, null)
-            ?: return
+    val prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    val layoutJson = prefs.getString(LAYOUT_KEY, null) ?: return
 
     try {
       val layout = JSONObject(layoutJson)
       KeyboardInputBridge.syncLayoutSettings(layoutJson)
       val nextEnabled = layout.optBoolean("customTapSoundEnabled", false)
+      val design = prefs.getString(DESIGN_KEY, "typebase") ?: "typebase"
+
+      if (!nextEnabled) {
+        release()
+        enabled = false
+        loadedFile = null
+        return
+      }
+
+      if (design == "macintosh") {
+        loadMacintoshAsset(appContext)
+        return
+      }
+
       val fileName =
           layout.optString("customTapSoundFile", "").trim().takeIf { it.isNotEmpty() }
 
       // Meme SFX (named `myinstants_*`) must never be used as a key tap sound.
-      // An earlier build accidentally installed selected sounds here; guard so
-      // they can never play on keypress even if the setting is still stale.
       val isMemeSound = fileName?.startsWith("myinstants_") == true
 
-      if (!nextEnabled || fileName == null || isMemeSound) {
+      if (fileName == null || isMemeSound) {
         release()
         enabled = false
         loadedFile = null
@@ -79,6 +92,41 @@ object KeyTapSoundPlayer {
       release()
       enabled = false
       loadedFile = null
+    }
+  }
+
+  private fun loadMacintoshAsset(appContext: Context) {
+    if (enabled && loadedFile == MACINTOSH_LOADED_TOKEN && soundId != 0) {
+      return
+    }
+
+    release()
+    var afd: AssetFileDescriptor? = null
+    try {
+      afd = appContext.assets.openFd(MACINTOSH_ASSET)
+      val pool = createSoundPool()
+      val id = pool.load(afd, 1)
+      if (id == 0) {
+        pool.release()
+        enabled = false
+        loadedFile = null
+        return
+      }
+      soundPool = pool
+      soundId = id
+      enabled = true
+      loadedFile = MACINTOSH_LOADED_TOKEN
+    } catch (error: Exception) {
+      Log.w(TAG, "Failed to load Macintosh tap sound", error)
+      release()
+      enabled = false
+      loadedFile = null
+    } finally {
+      try {
+        afd?.close()
+      } catch (_: Exception) {
+        // ignore
+      }
     }
   }
 

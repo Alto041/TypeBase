@@ -23,6 +23,9 @@ function normalizeDesign(value: string | null | undefined): KeyboardDesign {
   if (value === 'quivox') {
     return 'quivox';
   }
+  if (value === 'macintosh') {
+    return 'macintosh';
+  }
   if (value === 'custom') {
     return 'custom';
   }

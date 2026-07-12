@@ -1035,6 +1035,7 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
       val normalized =
           when (design) {
             "quivox" -> "quivox"
+            "macintosh" -> "macintosh"
             "custom" -> "custom"
             else -> "typebase"
           }
@@ -1043,6 +1044,9 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
               .edit()
               .putString(KEYBOARD_DESIGN_KEY, normalized)
               .commit()
+      if (saved) {
+        KeyTapSoundPlayer.sync(reactApplicationContext)
+      }
       if (saved && reactApplicationContext.hasActiveReactInstance()) {
         reactApplicationContext
             .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
@@ -1937,7 +1941,7 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     private const val KEYBOARD_LAYOUT_KEY = "keyboard_layout"
     private const val CUSTOM_LETTER_LAYOUTS_KEY = "custom_letter_layouts"
     private const val DEFAULT_KEYBOARD_LAYOUT =
-        """{"keyHeight":47,"keyGap":5,"keyRowMargin":12,"keyRadius":6,"enterKeyPreviewEnabled":true,"developerEyeEnabled":false,"letterSymbolAlternatesEnabled":false,"letterLayoutId":"en-us","keyHapticEnabled":true}"""
+        """{"keyHeight":47,"keyGap":5,"keyRowMargin":12,"keyRadius":6,"enterKeyPreviewEnabled":true,"developerEyeEnabled":false,"letterSymbolAlternatesEnabled":false,"letterLayoutId":"en-us","keyHapticEnabled":true,"autoCapitalizeEnabled":true}"""
     private const val DEFAULT_API_KEYS =
         """{"geminiApiKey":"","speechmaticsApiKey":""}"""
     private const val DEFAULT_GESTURE_SETTINGS =

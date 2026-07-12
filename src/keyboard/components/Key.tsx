@@ -1,4 +1,4 @@
-import React, {memo, useCallback, useEffect, useMemo, useRef} from 'react';
+import React, {memo, useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
   Animated,
   findNodeHandle,
@@ -22,6 +22,7 @@ import NumbersIcon from '../../../assets/123.svg';
 import SymbolsIcon from '../../../assets/symbols.svg';
 import RocketLaunchIcon from '../../../assets/rocket_launch.svg';
 import ArtificialIcon from '../../../assets/Artificial.svg';
+import AppleIcon from '../../../assets/apple.svg';
 import {useKeyLayoutContext} from '../gesture/KeyLayoutContext';
 import {
   isMultiTouchTextKey,
@@ -38,7 +39,8 @@ import {getLetterSymbolHint} from '../keyAlternates';
 import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
 import type {KeyDefinition} from '../layouts/qwerty';
 import type {KeyboardTheme} from '../theme';
-import {keyboardTypefaceStyle} from '../theme';
+import {keyboardKeyChromeStyle, keyboardTypefaceStyle} from '../theme';
+import {MacintoshKeyBevels} from './MacintoshKeyBevels';
 
 const COMMA_HOLD_DELAY_MS = 400;
 const PERIOD_HOLD_DELAY_MS = 400;
@@ -113,6 +115,8 @@ function KeyComponent({
   const spaceTapCommittedRef = useRef(false);
   const spacePointerIdRef = useRef<number | null>(null);
   const pressOpacity = useRef(new Animated.Value(1)).current;
+  const [macPressed, setMacPressed] = useState(false);
+  const isMacintosh = theme.design === 'macintosh';
   const isSpaceKey = keyDef.type === 'space';
   const usesMultiTouchRouter = isMultiTouchTextKey(keyDef);
   const usesMultiTouchDispatch =
@@ -229,13 +233,17 @@ function KeyComponent({
 
   const animateMultiTouchPress = useCallback(
     (pressed: boolean) => {
+      if (isMacintosh) {
+        setMacPressed(pressed);
+        return;
+      }
       Animated.timing(pressOpacity, {
         toValue: pressed ? KEY_PRESS_OPACITY : 1,
         duration: pressed ? KEY_PRESS_IN_MS : KEY_PRESS_OUT_MS,
         useNativeDriver: true,
       }).start();
     },
-    [pressOpacity],
+    [isMacintosh, pressOpacity],
   );
 
   useEffect(() => {
@@ -354,6 +362,10 @@ function KeyComponent({
     isAbcKey ||
     isSpaceKey;
   const keyIconColor = isEnterAction ? theme.iconOnEnter : theme.icon;
+  const featureIconColor =
+    theme.design === 'macintosh' && (showLauncher || showRewrite)
+      ? theme.icon
+      : keyIconColor;
   const ShiftStateIcon = isCapsLocked
     ? ShiftLockIcon
     : isShiftOn
@@ -381,9 +393,23 @@ function KeyComponent({
       />
     </View>
   ) : showLauncher ? (
-    <RocketLaunchIcon width={20} height={20} color={keyIconColor} />
+    <RocketLaunchIcon width={20} height={20} color={featureIconColor} />
   ) : showRewrite ? (
-    <ArtificialIcon width={18} height={17} color="#000000" />
+    <ArtificialIcon width={18} height={17} color={featureIconColor} />
+  ) : isSpaceKey && theme.design === 'typebase' ? (
+    <Text style={[styles.keyLabel, styles.spaceLabel]}>
+      {displayLabel ?? 'space'}
+      <Text style={styles.spaceNothingMark}> (R)</Text>
+    </Text>
+  ) : isSpaceKey && theme.design === 'macintosh' ? (
+    <View style={styles.spaceMacintoshRow}>
+      <Text style={[styles.keyLabel, styles.spaceLabel]}>
+        {displayLabel ?? 'space'}
+      </Text>
+      <View style={styles.spaceMacintoshApple}>
+        <AppleIcon width={18} height={18} color={theme.spaceLabel} />
+      </View>
+    </View>
   ) : (
     <>
       <Text
@@ -669,9 +695,23 @@ function KeyComponent({
           pointerEvents="none"
           style={[
             styles.key,
-            {borderRadius, minHeight: keyHeight, opacity: pressOpacity},
+            {
+              borderRadius,
+              minHeight: keyHeight,
+              opacity: isMacintosh ? 1 : pressOpacity,
+            },
             isSpaceKey && styles.spaceKey,
+            isMacintosh &&
+              macPressed &&
+              (isSpaceKey ? styles.spaceKeyPressed : styles.letterKeyPressed),
+            keyboardKeyChromeStyle(theme, isMacintosh && macPressed),
           ]}>
+          {isMacintosh ? (
+            <MacintoshKeyBevels
+              pressed={macPressed}
+              shape={isEnterKey ? 'pill' : 'rect'}
+            />
+          ) : null}
           {keyContent}
         </Animated.View>
       </View>
@@ -688,6 +728,7 @@ function KeyComponent({
           unstable_pressDelay={0}
           android_ripple={
             Platform.OS === 'android' &&
+            theme.design !== 'macintosh' &&
             !isTextKey &&
             !(isEnterAction || isShift || isModifierKey || isNumpadActionKey || isAbcKey)
               ? {color: theme.keyRipple}
@@ -734,13 +775,14 @@ function KeyComponent({
               borderRadius,
               minHeight: keyHeight,
             },
-            showRewrite && styles.rewriteKey,
+            showRewrite && theme.design !== 'macintosh' && styles.rewriteKey,
             isShift && styles.shiftKey,
             isSpaceKey && styles.spaceKey,
             isModifierKey && styles.modifierKey,
             isShift && isShiftOn && !isCapsLocked && styles.shiftKeyActive,
             isShift && isCapsLocked && styles.shiftKeyLocked,
             isEnterAction && styles.enterKey,
+            keyboardKeyChromeStyle(theme, pressed),
             pressed &&
               !showLauncher &&
               !showRewrite &&
@@ -756,9 +798,20 @@ function KeyComponent({
               !showRewrite &&
               isNonAlphaSymbolKey &&
               !isEnterAction &&
+              theme.design !== 'macintosh' &&
               styles.symbolKeyPressedFade,
           ]}>
-        {keyContent}
+        {({pressed}) => (
+          <>
+            {theme.design === 'macintosh' ? (
+              <MacintoshKeyBevels
+                pressed={pressed}
+                shape={isEnterKey ? 'pill' : 'rect'}
+              />
+            ) : null}
+            {keyContent}
+          </>
+        )}
       </Pressable>
     </View>
   );
@@ -861,6 +914,21 @@ function createKeyStyles(theme: KeyboardTheme) {
       fontSize: 16,
       color: theme.spaceLabel,
       fontWeight: '400',
+    },
+    spaceMacintoshRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+    },
+    spaceMacintoshApple: {
+      marginTop: -2,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    spaceNothingMark: {
+      fontFamily: 'Ndot',
+      fontSize: 15,
+      color: theme.spaceLabel,
     },
   });
 }

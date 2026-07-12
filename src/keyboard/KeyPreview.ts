@@ -9,8 +9,13 @@ export function initKeyPreview(): void {
 export function setKeyPreviewTheme(
   backgroundColor: string,
   textColor: string,
+  fontAssetPath?: string | null,
 ): void {
-  KeyPreview?.setTheme(backgroundColor, textColor);
+  KeyPreview?.setTheme(
+    backgroundColor,
+    textColor,
+    fontAssetPath?.trim() ? fontAssetPath.trim() : '',
+  );
 }
 
 export function showKeyPreview(reactTag: number, label: string): void {

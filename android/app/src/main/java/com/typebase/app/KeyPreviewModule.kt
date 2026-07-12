@@ -34,8 +34,12 @@ class KeyPreviewModule(private val reactContext: ReactApplicationContext) :
     }
 
     @ReactMethod
-    fun setTheme(backgroundColor: String, textColor: String) {
-        manager.setTheme(backgroundColor, textColor)
+    fun setTheme(backgroundColor: String, textColor: String, fontAssetPath: String) {
+        manager.setTheme(
+            backgroundColor,
+            textColor,
+            fontAssetPath.trim().ifEmpty { null },
+        )
     }
 
     @ReactMethod
@@ -71,8 +75,9 @@ class KeyPreviewModule(private val reactContext: ReactApplicationContext) :
     @ReactMethod
     fun hide(reactTag: Int) {
         UiThreadUtil.runOnUiThread {
-            hideGenerations[reactTag] = (hideGenerations[reactTag] ?: 0) + 1
-            globalHideGeneration++
+            // Do not bump hideGenerations here — that raced ahead of async shows on
+            // fast taps and cancelled previews before they ever appeared. The manager
+            // keeps the bubble visible for a minimum duration, then dismisses.
             manager.hide(reactTag)
         }
     }
@@ -115,7 +120,10 @@ class KeyPreviewModule(private val reactContext: ReactApplicationContext) :
     }
 
     private fun hidePreviewOnUiThread(reactTag: Int) {
-        UiThreadUtil.runOnUiThread { hide(reactTag) }
+        UiThreadUtil.runOnUiThread {
+            // Match JS hide(): delayed dismiss without cancelling in-flight show.
+            manager.hide(reactTag)
+        }
     }
 
     private fun isShowStale(
