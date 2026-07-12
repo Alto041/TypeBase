@@ -132,6 +132,7 @@ dependencies {
         implementation jscFlavor
     }
 
-    implementation("com.google.mediapipe:tasks-genai:0.10.27")
+    // Prefer a 16KB-page-aligned GenAI build for Play / Android 15+ devices.
+    implementation("com.google.mediapipe:tasks-genai:0.10.35")
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
 }

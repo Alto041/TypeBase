@@ -17,6 +17,15 @@
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
 
+    <!--
+      RECORD_AUDIO implies android.hardware.microphone with required=true unless
+      overridden. Voice input is optional for the keyboard, so do not filter out
+      tablets / devices without a mic on Play Store.
+    -->
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+    <uses-feature android:name="android.hardware.faketouch" android:required="false" />
+
     <application
       android:name=".MainApplication"
       android:label="@string/app_name"
