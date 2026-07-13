@@ -1,6 +1,8 @@
 package com.typebase.app.licensing
 
 import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
@@ -37,11 +39,30 @@ object PlayLicenseManager {
           0x52.toByte(),
       )
 
+  /**
+   * Fast gate for UI / IME. Allows Play-installed copies even before the first
+   * successful LVL response so reviewers and legit users are never locked out
+   * by transient verification failures.
+   */
+  fun canUseApp(context: Context): Boolean {
+    if (BuildConfig.DEBUG) {
+      return true
+    }
+    if (PlayLicenseStore.isLicensed(context)) {
+      return true
+    }
+    // Hard-locked sideload: cache says unlicensed and installer is not Play.
+    if (PlayLicenseStore.isUnlicensed(context) && !isInstalledFromPlay(context)) {
+      return false
+    }
+    return isInstalledFromPlay(context)
+  }
+
   fun isLicensedCached(context: Context): Boolean {
     if (BuildConfig.DEBUG) {
       return true
     }
-    return PlayLicenseStore.isLicensed(context)
+    return PlayLicenseStore.isLicensed(context) || canUseApp(context)
   }
 
   fun ensureLicensed(context: Context, callback: (String) -> Unit) {
@@ -50,42 +71,35 @@ object PlayLicenseManager {
       return
     }
 
-    if (PlayLicenseStore.isLicensed(context)) {
+    val appContext = context.applicationContext
+    val fromPlay = isInstalledFromPlay(appContext)
+
+    if (PlayLicenseStore.isLicensed(appContext)) {
       callback("licensed")
+      return
+    }
+
+    // Play installs open immediately; verify in the background when possible.
+    if (fromPlay) {
+      deliver(callback, "licensed")
+      runLicenseCheck(appContext, provisionalPlayInstall = true, callback = null)
+      return
+    }
+
+    // Sideload with a prior definitive NOT_LICENSED stays locked.
+    if (PlayLicenseStore.isUnlicensed(appContext)) {
+      deliver(callback, "unlicensed")
       return
     }
 
     val publicKey = BuildConfig.PLAY_LICENSE_PUBLIC_KEY.trim()
     if (publicKey.isEmpty()) {
-      callback("needs_network")
+      // Soft-fail: do not hard-lock when key is missing from a build.
+      deliver(callback, "licensed")
       return
     }
 
-    val appContext = context.applicationContext
-    val deviceId =
-        Settings.Secure.getString(appContext.contentResolver, Settings.Secure.ANDROID_ID)
-            ?: "unknown_device"
-    val obfuscator = AESObfuscator(licenseSalt, appContext.packageName, deviceId)
-    val policy = FirstInstallPolicy(appContext, obfuscator)
-    val checker = LicenseChecker(appContext, policy, publicKey)
-
-    checker.checkAccess(
-        object : LicenseCheckerCallback {
-          override fun allow(reason: Int) {
-            PlayLicenseStore.setLicensed(appContext, true)
-            deliver(callback, "licensed")
-          }
-
-          override fun dontAllow(reason: Int) {
-            PlayLicenseStore.setLicensed(appContext, false)
-            deliver(callback, "unlicensed")
-          }
-
-          override fun applicationError(errorCode: Int) {
-            deliver(callback, "needs_network")
-          }
-        },
-    )
+    runLicenseCheck(appContext, provisionalPlayInstall = false, callback)
   }
 
   fun openPlayStoreListing(context: Context) {
@@ -101,6 +115,94 @@ object PlayLicenseManager {
     }
     val checker = LicenseChecker(appContext, policy, publicKey)
     checker.followLastLicensingUrl(appContext)
+  }
+
+  fun isInstalledFromPlay(context: Context): Boolean {
+    val installer = installerPackageName(context) ?: return false
+    return installer == "com.android.vending" ||
+        installer == "com.google.android.feedback" ||
+        installer == "com.android.vending.billing.test"
+  }
+
+  private fun runLicenseCheck(
+      appContext: Context,
+      provisionalPlayInstall: Boolean,
+      callback: ((String) -> Unit)?,
+  ) {
+    val publicKey = BuildConfig.PLAY_LICENSE_PUBLIC_KEY.trim()
+    if (publicKey.isEmpty()) {
+      if (callback != null) {
+        deliver(callback, "licensed")
+      }
+      return
+    }
+
+    val deviceId =
+        Settings.Secure.getString(appContext.contentResolver, Settings.Secure.ANDROID_ID)
+            ?: "unknown_device"
+    val obfuscator = AESObfuscator(licenseSalt, appContext.packageName, deviceId)
+    val policy = FirstInstallPolicy(appContext, obfuscator)
+    val checker = LicenseChecker(appContext, policy, publicKey)
+
+    checker.checkAccess(
+        object : LicenseCheckerCallback {
+          override fun allow(reason: Int) {
+            PlayLicenseStore.setLicensed(appContext, true)
+            PlayLicenseStore.clearUnlicensed(appContext)
+            if (callback != null) {
+              deliver(callback, "licensed")
+            }
+          }
+
+          override fun dontAllow(reason: Int) {
+            if (reason == Policy.RETRY) {
+              // Transient — keep provisional Play access; do not gate.
+              if (callback != null) {
+                deliver(callback, "licensed")
+              }
+              return
+            }
+
+            // Definitive NOT_LICENSED.
+            if (provisionalPlayInstall || isInstalledFromPlay(appContext)) {
+              // Play installs keep working (review / account edge cases).
+              if (callback != null) {
+                deliver(callback, "licensed")
+              }
+              return
+            }
+
+            PlayLicenseStore.setLicensed(appContext, false)
+            PlayLicenseStore.setUnlicensed(appContext, true)
+            if (callback != null) {
+              deliver(callback, "unlicensed")
+            }
+          }
+
+          override fun applicationError(errorCode: Int) {
+            // Soft-fail: never hard-lock on LVL bind/network/permission errors.
+            if (callback != null) {
+              deliver(callback, "licensed")
+            }
+          }
+        },
+    )
+  }
+
+  private fun installerPackageName(context: Context): String? {
+    return try {
+      val pm = context.packageManager
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        pm.getInstallSourceInfo(context.packageName).installingPackageName
+      } else {
+        @Suppress("DEPRECATION")
+        pm.getInstallerPackageName(context.packageName)
+      }
+    } catch (_: PackageManager.NameNotFoundException) {
+      null
+    } catch (_: Exception) {
+      null
+    }
   }
 
   private fun deliver(callback: (String) -> Unit, result: String) {

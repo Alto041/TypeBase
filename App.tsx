@@ -512,13 +512,18 @@ export default function App() {
       const cached = await isPlayLicenseCached();
       if (cached) {
         setLicensePhase('licensed');
+        // Still refresh LVL in native when needed; ensurePlayLicensed is cheap
+        // for already-allowed Play installs.
+        void ensurePlayLicensed().catch(() => undefined);
         return;
       }
       setLicensePhase('activating');
       const result = await ensurePlayLicensed();
-      setLicensePhase(result);
+      // Soft-fail: only hard-gate on definitive unlicensed. Transient LVL /
+      // network issues must not look like "app doesn't open" to Play review.
+      setLicensePhase(result === 'unlicensed' ? 'unlicensed' : 'licensed');
     } catch {
-      setLicensePhase('needs_network');
+      setLicensePhase('licensed');
     }
   }, []);
 
@@ -553,11 +558,11 @@ export default function App() {
     );
   }
 
-  if (licensePhase === 'unlicensed' || licensePhase === 'needs_network') {
+  if (licensePhase === 'unlicensed') {
     return (
       <SafeAreaProvider>
         <LicenseGateScreen
-          status={licensePhase}
+          status="unlicensed"
           onRetry={() => {
             setLicensePhase('activating');
             void runLicenseCheck();

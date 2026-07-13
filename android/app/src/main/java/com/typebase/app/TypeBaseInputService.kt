@@ -108,8 +108,11 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
           clipToPadding = false
         }
     container = frame
-    if (!PlayLicenseManager.isLicensedCached(this)) {
+    if (!PlayLicenseManager.canUseApp(this)) {
       mountUnlicensedPlaceholder(frame)
+      // Background verify in case this is a Play install whose installer
+      // metadata was delayed; remount happens on next input view start.
+      PlayLicenseManager.ensureLicensed(this) { /* no-op */ }
       return frame
     }
     resumeReactForKeyboard()
@@ -133,7 +136,7 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
     KeyboardInputBridge.refreshSupportsNewline(info)
     KeyboardInputBridge.refreshInitialCapsMode(info)
     val frame = container ?: return
-    if (!PlayLicenseManager.isLicensedCached(this)) {
+    if (!PlayLicenseManager.canUseApp(this)) {
       mountUnlicensedPlaceholder(frame)
       return
     }
@@ -147,7 +150,7 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
   override fun onWindowShown() {
     super.onWindowShown()
     val frame = container ?: return
-    if (!PlayLicenseManager.isLicensedCached(this)) {
+    if (!PlayLicenseManager.canUseApp(this)) {
       mountUnlicensedPlaceholder(frame)
       return
     }
@@ -232,7 +235,7 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
   }
 
   private fun mountKeyboardSurface(frame: FrameLayout) {
-    if (!PlayLicenseManager.isLicensedCached(this)) {
+    if (!PlayLicenseManager.canUseApp(this)) {
       mountUnlicensedPlaceholder(frame)
       return
     }
