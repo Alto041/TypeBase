@@ -19781,3 +19781,210 @@
 {"_e":"metro:client_log","_t":1783946902341,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
 {"_e":"metro:client_log","_t":1783946902341,"level":"warn","data":["Require cycle: src/keyboard/suggestions/learnedDictionary.ts -> src/keyboard/autocorrect/dictionaryManager.ts -> src/keyboard/suggestions/learnedDictionary.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
 {"_e":"metro:client_log","_t":1783946902341,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"root:init","_t":1784138529350,"format":"v0-jsonl","version":"56.1.14"}
+{"_e":"devserver:start","_t":1784138529454,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../..\\..\\src\\app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1784138531825,"serverRoot":"../..\\..","projectRoot":"../..\\..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"metro:instantiate","_t":1784138566001,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"metro:bundling:started","_t":1784138571240,"id":"1","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1784138571241,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1784138571250,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1784138573186,"id":"1","progress":0.010000000000000002,"total":1,"current":1}
+{"_e":"metro:bundling:progress","_t":1784138573301,"id":"1","progress":0.010000000000000002,"total":6,"current":1}
+{"_e":"metro:bundling:progress","_t":1784138573757,"id":"1","progress":0.04000000000000001,"total":6,"current":2}
+{"_e":"metro:bundling:progress","_t":1784138573870,"id":"1","progress":0.04000000000000001,"total":35,"current":2}
+{"_e":"metro:bundling:progress","_t":1784138573897,"id":"1","progress":0.04000000000000001,"total":35,"current":3}
+{"_e":"metro:bundling:progress","_t":1784138574001,"id":"1","progress":0.04000000000000001,"total":44,"current":6}
+{"_e":"metro:bundling:progress","_t":1784138574102,"id":"1","progress":0.04000000000000001,"total":45,"current":6}
+{"_e":"metro:bundling:progress","_t":1784138575423,"id":"1","progress":0.04000000000000001,"total":45,"current":7}
+{"_e":"metro:bundling:progress","_t":1784138575530,"id":"1","progress":0.04000000000000001,"total":45,"current":9}
+{"_e":"metro:bundling:progress","_t":1784138575641,"id":"1","progress":0.04938271604938271,"total":45,"current":10}
+{"_e":"metro:bundling:progress","_t":1784138576116,"id":"1","progress":0.05975308641975308,"total":45,"current":11}
+{"_e":"metro:bundling:progress","_t":1784138576226,"id":"1","progress":0.05975308641975308,"total":61,"current":11}
+{"_e":"metro:bundling:progress","_t":1784138576253,"id":"1","progress":0.05975308641975308,"total":61,"current":12}
+{"_e":"metro:bundling:progress","_t":1784138576374,"id":"1","progress":0.05975308641975308,"total":63,"current":12}
+{"_e":"metro:bundling:progress","_t":1784138576480,"id":"1","progress":0.05975308641975308,"total":63,"current":13}
+{"_e":"metro:bundling:progress","_t":1784138576581,"id":"1","progress":0.05975308641975308,"total":69,"current":13}
+{"_e":"metro:bundling:progress","_t":1784138576738,"id":"1","progress":0.05975308641975308,"total":69,"current":14}
+{"_e":"metro:bundling:progress","_t":1784138576764,"id":"1","progress":0.05975308641975308,"total":69,"current":15}
+{"_e":"metro:bundling:progress","_t":1784138576882,"id":"1","progress":0.05975308641975308,"total":71,"current":15}
+{"_e":"metro:bundling:progress","_t":1784138577095,"id":"1","progress":0.05975308641975308,"total":71,"current":16}
+{"_e":"metro:bundling:progress","_t":1784138577256,"id":"1","progress":0.05975308641975308,"total":84,"current":19}
+{"_e":"metro:bundling:progress","_t":1784138577355,"id":"1","progress":0.05975308641975308,"total":177,"current":21}
+{"_e":"metro:bundling:progress","_t":1784138577463,"id":"1","progress":0.05975308641975308,"total":177,"current":23}
+{"_e":"metro:bundling:progress","_t":1784138577502,"id":"1","progress":0.05975308641975308,"total":177,"current":24}
+{"_e":"metro:bundling:progress","_t":1784138577604,"id":"1","progress":0.05975308641975308,"total":179,"current":26}
+{"_e":"metro:bundling:progress","_t":1784138577705,"id":"1","progress":0.05975308641975308,"total":180,"current":29}
+{"_e":"metro:bundling:progress","_t":1784138577809,"id":"1","progress":0.05975308641975308,"total":181,"current":32}
+{"_e":"metro:bundling:progress","_t":1784138577924,"id":"1","progress":0.05975308641975308,"total":183,"current":33}
+{"_e":"metro:bundling:progress","_t":1784138578054,"id":"1","progress":0.05975308641975308,"total":195,"current":37}
+{"_e":"metro:bundling:progress","_t":1784138578159,"id":"1","progress":0.05975308641975308,"total":207,"current":39}
+{"_e":"metro:bundling:progress","_t":1784138578263,"id":"1","progress":0.05975308641975308,"total":208,"current":41}
+{"_e":"metro:bundling:progress","_t":1784138578365,"id":"1","progress":0.05975308641975308,"total":211,"current":45}
+{"_e":"metro:bundling:progress","_t":1784138578502,"id":"1","progress":0.05975308641975308,"total":211,"current":46}
+{"_e":"metro:bundling:progress","_t":1784138578653,"id":"1","progress":0.05975308641975308,"total":211,"current":47}
+{"_e":"metro:bundling:progress","_t":1784138578754,"id":"1","progress":0.05975308641975308,"total":256,"current":49}
+{"_e":"metro:bundling:progress","_t":1784138578860,"id":"1","progress":0.05975308641975308,"total":257,"current":51}
+{"_e":"metro:bundling:progress","_t":1784138578970,"id":"1","progress":0.05975308641975308,"total":258,"current":52}
+{"_e":"metro:bundling:progress","_t":1784138579023,"id":"1","progress":0.05975308641975308,"total":258,"current":53}
+{"_e":"metro:bundling:progress","_t":1784138579124,"id":"1","progress":0.05975308641975308,"total":259,"current":55}
+{"_e":"metro:bundling:progress","_t":1784138579397,"id":"1","progress":0.05975308641975308,"total":259,"current":56}
+{"_e":"metro:bundling:progress","_t":1784138579506,"id":"1","progress":0.05975308641975308,"total":265,"current":62}
+{"_e":"metro:bundling:progress","_t":1784138579617,"id":"1","progress":0.05975308641975308,"total":290,"current":68}
+{"_e":"metro:bundling:progress","_t":1784138579725,"id":"1","progress":0.05975308641975308,"total":291,"current":71}
+{"_e":"metro:bundling:progress","_t":1784138579844,"id":"1","progress":0.06980906253845034,"total":299,"current":79}
+{"_e":"metro:bundling:progress","_t":1784138579945,"id":"1","progress":0.0770573036095793,"total":299,"current":83}
+{"_e":"metro:bundling:progress","_t":1784138580050,"id":"1","progress":0.08217777777777778,"total":300,"current":86}
+{"_e":"metro:bundling:progress","_t":1784138580151,"id":"1","progress":0.0854736702685401,"total":301,"current":88}
+{"_e":"metro:bundling:progress","_t":1784138580263,"id":"1","progress":0.088134765625,"total":320,"current":95}
+{"_e":"metro:bundling:progress","_t":1784138580377,"id":"1","progress":0.09539975123680199,"total":327,"current":101}
+{"_e":"metro:bundling:progress","_t":1784138580485,"id":"1","progress":0.10062887341298456,"total":331,"current":105}
+{"_e":"metro:bundling:progress","_t":1784138580590,"id":"1","progress":0.10778959210335315,"total":332,"current":109}
+{"_e":"metro:bundling:progress","_t":1784138580690,"id":"1","progress":0.11178146320220642,"total":332,"current":111}
+{"_e":"metro:bundling:progress","_t":1784138580795,"id":"1","progress":0.1130185631610133,"total":351,"current":118}
+{"_e":"metro:bundling:progress","_t":1784138580895,"id":"1","progress":0.12741203810259188,"total":367,"current":131}
+{"_e":"metro:bundling:progress","_t":1784138581009,"id":"1","progress":0.1398799681979047,"total":377,"current":141}
+{"_e":"metro:bundling:progress","_t":1784138581111,"id":"1","progress":0.15294052810327843,"total":381,"current":149}
+{"_e":"metro:bundling:progress","_t":1784138581217,"id":"1","progress":0.1595931343032328,"total":393,"current":157}
+{"_e":"metro:bundling:progress","_t":1784138581318,"id":"1","progress":0.17673448677012943,"total":402,"current":169}
+{"_e":"metro:bundling:progress","_t":1784138581434,"id":"1","progress":0.18978531516517988,"total":404,"current":176}
+{"_e":"metro:bundling:progress","_t":1784138581607,"id":"1","progress":0.19194809332418392,"total":404,"current":177}
+{"_e":"metro:bundling:progress","_t":1784138581726,"id":"1","progress":0.20865721688766953,"total":405,"current":185}
+{"_e":"metro:bundling:progress","_t":1784138581826,"id":"1","progress":0.2224112178021643,"total":405,"current":191}
+{"_e":"metro:bundling:progress","_t":1784138581942,"id":"1","progress":0.2224112178021643,"total":435,"current":197}
+{"_e":"metro:bundling:progress","_t":1784138582044,"id":"1","progress":0.2224112178021643,"total":482,"current":201}
+{"_e":"metro:bundling:progress","_t":1784138582158,"id":"1","progress":0.2224112178021643,"total":483,"current":208}
+{"_e":"metro:bundling:progress","_t":1784138582258,"id":"1","progress":0.2224112178021643,"total":487,"current":211}
+{"_e":"metro:bundling:progress","_t":1784138582361,"id":"1","progress":0.2224112178021643,"total":493,"current":216}
+{"_e":"metro:bundling:progress","_t":1784138582466,"id":"1","progress":0.2224112178021643,"total":513,"current":222}
+{"_e":"metro:bundling:progress","_t":1784138582570,"id":"1","progress":0.2224112178021643,"total":530,"current":227}
+{"_e":"metro:bundling:progress","_t":1784138582685,"id":"1","progress":0.2224112178021643,"total":541,"current":232}
+{"_e":"metro:bundling:progress","_t":1784138582796,"id":"1","progress":0.2224112178021643,"total":547,"current":237}
+{"_e":"metro:bundling:progress","_t":1784138582906,"id":"1","progress":0.2224112178021643,"total":548,"current":239}
+{"_e":"metro:bundling:progress","_t":1784138583022,"id":"1","progress":0.2224112178021643,"total":555,"current":242}
+{"_e":"metro:bundling:progress","_t":1784138583121,"id":"1","progress":0.2224112178021643,"total":565,"current":248}
+{"_e":"metro:bundling:progress","_t":1784138583221,"id":"1","progress":0.2224112178021643,"total":575,"current":259}
+{"_e":"metro:bundling:progress","_t":1784138583321,"id":"1","progress":0.2224112178021643,"total":588,"current":274}
+{"_e":"metro:bundling:progress","_t":1784138583421,"id":"1","progress":0.23339344411979548,"total":592,"current":286}
+{"_e":"metro:bundling:progress","_t":1784138583521,"id":"1","progress":0.2400672251988233,"total":598,"current":293}
+{"_e":"metro:bundling:progress","_t":1784138583621,"id":"1","progress":0.25583800180963623,"total":603,"current":305}
+{"_e":"metro:bundling:progress","_t":1784138583722,"id":"1","progress":0.2597710718002081,"total":620,"current":316}
+{"_e":"metro:bundling:progress","_t":1784138583829,"id":"1","progress":0.27516758296267085,"total":631,"current":331}
+{"_e":"metro:bundling:progress","_t":1784138583940,"id":"1","progress":0.28279310137611924,"total":645,"current":343}
+{"_e":"metro:bundling:progress","_t":1784138584044,"id":"1","progress":0.2831703387918072,"total":669,"current":356}
+{"_e":"metro:bundling:progress","_t":1784138584144,"id":"1","progress":0.29780860758213773,"total":689,"current":376}
+{"_e":"metro:bundling:progress","_t":1784138584248,"id":"1","progress":0.3058185072372148,"total":698,"current":386}
+{"_e":"metro:bundling:progress","_t":1784138584350,"id":"1","progress":0.3058185072372148,"total":722,"current":399}
+{"_e":"metro:bundling:progress","_t":1784138584467,"id":"1","progress":0.3173754828525677,"total":726,"current":409}
+{"_e":"metro:bundling:progress","_t":1784138584568,"id":"1","progress":0.3394747626528242,"total":726,"current":423}
+{"_e":"metro:bundling:progress","_t":1784138584670,"id":"1","progress":0.3649483955714018,"total":730,"current":441}
+{"_e":"metro:bundling:progress","_t":1784138584786,"id":"1","progress":0.3882900643250497,"total":735,"current":458}
+{"_e":"metro:bundling:progress","_t":1784138584886,"id":"1","progress":0.41724616508400286,"total":740,"current":478}
+{"_e":"metro:bundling:progress","_t":1784138584987,"id":"1","progress":0.4301660410759068,"total":741,"current":486}
+{"_e":"metro:bundling:progress","_t":1784138585090,"id":"1","progress":0.43966550664409587,"total":742,"current":492}
+{"_e":"metro:bundling:progress","_t":1784138585204,"id":"1","progress":0.4492233826161332,"total":746,"current":500}
+{"_e":"metro:bundling:progress","_t":1784138585304,"id":"1","progress":0.4527240033331872,"total":755,"current":508}
+{"_e":"metro:bundling:progress","_t":1784138585411,"id":"1","progress":0.46397815584961144,"total":759,"current":517}
+{"_e":"metro:bundling:progress","_t":1784138585511,"id":"1","progress":0.4857667584940313,"total":759,"current":529}
+{"_e":"metro:bundling:progress","_t":1784138585615,"id":"1","progress":0.5137055379365055,"total":759,"current":544}
+{"_e":"metro:bundling:progress","_t":1784138585719,"id":"1","progress":0.5327653576493584,"total":759,"current":554}
+{"_e":"metro:bundling:progress","_t":1784138585824,"id":"1","progress":0.5409989612188366,"total":760,"current":559}
+{"_e":"metro:bundling:progress","_t":1784138585930,"id":"1","progress":0.5585595567867035,"total":760,"current":568}
+{"_e":"metro:bundling:progress","_t":1784138586029,"id":"1","progress":0.5659276308073072,"total":767,"current":577}
+{"_e":"metro:bundling:progress","_t":1784138586133,"id":"1","progress":0.5721069996876301,"total":784,"current":593}
+{"_e":"metro:bundling:progress","_t":1784138586239,"id":"1","progress":0.5977308396021981,"total":789,"current":610}
+{"_e":"metro:bundling:progress","_t":1784138586339,"id":"1","progress":0.6082037894070647,"total":795,"current":620}
+{"_e":"metro:bundling:progress","_t":1784138586440,"id":"1","progress":0.6186087615200101,"total":801,"current":630}
+{"_e":"metro:bundling:progress","_t":1784138586541,"id":"1","progress":0.6459766212723275,"total":805,"current":647}
+{"_e":"metro:bundling:progress","_t":1784138586641,"id":"1","progress":0.6551379766689541,"total":808,"current":654}
+{"_e":"metro:bundling:progress","_t":1784138586741,"id":"1","progress":0.6605292371859313,"total":817,"current":664}
+{"_e":"metro:bundling:progress","_t":1784138586844,"id":"1","progress":0.6849687053520722,"total":818,"current":677}
+{"_e":"metro:bundling:progress","_t":1784138586944,"id":"1","progress":0.6849687053520722,"total":835,"current":690}
+{"_e":"metro:bundling:progress","_t":1784138587052,"id":"1","progress":0.6991040154758362,"total":836,"current":699}
+{"_e":"metro:bundling:progress","_t":1784138587152,"id":"1","progress":0.7242233148322041,"total":839,"current":714}
+{"_e":"metro:bundling:progress","_t":1784138587252,"id":"1","progress":0.7416826028039158,"total":843,"current":726}
+{"_e":"metro:bundling:progress","_t":1784138587357,"id":"1","progress":0.7599737024221452,"total":850,"current":741}
+{"_e":"metro:bundling:progress","_t":1784138587457,"id":"1","progress":0.785025151857012,"total":851,"current":754}
+{"_e":"metro:bundling:progress","_t":1784138587570,"id":"1","progress":0.8070587496724604,"total":856,"current":769}
+{"_e":"metro:bundling:progress","_t":1784138587675,"id":"1","progress":0.8164937995820974,"total":861,"current":778}
+{"_e":"metro:bundling:progress","_t":1784138587774,"id":"1","progress":0.8401007560733597,"total":863,"current":791}
+{"_e":"metro:bundling:progress","_t":1784138587874,"id":"1","progress":0.8471641862525593,"total":867,"current":798}
+{"_e":"metro:bundling:progress","_t":1784138587976,"id":"1","progress":0.860570414728442,"total":871,"current":808}
+{"_e":"metro:bundling:progress","_t":1784138588083,"id":"1","progress":0.8782367346938776,"total":875,"current":820}
+{"_e":"metro:bundling:progress","_t":1784138588184,"id":"1","progress":0.8835574184065699,"total":883,"current":830}
+{"_e":"metro:bundling:progress","_t":1784138588285,"id":"1","progress":0.8846963039675039,"total":892,"current":839}
+{"_e":"metro:bundling:progress","_t":1784138588392,"id":"1","progress":0.9016481831526876,"total":892,"current":847}
+{"_e":"metro:bundling:progress","_t":1784138588499,"id":"1","progress":0.908147104078129,"total":893,"current":851}
+{"_e":"metro:bundling:progress","_t":1784138588601,"id":"1","progress":0.908147104078129,"total":902,"current":855}
+{"_e":"metro:bundling:progress","_t":1784138588710,"id":"1","progress":0.908147104078129,"total":903,"current":859}
+{"_e":"metro:bundling:progress","_t":1784138588860,"id":"1","progress":0.9112531257319946,"total":903,"current":862}
+{"_e":"metro:bundling:progress","_t":1784138588966,"id":"1","progress":0.9112531257319946,"total":909,"current":865}
+{"_e":"metro:bundling:progress","_t":1784138589078,"id":"1","progress":0.9119200579640141,"total":910,"current":869}
+{"_e":"metro:bundling:progress","_t":1784138589179,"id":"1","progress":0.9119200579640141,"total":916,"current":874}
+{"_e":"metro:bundling:progress","_t":1784138589286,"id":"1","progress":0.9119200579640141,"total":925,"current":880}
+{"_e":"metro:bundling:progress","_t":1784138589388,"id":"1","progress":0.9119200579640141,"total":929,"current":885}
+{"_e":"metro:bundling:progress","_t":1784138589488,"id":"1","progress":0.9125437638436648,"total":939,"current":897}
+{"_e":"metro:bundling:progress","_t":1784138589588,"id":"1","progress":0.9125437638436648,"total":950,"current":903}
+{"_e":"metro:bundling:progress","_t":1784138589688,"id":"1","progress":0.9125437638436648,"total":955,"current":911}
+{"_e":"metro:bundling:progress","_t":1784138589788,"id":"1","progress":0.9202376645847952,"total":958,"current":919}
+{"_e":"metro:bundling:progress","_t":1784138589892,"id":"1","progress":0.9365244536940688,"total":961,"current":930}
+{"_e":"metro:bundling:progress","_t":1784138589993,"id":"1","progress":0.9470024246977666,"total":968,"current":942}
+{"_e":"metro:bundling:progress","_t":1784138590094,"id":"1","progress":0.9672489059716005,"total":969,"current":953}
+{"_e":"metro:bundling:progress","_t":1784138590199,"id":"1","progress":0.9795297126115599,"total":972,"current":962}
+{"_e":"metro:bundling:progress","_t":1784138590315,"id":"1","progress":0.9897803429857565,"total":976,"current":971}
+{"_e":"metro:bundling:progress","_t":1784138590430,"id":"1","progress":0.9959100247347121,"total":977,"current":975}
+{"_e":"metro:bundling:progress","_t":1784138591164,"id":"1","progress":0.9979539647302491,"total":977,"current":976}
+{"_e":"metro:bundling:progress","_t":1784138591264,"id":"1","progress":0.9979539647302491,"total":982,"current":980}
+{"_e":"metro:bundling:progress","_t":1784138591364,"id":"1","progress":0.9979539647302491,"total":1025,"current":998}
+{"_e":"metro:bundling:progress","_t":1784138591464,"id":"1","progress":0.9979539647302491,"total":1041,"current":1011}
+{"_e":"metro:bundling:progress","_t":1784138591565,"id":"1","progress":0.9979539647302491,"total":1049,"current":1022}
+{"_e":"metro:bundling:progress","_t":1784138591665,"id":"1","progress":0.9979539647302491,"total":1057,"current":1036}
+{"_e":"metro:bundling:progress","_t":1784138591766,"id":"1","progress":0.9979539647302491,"total":1066,"current":1045}
+{"_e":"metro:bundling:progress","_t":1784138591866,"id":"1","progress":0.9979539647302491,"total":1070,"current":1059}
+{"_e":"metro:bundling:progress","_t":1784138591971,"id":"1","progress":0.9981317145602235,"total":1070,"current":1069}
+{"_e":"metro:bundling:progress","_t":1784138593147,"id":"1","progress":0.999,"total":1070,"current":1070}
+{"_e":"metro:bundling:progress","_t":1784138593249,"id":"1","progress":0.999,"total":1081,"current":1081}
+{"_e":"metro:bundling:done","_t":1784138593701,"id":"1","total":1081,"ms":22460.2118}
+{"_e":"metro:client_log","_t":1784138596538,"level":"warn","data":["Require cycle: src/keyboard/settings/layoutStore.ts -> src/keyboard/settings/tapSoundStore.ts -> src/keyboard/settings/layoutStore.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1784138596538,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1784138596539,"level":"warn","data":["Require cycle: src/keyboard/suggestions/learnedDictionary.ts -> src/keyboard/autocorrect/dictionaryManager.ts -> src/keyboard/suggestions/learnedDictionary.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1784138596539,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1784138627498,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":11,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1784138627838,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"metro:client_log","_t":1784138631238,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1784138632487,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1784138632728,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1784138633585,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1784138634292,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1784138634840,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1784138635513,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1784138638917,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":21,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1784138641938,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":31,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1784138649517,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":41,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"root:init","_t":1784139049295,"format":"v0-jsonl","version":"56.1.14"}
+{"_e":"devserver:start","_t":1784139049366,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../..\\..\\src\\app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1784139050787,"serverRoot":"../..\\..","projectRoot":"../..\\..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"metro:instantiate","_t":1784139079404,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"metro:bundling:started","_t":1784139084313,"id":"1","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1784139084314,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1784139084322,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1784139084428,"id":"1","progress":0.07111111111111111,"total":15,"current":4}
+{"_e":"metro:bundling:progress","_t":1784139084530,"id":"1","progress":0.07111111111111111,"total":187,"current":6}
+{"_e":"metro:bundling:progress","_t":1784139084632,"id":"1","progress":0.07111111111111111,"total":240,"current":28}
+{"_e":"metro:bundling:progress","_t":1784139084732,"id":"1","progress":0.07111111111111111,"total":321,"current":79}
+{"_e":"metro:bundling:progress","_t":1784139084834,"id":"1","progress":0.12841723877140632,"total":413,"current":148}
+{"_e":"metro:bundling:progress","_t":1784139084933,"id":"1","progress":0.16454373920694898,"total":461,"current":187}
+{"_e":"metro:bundling:progress","_t":1784139085034,"id":"1","progress":0.3088714915493152,"total":538,"current":299}
+{"_e":"metro:bundling:progress","_t":1784139085134,"id":"1","progress":0.38096655296353105,"total":627,"current":387}
+{"_e":"metro:bundling:progress","_t":1784139085236,"id":"1","progress":0.507498629493304,"total":678,"current":483}
+{"_e":"metro:bundling:progress","_t":1784139085336,"id":"1","progress":0.5246844446210049,"total":809,"current":586}
+{"_e":"metro:bundling:progress","_t":1784139085436,"id":"1","progress":0.7121026365174501,"total":839,"current":708}
+{"_e":"metro:bundling:progress","_t":1784139085558,"id":"1","progress":0.8711111111111112,"total":885,"current":826}
+{"_e":"metro:bundling:progress","_t":1784139085658,"id":"1","progress":0.8814667912511203,"total":916,"current":860}
+{"_e":"metro:bundling:progress","_t":1784139085758,"id":"1","progress":0.9200742721591009,"total":956,"current":917}
+{"_e":"metro:bundling:progress","_t":1784139085860,"id":"1","progress":0.9527161287821481,"total":1003,"current":979}
+{"_e":"metro:bundling:progress","_t":1784139085960,"id":"1","progress":0.9527161287821481,"total":1064,"current":1037}
+{"_e":"metro:bundling:done","_t":1784139086157,"id":"1","total":1064,"ms":1843.1504}
+{"_e":"metro:client_log","_t":1784139088463,"level":"warn","data":["Require cycle: src/keyboard/settings/layoutStore.ts -> src/keyboard/settings/tapSoundStore.ts -> src/keyboard/settings/layoutStore.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1784139088464,"level":"warn","data":["setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture."]}
+{"_e":"metro:client_log","_t":1784139088464,"level":"warn","data":["Require cycle: src/keyboard/suggestions/learnedDictionary.ts -> src/keyboard/autocorrect/dictionaryManager.ts -> src/keyboard/suggestions/learnedDictionary.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1784139088464,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}

@@ -208,6 +208,9 @@ object KeyboardInputBridge {
 
   /** Minimum gap between JS-only haptics (frame already fired for keyboard touches). */
   private const val JS_HAPTIC_DEBOUNCE_MS = 20L
+  /** Punchy key click — duration is the main lever once amplitude is maxed. */
+  private const val KEY_HAPTIC_DURATION_MS = 28L
+  private const val KEY_HAPTIC_AMPLITUDE = 255
 
   /**
    * IME touch-down haptic — fires before React on every keyboard touch so feedback
@@ -262,14 +265,23 @@ object KeyboardInputBridge {
         vibrator
             ?: (ctx.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator)?.also { vibrator = it }
     if (vib != null && vib.hasVibrator()) {
+      vib.cancel()
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        vib.cancel()
-        vib.vibrate(VibrationEffect.createOneShot(7, 175))
+        val effect =
+            if (vib.hasAmplitudeControl()) {
+              // Dual max-amplitude hits feel much heavier than a single short pulse.
+              VibrationEffect.createWaveform(
+                  longArrayOf(0, 20, 10, 24),
+                  intArrayOf(0, KEY_HAPTIC_AMPLITUDE, 0, KEY_HAPTIC_AMPLITUDE),
+                  -1,
+              )
+            } else {
+              VibrationEffect.createOneShot(KEY_HAPTIC_DURATION_MS, VibrationEffect.DEFAULT_AMPLITUDE)
+            }
+        vib.vibrate(effect)
       } else {
         @Suppress("DEPRECATION")
-        vib.cancel()
-        @Suppress("DEPRECATION")
-        vib.vibrate(7)
+        vib.vibrate(KEY_HAPTIC_DURATION_MS)
       }
       return
     }
@@ -277,7 +289,9 @@ object KeyboardInputBridge {
     val view = inputService?.keyboardViewForFeedback
     if (view != null) {
       val constant =
-          if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+          if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            HapticFeedbackConstants.CONFIRM
+          } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             HapticFeedbackConstants.KEYBOARD_TAP
           } else {
             @Suppress("DEPRECATION")

@@ -1,6 +1,5 @@
 import React, {memo, useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
-  Animated,
   findNodeHandle,
   PanResponder,
   Platform,
@@ -48,9 +47,6 @@ const CURSOR_STEP_PX = 10;
 const SPACE_SWIPE_THRESHOLD_PX = 8;
 const KEY_PRESS_RETENTION = {top: 18, left: 10, bottom: 18, right: 10};
 const KEY_HIT_SLOP = {top: 3, left: 2, bottom: 3, right: 2};
-const KEY_PRESS_OPACITY = 0.55;
-const KEY_PRESS_IN_MS = 0;
-const KEY_PRESS_OUT_MS = 16;
 
 export type KeyGesturesConfig = {
   spaceCursorSwipe: boolean;
@@ -114,8 +110,9 @@ function KeyComponent({
   const spaceDidSwipeRef = useRef(false);
   const spaceTapCommittedRef = useRef(false);
   const spacePointerIdRef = useRef<number | null>(null);
-  const pressOpacity = useRef(new Animated.Value(1)).current;
-  const [macPressed, setMacPressed] = useState(false);
+  // Background-color press (not Animated opacity) — opacity on Fabric + custom
+  // fonts can blank key labels on typebase/quivox letter keys.
+  const [keyPressed, setKeyPressed] = useState(false);
   const isMacintosh = theme.design === 'macintosh';
   const isSpaceKey = keyDef.type === 'space';
   const usesMultiTouchRouter = isMultiTouchTextKey(keyDef);
@@ -231,20 +228,9 @@ function KeyComponent({
     }
   }, [keyDef, layoutContext, usesMultiTouchDispatch]);
 
-  const animateMultiTouchPress = useCallback(
-    (pressed: boolean) => {
-      if (isMacintosh) {
-        setMacPressed(pressed);
-        return;
-      }
-      Animated.timing(pressOpacity, {
-        toValue: pressed ? KEY_PRESS_OPACITY : 1,
-        duration: pressed ? KEY_PRESS_IN_MS : KEY_PRESS_OUT_MS,
-        useNativeDriver: true,
-      }).start();
-    },
-    [isMacintosh, pressOpacity],
-  );
+  const animateMultiTouchPress = useCallback((pressed: boolean) => {
+    setKeyPressed(pressed);
+  }, []);
 
   useEffect(() => {
     if (!usesMultiTouchDispatch) {
@@ -283,6 +269,15 @@ function KeyComponent({
     usesMultiTouchDispatch,
     usesMultiTouchRouter,
   ]);
+
+  useEffect(() => {
+    if (!usesMultiTouchDispatch) {
+      return;
+    }
+    return () => {
+      setKeyPressed(false);
+    };
+  }, [usesMultiTouchDispatch, keyDef.id]);
 
   useEffect(() => {
     if (!usesMultiTouchDispatch) {
@@ -691,29 +686,27 @@ function KeyComponent({
         }}
         collapsable={false}
         pointerEvents={isSpaceGesture ? 'auto' : 'box-none'}>
-        <Animated.View
+        <View
           pointerEvents="none"
           style={[
             styles.key,
             {
               borderRadius,
               minHeight: keyHeight,
-              opacity: isMacintosh ? 1 : pressOpacity,
             },
             isSpaceKey && styles.spaceKey,
-            isMacintosh &&
-              macPressed &&
+            keyPressed &&
               (isSpaceKey ? styles.spaceKeyPressed : styles.letterKeyPressed),
-            keyboardKeyChromeStyle(theme, isMacintosh && macPressed),
+            keyboardKeyChromeStyle(theme, isMacintosh && keyPressed),
           ]}>
           {isMacintosh ? (
             <MacintoshKeyBevels
-              pressed={macPressed}
+              pressed={keyPressed}
               shape={isEnterKey ? 'pill' : 'rect'}
             />
           ) : null}
           {keyContent}
-        </Animated.View>
+        </View>
       </View>
     );
   }
