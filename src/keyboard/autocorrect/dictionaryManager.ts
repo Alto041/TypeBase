@@ -106,6 +106,32 @@ function getGermanBase(): string[] {
     const count = Math.max(1, 100_000 - Math.floor(i * 5));
     en.CreateDictionaryEntry(w, count);
   });
+  // Fill common gaps in the ~10k list so splits/fuzzy don't silently fail.
+  const supplemental: Array<[string, number]> = [
+    ['bait', 40_000],
+    ['blooming', 8_000],
+    ['glowing', 12_000],
+    ['flowing', 15_000],
+    ['knowing', 25_000],
+    ['showing', 30_000],
+    ['growing', 28_000],
+    ['click', 35_000],
+    ['ratio', 18_000],
+    ['based', 22_000],
+    ['cope', 16_000],
+    ['seethe', 6_000],
+    ['meme', 20_000],
+    ['memes', 18_000],
+    ['vibe', 17_000],
+    ['vibes', 16_000],
+    ['cringe', 14_000],
+  ];
+  for (const [word, count] of supplemental) {
+    if (!enBase.includes(word)) {
+      en.CreateDictionaryEntry(word, count);
+      enBase.push(word);
+    }
+  }
   ssCache.set('en', en);
   baseCache.set('en', enBase);
   readySymSpell = en;

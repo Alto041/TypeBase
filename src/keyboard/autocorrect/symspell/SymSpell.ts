@@ -192,10 +192,48 @@ export class SymSpell {
     const tokens = normalized.split(/\s+/).filter(Boolean);
     if (tokens.length === 0) return null;
 
-    // Single token: delegate to normal lookup.
+    // Single token: normal lookup, plus missing-space splits for run-ons
+    // (e.g. "ragebait" → "rage bait", "thequick" → "the quick").
     if (tokens.length === 1) {
-      const [top] = this.Lookup(tokens[0], Verbosity.Top, maxEditDistance);
-      return top || null;
+      const word = tokens[0];
+      const [top] = this.Lookup(word, Verbosity.Top, maxEditDistance);
+
+      let bestSplit: Suggestion | null = null;
+      if (word.length >= 6) {
+        for (let split = 2; split <= word.length - 2; split++) {
+          const left = word.slice(0, split);
+          const right = word.slice(split);
+          const leftCount = this.words.get(left);
+          const rightCount = this.words.get(right);
+          // Prefer exact dictionary parts (distance 0) — avoids inventing junk splits.
+          if (leftCount === undefined || rightCount === undefined) {
+            continue;
+          }
+          const cnt = Math.min(leftCount, rightCount);
+          const candidate: Suggestion = {
+            term: `${left} ${right}`,
+            distance: 0,
+            count: cnt,
+          };
+          if (
+            !bestSplit ||
+            cnt > bestSplit.count ||
+            (cnt === bestSplit.count &&
+              candidate.term.length < bestSplit.term.length)
+          ) {
+            bestSplit = candidate;
+          }
+        }
+      }
+
+      if (bestSplit && (!top || top.distance > 0)) {
+        return bestSplit;
+      }
+      // Exact fuzzy correction beats a space-split when the whole word is close.
+      if (top && top.distance <= 1) {
+        return top;
+      }
+      return bestSplit || top || null;
     }
 
     // 1) Try correcting the whole thing without spaces (common for "missing space" cases).

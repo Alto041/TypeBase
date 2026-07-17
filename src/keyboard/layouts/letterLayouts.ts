@@ -151,7 +151,8 @@ const LETTER_ROWS: Record<string, KeyDefinition[][]> = {
   'en-us': buildLetterLayout('qwertyuiop', 'asdfghjkl', 'zxcvbnm'),
   'en-gb': buildLetterLayout('qwertyuiop', 'asdfghjkl', 'zxcvbnm'),
   'fr-fr': buildLetterLayout('azertyuiop', 'qsdfghjklm', 'wxcvbn'),
-  'de-de': buildLetterLayout('qwertzuiopü', 'asdfghjklöä', 'yxcvbnm'),
+  // QWERTZ without dedicated umlaut keys — ü/ö/ä/ß via long-press (like Gboard compact).
+  'de-de': buildLetterLayout('qwertzuiop', 'asdfghjkl', 'yxcvbnm'),
   'es-es': buildLetterLayout('qwertyuiop', 'asdfghjklñ', 'zxcvbnm'),
   'it-it': buildLetterLayout('qwertyuiop', 'asdfghjkl', 'zxcvbnm'),
   'pt-pt': buildLetterLayout('qwertyuiop', 'asdfghjkl', 'zxcvbnm'),

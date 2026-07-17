@@ -16,17 +16,35 @@ const STATIC_RANK = new Map<string, number>(
 );
 const STATIC_BY_FIRST = new Map<string, string[]>();
 
+/** Words missing from the ~10k list but needed for splits / fuzzy. */
+const SUPPLEMENTAL_EN_WORDS: Array<[string, number]> = [
+  ['bait', 4500],
+  ['blooming', 7000],
+  ['glowing', 6500],
+  ['flowing', 6200],
+  ['knowing', 2800],
+  ['showing', 2100],
+  ['growing', 2400],
+  ['click', 1900],
+  ['ratio', 5200],
+  ['cope', 4800],
+  ['seethe', 8000],
+  ['meme', 3600],
+  ['memes', 4000],
+  ['vibe', 4200],
+  ['vibes', 4300],
+  ['cringe', 5100],
+];
+for (const [word, rank] of SUPPLEMENTAL_EN_WORDS) {
+  if (!STATIC_RANK.has(word)) {
+    STATIC_RANK.set(word, rank);
+  }
+}
+
 // ============================================================
-// SYMSPELL-ONLY TEST MODE (old candidate sources disabled)
-// - collectCandidates now only returns learned + SymSpell results
-// - findMissingSpaceCorrection (old split) is bypassed
-// - getSimilar / getAutocorrectCandidate / suggestion bar all go through SymSpell
-//
-// Exact fixes, learned boosts (fed into SymSpell), scoring, confidence,
-// plausibility checks, protections, etc. are still applied after.
-//
-// To revert: uncomment the blocks in collectCandidates + getAutocorrectCandidate
-// and remove the _ prefixes + eslint-disable lines.
+// Candidate sources: learned + SymSpell + transposition neighbors +
+// first-letter buckets. SymSpell-only mode was too weak (missed common
+// typos) and too willing to promote weird deletes.
 // ============================================================
 
 for (const word of WORDS) {
@@ -41,8 +59,22 @@ for (const word of WORDS) {
     STATIC_BY_FIRST.set(first, [word]);
   }
 }
+for (const [word] of SUPPLEMENTAL_EN_WORDS) {
+  if (word.length < 2) {
+    continue;
+  }
+  const first = word[0];
+  const bucket = STATIC_BY_FIRST.get(first);
+  if (bucket) {
+    if (!bucket.includes(word)) {
+      bucket.push(word);
+    }
+  } else {
+    STATIC_BY_FIRST.set(first, [word]);
+  }
+}
 
-const MIN_AUTO_CONFIDENCE = 0.39;
+const MIN_AUTO_CONFIDENCE = 0.42;
 const COMMON_WORD_RANK = 3500;
 
 /** For non-English languages we are a bit more conservative on pure fuzzy auto-apply
@@ -56,12 +88,10 @@ function getEffectiveMinAutoConfidence(learnedUses: number, fromExactFix: boolea
   // but we avoid borderline auto-corrects for words the user may have intended.
   return 0.55;
 }
-// TEMP: these are only used by the disabled old broad-scan logic
-// const FREQUENT_WORD_SCAN_LIMIT = 1000;
-// const FREQUENT_FALLBACK_LIMIT = 2000;
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const _MISSING_SPACE_MIN_LENGTH = 6; // only used by disabled old split logic
-const MISSING_SPACE_STRONG_RANK = 5_000;
+const MISSING_SPACE_MIN_LENGTH = 6;
+const MISSING_SPACE_STRONG_RANK = 12_000;
+const FREQUENT_WORD_SCAN_LIMIT = 1000;
+const FREQUENT_FALLBACK_LIMIT = 2000;
 
 /** Very common 1–2 letter words allowed in a split (blocks junk like "th", "ng"). */
 const SHORT_SEGMENT_WORDS = new Set<string>(['a', 'i']);
@@ -89,8 +119,7 @@ function isValidSegmentPart(word: string): boolean {
 }
 
 /** Still typing a longer dictionary word (e.g. "somethin" → "something"). */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function _isLikelyIncompleteWord(typed: string): boolean {
+function isLikelyIncompleteWord(typed: string): boolean {
   const bucket = STATIC_BY_FIRST.get(typed[0]) ?? [];
   for (const word of bucket) {
     if (word.length > typed.length && word.startsWith(typed)) {
@@ -103,8 +132,7 @@ function _isLikelyIncompleteWord(typed: string): boolean {
   return false;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function _findTwoWordSplit(typed: string): string | null {
+function findTwoWordSplit(typed: string): string | null {
   let best: {left: string; right: string; score: number} | null = null;
 
   for (let splitAt = 2; splitAt <= typed.length - 2; splitAt += 1) {
@@ -136,8 +164,7 @@ function _findTwoWordSplit(typed: string): string | null {
   return `${best.left} ${best.right}`;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function _findThreeWordSplit(typed: string): string | null {
+function findThreeWordSplit(typed: string): string | null {
   let best: {parts: string[]; score: number} | null = null;
 
   for (let first = 2; first <= typed.length - 4; first += 1) {
@@ -164,16 +191,21 @@ function _findThreeWordSplit(typed: string): string | null {
   return best ? best.parts.join(' ') : null;
 }
 
-/* TEMP FOR SYMSPELL TEST – old missing-space logic disabled
-function _findMissingSpaceCorrection(
+function findMissingSpaceCorrection(
   typed: string,
   learnedUses: number,
 ): string | null {
-  if (learnedUses >= 1 || typed.length < MISSING_SPACE_MIN_LENGTH) {
+  if (typed.length < MISSING_SPACE_MIN_LENGTH) {
     return null;
   }
 
+  // Real dictionary words are never split. Learned *custom* words (not in the
+  // dict) may still be run-ons the user typed once — only skip those after
+  // they've been reinforced several times (e.g. via the keep chip).
   if (STATIC_RANK.has(typed)) {
+    return null;
+  }
+  if (learnedUses >= 3) {
     return null;
   }
 
@@ -192,7 +224,6 @@ function _findMissingSpaceCorrection(
 
   return null;
 }
-*/
 
 type CollectOptions = {
   skipFrequentScan?: boolean;
@@ -327,13 +358,18 @@ function isProtectedWord(word: string, learnedUses: number): boolean {
   if (lang === 'en') {
     const rank = STATIC_RANK.get(word);
     if (rank != null && rank < COMMON_WORD_RANK) return true;
+    // Known dictionary word the user has typed before — leave it alone.
+    if (rank != null && learnedUses >= 1) return true;
   } else {
     // Protect words that are common in the active language's dictionary.
     const base = getBaseWords(lang);
     const idx = base.indexOf(word);
     if (idx >= 0 && idx < 4500) return true;
+    if (idx >= 0 && learnedUses >= 1) return true;
   }
-  return learnedUses >= 1;
+  // OOV / typo learned once used to permanently disable autocorrect. Only
+  // protect after the user has clearly insisted (keep chip / repeated use).
+  return learnedUses >= 3;
 }
 
 function hasIntentionalCasing(word: string): boolean {
@@ -357,6 +393,11 @@ function startsWithCapital(word: string): boolean {
 /** Capitalized words that aren't common English — almost always names. */
 function isProbablyProperNoun(word: string): boolean {
   if (!startsWithCapital(word)) {
+    return false;
+  }
+
+  // ALL CAPS is shift-lock / emphasis, not a proper noun.
+  if (word.length > 1 && word === word.toUpperCase()) {
     return false;
   }
 
@@ -409,6 +450,20 @@ function isPlausibleTypo(
   staticRank: number,
 ): boolean {
   if (edits <= 1) {
+    // Reject first-letter mutations unless adjacent transposition / very common word.
+    if (
+      typed[0] !== candidate[0] &&
+      staticRank >= 1500 &&
+      !isAdjacentTransposition(typed, candidate) &&
+      !(
+        typed.length >= 2 &&
+        candidate.length >= 2 &&
+        typed[0] === candidate[1] &&
+        typed[1] === candidate[0]
+      )
+    ) {
+      return false;
+    }
     return true;
   }
 
@@ -420,11 +475,12 @@ function isPlausibleTypo(
     return true;
   }
 
+  const prefix = sharedPrefixLength(typed, candidate);
   return (
     edits === 2 &&
     typed.length >= 5 &&
     staticRank < 7000 &&
-    sharedPrefixLength(typed, candidate) >= 2
+    prefix >= Math.min(3, typed.length - 2)
   );
 }
 
@@ -439,6 +495,18 @@ function isDestructiveShortening(typed: string, correction: string): boolean {
 
   const typedRank = STATIC_RANK.get(typed);
   return typedRank != null && typedRank < 25_000;
+}
+
+function introducesDoubleLetterNotTyped(typed: string, candidate: string): boolean {
+  for (let i = 1; i < candidate.length; i += 1) {
+    if (candidate[i] === candidate[i - 1]) {
+      const double = candidate.slice(i - 1, i + 1);
+      if (!typed.includes(double)) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 function shouldRejectFuzzyCorrection(
@@ -481,6 +549,32 @@ function shouldRejectFuzzyCorrection(
     if (correctionRank > typedRank * 2) {
       return true;
     }
+  }
+
+  if (introducesDoubleLetterNotTyped(typed, correction)) {
+    return true;
+  }
+
+  // Prefer keeping the typed first letter (blowong → blowing, not xlowing),
+  // but allow very common words (hte → the) and adjacent first-two swaps.
+  if (
+    learnedUses === 0 &&
+    typed[0] !== correction[0] &&
+    staticRank >= 1500 &&
+    !isAdjacentTransposition(typed, correction)
+  ) {
+    return true;
+  }
+
+  // Extra characters near the start are usually worse (blowong → bblowing).
+  if (
+    learnedUses === 0 &&
+    correction.length > typed.length &&
+    sharedPrefixLength(typed, correction) < Math.min(3, typed.length - 1) &&
+    edits >= 1 &&
+    staticRank >= 2000
+  ) {
+    return true;
   }
 
   return false;
@@ -541,12 +635,17 @@ function scoreCandidate(
   learnedUses: number,
   staticRank: number,
 ): number {
+  const prefix = sharedPrefixLength(typed, candidate);
   return (
     edits * 100 -
     learnedUses * 18 -
     Math.max(0, 5000 - staticRank) * 0.02 -
-    (candidate.startsWith(typed.slice(0, 2)) ? 6 : 0) -
-    (isAdjacentTransposition(typed, candidate) ? 10 : 0)
+    prefix * 8 -
+    (candidate[0] === typed[0] ? 20 : -40) -
+    (candidate.startsWith(typed.slice(0, Math.min(3, typed.length))) ? 12 : 0) -
+    (isAdjacentTransposition(typed, candidate) ? 10 : 0) -
+    // Prefer same-length / one-letter fixes over inserting junk.
+    (Math.abs(candidate.length - typed.length) > 1 ? 15 : 0)
   );
 }
 
@@ -557,7 +656,7 @@ function toConfidence(
   learnedUses: number,
   staticRank: number,
 ): number {
-  let confidence = edits === 1 ? 0.8 : 0.58;
+  let confidence = edits === 1 ? 0.82 : 0.58;
   if (learnedUses >= 2) {
     confidence += Math.min(learnedUses * 0.05, 0.2);
   }
@@ -566,6 +665,14 @@ function toConfidence(
   }
   if (candidate.length > typed.length && candidate.startsWith(typed)) {
     confidence += 0.08;
+  }
+  const prefix = sharedPrefixLength(typed, candidate);
+  if (edits === 1 && prefix >= typed.length - 1) {
+    // Classic fat-finger: blowong → blowing
+    confidence += 0.1;
+  }
+  if (typed[0] !== candidate[0] && !isAdjacentTransposition(typed, candidate)) {
+    confidence -= 0.35;
   }
   if (typed.length <= 3 && edits > 1) {
     confidence -= 0.25;
@@ -604,7 +711,7 @@ function isLikelyTypoMatch(typed: string, candidate: string, edits: number): boo
 function collectCandidates(
   typed: string,
   editBudget = maxEditDistance(typed.length),
-  _options?: CollectOptions, // unused while legacy scan paths are disabled for SymSpell test
+  options?: CollectOptions,
 ): Array<{
   word: string;
   edits: number;
@@ -644,23 +751,17 @@ function collectCandidates(
     }
   }
 
-  // Primary (and only for this test) fuzzy source: SymSpell.
   const symCands = lookupCandidatesSync(typed, maxEdits, 80);
   for (const sc of symCands) {
     const lu = learned.get(sc.word) ?? 0;
-    const sr = STATIC_RANK.get(sc.word) ?? (sc.count != null ? Math.max(1, 160_000 - Math.floor(sc.count / 3)) : 65_000);
+    const sr =
+      STATIC_RANK.get(sc.word) ??
+      (sc.count != null
+        ? Math.max(1, 160_000 - Math.floor(sc.count / 3))
+        : 65_000);
     consider(sc.word, lu, sr);
   }
 
-  // ============================================================
-  // TEMP FOR SYMSPELL TESTING: old candidate sources DISABLED
-  // - collectTranspositionNeighbors
-  // - STATIC_BY_FIRST bucket walks
-  // - broad / frequent scan over WORDS
-  // Only learned words + SymSpell results are considered.
-  // Re-enable the block below when you want the hybrid back.
-  // ============================================================
-  /*
   for (const swapped of collectTranspositionNeighbors(typed)) {
     if (!seen.has(swapped)) {
       seen.add(swapped);
@@ -687,19 +788,9 @@ function collectCandidates(
     }
   }
 
-  if (typed.length >= 3) {
-    const thirdBucket = STATIC_BY_FIRST.get(typed[2]);
-    if (thirdBucket) {
-      for (const word of thirdBucket) {
-        consider(word, learned.get(word) ?? 0, STATIC_RANK.get(word) ?? 60_000);
-      }
-    }
-  }
-
   if (!options?.skipFrequentScan) {
     const needsBroadScan =
-      results.length < 2 ||
-      (!STATIC_RANK.has(typed) && typed.length <= 6);
+      results.length < 2 || (!STATIC_RANK.has(typed) && typed.length <= 6);
 
     if (needsBroadScan && typed.length >= 3) {
       const scanLimit = typed.length <= 5 ? 1200 : FREQUENT_WORD_SCAN_LIMIT;
@@ -716,7 +807,6 @@ function collectCandidates(
       }
     }
   }
-  */
 
   return results;
 }
@@ -791,7 +881,7 @@ export function getTypoSuggestionPreview(
     return null;
   }
   getActiveLanguage(); // SymSpell language is active
-  if (hasIntentionalCasing(typed) || isProbablyProperNoun(typed)) {
+  if (hasIntentionalCasing(typed)) {
     return null;
   }
 
@@ -802,7 +892,12 @@ export function getTypoSuggestionPreview(
     return applyCaseToWord(exactFix.correction, typed);
   }
 
-  if (isProtectedWord(lower, learnedUses)) {
+  const missingSpace = findMissingSpaceCorrection(lower, learnedUses);
+  if (missingSpace) {
+    return applyCaseToWord(missingSpace, typed);
+  }
+
+  if (isProbablyProperNoun(typed) || isProtectedWord(lower, learnedUses)) {
     return null;
   }
 
@@ -836,9 +931,6 @@ export function getAutocorrectCandidate(
   if (hasIntentionalCasing(typed)) {
     return null;
   }
-  if (isProbablyProperNoun(typed)) {
-    return null;
-  }
 
   const lower = typed.toLowerCase();
   const learned = getLearnedCounts();
@@ -852,23 +944,19 @@ export function getAutocorrectCandidate(
     };
   }
 
-  // TEMP FOR SYMSPELL TESTING: disable the old findMissingSpaceCorrection
-  // (it uses STATIC_RANK / old split logic). Let SymSpell's LookupCompound drive this.
-  /*
-  const missingSpace = _findMissingSpaceCorrection(lower, learnedUses);
+  // Missing-space / run-on: run before the proper-noun guard. Sentence-start
+  // auto-caps turn "haveyou" into "Haveyou", which used to look like a name
+  // and skipped splits entirely.
+  const missingSpace = findMissingSpaceCorrection(lower, learnedUses);
   if (missingSpace) {
     return {
       correction: applyCaseToWord(missingSpace, typed),
       confidence: 0.9,
     };
   }
-  */
 
-  // SymSpell compound / segmentation – this is now the active path for testing.
   const compound = lookupCompoundSync(lower);
-  if (compound && compound.term && compound.term.includes(' ') && compound.distance <= 2) {
-    // For non-English, only accept compound splits if the original typed is known
-    // or we have learned uses (keeps behavior conservative for incomplete dicts).
+  if (compound && compound.term && compound.term.includes(' ') && compound.distance <= 1) {
     const lang = getActiveLanguage();
     const known = lang === 'en' || getBaseWords(lang).includes(lower) || learnedUses > 0;
     if (known) {
@@ -877,6 +965,10 @@ export function getAutocorrectCandidate(
         confidence: 0.88,
       };
     }
+  }
+
+  if (isProbablyProperNoun(typed)) {
+    return null;
   }
 
   if (isProtectedWord(lower, learnedUses)) {
@@ -963,6 +1055,19 @@ export function getAutocorrectCandidate(
   };
 }
 
+/** True when the word is in the active language dictionary (safe to auto-learn on space). */
+export function isDictionaryWord(word: string): boolean {
+  const lower = word.trim().toLowerCase();
+  if (!lower) {
+    return false;
+  }
+  if (STATIC_RANK.has(lower)) {
+    return true;
+  }
+  const lang = getActiveLanguage();
+  return lang !== 'en' && getBaseWords(lang).includes(lower);
+}
+
 export function getAutocorrectPreview(typedWord: string): string | null {
   return getAutocorrectCandidate(typedWord)?.correction ?? null;
 }
@@ -980,7 +1085,7 @@ export function getSuggestionBarAutocorrect(
     return {keepTyped: null, correction: null};
   }
   getActiveLanguage(); // SymSpell language is active
-  if (hasIntentionalCasing(typed) || isProbablyProperNoun(typed)) {
+  if (hasIntentionalCasing(typed)) {
     return {keepTyped: null, correction: null};
   }
 
@@ -998,6 +1103,18 @@ export function getSuggestionBarAutocorrect(
       keepTyped: offerKeepTyped ? typed : null,
       correction,
     };
+  }
+
+  const missingSpace = findMissingSpaceCorrection(lower, learnedUses);
+  if (missingSpace) {
+    return {
+      keepTyped: offerKeepTyped ? typed : null,
+      correction: applyCaseToWord(missingSpace, typed),
+    };
+  }
+
+  if (isProbablyProperNoun(typed)) {
+    return {keepTyped: null, correction: null};
   }
 
   const fast = options?.fast ?? false;
@@ -1038,7 +1155,13 @@ export function shouldAutoApply(
     return false;
   }
 
-  if (isProbablyProperNoun(typedWord)) {
+  // High-confidence splits / exact-style fixes still apply at sentence start
+  // even when auto-caps makes the typed token look like a name.
+  if (
+    isProbablyProperNoun(typedWord) &&
+    candidate.confidence < 0.88 &&
+    !candidate.correction.includes(' ')
+  ) {
     return false;
   }
 

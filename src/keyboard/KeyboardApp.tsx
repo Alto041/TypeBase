@@ -89,6 +89,7 @@ import {
 import {
   getAutocorrectCandidate,
   getSuggestionBarAutocorrect,
+  isDictionaryWord,
   shouldAutoApply,
 } from './autocorrect/autocorrectEngine';
 import {
@@ -142,6 +143,7 @@ import {
 import {shouldAutoCapitalizeShift} from './autoCapitalize';
 import {
   ensureLearnedDictionaryLoaded,
+  getLearnedCounts,
   recordLearnedWord,
 } from './suggestions/learnedDictionary';
 import {
@@ -1605,7 +1607,11 @@ function KeyboardBody({
   }, []);
 
   const commitTypedWordBoundary = useCallback(
-    async (insertBoundary: () => void, boundary = '') => {
+    async (
+      insertBoundary: () => void,
+      boundary = '',
+      typedWordFallback = '',
+    ) => {
       const context = await keyboardBridge.getTextBeforeCursor(96);
       if (endsWithRewriteCommand(context)) {
         keyboardBridge.replaceWordPrefix(REWRITE_COMMAND.length, '');
@@ -1630,7 +1636,17 @@ function KeyboardBody({
       await ensureLearnedPhrasesLoaded();
       await ensureAutocorrectLoaded();
 
-      const typedWord = extractCurrentWord(context);
+      let typedWord = extractCurrentWord(context);
+      // Some editors return stale/empty text-before-cursor; fall back to the
+      // live letter prefix we already tracked from key commits.
+      if (
+        typedWordFallback &&
+        (!typedWord ||
+          (typedWordFallback.length > typedWord.length &&
+            typedWordFallback.toLowerCase().endsWith(typedWord.toLowerCase())))
+      ) {
+        typedWord = typedWordFallback;
+      }
       const autocorrectOn = getAutocorrectSettings().enabled;
 
       if (autocorrectOn && typedWord.length >= 2) {
@@ -1669,9 +1685,13 @@ function KeyboardBody({
         const candidate = getAutocorrectCandidate(typedWord);
         if (shouldAutoApply(candidate, typedWord)) {
           keyboardBridge.replaceWordPrefix(typedWord.length, candidate!.correction);
-          recordLearnedWord(candidate!.correction);
+          const correctionParts = candidate!.correction.split(/\s+/);
+          for (const part of correctionParts) {
+            recordLearnedWord(part);
+          }
           learnPhrasesFromContext(
-            context.slice(0, -typedWord.length) + candidate!.correction,
+            context.slice(0, Math.max(0, context.length - typedWord.length)) +
+              candidate!.correction,
           );
           insertBoundary();
           scheduleAiProofread();
@@ -1690,7 +1710,13 @@ function KeyboardBody({
       }
 
       if (typedWord) {
-        recordLearnedWord(typedWord);
+        // Only auto-learn dictionary words (or words the user already taught via
+        // the keep chip). Learning OOV typos/run-ons used to permanently disable
+        // autocorrect for that token.
+        const lower = typedWord.toLowerCase();
+        if (isDictionaryWord(lower) || (getLearnedCounts().get(lower) ?? 0) > 0) {
+          recordLearnedWord(typedWord);
+        }
       }
       learnPhrasesFromContext(context);
 
@@ -2139,18 +2165,31 @@ function KeyboardBody({
           });
           scheduleRefreshSuggestions();
           return;
-        case 'space':
+        case 'space': {
+          const typedFallback = livePrefixRef.current;
           livePrefixRef.current = '';
           applyInstantSuggestionBar('');
-          void commitTypedWordBoundary(() => {
-            keyboardBridge.insertText(' ');
-          }, ' ');
+          void commitTypedWordBoundary(
+            () => {
+              keyboardBridge.insertText(' ');
+            },
+            ' ',
+            typedFallback,
+          );
           return;
-        case 'enter':
-          void commitTypedWordBoundary(() => {
-            keyboardBridge.submitEnterKey();
-          });
+        }
+        case 'enter': {
+          const typedFallback = livePrefixRef.current;
+          livePrefixRef.current = '';
+          void commitTypedWordBoundary(
+            () => {
+              keyboardBridge.submitEnterKey();
+            },
+            '',
+            typedFallback,
+          );
           return;
+        }
         case 'shift':
           handleShiftPress();
           return;

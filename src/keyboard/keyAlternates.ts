@@ -4,7 +4,7 @@ import {getKeyboardLayoutSettings} from './settings/layoutStore';
 
 /** Lowercase letter long-press alternates (Gboard-style). Base letter is index 0. */
 const LETTER_ALTERNATES: Record<string, readonly string[]> = {
-  a: ['a', 'á', 'à', 'â', 'ä', 'æ', 'ã', 'å'],
+  a: ['a', 'ä', 'á', 'à', 'â', 'æ', 'ã', 'å'],
   b: ['b'],
   c: ['c', 'ç', 'ć', 'č'],
   d: ['d'],
@@ -18,18 +18,26 @@ const LETTER_ALTERNATES: Record<string, readonly string[]> = {
   l: ['l', 'ł'],
   m: ['m'],
   n: ['n', 'ñ'],
-  o: ['o', 'ó', 'ò', 'ô', 'ö', 'œ', 'õ', 'ø'],
+  o: ['o', 'ö', 'ó', 'ò', 'ô', 'œ', 'õ', 'ø'],
   p: ['p'],
   q: ['q'],
   r: ['r'],
   s: ['s', 'ß', 'ś', 'š'],
   t: ['t'],
-  u: ['u', 'ú', 'ù', 'û', 'ü', 'ū'],
+  u: ['u', 'ü', 'ú', 'ù', 'û', 'ū'],
   v: ['v'],
   w: ['w'],
   x: ['x'],
   y: ['y', 'ý', 'ÿ'],
   z: ['z', 'ž', 'ź', 'ż'],
+};
+
+/** German layout: short umlaut-first lists (single-row popup, easy to hit). */
+const GERMAN_LETTER_ALTERNATES: Record<string, readonly string[]> = {
+  a: ['a', 'ä'],
+  o: ['o', 'ö'],
+  u: ['u', 'ü'],
+  s: ['s', 'ß'],
 };
 
 /**
@@ -130,14 +138,23 @@ function applyCase(alternates: readonly string[], uppercase: boolean): string[] 
   if (!uppercase) {
     return [...alternates];
   }
-  return alternates.map(char =>
-    char.length === 1 && /[a-z]/i.test(char) ? char.toUpperCase() : char,
-  );
+  // Use locale uppercasing so ö→Ö, ü→Ü, ä→Ä (ASCII-only regex missed these).
+  return alternates.map(char => char.toLocaleUpperCase('und'));
+}
+
+function getAccentAlternates(
+  lookupKey: string,
+  letterLayoutId: string,
+): readonly string[] {
+  if (letterLayoutId === 'de-de' && GERMAN_LETTER_ALTERNATES[lookupKey]) {
+    return GERMAN_LETTER_ALTERNATES[lookupKey];
+  }
+  return LETTER_ALTERNATES[lookupKey] ?? [lookupKey];
 }
 
 function resolveLetterAlternates(
   keyDef: KeyDefinition,
-  uppercase: boolean,
+  _uppercase: boolean,
 ): readonly string[] {
   const base = keyDef.value;
   if (!base || base.length !== 1 || !/[a-z]/i.test(base)) {
@@ -149,25 +166,39 @@ function resolveLetterAlternates(
     : base
   ).toLowerCase();
 
-  const useSymbolAlternates =
-    getKeyboardLayoutSettings().letterSymbolAlternatesEnabled ||
-    getKeyboardLayoutSettings().numberRowEnabled;
+  const settings = getKeyboardLayoutSettings();
+  const accents = getAccentAlternates(lookupKey, settings.letterLayoutId);
 
-  if (useSymbolAlternates) {
+  // Only the explicit "symbol long-press" setting replaces/merges symbols.
+  // numberRowEnabled used to steal accent popups (O→9 instead of O→Ö).
+  if (settings.letterSymbolAlternatesEnabled) {
     const phone = getPhoneLetterSymbolAlternates(lookupKey);
-    if (!phone || phone.length < 2) {
-      return [];
+    const symbols =
+      phone && phone.length >= 2 ? phone.slice(1).filter(Boolean) : [];
+    if (accents.length > 1) {
+      const merged = [...accents];
+      for (const symbol of symbols) {
+        if (!merged.includes(symbol)) {
+          merged.push(symbol);
+        }
+      }
+      return merged;
     }
-    return phone.slice(1);
+    if (symbols.length > 0) {
+      return [lookupKey, ...symbols];
+    }
+    return [];
   }
 
-  return LETTER_ALTERNATES[lookupKey] ?? [base.toLowerCase()];
+  return accents;
 }
 
 /** Small symbol/number shown in the key corner when symbol long-press is on. */
 export function getLetterSymbolHint(keyDef: KeyDefinition): string | null {
   const settings = getKeyboardLayoutSettings();
-  if (!settings.letterSymbolAlternatesEnabled && !settings.numberRowEnabled) {
+  // Corner hints only when symbol long-press is actually enabled — not merely
+  // because a number row is visible (that used to imply false O→9 hints).
+  if (!settings.letterSymbolAlternatesEnabled) {
     return null;
   }
 
@@ -187,14 +218,7 @@ export function getLetterSymbolHint(keyDef: KeyDefinition): string | null {
 
 /** Whether a long-press should open the alternate popup for these alternates. */
 export function shouldShowAlternatePopup(alternates: readonly string[]): boolean {
-  if (alternates.length > 1) {
-    return true;
-  }
-  return (
-    alternates.length === 1 &&
-    (getKeyboardLayoutSettings().letterSymbolAlternatesEnabled ||
-      getKeyboardLayoutSettings().numberRowEnabled)
-  );
+  return alternates.length > 1;
 }
 
 const keyAlternatesCache = new Map<string, string[]>();
@@ -205,7 +229,7 @@ export function getKeyAlternates(
   uppercase: boolean,
 ): string[] {
   const settings = getKeyboardLayoutSettings();
-  const cacheKey = `${keyDef.id}|${layout}|${uppercase ? 1 : 0}|${settings.letterSymbolAlternatesEnabled ? 1 : 0}|${settings.numberRowEnabled ? 1 : 0}`;
+  const cacheKey = `${keyDef.id}|${layout}|${uppercase ? 1 : 0}|${settings.letterSymbolAlternatesEnabled ? 1 : 0}|${settings.numberRowEnabled ? 1 : 0}|${settings.letterLayoutId}`;
   const cached = keyAlternatesCache.get(cacheKey);
   if (cached) {
     return cached;
@@ -256,18 +280,26 @@ export function computeAlternatePopupGeometry(
 ): AlternatePopupGeometry {
   const padding = 6;
   const gap = 4;
+  // Keep popups on one row whenever possible so top-row keys (O/P) don't
+  // clip the first line above the keyboard area.
   const columns =
-    alternateCount <= 6 ? alternateCount : Math.ceil(alternateCount / 2);
-  const rows = alternateCount <= 6 ? 1 : 2;
+    alternateCount <= 8 ? alternateCount : Math.ceil(alternateCount / 2);
+  const rows = alternateCount <= 8 ? 1 : 2;
   const cellWidth = cellSize;
   const cellHeight = cellSize;
   const width = columns * cellWidth + (columns - 1) * gap + padding * 2;
   const height = rows * cellHeight + (rows - 1) * gap + padding * 2;
-  const gapAboveKey = 6;
+  const gapBesideKey = 6;
 
   let left = keyBounds.centerX - width / 2;
   left = Math.max(4, Math.min(left, areaWidth - width - 4));
-  const top = keyBounds.y - gapAboveKey - height;
+
+  // Prefer above the key; if that would clip off the top of the keys area,
+  // sit just inside the area (overlapping the key) so every glyph stays visible.
+  let top = keyBounds.y - gapBesideKey - height;
+  if (top < 2) {
+    top = 2;
+  }
 
   return {
     left,

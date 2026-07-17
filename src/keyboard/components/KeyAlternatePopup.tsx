@@ -63,7 +63,16 @@ function KeyAlternatePopupComponent({popup}: KeyAlternatePopupProps) {
                     backgroundColor: selected ? theme.modifierKeyPressed : 'transparent',
                   },
                 ]}>
-                <Text style={[styles.cellLabel, {color: theme.label}]}>
+                <Text
+                  style={[
+                    styles.cellLabel,
+                    {
+                      // Custom keyboard fonts often lack ö/ä/ü glyphs — fall
+                      // back to the system UI font so umlauts always render.
+                      color: theme.label,
+                      fontFamily: undefined,
+                    },
+                  ]}>
                   {char ?? ''}
                 </Text>
               </View>
@@ -96,7 +105,6 @@ function createStyles(theme: KeyboardTheme) {
       justifyContent: 'center',
     },
     cellLabel: {
-      fontFamily: theme.fontFamily,
       fontSize: 22,
       fontWeight: '500',
     },

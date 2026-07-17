@@ -850,6 +850,23 @@ const EXACT_FIX_ENTRIES: Array<[string, ExactDictionaryFix]> = [
   ['septembr', {correction: 'september', confidence: 0.85}],
   ['novemeber', {correction: 'november', confidence: 0.85}],
   ['decembr', {correction: 'december', confidence: 0.85}],
+
+  // Common "-ong" / doubled-letter fat-finger typos
+  ['blowong', {correction: 'blowing', confidence: 0.93}],
+  ['followong', {correction: 'following', confidence: 0.93}],
+  ['allowong', {correction: 'allowing', confidence: 0.92}],
+  ['knowong', {correction: 'knowing', confidence: 0.92}],
+  ['showong', {correction: 'showing', confidence: 0.92}],
+  ['growong', {correction: 'growing', confidence: 0.91}],
+  ['flowong', {correction: 'flowing', confidence: 0.9}],
+  ['bblowing', {correction: 'blowing', confidence: 0.94}],
+  ['bbecause', {correction: 'because', confidence: 0.94}],
+  ['tthe', {correction: 'the', confidence: 0.95}],
+  ['aand', {correction: 'and', confidence: 0.95}],
+
+  // Internet / slang run-ons (dictionary is missing some parts like "bait")
+  ['ragebait', {correction: 'rage bait', confidence: 0.9}],
+  ['clickbait', {correction: 'click bait', confidence: 0.86}],
 ];
 
 export const EXACT_DICTIONARY_FIXES = new Map<string, ExactDictionaryFix>(
@@ -907,6 +924,12 @@ const PRESERVE_TYPED_WORDS = new Set([
   'kk',
   'ok',
   'okay',
+  'clickbait',
+  'shitpost',
+  'ratio',
+  'based',
+  'cope',
+  'seethe',
 ]);
 
 export function isPreserveTypedWord(typedLower: string): boolean {
