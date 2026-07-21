@@ -18,8 +18,8 @@ export type TimedPoint = Point & { t: number };
 
 const MIN_RESAMPLE_COUNT = 28;
 const MAX_RESAMPLE_COUNT = 48;
-const SWIPE_CANDIDATE_LIMIT = 400;
-const SWIPE_SCORE_LIMIT = 200;
+const SWIPE_CANDIDATE_LIMIT = 120;
+const SWIPE_SCORE_LIMIT = 80;
 
 function resampleCountForPath(pointCount: number): number {
   return Math.min(

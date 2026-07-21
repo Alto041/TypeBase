@@ -41,6 +41,13 @@ const THREE_CHIP_TEXT_LENGTH = 12;
 const TWO_CHIP_TEXT_LENGTH = 18;
 const ONE_CHIP_TEXT_LENGTH = 28;
 
+function asDisplayText(value: unknown): string {
+  if (value == null) {
+    return '';
+  }
+  return String(value);
+}
+
 type WordSuggestionChip =
   | {kind: 'keep'; text: string}
   | {kind: 'autocorrect'; text: string}
@@ -55,18 +62,30 @@ function buildWordSuggestionChips(
   const chips: WordSuggestionChip[] = [];
 
   if (typedKeepSuggestion && prefix.length > 0) {
-    chips.push({kind: 'keep', text: typedKeepSuggestion});
+    const text = asDisplayText(typedKeepSuggestion);
+    if (text) {
+      chips.push({kind: 'keep', text});
+    }
   }
   if (autocorrectPreview && prefix.length > 0) {
-    chips.push({kind: 'autocorrect', text: autocorrectPreview});
+    const text = asDisplayText(autocorrectPreview);
+    if (text) {
+      chips.push({kind: 'autocorrect', text});
+    }
   }
   for (const word of suggestions) {
     if (!word) {
       continue;
     }
+    const text = asDisplayText(
+      word.includes(' ') ? word : applyCaseToWord(word, prefix),
+    );
+    if (!text) {
+      continue;
+    }
     chips.push({
       kind: 'word',
-      text: word.includes(' ') ? word : applyCaseToWord(word, prefix),
+      text,
     });
   }
 
@@ -525,10 +544,10 @@ function SuggestionBarComponent({
                     pressed && styles.suggestionPressed,
                   ]}>
                   <Text style={styles.essentialKeyword} numberOfLines={1}>
-                    @@{item.keyword}
+                    @@{asDisplayText(item.keyword)}
                   </Text>
                   <Text style={styles.essentialValue} numberOfLines={1}>
-                    {item.value}
+                    {asDisplayText(item.value)}
                   </Text>
                 </Pressable>
               </Fragment>
@@ -670,7 +689,7 @@ function SuggestionBarComponent({
       )}
       {centerTitle ? (
         <View style={styles.centerTitleOverlay} pointerEvents="none">
-          <Text style={styles.centerTitle}>{centerTitle.toUpperCase()}</Text>
+          <Text style={styles.centerTitle}>{asDisplayText(centerTitle).toUpperCase()}</Text>
         </View>
       ) : null}
     </View>

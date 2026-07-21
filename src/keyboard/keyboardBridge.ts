@@ -480,7 +480,7 @@ export const keyboardBridge: KeyboardModuleType = {
       return KeyboardModule.getAutocorrectSettings() as Promise<string>;
     }
     return Promise.resolve(
-      '{"enabled":true,"autoApplyOnSpace":false,"aiAutoCorrectEnabled":false}',
+      '{"enabled":true,"autoApplyOnSpace":true,"aiAutoCorrectEnabled":false}',
     );
   },
   setAutocorrectSettings: (json: string) => {

@@ -105,7 +105,7 @@ import {
   proofreadRecentTypingContext,
   type AiAutocorrectResult,
 } from './autocorrect/aiAutocorrectService';
-import {getActiveLanguage, preloadActiveDictionary} from './autocorrect/dictionaryManager';
+import {getActiveLanguage, preloadActiveDictionary, scheduleBackgroundEnglishSymSpellSeed} from './autocorrect/dictionaryManager';
 import {GesturesPanel} from './gestures/GesturesPanel';
 import {TranslatePanel} from './translate/TranslatePanel';
 import {RewritePanel} from './rewrite/RewritePanel';
@@ -207,7 +207,7 @@ import {useVoiceInput} from './voice/useVoiceInput';
 
 const DOUBLE_TAP_MS = 350;
 /** Debounced async refresh (phrases, essentials, native cursor sync). */
-const SUGGESTION_FULL_REFRESH_DEBOUNCE_MS = 120;
+const SUGGESTION_FULL_REFRESH_DEBOUNCE_MS = 300;
 const NATIVE_FAST_PATH_MIN_KEYS = 20;
 const NATIVE_FAST_PATH_ENABLED = true;
 const AI_AUTOCORRECT_LOG_PREFIX = '[AiAutocorrect]';
@@ -421,6 +421,14 @@ const LetterKeyboardRows = React.memo(function LetterKeyboardRows({
   );
 });
 
+function sanitizeSuggestionText(value: string | null | undefined): string | null {
+  if (value == null) {
+    return null;
+  }
+  const text = String(value);
+  return text.length > 0 ? text : null;
+}
+
 function computeTypingSuggestionBar(
   prefix: string,
   options: {fast: boolean; context?: string},
@@ -433,26 +441,34 @@ function computeTypingSuggestionBar(
 
   const phraseSuggestions =
     fast || !options.context ? [] : getPhraseSuggestions(options.context, 2);
-  let wordSuggestions = getWordSuggestions(prefix, 3, {
-    skipFuzzy: fast && prefix.length < 5,
-  });
+  let wordSuggestions = fast
+    ? []
+    : getWordSuggestions(prefix, 3, {
+        skipFuzzy: false,
+        lightweight: true,
+      });
   const reserved = new Set<string>();
-  if (barAutocorrect.keepTyped) {
-    reserved.add(barAutocorrect.keepTyped.toLowerCase());
+  const keepTyped = sanitizeSuggestionText(barAutocorrect.keepTyped);
+  const correction = sanitizeSuggestionText(barAutocorrect.correction);
+  if (keepTyped) {
+    reserved.add(keepTyped.toLowerCase());
   }
-  if (barAutocorrect.correction) {
-    reserved.add(barAutocorrect.correction.toLowerCase());
+  if (correction) {
+    reserved.add(correction.toLowerCase());
   }
   if (reserved.size > 0) {
     wordSuggestions = wordSuggestions.filter(
-      word => !reserved.has(word.toLowerCase()),
+      word => word && !reserved.has(word.toLowerCase()),
     );
   }
 
   return {
-    typedKeepSuggestion: barAutocorrect.keepTyped,
-    autocorrectPreview: barAutocorrect.correction,
-    suggestions: [...phraseSuggestions, ...wordSuggestions].slice(0, 3),
+    typedKeepSuggestion: keepTyped,
+    autocorrectPreview: correction,
+    suggestions: [...phraseSuggestions, ...wordSuggestions]
+      .map(word => (word == null ? '' : String(word)))
+      .filter(word => word.length > 0)
+      .slice(0, 3),
   };
 }
 
@@ -480,10 +496,12 @@ function KeyboardBody({
   const suggestionRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
+  const suggestionDictionariesReadyRef = useRef(false);
   const aiProofreadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const aiProofreadRunIdRef = useRef(0);
   const lastAiProofreadOriginalRef = useRef<string | null>(null);
   const livePrefixRef = useRef('');
+  const lastInstantPrefixRef = useRef('');
   const nativeFastPathActiveRef = useRef(false);
   const instantSuggestionRafRef = useRef<number | null>(null);
   const autocorrectUndoStackRef = useRef<AutocorrectHistoryEdit[]>([]);
@@ -1404,9 +1422,14 @@ function KeyboardBody({
       return;
     }
 
-    await ensureLearnedDictionaryLoaded();
-    await ensureLearnedPhrasesLoaded();
-    await ensureAutocorrectLoaded();
+    if (!suggestionDictionariesReadyRef.current) {
+      await Promise.all([
+        ensureLearnedDictionaryLoaded(),
+        ensureLearnedPhrasesLoaded(),
+        ensureAutocorrectLoaded(),
+      ]);
+      suggestionDictionariesReadyRef.current = true;
+    }
 
     const prefix = extractCurrentWord(context);
     livePrefixRef.current = prefix;
@@ -1437,10 +1460,20 @@ function KeyboardBody({
     if (layoutRef.current !== 'letters' || modeRef.current.type !== 'typing') {
       return;
     }
+    if (prefix === lastInstantPrefixRef.current) {
+      return;
+    }
+    if (prefix.length > 0 && prefix.length < 3) {
+      return;
+    }
 
     const flush = () => {
       instantSuggestionRafRef.current = null;
       const nextPrefix = livePrefixRef.current;
+      if (nextPrefix === lastInstantPrefixRef.current) {
+        return;
+      }
+      lastInstantPrefixRef.current = nextPrefix;
 
       if (!nextPrefix) {
         setCurrentPrefix('');
@@ -1680,9 +1713,14 @@ function KeyboardBody({
         return;
       }
 
-      await ensureLearnedDictionaryLoaded();
-      await ensureLearnedPhrasesLoaded();
-      await ensureAutocorrectLoaded();
+      if (!suggestionDictionariesReadyRef.current) {
+        await Promise.all([
+          ensureLearnedDictionaryLoaded(),
+          ensureLearnedPhrasesLoaded(),
+          ensureAutocorrectLoaded(),
+        ]);
+        suggestionDictionariesReadyRef.current = true;
+      }
 
       let typedWord = extractCurrentWord(context);
       // Some editors return stale/empty text-before-cursor; fall back to the
@@ -1730,7 +1768,10 @@ function KeyboardBody({
           return;
         }
 
-        const candidate = getAutocorrectCandidate(typedWord);
+        const candidate = getAutocorrectCandidate(typedWord, {
+          lightweight: true,
+          skipFrequentScan: true,
+        });
         if (shouldAutoApply(candidate, typedWord)) {
           keyboardBridge.replaceWordPrefix(typedWord.length, candidate!.correction);
           const correctionParts = candidate!.correction.split(/\s+/);
@@ -3421,8 +3462,9 @@ export default function KeyboardApp() {
       setKeyboardDesign(getKeyboardDesign());
       setCustomThemeJson(getKeyboardCustomTheme());
       setLayoutSettings(getKeyboardLayoutSettings());
-      // Kick off dictionary for the active layout (multi-lang autocorrect).
-      preloadActiveDictionary().catch(() => undefined);
+      InteractionManager.runAfterInteractions(() => {
+        setTimeout(() => scheduleBackgroundEnglishSymSpellSeed(), 500);
+      });
       setThemeReady(true);
     });
     const schemeSubscription = DeviceEventEmitter.addListener(
@@ -3448,8 +3490,7 @@ export default function KeyboardApp() {
       (payload: unknown) => {
         const next = parseLayoutEventPayload(payload);
         setLayoutSettings(next);
-        // Switch dictionary automatically for the new layout (no manual lang select).
-        preloadActiveDictionary().catch(() => undefined);
+        void preloadActiveDictionary();
       },
     );
     const controllerSubscription = DeviceEventEmitter.addListener(

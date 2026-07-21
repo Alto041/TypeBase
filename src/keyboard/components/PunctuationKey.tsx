@@ -267,7 +267,7 @@ function PunctuationKeyComponent({
   ) : showRewrite ? (
     <ArtificialIcon width={18} height={17} color={featureIconColor} />
   ) : (
-    <Text style={styles.keyLabel}>{label}</Text>
+    <Text style={styles.keyLabel}>{label ?? ''}</Text>
   );
 
   return (

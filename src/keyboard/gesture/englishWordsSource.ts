@@ -1,4 +1,6 @@
-import englishWords from './data/englishWords.json';
+import {getEnglishWordsByFrequency} from '../autocorrect/englishFrequencyDictionary';
 
-/** Bundled word list for swipe typing, suggestions, and autocorrect. */
-export const ENGLISH_WORDS = englishWords as string[];
+/** Frequency-ordered English words (SymSpell dictionary). */
+export function getEnglishWordsSource(): readonly string[] {
+  return getEnglishWordsByFrequency();
+}

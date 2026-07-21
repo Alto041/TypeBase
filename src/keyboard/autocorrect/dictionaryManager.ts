@@ -1,4 +1,12 @@
-import englishWords from '../gesture/data/englishWords.json';
+import {
+  ensureEnglishWordSet,
+  getEnglishWordsByFrequency,
+  isEnglishDictionaryWord,
+  rankFromSymSpellFrequency,
+  scheduleEnglishRankMapBuild,
+  syntheticFrequencyCount,
+} from './englishFrequencyDictionary';
+import {scheduleEnglishPrefixIndexBuild} from './englishPrefixIndex';
 import italianWords from './data/italianWords.json';
 import germanWords from './data/de_words.json';
 import frenchWords from './data/french_words.json';
@@ -18,11 +26,11 @@ import {getKeyboardLayoutSettings} from '../settings/layoutStore';
  *
  * Language is chosen automatically from the active `letterLayoutId` via languageMap.
  *
- * - 'en' eagerly seeded from englishWords.json
+ * - 'en' eagerly seeded from SymSpell frequency_dictionary_en (~82k words)
  * - 'it' eagerly seeded from italianWords.json
  * - 'de' lazily seeded from de_words.json
  * - 'hi-en' lazily seeded: English + Hinglish
- * - 'fr-en' (Franglais) lazily seeded: french_words.json + englishWords.json
+ * - 'fr-en' (Franglais) lazily seeded: french_words.json + SymSpell English
  *   for the French AZERTY layout. English stays usable while seed runs.
  */
 
@@ -43,7 +51,6 @@ const inFlightSeeds = new Map<string, Promise<SymSpell>>();
  */
 const DEDICATED_DICTIONARY_LANGS = new Set(['en', 'it', 'de', 'hi-en', 'fr-en']);
 
-let englishBase: string[] | null = null;
 let italianBase: string[] | null = null;
 let germanBase: string[] | null = null;
 let frenchBase: string[] | null = null;
@@ -54,17 +61,15 @@ let franglaisCombinedBase: string[] | null = null;
 let readySymSpell: SymSpell | null = null;
 let readyLearnedBoosted = false;
 
-function getEnglishBase(): string[] {
-  if (!englishBase) {
-    const seen = new Set<string>();
-    englishBase = (englishWords as string[]).filter(w => {
-      const k = w.toLowerCase();
-      if (seen.has(k)) return false;
-      seen.add(k);
-      return true;
-    });
-  }
-  return englishBase;
+function getEnglishBase(): readonly string[] {
+  return getEnglishWordsByFrequency();
+}
+
+function seedEnglishWordsIntoSymSpell(ss: SymSpell): void {
+  const words = getEnglishWordsByFrequency();
+  words.forEach((word, index) => {
+    ss.CreateDictionaryEntry(word, syntheticFrequencyCount(index));
+  });
 }
 
 function getItalianBase(): string[] {
@@ -113,7 +118,9 @@ function getFrenchBase(): string[] {
 function getHinglishCombinedBase(): string[] {
   if (!hinglishCombinedBase) {
     // Hinglish tokens first (suggestions scan this list), then English.
-    hinglishCombinedBase = buildHinglishCombinedTokenList(getEnglishBase());
+    hinglishCombinedBase = buildHinglishCombinedTokenList([
+      ...getEnglishWordsByFrequency(),
+    ]);
   }
   return hinglishCombinedBase;
 }
@@ -137,60 +144,79 @@ function getFranglaisCombinedBase(): string[] {
   return franglaisCombinedBase;
 }
 
-// Eagerly seed English dictionary synchronously so the engine stays sync for fast path.
-(function seedDefaultEnglish() {
-  const en = new SymSpell(64, 2, 7);
-  const enBase = getEnglishBase();
-  enBase.forEach((w, i) => {
-    const count = Math.max(1, 100_000 - Math.floor(i * 5));
-    en.CreateDictionaryEntry(w, count);
-  });
-  // Fill common gaps in the ~10k list so splits/fuzzy don't silently fail.
-  const supplemental: Array<[string, number]> = [
-    ['bait', 40_000],
-    ['blooming', 8_000],
-    ['glowing', 12_000],
-    ['flowing', 15_000],
-    ['knowing', 25_000],
-    ['showing', 30_000],
-    ['growing', 28_000],
-    ['click', 35_000],
-    ['ratio', 18_000],
-    ['based', 22_000],
-    ['cope', 16_000],
-    ['seethe', 6_000],
-    ['meme', 20_000],
-    ['memes', 18_000],
-    ['vibe', 17_000],
-    ['vibes', 16_000],
-    ['cringe', 14_000],
-    ['anyways', 28_000],
-    ['gonna', 35_000],
-    ['wanna', 34_000],
-    ['gotta', 33_000],
-  ];
-  for (const [word, count] of supplemental) {
-    if (!enBase.includes(word)) {
-      en.CreateDictionaryEntry(word, count);
-      enBase.push(word);
-    }
-  }
-  ssCache.set('en', en);
-  baseCache.set('en', enBase);
-  readySymSpell = en;
-})();
+// Full English SymSpell seeds in the background — never block keystrokes.
+let englishSymSpellSeeded = false;
+let englishSymSpellSeeding = false;
 
-// Eagerly seed Italian dictionary for SymSpell-based Italian autocorrect (no manual selection).
-(function seedDefaultItalian() {
-  const it = new SymSpell(64, 2, 7);
-  const itBase = getItalianBase();
-  itBase.forEach((w, i) => {
-    const count = Math.max(1, 100_000 - Math.floor(i * 5));
-    it.CreateDictionaryEntry(w, count);
-  });
-  ssCache.set('it', it);
-  baseCache.set('it', itBase);
-})();
+const ENGLISH_SYM_SPELL_SUPPLEMENTAL: Array<[string, number]> = [
+  ['clickbait', 4_500_000],
+  ['shitpost', 2_800_000],
+  ['ratio', 6_200_000],
+  ['based', 8_500_000],
+  ['cope', 3_200_000],
+  ['seethe', 1_900_000],
+  ['meme', 12_000_000],
+  ['memes', 9_500_000],
+  ['vibe', 11_000_000],
+  ['vibes', 8_800_000],
+  ['cringe', 5_400_000],
+  ['anyways', 18_000_000],
+  ['gonna', 45_000_000],
+  ['wanna', 42_000_000],
+  ['gotta', 38_000_000],
+];
+
+export function isEnglishSymSpellReady(): boolean {
+  return englishSymSpellSeeded;
+}
+
+const SYM_SEED_CHUNK = 600;
+const SYM_SEED_DELAY_MS = 24;
+
+/** Chunked background seed — call once when the keyboard mounts. */
+export function scheduleBackgroundEnglishSymSpellSeed(): void {
+  ensureEnglishWordSet();
+  if (englishSymSpellSeeded || englishSymSpellSeeding) {
+    return;
+  }
+  englishSymSpellSeeding = true;
+
+  const words = getEnglishWordsByFrequency();
+  if (!words.length) {
+    englishSymSpellSeeding = false;
+    return;
+  }
+
+  setTimeout(() => {
+    const en = new SymSpell(90_000, 2, 7);
+    let index = 0;
+
+    const step = (): void => {
+      const end = Math.min(index + SYM_SEED_CHUNK, words.length);
+      for (; index < end; index += 1) {
+        en.CreateDictionaryEntry(words[index]!, syntheticFrequencyCount(index));
+      }
+
+      if (index < words.length) {
+        setTimeout(step, SYM_SEED_DELAY_MS);
+        return;
+      }
+
+      for (const [word, count] of ENGLISH_SYM_SPELL_SUPPLEMENTAL) {
+        en.CreateDictionaryEntry(word, count);
+      }
+
+      ssCache.set('en', en);
+      readySymSpell = en;
+      englishSymSpellSeeded = true;
+      englishSymSpellSeeding = false;
+      scheduleEnglishPrefixIndexBuild();
+      scheduleEnglishRankMapBuild();
+    };
+
+    step();
+  }, 600);
+}
 
 function getLangBase(lang: string): string[] {
   if (baseCache.has(lang)) {
@@ -198,7 +224,8 @@ function getLangBase(lang: string): string[] {
   }
   let list: string[];
   if (lang === 'en') {
-    list = getEnglishBase();
+    // English uses prefix index + SymSpell — not a linear base list scan.
+    list = [];
   } else if (lang === 'it') {
     // Dedicated Italian list for proper SymSpell autocorrect + suggestions.
     list = getItalianBase();
@@ -226,13 +253,8 @@ function getLangBase(lang: string): string[] {
 
 async function seedSymSpell(lang: string, ss: SymSpell): Promise<void> {
   if (lang === 'hi-en') {
-    // English high-count first so shared Latin words stay English-strong,
-    // then Hinglish tokens + spaced phrases (`_` → space) for compound splits.
-    const en = getEnglishBase();
-    const enSet = new Set(en);
-    en.forEach((w, i) => {
-      ss.CreateDictionaryEntry(w, Math.max(1, 120_000 - Math.floor(i * 5)));
-    });
+    const enSet = new Set(getEnglishBase());
+    seedEnglishWordsIntoSymSpell(ss);
     const hiTokens = getHinglishSymSpellTokens();
     hiTokens.forEach((w, i) => {
       if (enSet.has(w)) {
@@ -248,12 +270,8 @@ async function seedSymSpell(lang: string, ss: SymSpell): Promise<void> {
       );
     });
   } else if (lang === 'fr-en') {
-    // English high-count for shared tokens; French list for Franglais typing.
-    const en = getEnglishBase();
-    const enSet = new Set(en);
-    en.forEach((w, i) => {
-      ss.CreateDictionaryEntry(w, Math.max(1, 120_000 - Math.floor(i * 5)));
-    });
+    const enSet = new Set(getEnglishBase());
+    seedEnglishWordsIntoSymSpell(ss);
     getFrenchBase().forEach((w, i) => {
       if (enSet.has(w)) {
         return;
@@ -288,7 +306,7 @@ async function ensureSymSpell(lang: string): Promise<SymSpell> {
   if (pending) return pending;
 
   const promise = (async () => {
-    const ss = new SymSpell(64, 2, 7);
+    const ss = new SymSpell(95_000, 2, 7);
     await seedSymSpell(lang, ss);
     ssCache.set(lang, ss);
     if (!readySymSpell) {
@@ -347,6 +365,12 @@ export function hasDictionaryWord(word: string): boolean {
   if (lower.length < 2) {
     return false;
   }
+  const lang = getActiveLanguage();
+  if (lang === 'en' || lang === 'hi-en' || lang === 'fr-en') {
+    if (isEnglishDictionaryWord(lower)) {
+      return true;
+    }
+  }
   const ss = resolveSymSpellForLanguage();
   if (!ss) {
     return false;
@@ -357,13 +381,10 @@ export function hasDictionaryWord(word: string): boolean {
 
 /** Rank from SymSpell frequency (lower = more common). */
 export function symSpellRank(term: string, edits = 0): number {
+  const lower = term.toLowerCase();
   const ss = resolveSymSpellForLanguage();
-  if (!ss) {
-    return 50_000 + edits * 100;
-  }
-  const hit = ss.Lookup(term.toLowerCase(), Verbosity.Top, 0);
-  const count = hit[0]?.count ?? 0;
-  return Math.max(0, 120_000 - count) + edits * 45;
+  const count = ss?.Lookup(lower, Verbosity.Top, 0)[0]?.count;
+  return rankFromSymSpellFrequency(lower, count, edits);
 }
 
 /**
@@ -451,10 +472,10 @@ export function lookupCandidatesSync(
 export function lookupSwipeCandidatesSync(
   pattern: string,
   maxEd = 2,
-  limit = 420,
+  limit = 120,
 ): Candidate[] {
   const ss = resolveSymSpellForLanguage();
-  if (!ss || !pattern) {
+  if (!ss || !pattern || !englishSymSpellSeeded) {
     return [];
   }
 
@@ -533,7 +554,10 @@ export function __resetDictionaryManagerForTests() {
   ssCache.clear();
   baseCache.clear();
   inFlightSeeds.clear();
-  englishBase = null;
+  englishSymSpellSeeded = false;
+  englishSymSpellSeeding = false;
+  readySymSpell = null;
+  readyLearnedBoosted = false;
   italianBase = null;
   germanBase = null;
   frenchBase = null;

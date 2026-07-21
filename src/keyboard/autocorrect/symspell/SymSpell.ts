@@ -2,7 +2,7 @@
  * Minimal, self-contained SymSpell implementation (v6-inspired Symmetric Delete).
  * - No external dependencies.
  * - Focused on CreateDictionaryEntry, Lookup, and LookupCompound.
- * - Suitable for ~10k-50k word dictionaries in React Native.
+ * - Suitable for ~80k word frequency dictionaries in React Native.
  *
  * References the public SymSpell algorithm by Wolf Garbe.
  */
@@ -240,14 +240,26 @@ export class SymSpell {
         }
       }
 
-      if (bestSplit && (!top || top.distance > 0)) {
-        return bestSplit;
-      }
-      // Exact fuzzy correction beats a space-split when the whole word is close.
-      if (top && top.distance <= 1) {
+      if (top?.distance === 0) {
         return top;
       }
-      return bestSplit || top || null;
+
+      // 1-edit whole-word fix (wheather → weather) beats wheat her.
+      if (top && top.distance <= 1 && !top.term.includes(' ')) {
+        if (
+          !bestSplit ||
+          top.count >= bestSplit.count ||
+          top.distance < bestSplit.distance
+        ) {
+          return top;
+        }
+      }
+
+      if (bestSplit && (!top || top.distance > 1)) {
+        return bestSplit;
+      }
+
+      return top || bestSplit || null;
     }
 
     // 1) Try correcting the whole thing without spaces (common for "missing space" cases).
