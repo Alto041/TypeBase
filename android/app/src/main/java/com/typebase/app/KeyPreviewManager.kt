@@ -16,6 +16,7 @@ import android.view.ViewGroup
 import android.view.ViewTreeObserver
 import android.widget.FrameLayout
 import android.widget.TextView
+import kotlin.math.min
 
 /**
  * Key previews drawn as rounded rectangle overlays inside the IME keyboard container.
@@ -35,6 +36,7 @@ class KeyPreviewManager(private val fallbackContext: Context) {
     private var fontAssetPath: String = DEFAULT_FONT_ASSET
     private var backgroundColorArgb = Color.parseColor(DARK_PREVIEW_BACKGROUND)
     private var textColorArgb = Color.parseColor(DARK_PREVIEW_TEXT)
+    private var keyCornerRadiusDp = DEFAULT_KEY_CORNER_RADIUS_DP.toFloat()
     private var previewContainer: FrameLayout? = null
     /** Incremented on hide so deferred layout shows cannot resurrect after finger lift. */
     private val showSeq = HashMap<Int, Int>()
@@ -100,10 +102,16 @@ class KeyPreviewManager(private val fallbackContext: Context) {
         }
     }
 
-    fun setTheme(backgroundColor: String, textColor: String, fontAsset: String? = null) {
+    fun setTheme(
+        backgroundColor: String,
+        textColor: String,
+        fontAsset: String? = null,
+        cornerRadiusDp: Float = DEFAULT_KEY_CORNER_RADIUS_DP.toFloat(),
+    ) {
         runOnMainThread {
             backgroundColorArgb = parseColorOrFallback(backgroundColor, backgroundColorArgb)
             textColorArgb = parseColorOrFallback(textColor, textColorArgb)
+            keyCornerRadiusDp = cornerRadiusDp.coerceAtLeast(0f)
             val nextFont = fontAsset?.trim().orEmpty()
             if (nextFont.isNotEmpty() && nextFont != fontAssetPath) {
                 fontAssetPath = nextFont
@@ -363,6 +371,8 @@ class KeyPreviewManager(private val fallbackContext: Context) {
         val previewHeight = anchor.height.coerceAtLeast(dpToPx(MIN_PREVIEW_HEIGHT_DP))
         val gapAboveKey = dpToPx(PREVIEW_GAP_ABOVE_KEY_DP)
 
+        updatePreviewCornerRadius(tv, previewHeight)
+
         val coordinateRoot =
             KeyboardInputBridge.getKeyboardCoordinateView() as? ViewGroup
         val anchorRect = Rect()
@@ -396,8 +406,14 @@ class KeyPreviewManager(private val fallbackContext: Context) {
         container.invalidate()
     }
 
+    private fun previewCornerRadiusPx(previewHeightPx: Int): Float {
+        val themedRadius = dpToPx(keyCornerRadiusDp).toFloat()
+        val pillCap = previewHeightPx / 2f
+        return min(themedRadius, pillCap)
+    }
+
     private fun createPreviewTextView(context: Context): TextView {
-        val cornerRadius = dpToPx(KEY_CORNER_RADIUS_DP).toFloat()
+        val cornerRadius = previewCornerRadiusPx(dpToPx(MIN_PREVIEW_HEIGHT_DP))
         val keyBackground = GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
             setColor(backgroundColorArgb)
@@ -415,6 +431,22 @@ class KeyPreviewManager(private val fallbackContext: Context) {
         }
     }
 
+    private fun updatePreviewCornerRadius(tv: TextView, previewHeightPx: Int) {
+        val cornerRadius = previewCornerRadiusPx(previewHeightPx)
+        val background = tv.background
+        if (background is GradientDrawable) {
+            background.setColor(backgroundColorArgb)
+            background.cornerRadius = cornerRadius
+        } else {
+            tv.background =
+                GradientDrawable().apply {
+                    shape = GradientDrawable.RECTANGLE
+                    setColor(backgroundColorArgb)
+                    this.cornerRadius = cornerRadius
+                }
+        }
+    }
+
     private fun applyThemeToPreviewView(tv: TextView? = null) {
         val targets =
             if (tv != null) {
@@ -429,18 +461,11 @@ class KeyPreviewManager(private val fallbackContext: Context) {
             if (face != null) {
                 preview.typeface = face
             }
-            val background = preview.background
-            if (background is GradientDrawable) {
-                background.setColor(backgroundColorArgb)
-            } else {
-                val cornerRadius = dpToPx(KEY_CORNER_RADIUS_DP).toFloat()
-                preview.background =
-                    GradientDrawable().apply {
-                        shape = GradientDrawable.RECTANGLE
-                        setColor(backgroundColorArgb)
-                        this.cornerRadius = cornerRadius
-                    }
-            }
+            val previewHeight =
+                preview.height.takeIf { it > 0 }
+                    ?: (preview.layoutParams as? FrameLayout.LayoutParams)?.height
+                        ?: dpToPx(MIN_PREVIEW_HEIGHT_DP)
+            updatePreviewCornerRadius(preview, previewHeight)
         }
     }
 
@@ -529,15 +554,17 @@ class KeyPreviewManager(private val fallbackContext: Context) {
         }
     }
 
-    private fun dpToPx(dp: Int): Int =
+    private fun dpToPx(dp: Int): Int = dpToPx(dp.toFloat())
+
+    private fun dpToPx(dp: Float): Int =
         TypedValue.applyDimension(
-            TypedValue.COMPLEX_UNIT_DIP, dp.toFloat(),
+            TypedValue.COMPLEX_UNIT_DIP, dp,
             popupContext().resources.displayMetrics
         ).toInt()
 
     companion object {
         private const val POOL_WARM_SIZE = 8
-        private const val KEY_CORNER_RADIUS_DP = 6
+        private const val DEFAULT_KEY_CORNER_RADIUS_DP = 6
         private const val PREVIEW_GAP_ABOVE_KEY_DP = 4
         private const val MIN_PREVIEW_WIDTH_DP = 32
         private const val MIN_PREVIEW_HEIGHT_DP = 40

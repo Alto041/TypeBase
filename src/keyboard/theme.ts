@@ -518,6 +518,22 @@ function paletteFor(
 }
 
 /**
+ * Rounded chrome for the long-press alternate popup and its sliding selector.
+ */
+export function keyboardAlternatePopupRadii(
+  theme: KeyboardTheme,
+  popupHeight: number,
+  cellSize: number,
+): {containerRadius: number; selectorRadius: number} {
+  const selectorRadius = cellSize / 2;
+  const containerRadius =
+    theme.design === 'quivox'
+      ? popupHeight / 2
+      : Math.min(theme.keyRadius + 2, popupHeight / 2);
+  return {containerRadius, selectorRadius};
+}
+
+/**
  * Quivox press motion — circular/rounded caps grow slightly while held.
  */
 export function keyboardKeyPressMotionStyle(

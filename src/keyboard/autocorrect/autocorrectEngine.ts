@@ -321,7 +321,11 @@ function maxEditDistance(length: number): number {
   if (length <= 8) {
     return 2;
   }
-  return 2;
+  // Long words accumulate more typos; allow a third edit via first-letter scan.
+  if (length <= 12) {
+    return 2;
+  }
+  return 3;
 }
 
 /** Adjacent letter swaps (teh → the, waht → what) count as 1-edit typos. */
@@ -539,15 +543,29 @@ function isPlausibleTypo(
   }
 
   const prefix = sharedPrefixLength(typed, candidate);
-  // 2-edit mid-word typos (aneyays → anyways) often share only 2 letters.
-  return (
-    edits === 2 &&
-    typed.length >= 5 &&
-    staticRank < 12_000 &&
-    typed[0] === candidate[0] &&
-    Math.abs(typed.length - candidate.length) <= 1 &&
-    prefix >= Math.min(2, typed.length - 2)
-  );
+  // 2/3-edit mid-word typos on longer inputs (aneyays → anyways, etc.).
+  const maxLenDelta = typed.length >= 10 ? 2 : 1;
+  const minPrefix =
+    typed.length >= 10 ? Math.min(3, typed.length - 2) : Math.min(2, typed.length - 2);
+  if (edits === 2) {
+    return (
+      typed.length >= 5 &&
+      staticRank < 12_000 &&
+      typed[0] === candidate[0] &&
+      Math.abs(typed.length - candidate.length) <= maxLenDelta &&
+      prefix >= minPrefix
+    );
+  }
+  if (edits === 3) {
+    return (
+      typed.length >= 10 &&
+      staticRank < 8_000 &&
+      typed[0] === candidate[0] &&
+      Math.abs(typed.length - candidate.length) <= maxLenDelta &&
+      prefix >= Math.min(3, typed.length - 3)
+    );
+  }
+  return false;
 }
 
 function isDestructiveShortening(typed: string, correction: string): boolean {
@@ -726,7 +744,7 @@ function toConfidence(
   learnedUses: number,
   staticRank: number,
 ): number {
-  let confidence = edits === 1 ? 0.82 : 0.58;
+  let confidence = edits === 1 ? 0.82 : edits === 2 ? 0.58 : 0.48;
   if (learnedUses >= 2) {
     confidence += Math.min(learnedUses * 0.05, 0.2);
   }
@@ -762,6 +780,9 @@ function toConfidence(
   if (edits === 2 && typed[0] === candidate[0] && prefix >= 2) {
     confidence += 0.08;
   }
+  if (edits === 3 && typed[0] === candidate[0] && prefix >= 3) {
+    confidence += 0.1;
+  }
   if (typed[0] !== candidate[0] && !isAdjacentTransposition(typed, candidate)) {
     confidence -= 0.35;
   }
@@ -770,6 +791,9 @@ function toConfidence(
   }
   if (edits === 2 && learnedUses === 0 && staticRank > 8000) {
     confidence -= 0.12;
+  }
+  if (edits === 3 && learnedUses === 0 && staticRank > 5000) {
+    confidence -= 0.1;
   }
   return Math.min(Math.max(confidence, 0), 0.98);
 }
@@ -793,9 +817,17 @@ function isLikelyTypoMatch(typed: string, candidate: string, edits: number): boo
   if (edits === 1) {
     return true;
   }
+  if (edits === 2) {
+    return (
+      typed.length >= 3 &&
+      sharedPrefixLength(typed, candidate) >= Math.min(2, typed.length - 1)
+    );
+  }
   return (
-    typed.length >= 3 &&
-    sharedPrefixLength(typed, candidate) >= Math.min(2, typed.length - 1)
+    edits === 3 &&
+    typed.length >= 10 &&
+    typed[0] === candidate[0] &&
+    sharedPrefixLength(typed, candidate) >= 3
   );
 }
 
@@ -881,7 +913,7 @@ function collectCandidates(
 
   if (!options?.skipFrequentScan) {
     const needsBroadScan =
-      results.length < 2 || (!STATIC_RANK.has(typed) && typed.length <= 6);
+      results.length < 2 || (!STATIC_RANK.has(typed) && typed.length <= 12);
 
     if (needsBroadScan && typed.length >= 3) {
       const scanLimit = typed.length <= 5 ? 1200 : FREQUENT_WORD_SCAN_LIMIT;
@@ -920,7 +952,7 @@ export function getSimilarWordSuggestions(
   }
   getActiveLanguage(); // ensures SymSpell for current layout is considered (via dictionaryManager)
 
-  const editBudget = typed.length <= 4 ? 2 : typed.length <= 7 ? 2 : 2;
+  const editBudget = maxEditDistance(typed.length);
   const candidates = collectCandidates(typed, editBudget, options).filter(candidate => {
     if (exclude.has(candidate.word) || isLikelyNameTrap(typed, candidate.word)) {
       return false;

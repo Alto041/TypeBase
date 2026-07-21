@@ -18,7 +18,7 @@ export type TimedPoint = Point & { t: number };
 
 const MIN_RESAMPLE_COUNT = 28;
 const MAX_RESAMPLE_COUNT = 48;
-const SWIPE_CANDIDATE_LIMIT = 280;
+const SWIPE_CANDIDATE_LIMIT = 400;
 const SWIPE_SCORE_LIMIT = 200;
 
 function resampleCountForPath(pointCount: number): number {
@@ -546,7 +546,13 @@ function proximityMissBudget(wordLength: number): number {
   if (wordLength <= 7) {
     return 1;
   }
-  return 2;
+  if (wordLength <= 10) {
+    return 2;
+  }
+  if (wordLength <= 14) {
+    return 3;
+  }
+  return 4;
 }
 
 /** Most distinct keys should be visited; start/end stay anchored. */
@@ -683,17 +689,33 @@ function lengthMismatchPenalty(
     return 0.35;
   }
 
-  const gapAllowance = hasPauseAnchors ? 5 : 4;
-  const lengthRatio = hasPauseAnchors ? 1.55 : 1.45;
+  // Soft penalty only — long words are often shortcut-swiped.
+  const gapAllowance = hasPauseAnchors
+    ? 6
+    : word.length >= 12
+      ? 6
+      : word.length >= 8
+        ? 5
+        : 4;
+  const lengthRatio = hasPauseAnchors
+    ? 1.7
+    : word.length >= 12
+      ? 1.65
+      : word.length >= 8
+        ? 1.5
+        : 1.45;
   const longWordFromShortTrace = word.length > pattern.length + gapAllowance;
-  if (longWordFromShortTrace && idealPathLength > gesturePathLength * lengthRatio) {
-    return null;
-  }
+  const severelyShort =
+    longWordFromShortTrace && idealPathLength > gesturePathLength * lengthRatio;
 
   const mismatch =
     Math.abs(idealPathLength - gesturePathLength) /
     Math.max(idealPathLength, gesturePathLength);
-  const longWordPenalty = longWordFromShortTrace ? 0.22 : 0;
+  const longWordPenalty = severelyShort
+    ? 0.5
+    : longWordFromShortTrace
+      ? 0.22
+      : 0;
   return mismatch * 0.9 + longWordPenalty;
 }
 
@@ -919,7 +941,8 @@ function scoreCandidate(
     consumptionPenalty(word, pattern) +
     traceTailPenalty(word, pattern) +
     keySequencePenalty(word, pattern) +
-    Math.abs(word.length - pattern.length) * 0.035 +
+    Math.abs(word.length - pattern.length) *
+      (word.length >= 10 ? 0.022 : 0.035) +
     rankBonus(rank, word.length, pattern.length) -
     learnedSwipeBonus(learnedUses);
 
@@ -1060,7 +1083,7 @@ export function previewSwipeGesture(
   );
 
   const previewScoreLimit = 45;
-  const previewRejectThreshold = 2.35;
+  const previewRejectThreshold = 2.55;
 
   if (pattern.length < 2) {
     return finalizeSwipeWord(
@@ -1258,7 +1281,7 @@ export function decodeSwipeGesture(
 
   const margin =
     secondScore === Infinity ? 1 : Math.max(0, secondScore - bestScore);
-  const rejectThreshold = pattern.length >= 7 ? 2.0 : 1.7;
+  const rejectThreshold = pattern.length >= 7 ? 2.25 : 1.85;
   if (
     bestScore > rejectThreshold ||
     (bestScore > 1.12 && margin < 0.008 && pattern.length < 7)

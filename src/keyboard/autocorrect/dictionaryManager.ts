@@ -375,7 +375,7 @@ export async function lookupCandidates(
   limit = 10,
 ): Promise<Candidate[]> {
   const ss = await getCurrentSymSpell();
-  const results = ss.Lookup(typedLower, Verbosity.Closest, maxEd);
+  const results = ss.Lookup(typedLower, Verbosity.All, maxEd);
   return results.slice(0, limit).map(r => ({
     word: r.term,
     edits: r.distance,
@@ -436,7 +436,7 @@ export function lookupCandidatesSync(
     return [];
   }
 
-  const results = ss.Lookup(typedLower, Verbosity.Closest, maxEd);
+  const results = ss.Lookup(typedLower, Verbosity.All, maxEd);
   return results.slice(0, limit).map(r => ({
     word: r.term,
     edits: r.distance,

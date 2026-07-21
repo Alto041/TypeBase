@@ -42,10 +42,16 @@ export function wordKeySequence(word: string): string {
   return collapseTracePattern(word.toLowerCase());
 }
 
+const MAX_SWIPE_WORD_LENGTH = 22;
+
 /** Words we may insert after a swipe — never the raw crossed-key trail. */
 export function isCommitableSwipeWord(word: string): boolean {
   const lower = word.trim().toLowerCase();
-  if (lower.length < 2 || lower.length > 16 || !/^[a-z]+$/.test(lower)) {
+  if (
+    lower.length < 2 ||
+    lower.length > MAX_SWIPE_WORD_LENGTH ||
+    !/^[a-z]+$/.test(lower)
+  ) {
     return false;
   }
   return hasDictionaryWord(lower) || (getLearnedCounts().get(lower) ?? 0) > 0;
@@ -64,9 +70,16 @@ export function wordAlignsWithTrace(word: string, trace: string): boolean {
     return hasDictionaryWord(word);
   }
 
-  // Real words are shorter than the keys the finger crossed.
+  // Shortcuts can skip mid keys — allow a small length surplus for long words.
   if (wordKeys.length > collapsed.length) {
-    return false;
+    const skipBudget = Math.min(
+      3,
+      Math.max(1, Math.floor(wordKeys.length / 5)),
+    );
+    if (wordKeys.length - collapsed.length > skipBudget) {
+      return false;
+    }
+    return fuzzyMatchesPattern(collapsed, wordKeys, skipBudget + 1);
   }
 
   if (isPatternSubsequence(wordKeys, collapsed)) {
@@ -164,7 +177,11 @@ function getSwipeCandidatesJs(
   const seen = new Map<string, number>();
 
   const tryAdd = (word: string, rank: number) => {
-    if (word.length < 2 || word.length > 16 || word[0] !== first) {
+    if (
+      word.length < 2 ||
+      word.length > MAX_SWIPE_WORD_LENGTH ||
+      word[0] !== first
+    ) {
       return;
     }
     if (!isCommitableSwipeWord(word)) {
@@ -179,11 +196,14 @@ function getSwipeCandidatesJs(
     }
   };
 
+  const preferMinLen =
+    collapsed.length >= 12 ? 7 : collapsed.length >= 8 ? 5 : 2;
+
   const lookupPatterns =
     collapsed === normalized ? [normalized] : [collapsed, normalized];
 
   for (const lookupPattern of lookupPatterns) {
-    const maxEd = Math.min(3, traceEditBudget(lookupPattern.length));
+    const maxEd = Math.min(3, traceEditBudget(lookupPattern));
     const symMatches = lookupSwipeCandidatesSync(
       lookupPattern,
       maxEd,
@@ -191,6 +211,37 @@ function getSwipeCandidatesJs(
     );
     for (const match of symMatches) {
       tryAdd(match.word, symSpellRank(match.word, match.edits));
+    }
+  }
+
+  // Native-style first-letter scan so long words aren't lost to SymSpell-only recall.
+  const firstLetterWords = getBaseWords()
+    .map((word, rank) => ({word: word.toLowerCase(), rank}))
+    .filter(
+      ({word}) =>
+        word[0] === first &&
+        word.length >= preferMinLen &&
+        word.length <= MAX_SWIPE_WORD_LENGTH,
+    );
+  for (const {word, rank} of firstLetterWords) {
+    if (seen.size >= maxCandidates) {
+      break;
+    }
+    tryAdd(word, rank);
+  }
+  if (seen.size < maxCandidates) {
+    for (const {word, rank} of getBaseWords()
+      .map((w, rank) => ({word: w.toLowerCase(), rank}))
+      .filter(
+        ({word}) =>
+          word[0] === first &&
+          word.length >= 2 &&
+          word.length < preferMinLen,
+      )) {
+      if (seen.size >= maxCandidates) {
+        break;
+      }
+      tryAdd(word, rank);
     }
   }
 
@@ -241,6 +292,11 @@ export function getWordsByFirstLetter(
 
   return getBaseWords()
     .map((word, rank) => ({word: word.toLowerCase(), rank}))
-    .filter(({word}) => word[0] === normalized && word.length >= 2 && word.length <= 16)
+    .filter(
+      ({word}) =>
+        word[0] === normalized &&
+        word.length >= 2 &&
+        word.length <= MAX_SWIPE_WORD_LENGTH,
+    )
     .slice(0, maxWords);
 }

@@ -118,6 +118,17 @@ import {
   recordMetricsSessionStart,
   recordWordCommitted,
 } from './metrics/metricsStore';
+import {OneHandPanel} from './onehand/OneHandPanel';
+import {
+  ensureOneHandLoaded,
+  getOneHandLayout,
+  getOneHandSettings,
+  setOneHandEnabled,
+  setOneHandSide,
+  setOneHandStrength,
+  subscribeOneHandSettings,
+} from './onehand/oneHandStore';
+import type {OneHandSettings} from './onehand/types';
 import {
   endsWithRewriteCommand,
   REWRITE_COMMAND,
@@ -456,6 +467,7 @@ function KeyboardBody({
 }: KeyboardBodyProps) {
   const theme = useKeyboardTheme();
   const layoutContext = useKeyLayoutContext();
+  const {width: viewportWidth} = useWindowDimensions();
   const styles = useThemedStyles(createKeyboardAppStyles);
   const [mode, setMode] = useState<KeyboardMode>({type: 'typing'});
   const [layout, setLayout] = useState<KeyboardLayout>('letters');
@@ -520,6 +532,9 @@ function KeyboardBody({
   );
   const [autocorrectSettings, setAutocorrectSettings] =
     useState<AutocorrectSettings>(getAutocorrectSettings());
+  const [oneHandSettings, setOneHandSettings] = useState<OneHandSettings>(
+    getOneHandSettings(),
+  );
   const [autocorrectPreview, setAutocorrectPreview] = useState<string | null>(
     null,
   );
@@ -596,6 +611,7 @@ function KeyboardBody({
   const isClipboardMode = mode.type === 'clipboard';
   const isEssentialsListMode = mode.type === 'essentials-list';
   const isGesturesMode = mode.type === 'gestures';
+  const isOneHandMode = mode.type === 'onehand';
   const isCalculatorMode = mode.type === 'calculator';
   const isTouchpadMode = mode.type === 'touchpad';
   const isTranslateMode = mode.type === 'translate';
@@ -756,8 +772,13 @@ function KeyboardBody({
       theme.design === 'macintosh'
         ? 'fonts/Chicago.ttf'
         : 'fonts/Geist-VariableFont_wght.ttf';
-    setKeyPreviewTheme(theme.letterKey, theme.label, fontAsset);
-  }, [theme.design, theme.label, theme.letterKey]);
+    setKeyPreviewTheme(
+      theme.letterKey,
+      theme.label,
+      fontAsset,
+      theme.keyRadius,
+    );
+  }, [theme.design, theme.keyRadius, theme.label, theme.letterKey]);
 
   useEffect(() => {
     void keyboardBridge.getPrefersNumpad().then(setPrefersNumpad);
@@ -1079,6 +1100,12 @@ function KeyboardBody({
 
   const openMetrics = useCallback(() => {
     setMode({type: 'metrics'});
+    setLayout('letters');
+    resetCase();
+  }, [resetCase]);
+
+  const openOneHand = useCallback(() => {
+    setMode({type: 'onehand'});
     setLayout('letters');
     resetCase();
   }, [resetCase]);
@@ -1784,12 +1811,14 @@ function KeyboardBody({
         ensureApiKeysLoaded(),
         ensureAiProviderLoaded(),
         ensureMetricsLoaded(),
+        ensureOneHandLoaded(),
         reloadGesturesFromStorage(),
       ]).finally(() => {
         reloadEssentials();
         void reloadClipboard();
         void reloadGestures();
         void reloadAutocorrect();
+        setOneHandSettings(getOneHandSettings());
         recordMetricsSessionStart();
         refreshSuggestions();
       });
@@ -1801,6 +1830,29 @@ function KeyboardBody({
     reloadClipboard,
     reloadEssentials,
     reloadGestures,
+  ]);
+
+  useEffect(() => {
+    return subscribeOneHandSettings(() => {
+      setOneHandSettings(getOneHandSettings());
+    });
+  }, []);
+
+  const oneHandLayout = useMemo(
+    () => getOneHandLayout(oneHandSettings, viewportWidth),
+    [oneHandSettings, viewportWidth],
+  );
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      layoutContext?.requestRemeasure();
+    }, 80);
+    return () => clearTimeout(timer);
+  }, [
+    layoutContext,
+    oneHandLayout.active,
+    oneHandLayout.alignSelf,
+    oneHandLayout.width,
   ]);
 
   useEffect(() => {
@@ -2591,7 +2643,8 @@ function KeyboardBody({
     mode.type === 'autocorrect' ||
     mode.type === 'calculator' ||
     mode.type === 'touchpad' ||
-    mode.type === 'metrics';
+    mode.type === 'metrics' ||
+    mode.type === 'onehand';
 
   const handleCalculatorInsert = useCallback((value: string) => {
     if (!value || value === 'Error' || value === '0') {
@@ -2748,6 +2801,7 @@ function KeyboardBody({
       mode.type === 'calculator' ||
       mode.type === 'touchpad' ||
       mode.type === 'metrics' ||
+      mode.type === 'onehand' ||
       mode.type === 'rewrite' ||
       mode.type === 'format' ||
       mode.type === 'translate' ||
@@ -2898,6 +2952,7 @@ function KeyboardBody({
             mode.type === 'calculator' ||
             mode.type === 'touchpad' ||
             mode.type === 'metrics' ||
+            mode.type === 'onehand' ||
             mode.type === 'translate' ||
             mode.type === 'rewrite' ||
             mode.type === 'format'
@@ -3052,6 +3107,8 @@ function KeyboardBody({
                           ? 'Touchpad'
                           : mode.type === 'metrics'
                             ? 'Telemetry'
+                          : mode.type === 'onehand'
+                            ? 'One Hand'
                           : mode.type === 'translate'
                             ? 'Translate'
                             : mode.type === 'rewrite'
@@ -3132,6 +3189,9 @@ function KeyboardBody({
               }}
               onSelectMetrics={() => {
                 openMetrics();
+              }}
+              onSelectOneHand={() => {
+                openOneHand();
               }}
             />
           ) : null}
@@ -3214,6 +3274,27 @@ function KeyboardBody({
 
           {mode.type === 'metrics' ? <MetricsPanel /> : null}
 
+          {mode.type === 'onehand' ? (
+            <OneHandPanel
+              settings={oneHandSettings}
+              onToggleEnabled={enabled => {
+                void setOneHandEnabled(enabled).then(() => {
+                  setOneHandSettings(getOneHandSettings());
+                });
+              }}
+              onSelectSide={side => {
+                void setOneHandSide(side).then(() => {
+                  setOneHandSettings(getOneHandSettings());
+                });
+              }}
+              onSelectStrength={strength => {
+                void setOneHandStrength(strength).then(() => {
+                  setOneHandSettings(getOneHandSettings());
+                });
+              }}
+            />
+          ) : null}
+
           {mode.type === 'essentials-list' ? (
             <EssentialsListPanel
               essentials={essentials}
@@ -3241,50 +3322,61 @@ function KeyboardBody({
             isGifSearchMode ||
             isEmojiSearchMode ||
             isSfxSearchMode) ? (
-            <LetterKeyboardRows
-              rows={rows}
-              layout={layout}
-              modeType={mode.type}
-              isUppercase={isUppercase}
-              getIsUppercase={getIsUppercase}
-              getLetterCommitText={consumeLetterCommitText}
-              shiftOn={shiftOn}
-              capsLocked={capsLocked}
-              onKeyPress={handleKeyPress}
-              onMultiTouchKeyCommit={handleMultiTouchKeyCommit}
-              keyGestures={
-                isGifSearchMode || isEmojiSearchMode || isSfxSearchMode
-                  ? undefined
-                  : keyGestures
-              }
-              multiTouchEnabled={
-                mode.type === 'typing' ||
-                mode.type === 'essentials-form' ||
-                isGifSearchMode ||
-                isEmojiSearchMode ||
-                isSfxSearchMode
-              }
-              keyHeight={effectiveLetterKeyHeight ?? numberRowLayoutBoost?.keyHeight}
-              rowStyle={[
-                resizeRowsExtraMargin !== undefined
-                  ? {marginBottom: resizeRowsExtraMargin}
-                  : undefined,
-                numberRowLayoutBoost
+            <View
+              collapsable={false}
+              style={
+                oneHandLayout.active
                   ? {
-                      marginBottom: numberRowLayoutBoost.keyRowMargin,
-                      gap: numberRowLayoutBoost.keyGap,
+                      width: oneHandLayout.width,
+                      alignSelf: oneHandLayout.alignSelf,
                     }
-                  : undefined,
-              ]}
-              enterKeyNextLineEnabled={
-                mode.type === 'typing' ? enterKeyNextLineEnabled : false
-              }
-              focusedKeyId={
-                controllerKeyboardActive && showKeys
-                  ? focusedControllerKey?.id
-                  : null
-              }
-            />
+                  : undefined
+              }>
+              <LetterKeyboardRows
+                rows={rows}
+                layout={layout}
+                modeType={mode.type}
+                isUppercase={isUppercase}
+                getIsUppercase={getIsUppercase}
+                getLetterCommitText={consumeLetterCommitText}
+                shiftOn={shiftOn}
+                capsLocked={capsLocked}
+                onKeyPress={handleKeyPress}
+                onMultiTouchKeyCommit={handleMultiTouchKeyCommit}
+                keyGestures={
+                  isGifSearchMode || isEmojiSearchMode || isSfxSearchMode
+                    ? undefined
+                    : keyGestures
+                }
+                multiTouchEnabled={
+                  mode.type === 'typing' ||
+                  mode.type === 'essentials-form' ||
+                  isGifSearchMode ||
+                  isEmojiSearchMode ||
+                  isSfxSearchMode
+                }
+                keyHeight={effectiveLetterKeyHeight ?? numberRowLayoutBoost?.keyHeight}
+                rowStyle={[
+                  resizeRowsExtraMargin !== undefined
+                    ? {marginBottom: resizeRowsExtraMargin}
+                    : undefined,
+                  numberRowLayoutBoost
+                    ? {
+                        marginBottom: numberRowLayoutBoost.keyRowMargin,
+                        gap: numberRowLayoutBoost.keyGap,
+                      }
+                    : undefined,
+                ]}
+                enterKeyNextLineEnabled={
+                  mode.type === 'typing' ? enterKeyNextLineEnabled : false
+                }
+                focusedKeyId={
+                  controllerKeyboardActive && showKeys
+                    ? focusedControllerKey?.id
+                    : null
+                }
+              />
+            </View>
           ) : null}
         </View>
         </GestureTypingLayer>

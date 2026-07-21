@@ -34,11 +34,17 @@ class KeyPreviewModule(private val reactContext: ReactApplicationContext) :
     }
 
     @ReactMethod
-    fun setTheme(backgroundColor: String, textColor: String, fontAssetPath: String) {
+    fun setTheme(
+        backgroundColor: String,
+        textColor: String,
+        fontAssetPath: String,
+        cornerRadiusDp: Double,
+    ) {
         manager.setTheme(
             backgroundColor,
             textColor,
             fontAssetPath.trim().ifEmpty { null },
+            cornerRadiusDp.toFloat().coerceAtLeast(0f),
         )
     }
 

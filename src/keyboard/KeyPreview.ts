@@ -10,11 +10,15 @@ export function setKeyPreviewTheme(
   backgroundColor: string,
   textColor: string,
   fontAssetPath?: string | null,
+  cornerRadiusDp?: number,
 ): void {
   KeyPreview?.setTheme(
     backgroundColor,
     textColor,
     fontAssetPath?.trim() ? fontAssetPath.trim() : '',
+    typeof cornerRadiusDp === 'number' && Number.isFinite(cornerRadiusDp)
+      ? Math.round(cornerRadiusDp)
+      : 6,
   );
 }
 

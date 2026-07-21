@@ -23,4 +23,5 @@ export type KeyboardMode =
   | {type: 'rewrite'}
   | {type: 'format'}
   | {type: 'metrics'}
+  | {type: 'onehand'}
   | {type: 'resize'};

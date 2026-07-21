@@ -18,6 +18,7 @@ import ArtificialIcon from '../../../assets/Artificial.svg';
 import GesturesIcon from '../../../assets/gesture.svg';
 import ResizeIcon from '../../../assets/resize.svg';
 import StatsIcon from '../../../assets/stats.svg';
+import OneHandIcon from '../../../assets/onehand.svg';
 import {
   PLUGIN_INNER_RADIUS,
   PLUGIN_OUTER_RADIUS,
@@ -40,6 +41,7 @@ type ItemsMenuPanelProps = {
   onSelectTouchpad: () => void;
   onSelectResize: () => void;
   onSelectMetrics?: () => void;
+  onSelectOneHand?: () => void;
 };
 
 type PluginTileProps = {
@@ -114,6 +116,7 @@ const BASE_PLUGINS = [
   {id: 'essentials', title: 'Essentials', Icon: EssentialsIcon},
   {id: 'clipboard', title: 'Clipboard', Icon: ClipboardIcon},
   {id: 'autocorrect', title: 'Autocorrect', Icon: AutocorrectIcon},
+  {id: 'onehand', title: 'One Hand', Icon: OneHandIcon},
   {id: 'gestures', title: 'Gestures', Icon: GesturesIcon},
   {id: 'calculator', title: 'Calculator', Icon: CalculatorIcon},
   {id: 'touchpad', title: 'Touchpad', Icon: TouchpadIcon},
@@ -136,19 +139,25 @@ export function ItemsMenuPanel({
   onSelectTouchpad,
   onSelectResize,
   onSelectMetrics,
+  onSelectOneHand,
 }: ItemsMenuPanelProps) {
   const theme = useKeyboardTheme();
   const panelStyles = usePluginPanelStyles();
   const styles = useThemedStyles(createItemsMenuStyles);
   const plugins =
     theme.design === 'quivox'
-      ? [...BASE_PLUGINS.slice(0, 4), QUIVOX_METRICS_PLUGIN, ...BASE_PLUGINS.slice(4)]
+      ? [
+          ...BASE_PLUGINS.slice(0, 5),
+          QUIVOX_METRICS_PLUGIN,
+          ...BASE_PLUGINS.slice(5),
+        ]
       : [...BASE_PLUGINS];
   const handlers: Record<string, (() => void) | undefined> = {
     format: onSelectFormat,
     essentials: onSelectEssentials,
     clipboard: onSelectClipboard,
     autocorrect: onSelectAutocorrect,
+    onehand: onSelectOneHand,
     gestures: onSelectGestures,
     calculator: onSelectCalculator,
     touchpad: onSelectTouchpad,
