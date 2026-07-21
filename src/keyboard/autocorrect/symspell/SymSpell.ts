@@ -128,6 +128,20 @@ export class SymSpell {
     // Collect candidates via delete index (the heart of SymSpell).
     const inputDeletes = this.getWithinEditDistanceDeletes(inputLower, maxEditDistance);
     for (const del of inputDeletes) {
+      // If a delete of the input is itself a dictionary word, keep it
+      // (eeveryone → everyone via deleting one "e").
+      if (!seen.has(del) && this.words.has(del)) {
+        seen.add(del);
+        const dist = levenshtein(inputLower, del);
+        if (dist > 0 && dist <= maxEditDistance) {
+          suggestions.push({
+            term: del,
+            distance: dist,
+            count: this.words.get(del)!,
+          });
+        }
+      }
+
       const candidates = this.deletes.get(del);
       if (!candidates) continue;
       for (const cand of candidates) {

@@ -345,57 +345,97 @@ const DARK_PALETTE: KeyboardPalette = {
 };
 
 /**
- * Quivox — "aesthetic minimal" palette.
- * Muted key caps (not white) with restrained accents for space/enter.
+ * Quivox dark — charcoal tray, soft dark caps, light space bar.
  */
-const QUIVOX_KEYS = {
-  // AMOLED-ish defaults with saturated "thick" color pops.
-  // (No blue accents; only tinted caps, never white key backgrounds.)
-  letterKey: '#1A1A22',
-  letterKeyPressed: '#252533',
-
-  modifierKey: '#00C2A8',
-  modifierKeyPressed: '#009A86',
-
-  spaceKey: '#FFB020',
-  spaceKeyPressed: '#E79A0E',
-
-  enter: '#FF2D55',
-  enterPressed: '#C81F41',
-
-  label: '#E9EEF6',
-  spaceLabel: '#111827',
-  icon: '#E9EEF6',
-  iconMuted: '#A9B4C2',
-  iconOnEnter: '#FFFFFF',
-
-  swipeTrail: '#FFB020',
-  essentialsAccent: '#FFB020',
-  launcherKey: '#00C2A8',
-  keyRipple: 'rgba(255, 255, 255, 0.18)',
-} as const;
-
-const QUIVOX_LIGHT_PALETTE: KeyboardPalette = {
-  ...LIGHT_PALETTE,
-  ...QUIVOX_KEYS,
-  // Keep everything dark like AMOLED, even in "light" scheme.
-  container: '#000000',
-  pluginCard: '#07070D',
-  pluginCardSecondary: '#0D0D16',
-  borderSubtle: '#1A1A26',
-  suggestionDivider: '#2A2A3A',
-
-  chipSelectedBackground: '#00C2A8',
-  chipSelectedText: '#FFFFFF',
-};
-
 const QUIVOX_DARK_PALETTE: KeyboardPalette = {
-  ...DARK_PALETTE,
-  ...QUIVOX_KEYS,
-  // Keep key caps the same across both schemes (AMOLED consistency).
-  chipSelectedBackground: '#00C2A8',
-  chipSelectedText: '#FFFFFF',
+  container: '#181818',
+
+  letterKey: '#2A2A2A',
+  modifierKey: '#343434',
+  spaceKey: '#F2F2F2',
+
+  letterKeyPressed: '#3A3A3A',
+  modifierKeyPressed: '#454545',
+  spaceKeyPressed: '#DDDDDD',
+
+  pluginCard: '#222222',
+  pluginCardSecondary: '#2B2B2B',
+
+  enter: '#FFFFFF',
+  enterPressed: '#E6E6E6',
+
+  label: '#F5F5F5',
+  // Secondary UI text on dark plugin panels (not the space-key face color).
+  spaceLabel: '#AEAEB2',
+
+  icon: '#EAEAEA',
+  iconMuted: '#8A8A8A',
+  iconOnEnter: '#111111',
+
+  suggestionDivider: '#3A3A3A',
+
+  essentialsAccent: '#FFFFFF',
+
+  swipeTrail: '#BDBDBD',
+
+  launcherKey: '#2F2F2F',
+
+  chipSelectedBackground: '#FFFFFF',
+  chipSelectedText: '#111111',
+
+  borderSubtle: '#404040',
+
+  keyRipple: '#5A5A5A',
 };
+
+/**
+ * Quivox light — soft gray tray with bright caps and dark labels.
+ */
+const QUIVOX_LIGHT_PALETTE: KeyboardPalette = {
+  container: '#E8E8E8',
+
+  letterKey: '#F6F6F6',
+  modifierKey: '#D9D9D9',
+  spaceKey: '#FFFFFF',
+
+  letterKeyPressed: '#DCDCDC',
+  modifierKeyPressed: '#C8C8C8',
+  spaceKeyPressed: '#EAEAEA',
+
+  pluginCard: '#F4F4F4',
+  pluginCardSecondary: '#ECECEC',
+
+  enter: '#FFFFFF',
+  enterPressed: '#EAEAEA',
+
+  label: '#1A1A1A',
+  // Secondary UI text on light plugin panels.
+  spaceLabel: '#6B6B6B',
+
+  icon: '#222222',
+  iconMuted: '#8A8A8A',
+  iconOnEnter: '#111111',
+
+  suggestionDivider: '#D5D5D5',
+
+  essentialsAccent: '#FFFFFF',
+
+  swipeTrail: '#8F8F8F',
+
+  launcherKey: '#EFEFEF',
+
+  chipSelectedBackground: '#FFFFFF',
+  chipSelectedText: '#111111',
+
+  borderSubtle: '#D2D2D2',
+
+  keyRipple: '#CFCFCF',
+};
+
+/** Quivox press motion — rounded caps swell slightly on touch. */
+export const QUIVOX_KEY_PRESS_SCALE = 1.08;
+/** Space is wide — keep the grow subtler so it doesn't balloon. */
+export const QUIVOX_SPACE_PRESS_SCALE = 1.03;
 
 /**
  * Macintosh — classic beige keyboard caps with warm off-white keys.
@@ -475,6 +515,28 @@ function paletteFor(
     return scheme === 'light' ? MACINTOSH_LIGHT_PALETTE : MACINTOSH_DARK_PALETTE;
   }
   return scheme === 'light' ? LIGHT_PALETTE : DARK_PALETTE;
+}
+
+/**
+ * Quivox press motion — circular/rounded caps grow slightly while held.
+ */
+export function keyboardKeyPressMotionStyle(
+  theme: KeyboardTheme,
+  pressed = false,
+  options?: {subtle?: boolean},
+): ViewStyle {
+  if (theme.design !== 'quivox') {
+    return {};
+  }
+
+  const scale = options?.subtle
+    ? QUIVOX_SPACE_PRESS_SCALE
+    : QUIVOX_KEY_PRESS_SCALE;
+
+  return {
+    transform: [{scale: pressed ? scale : 1}],
+    zIndex: pressed ? 4 : 0,
+  };
 }
 
 /**
@@ -635,6 +697,11 @@ export function createKeyboardTheme(
     design,
     scheme,
     isLandscape,
+    /**
+     * Label color for the space key face. Quivox keeps a light space bar in both
+     * schemes, so this stays dark even when `spaceLabel` is used as muted panel text.
+     */
+    spaceKeyLabel: design === 'quivox' ? '#111111' : palette.spaceLabel,
     /** @deprecated Use letterKey */
     key: palette.letterKey,
     /** @deprecated Use letterKeyPressed for letter keys, modifierKeyPressed for others */
@@ -648,7 +715,13 @@ export function createKeyboardTheme(
     keyHeight: layout.keyHeight,
     keyRowMargin: layout.keyRowMargin,
     keyGap: layout.keyGap,
-    keyRadius: design === 'macintosh' ? 8 : layout.keyRadius,
+    keyRadius:
+      design === 'macintosh'
+        ? 8
+        : design === 'quivox'
+          // Soft circular caps — nearly half key height so letter keys read as pills.
+          ? Math.max(14, Math.round(layout.keyHeight * 0.42))
+          : layout.keyRadius,
     enterKeyPreviewEnabled: layout.enterKeyPreviewEnabled,
     letterSymbolAlternatesEnabled: layout.letterSymbolAlternatesEnabled,
     letterLayoutId: layout.letterLayoutId,

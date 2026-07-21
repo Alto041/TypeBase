@@ -7,8 +7,13 @@ let loadGeneration = 0;
 
 export function isLearnableWord(word: string): boolean {
   const normalized = word.trim().toLowerCase();
-  // Accept any unicode letters (supports accented Latin, Cyrillic, Arabic, etc.).
-  return normalized.length >= 2 && /^[\p{L}\p{M}]+$/u.test(normalized);
+  // Letters only (no digits) — supports accented Latin, Cyrillic, Arabic, etc.
+  // Apostrophes allowed for contractions the user confirmed (it's, don't).
+  return (
+    normalized.length >= 2 &&
+    /^[\p{L}\p{M}']+$/u.test(normalized) &&
+    !normalized.includes("''")
+  );
 }
 
 export function normalizeLearnedWord(word: string): string {

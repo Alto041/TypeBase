@@ -223,7 +223,7 @@ function createSfxCategoryGridStyles(theme: KeyboardTheme, panelHeight: number) 
       flex: 1,
     },
     content: {
-      paddingHorizontal: 4,
+      paddingHorizontal: 10,
       paddingBottom: 8,
     },
     row: {

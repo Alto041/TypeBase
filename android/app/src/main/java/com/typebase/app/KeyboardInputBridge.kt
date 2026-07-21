@@ -208,9 +208,6 @@ object KeyboardInputBridge {
 
   /** Minimum gap between JS-only haptics (frame already fired for keyboard touches). */
   private const val JS_HAPTIC_DEBOUNCE_MS = 20L
-  /** Punchy key click — duration is the main lever once amplitude is maxed. */
-  private const val KEY_HAPTIC_DURATION_MS = 28L
-  private const val KEY_HAPTIC_AMPLITUDE = 255
 
   /**
    * IME touch-down haptic — fires before React on every keyboard touch so feedback
@@ -259,48 +256,60 @@ object KeyboardInputBridge {
     scheduleTapSound()
   }
 
+  /**
+   * Use the device haptic engine (key-press / heavy-click primitives), not a raw
+   * vibrator waveform buzz. Prefer View.performHapticFeedback(KEYBOARD_PRESS).
+   */
   private fun fireHapticPulse() {
+    val view = inputService?.keyboardViewForFeedback
+    if (view != null) {
+      if (Looper.myLooper() == Looper.getMainLooper()) {
+        performViewKeyPressHaptic(view)
+      } else {
+        mainHandler.post { performViewKeyPressHaptic(view) }
+      }
+      return
+    }
+    // No IME view yet — fall back to predefined haptic-engine effects.
+    hapticEngineClickFallback()
+  }
+
+  private fun performViewKeyPressHaptic(view: View) {
+    val flags =
+        HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING or
+            HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING
+    val ok =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+          // Virtual keyboard key-press primitive (haptic engine, not a buzz).
+          view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_PRESS, flags)
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+          view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, flags)
+        } else {
+          @Suppress("DEPRECATION")
+          view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY, flags)
+        }
+    if (!ok) {
+      hapticEngineClickFallback()
+    }
+  }
+
+  private fun hapticEngineClickFallback() {
     val ctx = inputService?.applicationContext ?: return
     val vib =
         vibrator
             ?: (ctx.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator)?.also { vibrator = it }
-    if (vib != null && vib.hasVibrator()) {
-      vib.cancel()
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        val effect =
-            if (vib.hasAmplitudeControl()) {
-              // Dual max-amplitude hits feel much heavier than a single short pulse.
-              VibrationEffect.createWaveform(
-                  longArrayOf(0, 20, 10, 24),
-                  intArrayOf(0, KEY_HAPTIC_AMPLITUDE, 0, KEY_HAPTIC_AMPLITUDE),
-                  -1,
-              )
-            } else {
-              VibrationEffect.createOneShot(KEY_HAPTIC_DURATION_MS, VibrationEffect.DEFAULT_AMPLITUDE)
-            }
-        vib.vibrate(effect)
-      } else {
-        @Suppress("DEPRECATION")
-        vib.vibrate(KEY_HAPTIC_DURATION_MS)
-      }
+            ?: return
+    if (!vib.hasVibrator()) {
       return
     }
-
-    val view = inputService?.keyboardViewForFeedback
-    if (view != null) {
-      val constant =
-          if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            HapticFeedbackConstants.CONFIRM
-          } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            HapticFeedbackConstants.KEYBOARD_TAP
-          } else {
-            @Suppress("DEPRECATION")
-            HapticFeedbackConstants.VIRTUAL_KEY
-          }
-      view.performHapticFeedback(
-          constant,
-          HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING,
-      )
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+      // Predefined effects still go through the haptic engine (press/click), not waveforms.
+      vib.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_HEAVY_CLICK))
+    } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+      vib.vibrate(VibrationEffect.createOneShot(20L, VibrationEffect.DEFAULT_AMPLITUDE))
+    } else {
+      @Suppress("DEPRECATION")
+      vib.vibrate(20L)
     }
   }
 

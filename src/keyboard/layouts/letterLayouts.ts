@@ -5,6 +5,7 @@ import {BOTTOM_ROW, SIDE_KEY_FLEX} from './sharedRows';
 export type LetterLayoutId =
   | 'en-us'
   | 'en-gb'
+  | 'hi-en'
   | 'fr-fr'
   | 'de-de'
   | 'es-es'
@@ -43,7 +44,8 @@ export const DEFAULT_LETTER_LAYOUT_ID: LetterLayoutId = 'en-us';
 export const LETTER_LAYOUT_CATALOG: LetterLayoutMeta[] = [
   {id: 'en-us', label: 'English (US)', language: 'English', family: 'QWERTY'},
   {id: 'en-gb', label: 'English (UK)', language: 'English', family: 'QWERTY'},
-  {id: 'fr-fr', label: 'Français (AZERTY)', language: 'French', family: 'AZERTY'},
+  {id: 'hi-en', label: 'Hinglish', language: 'Hinglish', family: 'QWERTY'},
+  {id: 'fr-fr', label: 'Français (Franglais)', language: 'French', family: 'AZERTY'},
   {id: 'de-de', label: 'Deutsch (QWERTZ)', language: 'German', family: 'QWERTZ'},
   {id: 'es-es', label: 'Español', language: 'Spanish', family: 'QWERTY'},
   {id: 'it-it', label: 'Italiano', language: 'Italian', family: 'QWERTY'},
@@ -150,6 +152,8 @@ function buildTurkishLayout(): KeyDefinition[][] {
 const LETTER_ROWS: Record<string, KeyDefinition[][]> = {
   'en-us': buildLetterLayout('qwertyuiop', 'asdfghjkl', 'zxcvbnm'),
   'en-gb': buildLetterLayout('qwertyuiop', 'asdfghjkl', 'zxcvbnm'),
+  // Same QWERTY as English — dictionary differs (English + Hinglish).
+  'hi-en': buildLetterLayout('qwertyuiop', 'asdfghjkl', 'zxcvbnm'),
   'fr-fr': buildLetterLayout('azertyuiop', 'qsdfghjklm', 'wxcvbn'),
   // QWERTZ without dedicated umlaut keys — ü/ö/ä/ß via long-press (like Gboard compact).
   'de-de': buildLetterLayout('qwertzuiop', 'asdfghjkl', 'yxcvbnm'),

@@ -14,7 +14,7 @@ import {triggerKeyHaptic} from '../haptics';
 import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
 import type {KeyDefinition} from '../layouts/qwerty';
 import type {KeyboardTheme} from '../theme';
-import {keyboardKeyChromeStyle} from '../theme';
+import {keyboardKeyChromeStyle, keyboardKeyPressMotionStyle} from '../theme';
 import type {KeyGesturesConfig} from './Key';
 import {MacintoshKeyBevels} from './MacintoshKeyBevels';
 
@@ -257,7 +257,11 @@ function PunctuationKeyComponent({
   );
 
   const label = keyDef.label;
-  const featureIconColor = theme.icon;
+  const featureIconColor =
+    theme.design === 'quivox' && showRewrite
+      ? theme.iconOnEnter
+      : theme.icon;
+  const isQuivox = theme.design === 'quivox';
   const content = showLauncher ? (
     <RocketLaunchIcon width={20} height={20} color={featureIconColor} />
   ) : showRewrite ? (
@@ -279,6 +283,7 @@ function PunctuationKeyComponent({
           {borderRadius: theme.keyRadius, minHeight: keyHeight},
           showRewrite && theme.design !== 'macintosh' && styles.rewriteKey,
           keyboardKeyChromeStyle(theme, pressed),
+          keyboardKeyPressMotionStyle(theme, isQuivox && pressed),
           pressed && styles.keyPressed,
         ]}>
         {theme.design === 'macintosh' ? (

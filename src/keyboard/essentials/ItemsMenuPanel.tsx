@@ -17,6 +17,7 @@ import AutocorrectIcon from '../../../assets/plugins/autocorrect.svg';
 import ArtificialIcon from '../../../assets/Artificial.svg';
 import GesturesIcon from '../../../assets/gesture.svg';
 import ResizeIcon from '../../../assets/resize.svg';
+import StatsIcon from '../../../assets/stats.svg';
 import {
   PLUGIN_INNER_RADIUS,
   PLUGIN_OUTER_RADIUS,
@@ -38,6 +39,7 @@ type ItemsMenuPanelProps = {
   onSelectCalculator: () => void;
   onSelectTouchpad: () => void;
   onSelectResize: () => void;
+  onSelectMetrics?: () => void;
 };
 
 type PluginTileProps = {
@@ -107,7 +109,7 @@ function getTileStyle(index: number, total: number): ViewStyle {
   };
 }
 
-const PLUGINS = [
+const BASE_PLUGINS = [
   {id: 'format', title: 'Format', Icon: ArtificialIcon},
   {id: 'essentials', title: 'Essentials', Icon: EssentialsIcon},
   {id: 'clipboard', title: 'Clipboard', Icon: ClipboardIcon},
@@ -118,6 +120,12 @@ const PLUGINS = [
   {id: 'resize', title: 'Keyboard Resize', Icon: ResizeIcon},
 ] as const;
 
+const QUIVOX_METRICS_PLUGIN = {
+  id: 'metrics',
+  title: 'Telemetry',
+  Icon: StatsIcon,
+} as const;
+
 export function ItemsMenuPanel({
   onSelectFormat,
   onSelectEssentials,
@@ -127,11 +135,16 @@ export function ItemsMenuPanel({
   onSelectCalculator,
   onSelectTouchpad,
   onSelectResize,
+  onSelectMetrics,
 }: ItemsMenuPanelProps) {
   const theme = useKeyboardTheme();
   const panelStyles = usePluginPanelStyles();
   const styles = useThemedStyles(createItemsMenuStyles);
-  const handlers = {
+  const plugins =
+    theme.design === 'quivox'
+      ? [...BASE_PLUGINS.slice(0, 4), QUIVOX_METRICS_PLUGIN, ...BASE_PLUGINS.slice(4)]
+      : [...BASE_PLUGINS];
+  const handlers: Record<string, (() => void) | undefined> = {
     format: onSelectFormat,
     essentials: onSelectEssentials,
     clipboard: onSelectClipboard,
@@ -140,18 +153,21 @@ export function ItemsMenuPanel({
     calculator: onSelectCalculator,
     touchpad: onSelectTouchpad,
     resize: onSelectResize,
+    metrics: onSelectMetrics,
   };
 
   return (
     <View style={[panelStyles.container, styles.container]}>
       <PluginScrollView fadeScrollInset>
-        {PLUGINS.map((plugin, index) => (
+        {plugins.map((plugin, index) => (
           <PluginTile
             key={plugin.id}
             title={plugin.title}
             Icon={plugin.Icon}
-            tileStyle={getTileStyle(index, PLUGINS.length)}
-            onPress={handlers[plugin.id]}
+            tileStyle={getTileStyle(index, plugins.length)}
+            onPress={() => {
+              handlers[plugin.id]?.();
+            }}
           />
         ))}
       </PluginScrollView>

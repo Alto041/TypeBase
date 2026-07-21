@@ -22,4 +22,5 @@ export type KeyboardMode =
   | {type: 'translate'}
   | {type: 'rewrite'}
   | {type: 'format'}
+  | {type: 'metrics'}
   | {type: 'resize'};

@@ -303,7 +303,9 @@ function createRewriteStyles(theme: KeyboardTheme) {
       fontWeight: '600',
     },
     toneChipTextSelected: {
-      color: theme.label,
+      // Quivox accent chips are white — use dark selected text.
+      color:
+        theme.design === 'quivox' ? theme.chipSelectedText : theme.label,
     },
     sourceCard: {
       minHeight: 44,

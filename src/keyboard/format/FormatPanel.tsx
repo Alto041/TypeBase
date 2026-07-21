@@ -403,7 +403,9 @@ function createFormatStyles(theme: KeyboardTheme) {
       fontWeight: '600',
     },
     chipTextSelected: {
-      color: theme.label,
+      // Quivox accent chips are white — use dark selected text.
+      color:
+        theme.design === 'quivox' ? theme.chipSelectedText : theme.label,
     },
     sourceCard: {
       minHeight: 44,

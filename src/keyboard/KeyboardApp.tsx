@@ -105,11 +105,19 @@ import {
   proofreadRecentTypingContext,
   type AiAutocorrectResult,
 } from './autocorrect/aiAutocorrectService';
-import {preloadActiveDictionary} from './autocorrect/dictionaryManager';
+import {getActiveLanguage, preloadActiveDictionary} from './autocorrect/dictionaryManager';
 import {GesturesPanel} from './gestures/GesturesPanel';
 import {TranslatePanel} from './translate/TranslatePanel';
 import {RewritePanel} from './rewrite/RewritePanel';
 import {FormatPanel} from './format/FormatPanel';
+import {MetricsPanel} from './metrics/MetricsPanel';
+import {
+  ensureMetricsLoaded,
+  recordAutocorrectCorrection,
+  recordKeystroke,
+  recordMetricsSessionStart,
+  recordWordCommitted,
+} from './metrics/metricsStore';
 import {
   endsWithRewriteCommand,
   REWRITE_COMMAND,
@@ -1069,6 +1077,12 @@ function KeyboardBody({
     resetCase();
   }, [resetCase]);
 
+  const openMetrics = useCallback(() => {
+    setMode({type: 'metrics'});
+    setLayout('letters');
+    resetCase();
+  }, [resetCase]);
+
   const closeResize = useCallback((saveOffset?: number) => {
     if (typeof saveOffset === 'number') {
       const baseHeight =
@@ -1405,9 +1419,15 @@ function KeyboardBody({
         setCurrentPrefix('');
         setTypedKeepSuggestion(null);
         setAutocorrectPreview(null);
-        setSuggestions([]);
         setEssentialSuggestions([]);
         setEssentialTriggerLength(0);
+        // Hinglish / Franglais: keep preferred-language starters visible between words.
+        if (getActiveLanguage() === 'hi-en' || getActiveLanguage() === 'fr-en') {
+          const barState = computeTypingSuggestionBar('', {fast: true});
+          setSuggestions(barState.suggestions);
+        } else {
+          setSuggestions([]);
+        }
         return;
       }
 
@@ -1436,6 +1456,7 @@ function KeyboardBody({
         edit,
       ];
       autocorrectRedoStackRef.current = [];
+      recordAutocorrectCorrection(edit.original, edit.correction);
     },
     [],
   );
@@ -1717,6 +1738,7 @@ function KeyboardBody({
         if (isDictionaryWord(lower) || (getLearnedCounts().get(lower) ?? 0) > 0) {
           recordLearnedWord(typedWord);
         }
+        recordWordCommitted();
       }
       learnPhrasesFromContext(context);
 
@@ -1761,12 +1783,14 @@ function KeyboardBody({
         ensureAutocorrectLoaded(),
         ensureApiKeysLoaded(),
         ensureAiProviderLoaded(),
+        ensureMetricsLoaded(),
         reloadGesturesFromStorage(),
       ]).finally(() => {
         reloadEssentials();
         void reloadClipboard();
         void reloadGestures();
         void reloadAutocorrect();
+        recordMetricsSessionStart();
         refreshSuggestions();
       });
     });
@@ -1922,6 +1946,7 @@ function KeyboardBody({
           } else {
             recordLearnedWord(word);
           }
+          recordAutocorrectCorrection(currentPrefix, word);
           keyboardBridge.replaceWordPrefix(currentPrefix.length, word);
         } else if (word.includes(' ')) {
           // Phrase suggestions replace a run of recent words from context.
@@ -1932,6 +1957,7 @@ function KeyboardBody({
           for (const part of word.split(' ')) {
             recordLearnedWord(part);
           }
+          recordWordCommitted();
         } else {
           recordLearnedWord(word);
           if (!currentPrefix) {
@@ -1939,6 +1965,7 @@ function KeyboardBody({
           } else {
             keyboardBridge.replaceWordPrefix(currentPrefix.length, word);
           }
+          recordWordCommitted();
         }
         keyboardBridge.insertText(' ');
         scheduleAiProofread();
@@ -2153,6 +2180,7 @@ function KeyboardBody({
 
       switch (keyDef.type) {
         case 'backspace':
+          recordKeystroke('backspace');
           keyboardBridge.deleteBackward();
           livePrefixRef.current = livePrefixRef.current.slice(0, -1);
           lastTypingAtRef.current = Date.now();
@@ -2226,6 +2254,7 @@ function KeyboardBody({
                 ? consumeLetterCommitText(keyDef.value)
                 : keyDef.value;
             keyboardBridge.insertText(text);
+            recordKeystroke(/[a-z0-9]/i.test(text) ? 'char' : 'other');
             if (layout === 'letters' && mode.type === 'typing') {
               hasTypedInFieldRef.current = true;
               if (/[a-z]/i.test(text)) {
@@ -2355,6 +2384,7 @@ function KeyboardBody({
 
   const applyCommittedKeyTextSideEffects = useCallback(
     (text: string) => {
+      recordKeystroke(/[a-z0-9]/i.test(text) ? 'char' : 'other');
       if (layoutRef.current === 'letters' && modeRef.current.type === 'typing') {
         hasTypedInFieldRef.current = true;
         if (/[a-z]/i.test(text)) {
@@ -2470,6 +2500,8 @@ function KeyboardBody({
       markTyping();
       clearClipboardPasteSuggestion();
       recordLearnedWord(word);
+      recordWordCommitted();
+      recordKeystroke('char');
       keyboardBridge.insertText(word);
       keyboardBridge.insertText(' ');
       if (shiftOn && !capsLocked) {
@@ -2558,7 +2590,8 @@ function KeyboardBody({
     mode.type === 'gestures' ||
     mode.type === 'autocorrect' ||
     mode.type === 'calculator' ||
-    mode.type === 'touchpad';
+    mode.type === 'touchpad' ||
+    mode.type === 'metrics';
 
   const handleCalculatorInsert = useCallback((value: string) => {
     if (!value || value === 'Error' || value === '0') {
@@ -2714,6 +2747,7 @@ function KeyboardBody({
       mode.type === 'autocorrect' ||
       mode.type === 'calculator' ||
       mode.type === 'touchpad' ||
+      mode.type === 'metrics' ||
       mode.type === 'rewrite' ||
       mode.type === 'format' ||
       mode.type === 'translate' ||
@@ -2863,6 +2897,7 @@ function KeyboardBody({
             mode.type === 'autocorrect' ||
             mode.type === 'calculator' ||
             mode.type === 'touchpad' ||
+            mode.type === 'metrics' ||
             mode.type === 'translate' ||
             mode.type === 'rewrite' ||
             mode.type === 'format'
@@ -3015,6 +3050,8 @@ function KeyboardBody({
                         ? 'Calculator'
                         : mode.type === 'touchpad'
                           ? 'Touchpad'
+                          : mode.type === 'metrics'
+                            ? 'Telemetry'
                           : mode.type === 'translate'
                             ? 'Translate'
                             : mode.type === 'rewrite'
@@ -3092,6 +3129,9 @@ function KeyboardBody({
               }}
               onSelectResize={() => {
                 openResize();
+              }}
+              onSelectMetrics={() => {
+                openMetrics();
               }}
             />
           ) : null}
@@ -3171,6 +3211,8 @@ function KeyboardBody({
               }}
             />
           ) : null}
+
+          {mode.type === 'metrics' ? <MetricsPanel /> : null}
 
           {mode.type === 'essentials-list' ? (
             <EssentialsListPanel
@@ -3258,6 +3300,7 @@ export default function KeyboardApp() {
     Geist: require('../../assets/Geist-VariableFont_wght.ttf'),
     Chicago: require('../../assets/Chicago.ttf'),
     Ndot: require('../../assets/Ndot-55.otf'),
+    Pixel: require('../../assets/pixel.ttf'),
   });
   const [colorScheme, setColorScheme] =
     useState<KeyboardColorScheme>('light');

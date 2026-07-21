@@ -208,7 +208,7 @@ function createGifCategoryGridStyles(theme: KeyboardTheme, panelHeight: number) 
       flex: 1,
     },
     content: {
-      paddingHorizontal: 6,
+      paddingHorizontal: 10,
       paddingTop: 2,
       gap: 6,
       paddingBottom: 8,

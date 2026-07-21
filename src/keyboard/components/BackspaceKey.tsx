@@ -15,7 +15,7 @@ import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
 import {keyboardBridge} from '../keyboardBridge';
 import type {KeyDefinition} from '../layouts/qwerty';
 import type {KeyboardTheme} from '../theme';
-import {keyboardKeyChromeStyle} from '../theme';
+import {keyboardKeyChromeStyle, keyboardKeyPressMotionStyle} from '../theme';
 import {MacintoshKeyBevels} from './MacintoshKeyBevels';
 import type {KeyGesturesConfig} from './Key';
 
@@ -214,6 +214,7 @@ function BackspaceKeyComponent({
   );
 
   const borderRadius = isEnterBackspace ? keyHeight / 2 : theme.keyRadius;
+  const isQuivox = theme.design === 'quivox';
 
   return (
     <View
@@ -234,9 +235,11 @@ function BackspaceKeyComponent({
             minHeight: keyHeight,
           },
           keyboardKeyChromeStyle(theme, pressed),
+          keyboardKeyPressMotionStyle(theme, isQuivox && pressed),
           pressed && styles.modifierKeyPressed,
           pressed &&
             theme.design !== 'macintosh' &&
+            theme.design !== 'quivox' &&
             styles.symbolKeyPressedFade,
         ]}>
         {theme.design === 'macintosh' ? (

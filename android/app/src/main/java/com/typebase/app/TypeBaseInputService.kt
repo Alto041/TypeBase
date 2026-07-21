@@ -783,6 +783,9 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
         return true
       }
 
+      // Commit text first, then haptic — never stall InputConnection behind the vibrator.
+      nativeKeyFastPath.onTouchEvent(event)
+
       when (event.actionMasked) {
         MotionEvent.ACTION_DOWN,
         MotionEvent.ACTION_POINTER_DOWN -> {
@@ -799,7 +802,6 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
         }
       }
 
-      nativeKeyFastPath.onTouchEvent(event)
       super.dispatchTouchEvent(event)
       if (KeyboardInputBridge.isTouchpadGestureConsuming()) {
         return true

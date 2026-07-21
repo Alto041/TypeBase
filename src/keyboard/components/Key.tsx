@@ -1,6 +1,7 @@
 import React, {memo, useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
   findNodeHandle,
+  Image,
   PanResponder,
   Platform,
   Pressable,
@@ -38,8 +39,14 @@ import {getLetterSymbolHint} from '../keyAlternates';
 import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
 import type {KeyDefinition} from '../layouts/qwerty';
 import type {KeyboardTheme} from '../theme';
-import {keyboardKeyChromeStyle, keyboardTypefaceStyle} from '../theme';
+import {
+  keyboardKeyChromeStyle,
+  keyboardKeyPressMotionStyle,
+  keyboardTypefaceStyle,
+} from '../theme';
 import {MacintoshKeyBevels} from './MacintoshKeyBevels';
+
+const QUIVOX_SPACE_LOGO = require('../../../assets/quivox_logo.png');
 
 const COMMA_HOLD_DELAY_MS = 400;
 const PERIOD_HOLD_DELAY_MS = 400;
@@ -114,6 +121,7 @@ function KeyComponent({
   // fonts can blank key labels on typebase/quivox letter keys.
   const [keyPressed, setKeyPressed] = useState(false);
   const isMacintosh = theme.design === 'macintosh';
+  const isQuivox = theme.design === 'quivox';
   const isSpaceKey = keyDef.type === 'space';
   const usesMultiTouchRouter = isMultiTouchTextKey(keyDef);
   const usesMultiTouchDispatch =
@@ -360,7 +368,10 @@ function KeyComponent({
   const featureIconColor =
     theme.design === 'macintosh' && (showLauncher || showRewrite)
       ? theme.icon
-      : keyIconColor;
+      : theme.design === 'quivox' && showRewrite
+        ? // White rewrite cap — keep the Artificial icon black.
+          theme.iconOnEnter
+        : keyIconColor;
   const ShiftStateIcon = isCapsLocked
     ? ShiftLockIcon
     : isShiftOn
@@ -369,7 +380,7 @@ function KeyComponent({
 
   const keyContent = isEnterAction ? (
     theme.design === 'quivox' && isEnterKey ? (
-      <QuivoxEnterIcon width={22} height={19} />
+      <QuivoxEnterIcon width={22} height={19} color={keyIconColor} />
     ) : isEnterKey && enterKeyNextLineEnabled ? (
       <NextLineIcon width={20} height={20} color={keyIconColor} />
     ) : (
@@ -402,7 +413,20 @@ function KeyComponent({
         {displayLabel ?? 'space'}
       </Text>
       <View style={styles.spaceMacintoshApple}>
-        <AppleIcon width={18} height={18} color={theme.spaceLabel} />
+        <AppleIcon width={18} height={18} color={theme.spaceKeyLabel} />
+      </View>
+    </View>
+  ) : isSpaceKey && isQuivox ? (
+    <View style={styles.spaceMacintoshRow}>
+      <Text style={[styles.keyLabel, styles.spaceLabel]}>
+        {displayLabel ?? 'space'}
+      </Text>
+      <View style={styles.spaceQuivoxLogo}>
+        <Image
+          source={QUIVOX_SPACE_LOGO}
+          style={styles.spaceQuivoxLogoImage}
+          resizeMode="contain"
+        />
       </View>
     </View>
   ) : (
@@ -698,6 +722,9 @@ function KeyComponent({
             keyPressed &&
               (isSpaceKey ? styles.spaceKeyPressed : styles.letterKeyPressed),
             keyboardKeyChromeStyle(theme, isMacintosh && keyPressed),
+            keyboardKeyPressMotionStyle(theme, isQuivox && keyPressed, {
+              subtle: isSpaceKey,
+            }),
           ]}>
           {isMacintosh ? (
             <MacintoshKeyBevels
@@ -776,6 +803,9 @@ function KeyComponent({
             isShift && isCapsLocked && styles.shiftKeyLocked,
             isEnterAction && styles.enterKey,
             keyboardKeyChromeStyle(theme, pressed),
+            keyboardKeyPressMotionStyle(theme, isQuivox && pressed, {
+              subtle: isSpaceKey,
+            }),
             pressed &&
               !showLauncher &&
               !showRewrite &&
@@ -792,6 +822,7 @@ function KeyComponent({
               isNonAlphaSymbolKey &&
               !isEnterAction &&
               theme.design !== 'macintosh' &&
+              theme.design !== 'quivox' &&
               styles.symbolKeyPressedFade,
           ]}>
         {({pressed}) => (
@@ -888,12 +919,13 @@ function createKeyStyles(theme: KeyboardTheme) {
     },
     symbolHint: {
       position: 'absolute',
-      right: 3,
-      bottom: 2,
+      // Pull inward on rounder caps so symbols don't sit in the corner curve.
+      right: Math.max(4, Math.round(theme.keyRadius * 0.4)),
+      bottom: Math.max(3, Math.round(theme.keyRadius * 0.28)),
       color: theme.iconMuted,
-      fontSize: 9,
+      fontSize: theme.design === 'quivox' ? 8 : 9,
       ...keyboardTypefaceStyle(theme, '500'),
-      lineHeight: 10,
+      lineHeight: theme.design === 'quivox' ? 9 : 10,
     },
     specialKeyLabel: {
       fontSize: 15,
@@ -905,7 +937,7 @@ function createKeyStyles(theme: KeyboardTheme) {
     },
     spaceLabel: {
       fontSize: 16,
-      color: theme.spaceLabel,
+      color: theme.spaceKeyLabel,
       fontWeight: '400',
     },
     spaceMacintoshRow: {
@@ -918,10 +950,19 @@ function createKeyStyles(theme: KeyboardTheme) {
       justifyContent: 'center',
       alignItems: 'center',
     },
+    spaceQuivoxLogo: {
+      marginTop: 2,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    spaceQuivoxLogoImage: {
+      width: 12,
+      height: 12,
+    },
     spaceNothingMark: {
       fontFamily: 'Ndot',
       fontSize: 15,
-      color: theme.spaceLabel,
+      color: theme.spaceKeyLabel,
     },
   });
 }

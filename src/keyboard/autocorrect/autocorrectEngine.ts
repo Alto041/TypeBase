@@ -9,6 +9,7 @@ import {
   lookupCandidatesSync,
   lookupCompoundSync,
 } from './dictionaryManager';
+import {getHinglishPhraseCorrection, isHinglishHeadword} from './hinglishDictionary';
 
 const WORDS = englishWords as string[];
 const STATIC_RANK = new Map<string, number>(
@@ -34,6 +35,19 @@ const SUPPLEMENTAL_EN_WORDS: Array<[string, number]> = [
   ['vibe', 4200],
   ['vibes', 4300],
   ['cringe', 5100],
+  // Common spoken forms missing from the ~10k list.
+  ['anyways', 3200],
+  ['gonna', 2500],
+  ['wanna', 2600],
+  ['gotta', 2700],
+  ["it's", 90],
+  ["don't", 50],
+  ["can't", 120],
+  ["won't", 200],
+  ["i'm", 80],
+  ["that's", 110],
+  ["you're", 150],
+  ["they're", 180],
 ];
 for (const [word, rank] of SUPPLEMENTAL_EN_WORDS) {
   if (!STATIC_RANK.has(word)) {
@@ -80,9 +94,14 @@ const COMMON_WORD_RANK = 3500;
 /** For non-English languages we are a bit more conservative on pure fuzzy auto-apply
  * unless the user has already learned the word or we have a very strong exact fix.
  */
+/** English + bilingual Latin layouts that should fuzzy-correct OOV typos. */
+function isEnglishLikeLang(lang = getActiveLanguage()): boolean {
+  return lang === 'en' || lang === 'hi-en' || lang === 'fr-en';
+}
+
 function getEffectiveMinAutoConfidence(learnedUses: number, fromExactFix: boolean): number {
   const lang = getActiveLanguage();
-  if (lang === 'en') return MIN_AUTO_CONFIDENCE;
+  if (isEnglishLikeLang(lang)) return MIN_AUTO_CONFIDENCE;
   if (learnedUses >= 1 || fromExactFix) return MIN_AUTO_CONFIDENCE;
   // Italian (and future dedicated dicts) still allow good 1-edit cases,
   // but we avoid borderline auto-corrects for words the user may have intended.
@@ -92,6 +111,33 @@ const MISSING_SPACE_MIN_LENGTH = 6;
 const MISSING_SPACE_STRONG_RANK = 12_000;
 const FREQUENT_WORD_SCAN_LIMIT = 1000;
 const FREQUENT_FALLBACK_LIMIT = 2000;
+
+/** Common phone-keyboard digit→letter slips (h3llo → hello). */
+const LEET_DIGIT_TO_LETTER: Record<string, string> = {
+  '0': 'o',
+  '1': 'i',
+  '3': 'e',
+  '4': 'a',
+  '5': 's',
+  '7': 't',
+  '8': 'b',
+};
+
+/**
+ * Accept letters, digits, and apostrophes; map leet digits to letters.
+ * Returns null when the token still isn't a usable word after normalization.
+ */
+function normalizeAutocorrectToken(typed: string): string | null {
+  const lower = typed.trim().toLowerCase();
+  if (lower.length < 2 || !/^[\p{L}\p{M}0-9']+$/u.test(lower)) {
+    return null;
+  }
+  const mapped = lower.replace(/[0134578]/g, ch => LEET_DIGIT_TO_LETTER[ch] ?? ch);
+  if (!/^[\p{L}\p{M}']+$/u.test(mapped)) {
+    return null;
+  }
+  return mapped;
+}
 
 /** Very common 1–2 letter words allowed in a split (blocks junk like "th", "ng"). */
 const SHORT_SEGMENT_WORDS = new Set<string>(['a', 'i']);
@@ -199,10 +245,13 @@ function findMissingSpaceCorrection(
     return null;
   }
 
-  // Real dictionary words are never split. Learned *custom* words (not in the
-  // dict) may still be run-ons the user typed once — only skip those after
-  // they've been reinforced several times (e.g. via the keep chip).
-  if (STATIC_RANK.has(typed)) {
+  // Real dictionary words are never split — including Hinglish headwords like
+  // "batana" (English STATIC_RANK alone would wrongly allow bat+ana).
+  if (STATIC_RANK.has(typed) || isHinglishHeadword(typed)) {
+    return null;
+  }
+  const lang = getActiveLanguage();
+  if (lang !== 'en' && getBaseWords(lang).includes(typed)) {
     return null;
   }
   if (learnedUses >= 3) {
@@ -210,6 +259,12 @@ function findMissingSpaceCorrection(
   }
 
   if (isLikelyIncompleteWord(typed)) {
+    return null;
+  }
+
+  // On Hinglish, don't invent English-only splits (bat|ana). Real multi-word
+  // Hinglish fixes come from the underscore→space phrase map instead.
+  if (lang === 'hi-en') {
     return null;
   }
 
@@ -360,6 +415,14 @@ function isProtectedWord(word: string, learnedUses: number): boolean {
     if (rank != null && rank < COMMON_WORD_RANK) return true;
     // Known dictionary word the user has typed before — leave it alone.
     if (rank != null && learnedUses >= 1) return true;
+  } else if (lang === 'hi-en' || lang === 'fr-en') {
+    // Protect common English + top preferred-language tokens (Hinglish / French).
+    const enRank = STATIC_RANK.get(word);
+    if (enRank != null && enRank < COMMON_WORD_RANK) return true;
+    const base = getBaseWords(lang);
+    const idx = base.indexOf(word);
+    if (idx >= 0 && idx < 2_500) return true;
+    if ((enRank != null || idx >= 0) && learnedUses >= 1) return true;
   } else {
     // Protect words that are common in the active language's dictionary.
     const base = getBaseWords(lang);
@@ -476,11 +539,14 @@ function isPlausibleTypo(
   }
 
   const prefix = sharedPrefixLength(typed, candidate);
+  // 2-edit mid-word typos (aneyays → anyways) often share only 2 letters.
   return (
     edits === 2 &&
     typed.length >= 5 &&
-    staticRank < 7000 &&
-    prefix >= Math.min(3, typed.length - 2)
+    staticRank < 12_000 &&
+    typed[0] === candidate[0] &&
+    Math.abs(typed.length - candidate.length) <= 1 &&
+    prefix >= Math.min(2, typed.length - 2)
   );
 }
 
@@ -524,11 +590,15 @@ function shouldRejectFuzzyCorrection(
   const typedRank =
     lang === 'en'
       ? STATIC_RANK.get(typed)
-      : getBaseWords(lang).indexOf(typed);
+      : (() => {
+          const idx = getBaseWords(lang).indexOf(typed);
+          return idx >= 0 ? idx : undefined;
+        })();
 
-  // Explicit: in non-English, if the typed word is not in our dictionary at all,
-  // reject fuzzy corrections (prevents "scusi" → closest listed word).
-  if (lang !== 'en') {
+  // Explicit: in non-English dedicated dicts, if the typed word is not in our
+  // dictionary at all, reject fuzzy corrections (prevents "scusi" → closest
+  // listed word). Hinglish / Franglais are English-like: OOV typos still fuzzy-match.
+  if (!isEnglishLikeLang(lang)) {
     const idx = getBaseWords(lang).indexOf(typed);
     if (idx < 0 && learnedUses === 0) {
       return true;
@@ -662,6 +732,8 @@ function toConfidence(
   }
   if (staticRank < 1200) {
     confidence += 0.07;
+  } else if (staticRank < 4000 && edits <= 2) {
+    confidence += 0.04;
   }
   if (candidate.length > typed.length && candidate.startsWith(typed)) {
     confidence += 0.08;
@@ -670,6 +742,25 @@ function toConfidence(
   if (edits === 1 && prefix >= typed.length - 1) {
     // Classic fat-finger: blowong → blowing
     confidence += 0.1;
+  }
+  // Extra repeated letter (eeveryone → everyone, helllo → hello).
+  if (
+    edits === 1 &&
+    typed.length === candidate.length + 1 &&
+    typed[0] === candidate[0]
+  ) {
+    for (let i = 1; i < typed.length; i += 1) {
+      if (typed[i] === typed[i - 1]) {
+        const collapsed = typed.slice(0, i) + typed.slice(i + 1);
+        if (collapsed === candidate) {
+          confidence += 0.12;
+          break;
+        }
+      }
+    }
+  }
+  if (edits === 2 && typed[0] === candidate[0] && prefix >= 2) {
+    confidence += 0.08;
   }
   if (typed[0] !== candidate[0] && !isAdjacentTransposition(typed, candidate)) {
     confidence -= 0.35;
@@ -877,7 +968,8 @@ export function getTypoSuggestionPreview(
   fast = false,
 ): string | null {
   const typed = typedWord.trim();
-  if (typed.length < 2 || !/^[\p{L}\p{M}]+$/u.test(typed)) {
+  const normalized = normalizeAutocorrectToken(typed);
+  if (!normalized) {
     return null;
   }
   getActiveLanguage(); // SymSpell language is active
@@ -885,11 +977,31 @@ export function getTypoSuggestionPreview(
     return null;
   }
 
-  const lower = typed.toLowerCase();
+  const lower = normalized;
   const learnedUses = getLearnedCounts().get(lower) ?? 0;
   const exactFix = getExactDictionaryFix(lower);
   if (exactFix) {
     return applyCaseToWord(exactFix.correction, typed);
+  }
+
+  if (isEnglishLikeLang()) {
+    const collapsed = findRepeatedLetterCollapse(lower);
+    if (collapsed && collapsed !== lower) {
+      return applyCaseToWord(collapsed, typed);
+    }
+  }
+
+  if (getActiveLanguage() === 'hi-en') {
+    const phraseFix = getHinglishPhraseCorrection(lower);
+    if (phraseFix && phraseFix !== lower) {
+      return applyCaseToWord(phraseFix, typed);
+    }
+  }
+
+  // Digit slips that land on a real word (h3llo → hello).
+  const rawLower = typed.toLowerCase();
+  if (lower !== rawLower && isInActiveDictionary(lower)) {
+    return applyCaseToWord(lower, typed);
   }
 
   const missingSpace = findMissingSpaceCorrection(lower, learnedUses);
@@ -905,8 +1017,9 @@ export function getTypoSuggestionPreview(
   // that are not present in the language dictionary. This prevents perfectly
   // valid but unlisted words ("scusi", "nessun problema", ...) from being
   // mangled to the closest seeded word. Exact fixes + learned words still work.
+  // Hinglish / Franglais stay English-like for OOV typos.
   const lang = getActiveLanguage();
-  if (lang !== 'en' && !getBaseWords(lang).includes(lower) && learnedUses === 0) {
+  if (!isEnglishLikeLang(lang) && !getBaseWords(lang).includes(lower) && learnedUses === 0) {
     return null;
   }
 
@@ -920,11 +1033,34 @@ export function getTypoSuggestionPreview(
   return applyCaseToWord(best.word, typed);
 }
 
+/** Collapse one accidental double letter when that yields a real word (eeveryone → everyone). */
+function findRepeatedLetterCollapse(typed: string): string | null {
+  let best: {word: string; rank: number} | null = null;
+  for (let i = 1; i < typed.length; i += 1) {
+    if (typed[i] !== typed[i - 1]) {
+      continue;
+    }
+    const collapsed = typed.slice(0, i) + typed.slice(i + 1);
+    if (collapsed.length < 2) {
+      continue;
+    }
+    const rank = STATIC_RANK.get(collapsed);
+    if (rank == null) {
+      continue;
+    }
+    if (!best || rank < best.rank) {
+      best = {word: collapsed, rank};
+    }
+  }
+  return best?.word ?? null;
+}
+
 export function getAutocorrectCandidate(
   typedWord: string,
 ): AutocorrectCandidate | null {
   const typed = typedWord.trim();
-  if (typed.length < 2 || !/^[\p{L}\p{M}]+$/u.test(typed)) {
+  const normalized = normalizeAutocorrectToken(typed);
+  if (!normalized) {
     return null;
   }
   getActiveLanguage(); // SymSpell language is active
@@ -932,15 +1068,47 @@ export function getAutocorrectCandidate(
     return null;
   }
 
-  const lower = typed.toLowerCase();
+  const lower = normalized;
+  const rawLower = typed.toLowerCase();
   const learned = getLearnedCounts();
-  const learnedUses = learned.get(lower) ?? 0;
+  const learnedUses =
+    learned.get(lower) ?? learned.get(rawLower) ?? 0;
 
   const exactFix = getExactDictionaryFix(lower);
   if (exactFix) {
     return {
       correction: applyCaseToWord(exactFix.correction, typed),
       confidence: exactFix.confidence,
+    };
+  }
+
+  // Fast path: accidental double letter (eeveryone → everyone, helllo → hello).
+  if (isEnglishLikeLang()) {
+    const collapsed = findRepeatedLetterCollapse(lower);
+    if (collapsed && collapsed !== lower) {
+      return {
+        correction: applyCaseToWord(collapsed, typed),
+        confidence: 0.93,
+      };
+    }
+  }
+
+  // Hinglish: underscore phrases → spaced (aarahahai → aa raha hai).
+  if (getActiveLanguage() === 'hi-en') {
+    const phraseFix = getHinglishPhraseCorrection(lower);
+    if (phraseFix && phraseFix !== lower) {
+      return {
+        correction: applyCaseToWord(phraseFix, typed),
+        confidence: 0.93,
+      };
+    }
+  }
+
+  // Leet / digit slip that resolves to a dictionary word.
+  if (lower !== rawLower && isInActiveDictionary(lower)) {
+    return {
+      correction: applyCaseToWord(lower, typed),
+      confidence: 0.93,
     };
   }
 
@@ -956,9 +1124,18 @@ export function getAutocorrectCandidate(
   }
 
   const compound = lookupCompoundSync(lower);
-  if (compound && compound.term && compound.term.includes(' ') && compound.distance <= 1) {
+  if (
+    compound &&
+    compound.term &&
+    compound.term.includes(' ') &&
+    compound.distance <= 1 &&
+    !isHinglishHeadword(lower)
+  ) {
     const lang = getActiveLanguage();
-    const known = lang === 'en' || getBaseWords(lang).includes(lower) || learnedUses > 0;
+    const known =
+      isEnglishLikeLang(lang) ||
+      getBaseWords(lang).includes(lower) ||
+      learnedUses > 0;
     if (known) {
       return {
         correction: applyCaseToWord(compound.term, typed),
@@ -978,8 +1155,9 @@ export function getAutocorrectCandidate(
   // Non-English guard: if the word is unknown to this language's dictionary and
   // not learned + not an exact fix, do not fuzzy auto-correct it.
   // (SymSpell may still be used for suggestions, but auto-apply stays conservative.)
-  const lang = getActiveLanguage();
-  if (lang !== 'en' && !getBaseWords(lang).includes(lower) && learnedUses === 0) {
+  // Hinglish / Franglais are English-like — allow OOV fuzzy against the combined dictionary.
+  const langGate = getActiveLanguage();
+  if (!isEnglishLikeLang(langGate) && !getBaseWords(langGate).includes(lower) && learnedUses === 0) {
     return null;
   }
 
@@ -988,71 +1166,67 @@ export function getAutocorrectCandidate(
     return null;
   }
 
-  let best: {
-    word: string;
-    edits: number;
-    learnedUses: number;
-    staticRank: number;
-    score: number;
-  } | null = null;
+  const ranked = candidates
+    .map(candidate => ({
+      ...candidate,
+      score: scoreCandidate(
+        lower,
+        candidate.word,
+        candidate.edits,
+        candidate.learnedUses,
+        candidate.staticRank,
+      ),
+    }))
+    .sort((left, right) => left.score - right.score);
 
-  for (const candidate of candidates) {
-    const score = scoreCandidate(
-      lower,
-      candidate.word,
-      candidate.edits,
-      candidate.learnedUses,
-      candidate.staticRank,
-    );
-    if (!best || score < best.score) {
-      best = {...candidate, score};
+  for (const best of ranked) {
+    if (isLikelyNameTrap(lower, best.word)) {
+      continue;
     }
-  }
 
-  if (!best || isLikelyNameTrap(lower, best.word)) {
-    return null;
-  }
+    if (
+      shouldRejectFuzzyCorrection(
+        lower,
+        best.word,
+        best.edits,
+        best.learnedUses,
+        best.staticRank,
+      )
+    ) {
+      continue;
+    }
 
-  if (
-    shouldRejectFuzzyCorrection(
+    const learnedCorrection = best.learnedUses >= 2;
+    if (
+      !learnedCorrection &&
+      !isPlausibleTypo(lower, best.word, best.edits, best.staticRank)
+    ) {
+      continue;
+    }
+
+    const confidence = toConfidence(
       lower,
       best.word,
       best.edits,
       best.learnedUses,
       best.staticRank,
-    )
-  ) {
-    return null;
+    );
+    const effMin = getEffectiveMinAutoConfidence(best.learnedUses, false);
+    if (confidence < effMin) {
+      continue;
+    }
+
+    if (shouldBlockAutoCorrection(lower, best.word, best.edits)) {
+      continue;
+    }
+
+    return {
+      correction: applyCaseToWord(best.word, typed),
+      confidence,
+    };
   }
 
-  const learnedCorrection = best.learnedUses >= 2;
-  if (
-    !learnedCorrection &&
-    !isPlausibleTypo(lower, best.word, best.edits, best.staticRank)
-  ) {
-    return null;
-  }
-
-  const confidence = toConfidence(
-    lower,
-    best.word,
-    best.edits,
-    best.learnedUses,
-    best.staticRank,
-  );
-  const effMin = getEffectiveMinAutoConfidence(best.learnedUses, false);
-  if (confidence < effMin) {
-    return null;
-  }
-
-  if (shouldBlockAutoCorrection(lower, best.word, best.edits)) {
-    return null;
-  }
-
-  return {
-    correction: applyCaseToWord(best.word, typed),
-    confidence,
-  };
+  return null;
 }
 
 /** True when the word is in the active language dictionary (safe to auto-learn on space). */
@@ -1065,7 +1239,14 @@ export function isDictionaryWord(word: string): boolean {
     return true;
   }
   const lang = getActiveLanguage();
-  return lang !== 'en' && getBaseWords(lang).includes(lower);
+  if (lang === 'en') {
+    return false;
+  }
+  return getBaseWords(lang).includes(lower);
+}
+
+function isInActiveDictionary(lower: string): boolean {
+  return isDictionaryWord(lower);
 }
 
 export function getAutocorrectPreview(typedWord: string): string | null {
@@ -1081,7 +1262,8 @@ export function getSuggestionBarAutocorrect(
   correction: string | null;
 } {
   const typed = typedWord.trim();
-  if (typed.length < 2 || !/^[\p{L}\p{M}]+$/u.test(typed)) {
+  const normalized = normalizeAutocorrectToken(typed);
+  if (!normalized) {
     return {keepTyped: null, correction: null};
   }
   getActiveLanguage(); // SymSpell language is active
@@ -1089,19 +1271,37 @@ export function getSuggestionBarAutocorrect(
     return {keepTyped: null, correction: null};
   }
 
-  const lower = typed.toLowerCase();
+  const lower = normalized;
   const learnedUses = getLearnedCounts().get(lower) ?? 0;
   const offerKeepTyped = learnedUses === 0;
 
   const exactFix = getExactDictionaryFix(lower);
   if (exactFix) {
     const correction = applyCaseToWord(exactFix.correction, typed);
-    if (correction.toLowerCase() === lower) {
+    if (correction.toLowerCase() === typed.toLowerCase()) {
       return {keepTyped: null, correction: null};
     }
     return {
       keepTyped: offerKeepTyped ? typed : null,
       correction,
+    };
+  }
+
+  if (getActiveLanguage() === 'hi-en') {
+    const phraseFix = getHinglishPhraseCorrection(lower);
+    if (phraseFix && phraseFix !== lower) {
+      return {
+        keepTyped: offerKeepTyped ? typed : null,
+        correction: applyCaseToWord(phraseFix, typed),
+      };
+    }
+  }
+
+  const rawLower = typed.toLowerCase();
+  if (lower !== rawLower && isInActiveDictionary(lower)) {
+    return {
+      keepTyped: offerKeepTyped ? typed : null,
+      correction: applyCaseToWord(lower, typed),
     };
   }
 
@@ -1123,7 +1323,7 @@ export function getSuggestionBarAutocorrect(
     softCorrection ??
     (fast ? null : getAutocorrectCandidate(typed)?.correction ?? null);
 
-  if (!correction || correction.toLowerCase() === lower) {
+  if (!correction || correction.toLowerCase() === typed.toLowerCase()) {
     if (isPreserveTypedWord(lower) && offerKeepTyped) {
       return {keepTyped: typed, correction: null};
     }

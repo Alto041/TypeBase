@@ -33,8 +33,10 @@ export function getAutocorrectLanguage(layoutId: LetterLayoutId): string {
     case 'en-us':
     case 'en-gb':
       return 'en';
+    case 'hi-en':
+      return 'hi-en';
     case 'fr-fr':
-      return 'fr';
+      return 'fr-en';
     case 'de-de':
       return 'de';
     case 'es-es':

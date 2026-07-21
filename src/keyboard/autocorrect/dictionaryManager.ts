@@ -1,6 +1,13 @@
 import englishWords from '../gesture/data/englishWords.json';
 import italianWords from './data/italianWords.json';
 import germanWords from './data/de_words.json';
+import frenchWords from './data/french_words.json';
+import {
+  buildHinglishCombinedTokenList,
+  getHinglishPhrases,
+  getHinglishSymSpellTokens,
+  __resetHinglishLexiconForTests,
+} from './hinglishDictionary';
 import {getAutocorrectLanguage} from './languageMap';
 import {SymSpell, Verbosity} from './symspell/SymSpell';
 import {ensureLearnedDictionaryLoaded, getLearnedCounts} from '../suggestions/learnedDictionary';
@@ -10,24 +17,13 @@ import {getKeyboardLayoutSettings} from '../settings/layoutStore';
  * Dictionary manager for multi-lingual autocorrect (SymSpell powered).
  *
  * Language is chosen automatically from the active `letterLayoutId` via languageMap.
- * No user-facing language selector.
  *
- * Current state:
- * - 'en' is eagerly seeded from englishWords.json (with derived freq).
- * - 'it' (Italian) is eagerly seeded from italianWords.json for full SymSpell support.
- * - 'de' (German) is lazily seeded from de_words.json (~50k words) via getLangBase.
- *   It is materialized on demand by preloadActiveDictionary() (fired on keyboard mount
- *   and on every layout switch), so the large list never inflates cold startup for
- *   users on other languages.
- * - Other languages start empty or with minimal data (learned words still work).
- * - Learned words are boosted into all materialized SymSpell instances.
- *
- * Adding a new language (example: French):
- * 1. Add a word list under src/keyboard/autocorrect/data/ (e.g. frenchWords.json).
- * 2. Import it here and extend getLangBase (+ optional eager seeding) for lang==='fr'.
- * 3. languageMap already maps 'fr-fr' -> 'fr'.
- *
- * SymSpell gives us fast fuzzy + LookupCompound for missing-space / run-ons.
+ * - 'en' eagerly seeded from englishWords.json
+ * - 'it' eagerly seeded from italianWords.json
+ * - 'de' lazily seeded from de_words.json
+ * - 'hi-en' lazily seeded: English + Hinglish
+ * - 'fr-en' (Franglais) lazily seeded: french_words.json + englishWords.json
+ *   for the French AZERTY layout. English stays usable while seed runs.
  */
 
 type Candidate = {
@@ -45,11 +41,14 @@ const inFlightSeeds = new Map<string, Promise<SymSpell>>();
  * to English for these — doing so would surface English corrections on, e.g., German
  * text during the brief window before the (lazily seeded) dictionary finishes loading.
  */
-const DEDICATED_DICTIONARY_LANGS = new Set(['en', 'it', 'de']);
+const DEDICATED_DICTIONARY_LANGS = new Set(['en', 'it', 'de', 'hi-en', 'fr-en']);
 
 let englishBase: string[] | null = null;
 let italianBase: string[] | null = null;
 let germanBase: string[] | null = null;
+let frenchBase: string[] | null = null;
+let hinglishCombinedBase: string[] | null = null;
+let franglaisCombinedBase: string[] | null = null;
 
 /** The SymSpell we can use synchronously right now (populated eagerly for 'en'). */
 let readySymSpell: SymSpell | null = null;
@@ -98,6 +97,46 @@ function getGermanBase(): string[] {
   return germanBase;
 }
 
+function getFrenchBase(): string[] {
+  if (!frenchBase) {
+    const seen = new Set<string>();
+    frenchBase = (frenchWords as string[]).filter(w => {
+      const k = w.toLowerCase();
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+  }
+  return frenchBase;
+}
+
+function getHinglishCombinedBase(): string[] {
+  if (!hinglishCombinedBase) {
+    // Hinglish tokens first (suggestions scan this list), then English.
+    hinglishCombinedBase = buildHinglishCombinedTokenList(getEnglishBase());
+  }
+  return hinglishCombinedBase;
+}
+
+/** French-first then English — Franglais suggestions + membership. */
+function getFranglaisCombinedBase(): string[] {
+  if (franglaisCombinedBase) {
+    return franglaisCombinedBase;
+  }
+  const fr = getFrenchBase();
+  const seen = new Set<string>(fr);
+  const combined = fr.slice();
+  for (const word of getEnglishBase()) {
+    if (seen.has(word)) {
+      continue;
+    }
+    seen.add(word);
+    combined.push(word);
+  }
+  franglaisCombinedBase = combined;
+  return franglaisCombinedBase;
+}
+
 // Eagerly seed English dictionary synchronously so the engine stays sync for fast path.
 (function seedDefaultEnglish() {
   const en = new SymSpell(64, 2, 7);
@@ -125,6 +164,10 @@ function getGermanBase(): string[] {
     ['vibe', 17_000],
     ['vibes', 16_000],
     ['cringe', 14_000],
+    ['anyways', 28_000],
+    ['gonna', 35_000],
+    ['wanna', 34_000],
+    ['gotta', 33_000],
   ];
   for (const [word, count] of supplemental) {
     if (!enBase.includes(word)) {
@@ -162,6 +205,12 @@ function getLangBase(lang: string): string[] {
   } else if (lang === 'de') {
     // Dedicated German list (~50k words) for proper SymSpell autocorrect + suggestions.
     list = getGermanBase();
+  } else if (lang === 'hi-en') {
+    // Hinglish tokens first for suggestion scanning.
+    list = getHinglishCombinedBase();
+  } else if (lang === 'fr-en') {
+    // Franglais: French first, then English.
+    list = getFranglaisCombinedBase();
   } else if (lang === 'ru' || lang === 'ar') {
     // No base list yet for these scripts; only learned words.
     list = [];
@@ -176,12 +225,48 @@ function getLangBase(lang: string): string[] {
 }
 
 async function seedSymSpell(lang: string, ss: SymSpell): Promise<void> {
-  const base = getLangBase(lang);
-  base.forEach((w, i) => {
-    // Decreasing frequency; most common first in the array.
-    const count = Math.max(1, 100_000 - Math.floor(i * 5));
-    ss.CreateDictionaryEntry(w, count);
-  });
+  if (lang === 'hi-en') {
+    // English high-count first so shared Latin words stay English-strong,
+    // then Hinglish tokens + spaced phrases (`_` → space) for compound splits.
+    const en = getEnglishBase();
+    const enSet = new Set(en);
+    en.forEach((w, i) => {
+      ss.CreateDictionaryEntry(w, Math.max(1, 120_000 - Math.floor(i * 5)));
+    });
+    const hiTokens = getHinglishSymSpellTokens();
+    hiTokens.forEach((w, i) => {
+      if (enSet.has(w)) {
+        return;
+      }
+      ss.CreateDictionaryEntry(w, Math.max(1, 60_000 - Math.floor(i * 2)));
+    });
+    const phrases = getHinglishPhrases();
+    phrases.forEach((phrase, i) => {
+      ss.CreateDictionaryEntry(
+        phrase.spaced,
+        Math.max(1, 35_000 - Math.floor(i * 1)),
+      );
+    });
+  } else if (lang === 'fr-en') {
+    // English high-count for shared tokens; French list for Franglais typing.
+    const en = getEnglishBase();
+    const enSet = new Set(en);
+    en.forEach((w, i) => {
+      ss.CreateDictionaryEntry(w, Math.max(1, 120_000 - Math.floor(i * 5)));
+    });
+    getFrenchBase().forEach((w, i) => {
+      if (enSet.has(w)) {
+        return;
+      }
+      ss.CreateDictionaryEntry(w, Math.max(1, 90_000 - Math.floor(i * 4)));
+    });
+  } else {
+    const base = getLangBase(lang);
+    base.forEach((w, i) => {
+      const count = Math.max(1, 100_000 - Math.floor(i * 5));
+      ss.CreateDictionaryEntry(w, count);
+    });
+  }
 
   // Seed currently loaded learned words (boosted).
   await ensureLearnedDictionaryLoaded();
@@ -302,7 +387,12 @@ function resolveSymSpellForLanguage(): SymSpell | null {
   const lang = getActiveLanguage();
   let ss = ssCache.get(lang) || null;
 
-  if (!ss && lang !== 'en' && DEDICATED_DICTIONARY_LANGS.has(lang)) {
+  if (!ss && (lang === 'hi-en' || lang === 'fr-en')) {
+    // Kick off combined bilingual seed; use English immediately so typing
+    // stays fast until the full dictionary is ready.
+    void ensureSymSpell(lang);
+    ss = readySymSpell ?? ssCache.get('en') ?? null;
+  } else if (!ss && lang !== 'en' && DEDICATED_DICTIONARY_LANGS.has(lang)) {
     // Dedicated non-English dictionary not materialized yet: seed it lazily and
     // return null (no suggestions) rather than polluting with English.
     void ensureSymSpell(lang);
@@ -400,7 +490,10 @@ export function lookupCompoundSync(
   const lang = getActiveLanguage();
   let ss = ssCache.get(lang) || null;
 
-  if (!ss && lang !== 'en' && DEDICATED_DICTIONARY_LANGS.has(lang)) {
+  if (!ss && (lang === 'hi-en' || lang === 'fr-en')) {
+    void ensureSymSpell(lang);
+    ss = readySymSpell ?? ssCache.get('en') ?? null;
+  } else if (!ss && lang !== 'en' && DEDICATED_DICTIONARY_LANGS.has(lang)) {
     void ensureSymSpell(lang);
   } else if (!ss && (lang === 'en' || !ssCache.has(lang))) {
     ss = readySymSpell ?? ssCache.get('en') ?? null;
@@ -443,4 +536,8 @@ export function __resetDictionaryManagerForTests() {
   englishBase = null;
   italianBase = null;
   germanBase = null;
+  frenchBase = null;
+  hinglishCombinedBase = null;
+  franglaisCombinedBase = null;
+  __resetHinglishLexiconForTests();
 }

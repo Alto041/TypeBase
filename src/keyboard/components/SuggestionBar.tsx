@@ -687,7 +687,7 @@ function createSuggestionBarStyles(theme: KeyboardTheme) {
     paddingHorizontal: 4,
   },
   panelSearchContainer: {
-    paddingHorizontal: 0,
+    paddingHorizontal: 10,
   },
   toolbarLeading: {
     flexDirection: 'row',

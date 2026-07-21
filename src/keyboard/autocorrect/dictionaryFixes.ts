@@ -70,6 +70,9 @@ const EXACT_FIX_ENTRIES: Array<[string, ExactDictionaryFix]> = [
   ['yall', {correction: "y'all", confidence: 0.91}],
   ['oclock', {correction: "o'clock", confidence: 0.93}],
 
+  // Ambiguous but extremely common mobile typo (possessive "its" vs "it's").
+  ['its', {correction: "it's", confidence: 0.9}],
+
   // Italian common accent/apostrophe fixes (very high-confidence exact matches).
   // These complement SymSpell for the most frequent accent-related typos.
   ['perche', {correction: 'perché', confidence: 0.93}],
@@ -109,6 +112,10 @@ const EXACT_FIX_ENTRIES: Array<[string, ExactDictionaryFix]> = [
   ['adn', {correction: 'and', confidence: 0.96}],
   ['taht', {correction: 'that', confidence: 0.95}],
   ['hte', {correction: 'the', confidence: 0.95}],
+  ['eever', {correction: 'ever', confidence: 0.94}],
+  ['evver', {correction: 'ever', confidence: 0.93}],
+  ['helllo', {correction: 'hello', confidence: 0.94}],
+  ['helo', {correction: 'hello', confidence: 0.9}],
   ['yoru', {correction: 'your', confidence: 0.94}],
   ['yuor', {correction: 'your', confidence: 0.94}],
   ['wiht', {correction: 'with', confidence: 0.94}],
@@ -612,6 +619,11 @@ const EXACT_FIX_ENTRIES: Array<[string, ExactDictionaryFix]> = [
   ['alwasy', {correction: 'always', confidence: 0.9}],
   ['anwyay', {correction: 'anyway', confidence: 0.85}],
   ['anwyays', {correction: 'anyways', confidence: 0.85}],
+  ['aneyays', {correction: 'anyways', confidence: 0.92}],
+  ['anywyas', {correction: 'anyways', confidence: 0.9}],
+  ['anywasy', {correction: 'anyways', confidence: 0.9}],
+  ['anywaays', {correction: 'anyways', confidence: 0.9}],
+  ['annyways', {correction: 'anyways', confidence: 0.9}],
   ['actualy', {correction: 'actually', confidence: 0.91}],
   ['actaully', {correction: 'actually', confidence: 0.89}],
   ['probaly', {correction: 'probably', confidence: 0.9}],
@@ -647,6 +659,10 @@ const EXACT_FIX_ENTRIES: Array<[string, ExactDictionaryFix]> = [
   ['evne', {correction: 'even', confidence: 0.85}],
   ['evrey', {correction: 'every', confidence: 0.88}],
   ['everyone', {correction: 'everyone', confidence: 0.5}],
+  ['eeveryone', {correction: 'everyone', confidence: 0.95}],
+  ['everyonne', {correction: 'everyone', confidence: 0.92}],
+  ['everyne', {correction: 'everyone', confidence: 0.9}],
+  ['everoyne', {correction: 'everyone', confidence: 0.9}],
   ['evryone', {correction: 'everyone', confidence: 0.88}],
   ['everyoen', {correction: 'everyone', confidence: 0.88}],
   ['anyoen', {correction: 'anyone', confidence: 0.88}],
