@@ -6,8 +6,8 @@ type TrieNode = {
 };
 
 const MAX_WORDS_PER_NODE = 20;
-const BUILD_CHUNK = 800;
-const BUILD_DELAY_MS = 28;
+const BUILD_CHUNK = 500;
+const BUILD_DELAY_MS = 45;
 /** Cap fallback scans so rare prefixes cannot walk the whole dictionary. */
 const MAX_FALLBACK_SCAN = 2_500;
 

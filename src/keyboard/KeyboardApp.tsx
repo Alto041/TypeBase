@@ -87,10 +87,12 @@ import {
   setAutocorrectEnabled,
 } from './autocorrect/autocorrectStore';
 import {
+  extractPreviousWordFromContext,
   getAutocorrectCandidate,
   getSuggestionBarAutocorrect,
   isDictionaryWord,
   shouldAutoApply,
+  shouldSkipAutocorrectForToken,
 } from './autocorrect/autocorrectEngine';
 import {
   ensureLearnedPhrasesLoaded,
@@ -207,7 +209,9 @@ import {useVoiceInput} from './voice/useVoiceInput';
 
 const DOUBLE_TAP_MS = 350;
 /** Debounced async refresh (phrases, essentials, native cursor sync). */
-const SUGGESTION_FULL_REFRESH_DEBOUNCE_MS = 300;
+const SUGGESTION_FULL_REFRESH_DEBOUNCE_MS = 450;
+const SUGGESTION_TYPING_IDLE_MS = 450;
+const BACKSPACE_SUGGESTION_DEBOUNCE_MS = 750;
 const NATIVE_FAST_PATH_MIN_KEYS = 20;
 const NATIVE_FAST_PATH_ENABLED = true;
 const AI_AUTOCORRECT_LOG_PREFIX = '[AiAutocorrect]';
@@ -431,19 +435,29 @@ function sanitizeSuggestionText(value: string | null | undefined): string | null
 
 function computeTypingSuggestionBar(
   prefix: string,
-  options: {fast: boolean; context?: string},
+  options: {fast: boolean; context?: string; previousWord?: string},
 ) {
   const fast = options.fast;
+  const previousWord =
+    options.previousWord ??
+    (options.context
+      ? extractPreviousWordFromContext(options.context, prefix)
+      : '');
   const barAutocorrect =
-    getAutocorrectSettings().enabled && prefix.length >= 2
-      ? getSuggestionBarAutocorrect(prefix, {fast})
+    getAutocorrectSettings().enabled &&
+    prefix.length >= 2 &&
+    !shouldSkipAutocorrectForToken(prefix)
+      ? getSuggestionBarAutocorrect(prefix, {fast, previousWord})
       : {keepTyped: null, correction: null};
 
   const phraseSuggestions =
-    fast || !options.context ? [] : getPhraseSuggestions(options.context, 2);
-  let wordSuggestions = fast
-    ? []
-    : getWordSuggestions(prefix, 3, {
+    fast || !options.context || shouldSkipAutocorrectForToken(prefix)
+      ? []
+      : getPhraseSuggestions(options.context, 2);
+  let wordSuggestions =
+    fast || shouldSkipAutocorrectForToken(prefix)
+      ? []
+      : getWordSuggestions(prefix, 3, {
         skipFuzzy: false,
         lightweight: true,
       });
@@ -502,6 +516,8 @@ function KeyboardBody({
   const lastAiProofreadOriginalRef = useRef<string | null>(null);
   const livePrefixRef = useRef('');
   const lastInstantPrefixRef = useRef('');
+  const previousWordRef = useRef('');
+  const autocorrectPreviewRef = useRef<string | null>(null);
   const nativeFastPathActiveRef = useRef(false);
   const instantSuggestionRafRef = useRef<number | null>(null);
   const autocorrectUndoStackRef = useRef<AutocorrectHistoryEdit[]>([]);
@@ -1058,6 +1074,16 @@ function KeyboardBody({
     setAutocorrectSettings(getAutocorrectSettings());
   }, []);
 
+  useEffect(() => {
+    void Promise.all([
+      ensureLearnedDictionaryLoaded(),
+      ensureLearnedPhrasesLoaded(),
+      ensureAutocorrectLoaded(),
+    ]).then(() => {
+      suggestionDictionariesReadyRef.current = true;
+    });
+  }, []);
+
   const stoppedTypingRef = useRef(true);
 
   const markTyping = useCallback(() => {
@@ -1433,14 +1459,20 @@ function KeyboardBody({
 
     const prefix = extractCurrentWord(context);
     livePrefixRef.current = prefix;
+    previousWordRef.current = extractPreviousWordFromContext(context, prefix);
 
     const fast = options?.fast ?? false;
-    const barState = computeTypingSuggestionBar(prefix, {fast, context});
+    const barState = computeTypingSuggestionBar(prefix, {
+      fast,
+      context,
+      previousWord: previousWordRef.current,
+    });
 
     startTransition(() => {
       setCurrentPrefix(prefix);
       setTypedKeepSuggestion(barState.typedKeepSuggestion);
       setAutocorrectPreview(barState.autocorrectPreview);
+      autocorrectPreviewRef.current = barState.autocorrectPreview;
       setSuggestions(barState.suggestions);
       setEssentialSuggestions([]);
       setEssentialTriggerLength(0);
@@ -1456,14 +1488,34 @@ function KeyboardBody({
     syncAutoCapitalizeShift,
   ]);
 
+  const clearSuggestionBarForPrefix = useCallback((prefix: string) => {
+    lastInstantPrefixRef.current = prefix;
+    autocorrectPreviewRef.current = null;
+    startTransition(() => {
+      setCurrentPrefix(prefix);
+      setTypedKeepSuggestion(null);
+      setAutocorrectPreview(null);
+      setSuggestions([]);
+      setEssentialSuggestions([]);
+      setEssentialTriggerLength(0);
+    });
+  }, []);
+
   const applyInstantSuggestionBar = useCallback((prefix: string) => {
     if (layoutRef.current !== 'letters' || modeRef.current.type !== 'typing') {
+      return;
+    }
+    if (prefix.length > 0 && shouldSkipAutocorrectForToken(prefix)) {
+      if (prefix === lastInstantPrefixRef.current) {
+        return;
+      }
+      clearSuggestionBarForPrefix(prefix);
       return;
     }
     if (prefix === lastInstantPrefixRef.current) {
       return;
     }
-    if (prefix.length > 0 && prefix.length < 3) {
+    if (prefix.length > 0 && prefix.length < 2) {
       return;
     }
 
@@ -1479,6 +1531,7 @@ function KeyboardBody({
         setCurrentPrefix('');
         setTypedKeepSuggestion(null);
         setAutocorrectPreview(null);
+        autocorrectPreviewRef.current = null;
         setEssentialSuggestions([]);
         setEssentialTriggerLength(0);
         // Hinglish / Franglais: keep preferred-language starters visible between words.
@@ -1491,10 +1544,14 @@ function KeyboardBody({
         return;
       }
 
-      const barState = computeTypingSuggestionBar(nextPrefix, {fast: true});
+      const barState = computeTypingSuggestionBar(nextPrefix, {
+        fast: true,
+        previousWord: previousWordRef.current,
+      });
       setCurrentPrefix(nextPrefix);
       setTypedKeepSuggestion(barState.typedKeepSuggestion);
       setAutocorrectPreview(barState.autocorrectPreview);
+      autocorrectPreviewRef.current = barState.autocorrectPreview;
       setSuggestions(barState.suggestions);
       setEssentialSuggestions([]);
       setEssentialTriggerLength(0);
@@ -1504,7 +1561,7 @@ function KeyboardBody({
       return;
     }
     instantSuggestionRafRef.current = requestAnimationFrame(flush);
-  }, []);
+  }, [clearSuggestionBarForPrefix]);
 
   const recordAutocorrectHistory = useCallback(
     (edit: AutocorrectHistoryEdit) => {
@@ -1659,22 +1716,43 @@ function KeyboardBody({
     [applyAiAutocorrectEdit],
   );
 
-  const scheduleRefreshSuggestions = useCallback(() => {
+  const scheduleRefreshSuggestions = useCallback(
+    (options?: {deleting?: boolean; skipHeavy?: boolean}) => {
     if (layoutRef.current !== 'letters' || modeRef.current.type !== 'typing') {
       return;
     }
 
-    applyInstantSuggestionBar(livePrefixRef.current);
+    if (options?.skipHeavy) {
+      if (suggestionRefreshTimerRef.current) {
+        clearTimeout(suggestionRefreshTimerRef.current);
+        suggestionRefreshTimerRef.current = null;
+      }
+      return;
+    }
+
+    if (!options?.deleting) {
+      applyInstantSuggestionBar(livePrefixRef.current);
+    } else if (livePrefixRef.current.length === 0) {
+      applyInstantSuggestionBar('');
+    } else if (shouldSkipAutocorrectForToken(livePrefixRef.current)) {
+      return;
+    }
 
     if (suggestionRefreshTimerRef.current) {
       clearTimeout(suggestionRefreshTimerRef.current);
     }
+    const debounceMs = options?.deleting
+      ? BACKSPACE_SUGGESTION_DEBOUNCE_MS
+      : SUGGESTION_FULL_REFRESH_DEBOUNCE_MS;
     suggestionRefreshTimerRef.current = setTimeout(() => {
       suggestionRefreshTimerRef.current = null;
-      const stillTyping = Date.now() - lastTypingAtRef.current < 200;
+      const stillTyping =
+        Date.now() - lastTypingAtRef.current < SUGGESTION_TYPING_IDLE_MS;
       void refreshSuggestions({fast: stillTyping});
-    }, SUGGESTION_FULL_REFRESH_DEBOUNCE_MS);
-  }, [applyInstantSuggestionBar, refreshSuggestions]);
+    }, debounceMs);
+  },
+  [applyInstantSuggestionBar, refreshSuggestions],
+  );
 
   useEffect(() => {
     return () => {
@@ -1714,12 +1792,13 @@ function KeyboardBody({
       }
 
       if (!suggestionDictionariesReadyRef.current) {
-        await Promise.all([
+        void Promise.all([
           ensureLearnedDictionaryLoaded(),
           ensureLearnedPhrasesLoaded(),
           ensureAutocorrectLoaded(),
-        ]);
-        suggestionDictionariesReadyRef.current = true;
+        ]).then(() => {
+          suggestionDictionariesReadyRef.current = true;
+        });
       }
 
       let typedWord = extractCurrentWord(context);
@@ -1768,10 +1847,22 @@ function KeyboardBody({
           return;
         }
 
-        const candidate = getAutocorrectCandidate(typedWord, {
+        let candidate = getAutocorrectCandidate(typedWord, {
           lightweight: true,
           skipFrequentScan: true,
+          previousWord: extractPreviousWordFromContext(
+            context,
+            typedWord,
+          ),
         });
+        const preview = autocorrectPreviewRef.current;
+        if (
+          (!candidate || candidate.correction.toLowerCase() === typedWord.toLowerCase()) &&
+          preview &&
+          preview.toLowerCase() !== typedWord.toLowerCase()
+        ) {
+          candidate = {correction: preview, confidence: 0.84};
+        }
         if (shouldAutoApply(candidate, typedWord)) {
           keyboardBridge.replaceWordPrefix(typedWord.length, candidate!.correction);
           const correctionParts = candidate!.correction.split(/\s+/);
@@ -2277,14 +2368,18 @@ function KeyboardBody({
           keyboardBridge.deleteBackward();
           livePrefixRef.current = livePrefixRef.current.slice(0, -1);
           lastTypingAtRef.current = Date.now();
-          void keyboardBridge.getTextBeforeCursor(96).then(context => {
-            if (context.length === 0) {
-              hasTypedInFieldRef.current = false;
-              livePrefixRef.current = '';
-            }
-            syncAutoCapitalizeShift(context, {fieldWasCleared: context.length === 0});
-          });
-          scheduleRefreshSuggestions();
+          if (
+            livePrefixRef.current.length === 0 ||
+            shouldSkipAutocorrectForToken(livePrefixRef.current)
+          ) {
+            clearSuggestionBarForPrefix(livePrefixRef.current);
+            scheduleRefreshSuggestions({
+              deleting: true,
+              skipHeavy: livePrefixRef.current.length > 0,
+            });
+          } else {
+            scheduleRefreshSuggestions({deleting: true});
+          }
           return;
         case 'space': {
           const typedFallback = livePrefixRef.current;
@@ -2883,7 +2978,21 @@ function KeyboardBody({
         });
       },
       onBackspaceRelease: () => {
-        scheduleRefreshSuggestions();
+        void keyboardBridge.getTextBeforeCursor(96).then(context => {
+          const prefix = extractCurrentWord(context);
+          livePrefixRef.current = prefix;
+          previousWordRef.current = extractPreviousWordFromContext(context, prefix);
+          lastTypingAtRef.current = Date.now();
+          if (prefix.length === 0 || shouldSkipAutocorrectForToken(prefix)) {
+            clearSuggestionBarForPrefix(prefix);
+            scheduleRefreshSuggestions({
+              deleting: true,
+              skipHeavy: prefix.length > 0,
+            });
+            return;
+          }
+          scheduleRefreshSuggestions({deleting: true});
+        });
       },
       swipeTyping: gestureSettings.swipeTyping,
       commaLauncher: gestureSettings.commaLauncher,
@@ -2914,6 +3023,7 @@ function KeyboardBody({
       },
     };
   }, [
+    clearSuggestionBarForPrefix,
     commaLauncherActive,
     gestureSettings,
     keyGesturesActive,
@@ -3463,7 +3573,7 @@ export default function KeyboardApp() {
       setCustomThemeJson(getKeyboardCustomTheme());
       setLayoutSettings(getKeyboardLayoutSettings());
       InteractionManager.runAfterInteractions(() => {
-        setTimeout(() => scheduleBackgroundEnglishSymSpellSeed(), 500);
+        scheduleBackgroundEnglishSymSpellSeed();
       });
       setThemeReady(true);
     });

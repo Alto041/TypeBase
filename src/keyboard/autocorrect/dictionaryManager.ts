@@ -1,9 +1,9 @@
 import {
-  ensureEnglishWordSet,
   getEnglishWordsByFrequency,
   isEnglishDictionaryWord,
   rankFromSymSpellFrequency,
   scheduleEnglishRankMapBuild,
+  scheduleEnglishWordSetBuild,
   syntheticFrequencyCount,
 } from './englishFrequencyDictionary';
 import {scheduleEnglishPrefixIndexBuild} from './englishPrefixIndex';
@@ -170,12 +170,32 @@ export function isEnglishSymSpellReady(): boolean {
   return englishSymSpellSeeded;
 }
 
-const SYM_SEED_CHUNK = 600;
-const SYM_SEED_DELAY_MS = 24;
+/** True once any SymSpell instance is available (bootstrap or full seed). */
+export function isSymSpellLookupReady(): boolean {
+  return readySymSpell != null;
+}
+
+const SYM_SPELL_BOOTSTRAP_WORDS = 6_500;
+const SYM_SEED_CHUNK = 500;
+const SYM_SEED_DELAY_MS = 32;
+
+function bootstrapEnglishSymSpell(words: readonly string[]): SymSpell {
+  const en = new SymSpell(90_000, 2, 7);
+  const bootstrapCount = Math.min(SYM_SPELL_BOOTSTRAP_WORDS, words.length);
+  for (let i = 0; i < bootstrapCount; i += 1) {
+    en.CreateDictionaryEntry(words[i]!, syntheticFrequencyCount(i));
+  }
+  for (const [word, count] of ENGLISH_SYM_SPELL_SUPPLEMENTAL) {
+    en.CreateDictionaryEntry(word, count);
+  }
+  ssCache.set('en', en);
+  readySymSpell = en;
+  return en;
+}
 
 /** Chunked background seed — call once when the keyboard mounts. */
 export function scheduleBackgroundEnglishSymSpellSeed(): void {
-  ensureEnglishWordSet();
+  scheduleEnglishWordSetBuild();
   if (englishSymSpellSeeded || englishSymSpellSeeding) {
     return;
   }
@@ -187,35 +207,34 @@ export function scheduleBackgroundEnglishSymSpellSeed(): void {
     return;
   }
 
-  setTimeout(() => {
-    const en = new SymSpell(90_000, 2, 7);
-    let index = 0;
+  const en = bootstrapEnglishSymSpell(words);
+  let index = Math.min(SYM_SPELL_BOOTSTRAP_WORDS, words.length);
 
-    const step = (): void => {
-      const end = Math.min(index + SYM_SEED_CHUNK, words.length);
-      for (; index < end; index += 1) {
-        en.CreateDictionaryEntry(words[index]!, syntheticFrequencyCount(index));
-      }
+  const step = (): void => {
+    const end = Math.min(index + SYM_SEED_CHUNK, words.length);
+    for (; index < end; index += 1) {
+      en.CreateDictionaryEntry(words[index]!, syntheticFrequencyCount(index));
+    }
 
-      if (index < words.length) {
-        setTimeout(step, SYM_SEED_DELAY_MS);
-        return;
-      }
+    if (index < words.length) {
+      setTimeout(step, SYM_SEED_DELAY_MS);
+      return;
+    }
 
-      for (const [word, count] of ENGLISH_SYM_SPELL_SUPPLEMENTAL) {
-        en.CreateDictionaryEntry(word, count);
-      }
+    englishSymSpellSeeded = true;
+    englishSymSpellSeeding = false;
+    scheduleEnglishPrefixIndexBuild();
+    scheduleEnglishRankMapBuild();
+  };
 
-      ssCache.set('en', en);
-      readySymSpell = en;
-      englishSymSpellSeeded = true;
-      englishSymSpellSeeding = false;
-      scheduleEnglishPrefixIndexBuild();
-      scheduleEnglishRankMapBuild();
-    };
-
-    step();
-  }, 600);
+  if (index < words.length) {
+    setTimeout(step, 400);
+  } else {
+    englishSymSpellSeeded = true;
+    englishSymSpellSeeding = false;
+    scheduleEnglishPrefixIndexBuild();
+    scheduleEnglishRankMapBuild();
+  }
 }
 
 function getLangBase(lang: string): string[] {

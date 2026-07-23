@@ -4,24 +4,59 @@ import englishWords from '../gesture/data/englishWords.json';
 const WORDS: readonly string[] = englishWords as string[];
 
 let wordSet: Set<string> | null = null;
+let wordSetPartial: Set<string> | null = null;
+let wordSetBuilding = false;
 let rankByWord: Map<string, number> | null = null;
 let rankMapReady = false;
 let rankMapBuilding = false;
+
+const WORD_SET_CHUNK = 6_000;
+const WORD_SET_DELAY_MS = 20;
 
 export function getEnglishWordsByFrequency(): readonly string[] {
   return WORDS;
 }
 
-/** O(1) dictionary membership — built once, no SymSpell lookup. */
-export function ensureEnglishWordSet(): Set<string> {
-  if (!wordSet) {
-    wordSet = new Set(WORDS);
+/** Build word Set in idle chunks — never block the keyboard on 82k inserts. */
+export function scheduleEnglishWordSetBuild(): void {
+  if (wordSet || wordSetBuilding || WORDS.length === 0) {
+    return;
   }
-  return wordSet;
+  wordSetBuilding = true;
+  const partial = new Set<string>();
+  wordSetPartial = partial;
+  let index = 0;
+
+  const step = (): void => {
+    const end = Math.min(index + WORD_SET_CHUNK, WORDS.length);
+    for (; index < end; index += 1) {
+      partial.add(WORDS[index]!);
+    }
+    if (index < WORDS.length) {
+      setTimeout(step, WORD_SET_DELAY_MS);
+      return;
+    }
+    wordSet = partial;
+    wordSetPartial = null;
+    wordSetBuilding = false;
+  };
+
+  setTimeout(step, 400);
+}
+
+export function isEnglishWordSetReady(): boolean {
+  return wordSet != null;
 }
 
 export function isEnglishDictionaryWord(word: string): boolean {
-  return ensureEnglishWordSet().has(word.toLowerCase());
+  const lower = word.toLowerCase();
+  if (wordSet) {
+    return wordSet.has(lower);
+  }
+  if (wordSetPartial) {
+    return wordSetPartial.has(lower);
+  }
+  return false;
 }
 
 /** Synthetic SymSpell count from frequency list position. */
@@ -49,14 +84,14 @@ export function scheduleEnglishRankMapBuild(): void {
       rankByWord!.set(WORDS[index]!, index);
     }
     if (index < WORDS.length) {
-      setTimeout(step, 32);
+      setTimeout(step, 48);
       return;
     }
     rankMapReady = true;
     rankMapBuilding = false;
   };
 
-  setTimeout(step, 1_200);
+  setTimeout(step, 2_500);
 }
 
 /** Lower rank = more common. Undefined until rank map finishes building. */
