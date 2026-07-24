@@ -1,7 +1,7 @@
-import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import {Platform} from 'react-native';
 
+import {pickDocumentAsync} from '../../../lib/pickDocumentAsync';
 import {updateKeyboardLayoutSetting} from './layoutStore';
 
 export const FONT_DIR_NAME = 'keyboard_fonts';
@@ -70,7 +70,7 @@ export async function importCustomKeyboardFont(): Promise<string> {
     throw new Error('Custom fonts are only supported on Android.');
   }
 
-  const result = await DocumentPicker.getDocumentAsync({
+  const result = await pickDocumentAsync({
     copyToCacheDirectory: true,
     type: FONT_MIME_TYPES,
   });

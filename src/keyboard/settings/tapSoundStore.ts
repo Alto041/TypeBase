@@ -1,7 +1,7 @@
-import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import {Image, Platform} from 'react-native';
 
+import {pickDocumentAsync} from '../../../lib/pickDocumentAsync';
 import {keyboardBridge} from '../keyboardBridge';
 import {updateKeyboardLayoutSetting} from './layoutStore';
 
@@ -114,7 +114,7 @@ export async function importCustomTapSound(): Promise<string> {
     throw new Error('Custom tap sounds are only supported on Android.');
   }
 
-  const result = await DocumentPicker.getDocumentAsync({
+  const result = await pickDocumentAsync({
     copyToCacheDirectory: true,
     type: AUDIO_MIME_TYPES,
   });

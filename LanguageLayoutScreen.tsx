@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useMemo, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
   BackHandler,
   Alert,
@@ -17,8 +17,12 @@ import {
   View,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
-import * as DocumentPicker from 'expo-document-picker';
 import {File} from 'expo-file-system';
+
+import {
+  formatDocumentPickerError,
+  pickDocumentAsync,
+} from './lib/pickDocumentAsync';
 
 import DeleteIcon from './assets/delete.svg';
 import UploadIcon from './assets/file-upload.svg';
@@ -247,6 +251,7 @@ function LayoutSwipeRow({
 export function LanguageLayoutScreen({onBack}: {onBack: () => void}) {
   const [selectedId, setSelectedId] = useState<LetterLayoutId>('en-us');
   const [importing, setImporting] = useState(false);
+  const importInFlightRef = useRef(false);
   const [customEntries, setCustomEntries] = useState<LayoutEntry[]>([]);
 
   const refresh = useCallback(async () => {
@@ -313,9 +318,13 @@ export function LanguageLayoutScreen({onBack}: {onBack: () => void}) {
   }, []);
 
   const handleImportKlc = useCallback(async () => {
+    if (importInFlightRef.current) {
+      return;
+    }
+    importInFlightRef.current = true;
     try {
       setImporting(true);
-      const result = await DocumentPicker.getDocumentAsync({
+      const result = await pickDocumentAsync({
         copyToCacheDirectory: true,
         type: ['text/plain', 'text/*', '*/*'],
       });
@@ -331,10 +340,10 @@ export function LanguageLayoutScreen({onBack}: {onBack: () => void}) {
       await selectLayout(layout.id);
       Alert.alert('Layout imported', `"${layout.label}" is now active.`);
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Could not read that KLC file.';
+      const message = formatDocumentPickerError(error);
       Alert.alert('Import failed', message);
     } finally {
+      importInFlightRef.current = false;
       setImporting(false);
     }
   }, [refresh, selectLayout]);
@@ -439,7 +448,7 @@ export function LanguageLayoutScreen({onBack}: {onBack: () => void}) {
           <View style={styles.stack}>
             <Pressable
               onPress={() => {
-                handleImportKlc();
+                void handleImportKlc();
               }}
               disabled={importing}
               style={[

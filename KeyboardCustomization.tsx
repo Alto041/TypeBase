@@ -27,6 +27,7 @@ import UploadIcon from './assets/file-upload.svg';
 import FontIcon from './assets/font.svg';
 
 import {playSwitchOffSound, playSwitchOnSound} from './src/app/switchSound';
+import {formatDocumentPickerError} from './lib/pickDocumentAsync';
 
 import {
   ensureLayoutLoaded,
@@ -79,6 +80,7 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
   );
   const [loading, setLoading] = useState(true);
   const [importingTapSound, setImportingTapSound] = useState(false);
+  const importTapSoundInFlightRef = useRef(false);
   const tapSoundAnim = useRef(new Animated.Value(0)).current;
   const enterKeyAnim = useRef(new Animated.Value(0)).current;
 
@@ -186,9 +188,10 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
   };
 
   const handleImportTapSound = async () => {
-    if (loading || importingTapSound) {
+    if (loading || importingTapSound || importTapSoundInFlightRef.current) {
       return;
     }
+    importTapSoundInFlightRef.current = true;
     try {
       setImportingTapSound(true);
       const fileName = await importCustomTapSound();
@@ -204,10 +207,10 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
       if (error instanceof Error && error.message === 'IMPORT_CANCELED') {
         return;
       }
-      const message =
-        error instanceof Error ? error.message : 'Could not import that audio file.';
+      const message = formatDocumentPickerError(error);
       Alert.alert('Import failed', message);
     } finally {
+      importTapSoundInFlightRef.current = false;
       setImportingTapSound(false);
     }
   };
@@ -643,6 +646,7 @@ export function ThemesScreen({onBack}: {onBack: () => void}) {
   const [customFontFile, setCustomFontFile] = useState<string | null>(null);
   const [customFontEnabled, setCustomFontEnabled] = useState(false);
   const [importingFont, setImportingFont] = useState(false);
+  const importFontInFlightRef = useRef(false);
 
   const toggleAnim = useRef(new Animated.Value(0)).current;
   const fontToggleAnim = useRef(new Animated.Value(0)).current;
@@ -735,7 +739,8 @@ export function ThemesScreen({onBack}: {onBack: () => void}) {
   const isMacintosh = design === 'macintosh';
 
   const handleImportKeyboardFont = async () => {
-    if (loading || importingFont) return;
+    if (loading || importingFont || importFontInFlightRef.current) return;
+    importFontInFlightRef.current = true;
     try {
       setImportingFont(true);
       const fileName = await importCustomKeyboardFont();
@@ -748,10 +753,10 @@ export function ThemesScreen({onBack}: {onBack: () => void}) {
       if (error instanceof Error && error.message === 'IMPORT_CANCELED') {
         return;
       }
-      const message =
-        error instanceof Error ? error.message : 'Could not import that font file.';
+      const message = formatDocumentPickerError(error);
       Alert.alert('Import failed', message);
     } finally {
+      importFontInFlightRef.current = false;
       setImportingFont(false);
     }
   };
