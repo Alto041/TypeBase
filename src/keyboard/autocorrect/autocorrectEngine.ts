@@ -54,13 +54,22 @@ const SUPPLEMENTAL_RANK = new Map<string, number>([
 
 // SymSpell lookup + prefix index — no fixed word slice or letter buckets.
 
-const MIN_AUTO_CONFIDENCE = 0.42;
+const MIN_AUTO_CONFIDENCE = 0.58;
+/** Show a bar correction only when confidence is at least this (may still block auto-apply). */
+const MIN_SUGGESTION_BAR_CONFIDENCE = 0.54;
+/** Only consider the top N SymSpell hits — quality over quantity. */
+const HIGH_ACCURACY_SYMSPELL_LIMIT = 3;
 const COMMON_WORD_RANK = 4000;
+/** While typing: only exact dictionary fixes in the bar (fuzzy runs on space / after idle). */
+const LIVE_BAR_AUTOCORRECT_MIN_LENGTH = 4;
 /** Skip fuzzy autocorrect for long random key-mash tokens (perf + no useful fix). */
 export const MAX_LIVE_AUTOCORRECT_LENGTH = 18;
 
 export function shouldSkipAutocorrectForToken(word: string): boolean {
   const lower = word.trim().toLowerCase();
+  if (shouldPreserveTypedLiteralToken(word)) {
+    return true;
+  }
   if (lower.length <= MAX_LIVE_AUTOCORRECT_LENGTH) {
     if (lower.length < 8) {
       return false;
@@ -73,6 +82,26 @@ export function shouldSkipAutocorrectForToken(word: string): boolean {
     if (lower.length >= 8 && vowels === 0) {
       return true;
     }
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Tokens users type on purpose: multipliers (2x, 3x), counts, model numbers, etc.
+ * Must run on the raw token before leet digit→letter mapping (3x → ex).
+ */
+export function shouldPreserveTypedLiteralToken(word: string): boolean {
+  const lower = word.trim().toLowerCase();
+  if (!lower || !/\d/.test(lower)) {
+    return false;
+  }
+  // Embedded leet slips: h3llo, w0rd — still allow typo correction.
+  if (
+    lower.length >= 4 &&
+    /[\p{L}\p{M}][0-9]|[0-9][\p{L}\p{M}]/u.test(lower) &&
+    !/^\d+[a-z]{1,3}$/i.test(lower)
+  ) {
     return false;
   }
   return true;
@@ -228,6 +257,9 @@ function normalizeAutocorrectToken(typed: string): string | null {
   if (lower.length < 2 || !/^[\p{L}\p{M}0-9']+$/u.test(lower)) {
     return null;
   }
+  if (shouldPreserveTypedLiteralToken(typed)) {
+    return null;
+  }
   const mapped = lower.replace(/[0134578]/g, ch => LEET_DIGIT_TO_LETTER[ch] ?? ch);
   if (!/^[\p{L}\p{M}']+$/u.test(mapped)) {
     return null;
@@ -279,13 +311,18 @@ function findBestSingleWordCorrection(
   typed: string,
   maxEdits = 2,
   previousWord = '',
-): {word: string; edits: number; rank: number} | null {
+): {word: string; edits: number; staticRank: number} | null {
   if (!isSymSpellLookupReady()) {
     return null;
   }
 
-  const matches = lookupCandidatesSync(typed, maxEdits, 10);
-  let best: {word: string; edits: number; rank: number} | null = null;
+  const matches = lookupCandidatesSync(typed, maxEdits, HIGH_ACCURACY_SYMSPELL_LIMIT);
+  let best: {
+    word: string;
+    edits: number;
+    staticRank: number;
+    score: number;
+  } | null = null;
 
   for (const match of matches) {
     if (match.word.includes(' ') || match.word === typed) {
@@ -294,19 +331,21 @@ function findBestSingleWordCorrection(
     if (!isEnglishDictionaryWord(match.word)) {
       continue;
     }
-    const rank = wordRank(match.word);
+    const staticRank = wordRank(match.word);
     const score =
-      rank + match.edits * 2_000 + contextFollowBias(previousWord, match.word);
+      staticRank + match.edits * 2_000 + contextFollowBias(previousWord, match.word);
     if (
       !best ||
       match.edits < best.edits ||
-      (match.edits === best.edits && score < best.rank)
+      (match.edits === best.edits && score < best.score)
     ) {
-      best = {word: match.word, edits: match.edits, rank: score};
+      best = {word: match.word, edits: match.edits, staticRank, score};
     }
   }
 
-  return best;
+  return best
+    ? {word: best.word, edits: best.edits, staticRank: best.staticRank}
+    : null;
 }
 
 /** Typos like wheather → weather must not become wheat her. */
@@ -330,7 +369,7 @@ function shouldPreferSingleWordOverSplit(
     return true;
   }
 
-  if (single.edits === 2 && single.rank + 1_500 < splitRankSum) {
+  if (single.edits === 2 && single.staticRank + 1_500 < splitRankSum) {
     return true;
   }
 
@@ -568,7 +607,7 @@ function findQuickTypoFixes(typed: string, previousWord = ''): string | null {
   const candidates: QuickCand[] = [];
 
   const collapsed = findRepeatedLetterCollapse(typed);
-  if (collapsed && collapsed !== typed) {
+  if (collapsed && collapsed !== typed && wordRank(collapsed) < COMMON_WORD_RANK) {
     candidates.push({word: collapsed, kind: 'collapse'});
   }
 
@@ -579,6 +618,9 @@ function findQuickTypoFixes(typed: string, previousWord = ''): string | null {
   }
 
   for (const neighbor of collectKeyboardNeighborFixes(typed)) {
+    if (wordRank(neighbor) >= 2_500) {
+      continue;
+    }
     candidates.push({word: neighbor, kind: 'neighbor'});
   }
 
@@ -605,6 +647,55 @@ function findQuickTypoFixes(typed: string, previousWord = ''): string | null {
   return candidates[0]!.word;
 }
 
+function pickBestSymSpellTypoFix(
+  lower: string,
+  previousWord: string,
+  learnedUses: number,
+  maxLength = 14,
+): string | null {
+  if (
+    lower.length < 3 ||
+    lower.length > maxLength ||
+    !isSymSpellLookupReady()
+  ) {
+    return null;
+  }
+
+  const maxEd = lower.length <= 4 ? 1 : 2;
+  const hits = lookupCandidatesSync(lower, maxEd, HIGH_ACCURACY_SYMSPELL_LIMIT);
+  let best: {word: string; score: number} | null = null;
+
+  for (const hit of hits) {
+    if (hit.edits > maxEd || hit.word === lower || hit.word.includes(' ')) {
+      continue;
+    }
+    if (!isKnownEnglishWord(hit.word)) {
+      continue;
+    }
+    if (isLikelyNameTrap(lower, hit.word)) {
+      continue;
+    }
+    const rank = wordRank(hit.word);
+    if (
+      shouldRejectFuzzyCorrection(lower, hit.word, hit.edits, learnedUses, rank) ||
+      !isPlausibleTypo(lower, hit.word, hit.edits, rank)
+    ) {
+      continue;
+    }
+    const confidence = toConfidence(lower, hit.word, hit.edits, learnedUses, rank);
+    if (confidence < MIN_SUGGESTION_BAR_CONFIDENCE) {
+      continue;
+    }
+    const score =
+      rank + hit.edits * 2_000 + contextFollowBias(previousWord, hit.word);
+    if (!best || score < best.score) {
+      best = {word: hit.word, score};
+    }
+  }
+
+  return best?.word ?? null;
+}
+
 /** Lightweight preview while typing — no splits, compounds, or heavy scans. */
 export function getFastAutocorrectPreview(
   typedWord: string,
@@ -622,6 +713,7 @@ export function getFastAutocorrectPreview(
   }
 
   const previousWord = options?.previousWord ?? '';
+  const learnedUses = getLearnedCounts().get(lower) ?? 0;
 
   const exactFix = getExactDictionaryFix(lower);
   if (exactFix) {
@@ -643,35 +735,9 @@ export function getFastAutocorrectPreview(
     }
   }
 
-  if (
-    lower.length >= 3 &&
-    lower.length <= 14 &&
-    isSymSpellLookupReady()
-  ) {
-    const maxEd = lower.length <= 4 ? 1 : 2;
-    const hits = lookupCandidatesSync(lower, maxEd, 10);
-    let best: {word: string; score: number} | null = null;
-    for (const hit of hits) {
-      if (hit.edits > maxEd || hit.word === lower || hit.word.includes(' ')) {
-        continue;
-      }
-      if (!isKnownEnglishWord(hit.word)) {
-        continue;
-      }
-      if (isLikelyNameTrap(lower, hit.word)) {
-        continue;
-      }
-      const score =
-        wordRank(hit.word) +
-        hit.edits * 2_000 +
-        contextFollowBias(previousWord, hit.word);
-      if (!best || score < best.score) {
-        best = {word: hit.word, score};
-      }
-    }
-    if (best) {
-      return applyCaseToWord(best.word, typed);
-    }
+  const symFix = pickBestSymSpellTypoFix(lower, previousWord, learnedUses);
+  if (symFix) {
+    return applyCaseToWord(symFix, typed);
   }
 
   return null;
@@ -940,6 +1006,14 @@ function introducesDoubleLetterNotTyped(typed: string, candidate: string): boole
     if (candidate[i] === candidate[i - 1]) {
       const double = candidate.slice(i - 1, i + 1);
       if (!typed.includes(double)) {
+        // tomottow → tomorrow: same-length swap of one double for another.
+        if (
+          candidate.length === typed.length &&
+          i < typed.length &&
+          typed[i] === typed[i - 1]
+        ) {
+          continue;
+        }
         return true;
       }
     }
@@ -1133,6 +1207,13 @@ function toConfidence(
   if (edits === 2 && typed[0] === candidate[0] && prefix >= 2) {
     confidence += 0.08;
   }
+  if (
+    edits === 2 &&
+    staticRank < COMMON_WORD_RANK &&
+    prefix >= Math.min(4, typed.length - 1)
+  ) {
+    confidence += 0.06;
+  }
   if (edits === 3 && typed[0] === candidate[0] && prefix >= 3) {
     confidence += 0.1;
   }
@@ -1236,7 +1317,7 @@ function collectCandidates(
     consider(word, uses, wordRank(word));
   }
 
-  const symLimit = options?.lightweight ? 24 : 80;
+  const symLimit = options?.lightweight ? HIGH_ACCURACY_SYMSPELL_LIMIT : 12;
   const symCands = lookupCandidatesSync(typed, maxEdits, symLimit);
   for (const sc of symCands) {
     const lu = learned.get(sc.word) ?? 0;
@@ -1468,7 +1549,11 @@ export function getAutocorrectCandidate(
   // Fast path: accidental double letter / adjacent-key slip (hhello, pwople).
   if (isEnglishLikeLang()) {
     const quickFix = findQuickTypoFixes(lower, options?.previousWord ?? '');
-    if (quickFix && quickFix !== lower) {
+    if (
+      quickFix &&
+      quickFix !== lower &&
+      wordRank(quickFix) < COMMON_WORD_RANK
+    ) {
       return {
         correction: applyCaseToWord(quickFix, typed),
         confidence: 0.93,
@@ -1510,16 +1595,16 @@ export function getAutocorrectCandidate(
         symFix.word,
         symFix.edits,
         learnedUses,
-        symFix.rank,
+        symFix.staticRank,
       ) &&
-      isPlausibleTypo(lower, symFix.word, symFix.edits, symFix.rank)
+      isPlausibleTypo(lower, symFix.word, symFix.edits, symFix.staticRank)
     ) {
       const confidence = toConfidence(
         lower,
         symFix.word,
         symFix.edits,
         learnedUses,
-        symFix.rank,
+        symFix.staticRank,
       );
       if (confidence >= MIN_AUTO_CONFIDENCE) {
         return {
@@ -1533,7 +1618,10 @@ export function getAutocorrectCandidate(
   // Missing-space / run-on: run before the proper-noun guard. Sentence-start
   // auto-caps turn "haveyou" into "Haveyou", which used to look like a name
   // and skipped splits entirely.
-  const missingSpace = findMissingSpaceCorrection(lower, learnedUses);
+  const missingSpace =
+    options?.lightweight === true
+      ? null
+      : findMissingSpaceCorrection(lower, learnedUses);
   if (missingSpace) {
     return {
       correction: applyCaseToWord(missingSpace, typed),
@@ -1541,7 +1629,10 @@ export function getAutocorrectCandidate(
     };
   }
 
-  const compound = lookupCompoundSync(lower);
+  const compound =
+    options?.lightweight === true
+      ? null
+      : lookupCompoundSync(lower);
   if (
     compound &&
     compound.term &&
@@ -1572,6 +1663,10 @@ export function getAutocorrectCandidate(
   // Hinglish / Franglais are English-like — allow OOV fuzzy against the combined dictionary.
   const langGate = getActiveLanguage();
   if (!isEnglishLikeLang(langGate) && !getBaseWords(langGate).includes(lower) && learnedUses === 0) {
+    return null;
+  }
+
+  if (options?.lightweight) {
     return null;
   }
 
@@ -1713,9 +1808,15 @@ export function getSuggestionBarAutocorrect(
     return {keepTyped: null, correction: null};
   }
 
-  if (isEnglishLikeLang()) {
+  const fast = options?.fast ?? false;
+
+  if (!fast && isEnglishLikeLang()) {
     const quickFix = findQuickTypoFixes(lower, previousWord);
-    if (quickFix && quickFix !== lower) {
+    if (
+      quickFix &&
+      quickFix !== lower &&
+      wordRank(quickFix) < COMMON_WORD_RANK
+    ) {
       return {
         keepTyped: offerKeepTyped ? typed : null,
         correction: applyCaseToWord(quickFix, typed),
@@ -1723,18 +1824,7 @@ export function getSuggestionBarAutocorrect(
     }
   }
 
-  const fast = options?.fast ?? false;
   if (fast) {
-    if (isPreserveTypedWord(lower) && offerKeepTyped) {
-      return {keepTyped: typed, correction: null};
-    }
-    const preview = getFastAutocorrectPreview(typed, {previousWord});
-    if (preview && preview.toLowerCase() !== typed.toLowerCase()) {
-      return {
-        keepTyped: offerKeepTyped ? typed : null,
-        correction: preview,
-      };
-    }
     return {keepTyped: null, correction: null};
   }
 
@@ -1756,27 +1846,23 @@ export function getSuggestionBarAutocorrect(
     };
   }
 
-  const missingSpace = findMissingSpaceCorrection(lower, learnedUses);
-  if (missingSpace) {
-    return {
-      keepTyped: offerKeepTyped ? typed : null,
-      correction: applyCaseToWord(missingSpace, typed),
-    };
-  }
-
   if (isProbablyProperNoun(typed)) {
     return {keepTyped: null, correction: null};
   }
 
-  const softCorrection = getTypoSuggestionPreview(typed, false);
   const candidate = getAutocorrectCandidate(typed, {
     lightweight: true,
     skipFrequentScan: true,
     previousWord,
   });
-  const correction = softCorrection ?? candidate?.correction ?? null;
+  const correction =
+    candidate &&
+    candidate.confidence >= MIN_SUGGESTION_BAR_CONFIDENCE &&
+    candidate.correction.toLowerCase() !== typed.toLowerCase()
+      ? candidate.correction
+      : null;
 
-  if (!correction || correction.toLowerCase() === typed.toLowerCase()) {
+  if (!correction) {
     if (isPreserveTypedWord(lower) && offerKeepTyped) {
       return {keepTyped: typed, correction: null};
     }
@@ -1785,7 +1871,7 @@ export function getSuggestionBarAutocorrect(
 
   return {
     keepTyped: offerKeepTyped ? typed : null,
-    correction: correction ?? null,
+    correction,
   };
 }
 

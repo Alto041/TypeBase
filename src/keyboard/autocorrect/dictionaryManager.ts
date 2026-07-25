@@ -175,7 +175,7 @@ export function isSymSpellLookupReady(): boolean {
   return readySymSpell != null;
 }
 
-const SYM_SPELL_BOOTSTRAP_WORDS = 6_500;
+const SYM_SPELL_BOOTSTRAP_WORDS = 4_000;
 const SYM_SEED_CHUNK = 500;
 const SYM_SEED_DELAY_MS = 32;
 

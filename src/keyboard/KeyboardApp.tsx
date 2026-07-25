@@ -209,9 +209,9 @@ import {useVoiceInput} from './voice/useVoiceInput';
 
 const DOUBLE_TAP_MS = 350;
 /** Debounced async refresh (phrases, essentials, native cursor sync). */
-const SUGGESTION_FULL_REFRESH_DEBOUNCE_MS = 450;
-const SUGGESTION_TYPING_IDLE_MS = 450;
-const BACKSPACE_SUGGESTION_DEBOUNCE_MS = 750;
+const SUGGESTION_FULL_REFRESH_DEBOUNCE_MS = 700;
+const SUGGESTION_TYPING_IDLE_MS = 700;
+const BACKSPACE_SUGGESTION_DEBOUNCE_MS = 900;
 const NATIVE_FAST_PATH_MIN_KEYS = 20;
 const NATIVE_FAST_PATH_ENABLED = true;
 const AI_AUTOCORRECT_LOG_PREFIX = '[AiAutocorrect]';
@@ -433,6 +433,9 @@ function sanitizeSuggestionText(value: string | null | undefined): string | null
   return text.length > 0 ? text : null;
 }
 
+/** Prefix + learned chips in the suggestion bar (trie lookup only — no fuzzy scan). */
+const TYPING_BAR_WORD_LIMIT = 8;
+
 function computeTypingSuggestionBar(
   prefix: string,
   options: {fast: boolean; context?: string; previousWord?: string},
@@ -454,11 +457,12 @@ function computeTypingSuggestionBar(
     fast || !options.context || shouldSkipAutocorrectForToken(prefix)
       ? []
       : getPhraseSuggestions(options.context, 2);
+  // Prefix completions (trie) are cheap — show while typing. Fuzzy SymSpell stays off (skipFuzzy).
   let wordSuggestions =
-    fast || shouldSkipAutocorrectForToken(prefix)
+    shouldSkipAutocorrectForToken(prefix) || prefix.length < 1
       ? []
-      : getWordSuggestions(prefix, 3, {
-        skipFuzzy: false,
+      : getWordSuggestions(prefix, TYPING_BAR_WORD_LIMIT, {
+        skipFuzzy: true,
         lightweight: true,
       });
   const reserved = new Set<string>();
@@ -482,7 +486,7 @@ function computeTypingSuggestionBar(
     suggestions: [...phraseSuggestions, ...wordSuggestions]
       .map(word => (word == null ? '' : String(word)))
       .filter(word => word.length > 0)
-      .slice(0, 3),
+      .slice(0, TYPING_BAR_WORD_LIMIT),
   };
 }
 
@@ -1548,13 +1552,15 @@ function KeyboardBody({
         fast: true,
         previousWord: previousWordRef.current,
       });
-      setCurrentPrefix(nextPrefix);
-      setTypedKeepSuggestion(barState.typedKeepSuggestion);
-      setAutocorrectPreview(barState.autocorrectPreview);
-      autocorrectPreviewRef.current = barState.autocorrectPreview;
-      setSuggestions(barState.suggestions);
-      setEssentialSuggestions([]);
-      setEssentialTriggerLength(0);
+      startTransition(() => {
+        setCurrentPrefix(nextPrefix);
+        setTypedKeepSuggestion(barState.typedKeepSuggestion);
+        setAutocorrectPreview(barState.autocorrectPreview);
+        autocorrectPreviewRef.current = barState.autocorrectPreview;
+        setSuggestions(barState.suggestions);
+        setEssentialSuggestions([]);
+        setEssentialTriggerLength(0);
+      });
     };
 
     if (instantSuggestionRafRef.current !== null) {
@@ -1619,7 +1625,7 @@ function KeyboardBody({
   );
 
   const scheduleAiProofread = useCallback(
-    (delayMs = 900) => {
+    (delayMs = 1_600) => {
       if (layoutRef.current !== 'letters' || modeRef.current.type !== 'typing') {
         console.log(AI_AUTOCORRECT_LOG_PREFIX, 'schedule skipped: not typing letters', {
           layout: layoutRef.current,
@@ -1855,14 +1861,6 @@ function KeyboardBody({
             typedWord,
           ),
         });
-        const preview = autocorrectPreviewRef.current;
-        if (
-          (!candidate || candidate.correction.toLowerCase() === typedWord.toLowerCase()) &&
-          preview &&
-          preview.toLowerCase() !== typedWord.toLowerCase()
-        ) {
-          candidate = {correction: preview, confidence: 0.84};
-        }
         if (shouldAutoApply(candidate, typedWord)) {
           keyboardBridge.replaceWordPrefix(typedWord.length, candidate!.correction);
           const correctionParts = candidate!.correction.split(/\s+/);
@@ -2364,21 +2362,24 @@ function KeyboardBody({
 
       switch (keyDef.type) {
         case 'backspace':
-          recordKeystroke('backspace');
+          queueMicrotask(() => recordKeystroke('backspace'));
           keyboardBridge.deleteBackward();
           livePrefixRef.current = livePrefixRef.current.slice(0, -1);
           lastTypingAtRef.current = Date.now();
-          if (
-            livePrefixRef.current.length === 0 ||
-            shouldSkipAutocorrectForToken(livePrefixRef.current)
-          ) {
-            clearSuggestionBarForPrefix(livePrefixRef.current);
+          {
+            const prefixAfterDelete = livePrefixRef.current;
+            if (
+              prefixAfterDelete.length === 0 ||
+              shouldSkipAutocorrectForToken(prefixAfterDelete)
+            ) {
+              clearSuggestionBarForPrefix(prefixAfterDelete);
+            } else {
+              applyInstantSuggestionBar(prefixAfterDelete);
+            }
             scheduleRefreshSuggestions({
               deleting: true,
-              skipHeavy: livePrefixRef.current.length > 0,
+              skipHeavy: prefixAfterDelete.length > 0,
             });
-          } else {
-            scheduleRefreshSuggestions({deleting: true});
           }
           return;
         case 'space': {
@@ -2460,6 +2461,7 @@ function KeyboardBody({
       applyInstantSuggestionBar,
       backspaceFormField,
       clearClipboardPasteSuggestion,
+      clearSuggestionBarForPrefix,
       commitTypedWordBoundary,
       consumeLetterCommitText,
       handleFormConfirm,
@@ -2572,7 +2574,7 @@ function KeyboardBody({
 
   const applyCommittedKeyTextSideEffects = useCallback(
     (text: string) => {
-      recordKeystroke(/[a-z0-9]/i.test(text) ? 'char' : 'other');
+      queueMicrotask(() => recordKeystroke(/[a-z0-9]/i.test(text) ? 'char' : 'other'));
       if (layoutRef.current === 'letters' && modeRef.current.type === 'typing') {
         hasTypedInFieldRef.current = true;
         if (/[a-z]/i.test(text)) {
@@ -2587,7 +2589,8 @@ function KeyboardBody({
         }
         suggestionRefreshTimerRef.current = setTimeout(() => {
           suggestionRefreshTimerRef.current = null;
-          const stillTyping = Date.now() - lastTypingAtRef.current < 200;
+          const idleMs = Date.now() - lastTypingAtRef.current;
+          const stillTyping = idleMs < SUGGESTION_TYPING_IDLE_MS;
           void refreshSuggestions({fast: stillTyping});
         }, SUGGESTION_FULL_REFRESH_DEBOUNCE_MS);
       }
