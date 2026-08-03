@@ -13,6 +13,10 @@ import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
 import {triggerKeyHaptic} from '../haptics';
 import type {KeyboardTheme} from '../theme';
 import {
+  createEmojiPanelSharedStyles,
+  GIF_CELL_GAP,
+} from './emojiPanelLayout';
+import {
   chunkGifs,
   fetchTrendingGifs,
   getGifPreviewUrl,
@@ -38,6 +42,7 @@ export function GifCategoryGrid({
   onSelect,
 }: GifCategoryGridProps) {
   const theme = useKeyboardTheme();
+  const sharedStyles = useThemedStyles(createEmojiPanelSharedStyles);
   const styles = useThemedStyles(themeValue =>
     createGifCategoryGridStyles(themeValue, height),
   );
@@ -133,7 +138,10 @@ export function GifCategoryGrid({
             onPress={() => {
               handleGifPress(gif);
             }}
-            style={styles.cell}>
+            style={({pressed}) => [
+              styles.cell,
+              pressed && styles.cellPressed,
+            ]}>
             {previewUrl ? (
               <Image
                 source={{uri: previewUrl}}
@@ -150,7 +158,7 @@ export function GifCategoryGrid({
         ? Array.from({length: GIF_COLUMNS - row.length}).map((_, index) => (
             <View
               key={`gif-spacer-${rowIndex}-${index}`}
-              style={styles.cell}
+              style={styles.cellSpacer}
             />
           ))
         : null}
@@ -160,12 +168,13 @@ export function GifCategoryGrid({
   return (
     <View style={[styles.container, {width, height}]}>
       {loading ? (
-        <View style={styles.centered}>
+        <View style={sharedStyles.centeredLoader}>
           <ActivityIndicator color={theme.icon} />
         </View>
       ) : error ? (
-        <View style={styles.centered}>
-          <Text style={styles.errorText}>{error}</Text>
+        <View style={sharedStyles.centeredLoader}>
+          <Text style={sharedStyles.emptyTitle}>Could not load GIFs</Text>
+          <Text style={sharedStyles.errorText}>{error}</Text>
         </View>
       ) : (
         <FlatList
@@ -185,7 +194,7 @@ export function GifCategoryGrid({
                 <ActivityIndicator color={theme.icon} />
               </View>
             ) : (
-              <Text style={styles.attribution}>Powered by GIPHY</Text>
+              <Text style={sharedStyles.attribution}>Powered by GIPHY</Text>
             )
           }
         />
@@ -208,23 +217,31 @@ function createGifCategoryGridStyles(theme: KeyboardTheme, panelHeight: number) 
       flex: 1,
     },
     content: {
-      paddingHorizontal: 10,
-      paddingTop: 2,
-      gap: 6,
-      paddingBottom: 8,
+      paddingHorizontal: 8,
+      paddingBottom: 6,
+      gap: GIF_CELL_GAP,
     },
     row: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 6,
+      gap: GIF_CELL_GAP,
       height: rowHeight,
     },
     cell: {
       flex: 1,
       height: rowHeight,
-      borderRadius: theme.keyRadius,
+      borderRadius: 10,
       overflow: 'hidden',
-      backgroundColor: theme.letterKey,
+      backgroundColor: theme.pluginCardSecondary,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.borderSubtle,
+    },
+    cellSpacer: {
+      flex: 1,
+      height: rowHeight,
+    },
+    cellPressed: {
+      opacity: 0.82,
     },
     preview: {
       width: '100%',
@@ -234,29 +251,9 @@ function createGifCategoryGridStyles(theme: KeyboardTheme, panelHeight: number) 
       flex: 1,
       backgroundColor: theme.modifierKey,
     },
-    centered: {
-      flex: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingHorizontal: 16,
-    },
-    errorText: {
-      color: theme.iconMuted,
-      fontSize: 13,
-      fontFamily: theme.fontFamily,
-      textAlign: 'center',
-    },
     footer: {
       paddingVertical: 10,
       alignItems: 'center',
-    },
-    attribution: {
-      textAlign: 'center',
-      color: theme.iconMuted,
-      fontSize: 10,
-      fontFamily: theme.fontFamily,
-      paddingVertical: 8,
-      opacity: 0.8,
     },
   });
 }

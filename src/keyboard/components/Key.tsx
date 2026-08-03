@@ -1,5 +1,6 @@
 import React, {memo, useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
+  Animated,
   findNodeHandle,
   Image,
   PanResponder,
@@ -56,6 +57,7 @@ const KEY_PRESS_RETENTION = {top: 18, left: 10, bottom: 18, right: 10};
 const KEY_HIT_SLOP = {top: 3, left: 2, bottom: 3, right: 2};
 
 export type KeyGesturesConfig = {
+  zeroLatencyMode: boolean;
   spaceCursorSwipe: boolean;
   backspaceWordSwipe: boolean;
   backspaceSentenceHold: boolean;
@@ -123,6 +125,8 @@ function KeyComponent({
   const isMacintosh = theme.design === 'macintosh';
   const isQuivox = theme.design === 'quivox';
   const isSpaceKey = keyDef.type === 'space';
+  const showZeroLatencyRipple =
+    isSpaceKey && Boolean(keyGestures?.zeroLatencyMode);
   const usesMultiTouchRouter = isMultiTouchTextKey(keyDef);
   const usesMultiTouchDispatch =
     usesMultiTouchRouter ||
@@ -244,7 +248,7 @@ function KeyComponent({
     if (!usesMultiTouchDispatch) {
       return;
     }
-    return registerMultiTouchKeyVisual(keyDef.id, (pressed, options) => {
+    return registerMultiTouchKeyVisual(keyDef.id, (pressed, _options) => {
       if (usesMultiTouchRouter) {
         if (gestureSwipeActiveRef.current && pressed) {
           return;
@@ -272,6 +276,7 @@ function KeyComponent({
   }, [
     animateMultiTouchPress,
     keyDef.id,
+    keyDef.label,
     keyDef.value,
     isUppercase,
     usesMultiTouchDispatch,
@@ -298,7 +303,13 @@ function KeyComponent({
         unregisterKeyReactTag(keyDef.id);
       }
     };
-  }, [keyDef.id, layoutContext, measureKey, usesMultiTouchDispatch]);
+  }, [
+    keyDef.id,
+    layoutContext,
+    measureKey,
+    usesMultiTouchDispatch,
+    usesMultiTouchRouter,
+  ]);
 
   const clearLauncherHold = useCallback(() => {
     if (launcherHoldDelayRef.current) {
@@ -447,14 +458,19 @@ function KeyComponent({
   );
 
   const handlePressIn = useCallback((event: GestureResponderEvent) => {
-    const pointerId = event.nativeEvent.identifier;
+    const parsedPointerId = Number(event.nativeEvent.identifier);
+    const pointerId = Number.isFinite(parsedPointerId)
+      ? parsedPointerId
+      : undefined;
     if (isEnterAction) {
       // Defer the action to onPress (short tap) or onLongPress (hold for alternate newline).
       // Give immediate haptic + visual on down for responsiveness.
       triggerKeyHaptic(pointerId);
       return;
     }
-    const nativeCommitted = keyboardBridge.consumeNativeFastPathPointer(pointerId);
+    const nativeCommitted =
+      pointerId != null &&
+      keyboardBridge.consumeNativeFastPathPointer(pointerId);
     onPress(keyDef);
     triggerKeyHaptic(pointerId, {nativeCommitted});
   }, [keyDef, onPress, isEnterAction]);
@@ -732,6 +748,9 @@ function KeyComponent({
               shape={isEnterKey ? 'pill' : 'rect'}
             />
           ) : null}
+          {showZeroLatencyRipple ? (
+            <ZeroLatencyRipple color={theme.essentialsAccent} size={keyHeight} />
+          ) : null}
           {keyContent}
         </View>
       </View>
@@ -833,6 +852,9 @@ function KeyComponent({
                 shape={isEnterKey ? 'pill' : 'rect'}
               />
             ) : null}
+            {showZeroLatencyRipple ? (
+              <ZeroLatencyRipple color={theme.essentialsAccent} size={keyHeight} />
+            ) : null}
             {keyContent}
           </>
         )}
@@ -858,6 +880,47 @@ function keyPropsAreEqual(prev: KeyProps, next: KeyProps): boolean {
 }
 
 export const Key = memo(KeyComponent, keyPropsAreEqual);
+
+function ZeroLatencyRipple({color, size}: {color: string; size: number}) {
+  const progress = useRef(new Animated.Value(0)).current;
+  const rippleStyle = useMemo(
+    () => ({
+      position: 'absolute' as const,
+      width: size,
+      height: size,
+      borderRadius: size / 2,
+      backgroundColor: color,
+      opacity: progress.interpolate({
+        inputRange: [0, 0.55, 1],
+        outputRange: [0.75, 0.3, 0],
+      }),
+      transform: [
+        {
+          scale: progress.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0.08, 9],
+          }),
+        },
+      ],
+    }),
+    [color, progress, size],
+  );
+
+  useEffect(() => {
+    Animated.timing(progress, {
+      toValue: 1,
+      duration: 620,
+      useNativeDriver: true,
+    }).start();
+  }, [progress]);
+
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={rippleStyle}
+    />
+  );
+}
 
 function createKeyStyles(theme: KeyboardTheme) {
   return StyleSheet.create({

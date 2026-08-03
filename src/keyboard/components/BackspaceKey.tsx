@@ -19,9 +19,9 @@ import {keyboardKeyChromeStyle, keyboardKeyPressMotionStyle} from '../theme';
 import {MacintoshKeyBevels} from './MacintoshKeyBevels';
 import type {KeyGesturesConfig} from './Key';
 
-const BACKSPACE_HOLD_DELAY_MS = 280;
+const BACKSPACE_HOLD_DELAY_MS = 220;
 const BACKSPACE_SENTENCE_ESCALATE_MS = 700;
-const BACKSPACE_INITIAL_INTERVAL_MS = 75;
+const BACKSPACE_INITIAL_INTERVAL_MS = 48;
 const BACKSPACE_SWIPE_ACTIVATE_PX = 6;
 const BACKSPACE_WORD_SWIPE_PX = 14;
 const KEY_PRESS_RETENTION = {top: 18, left: 10, bottom: 18, right: 10};
@@ -130,22 +130,27 @@ function BackspaceKeyComponent({
         clearRepeat();
         triggerKeyHaptic();
         keyGesturesRef.current?.onDeleteWord();
-      } else if (!didSentenceRef.current && !holdActivatedRef.current) {
+        keyGesturesRef.current?.onBackspaceRelease?.();
+      } else if (didSentenceRef.current || holdActivatedRef.current) {
         clearRepeat();
-        onPress(keyDef);
+        keyGesturesRef.current?.onBackspaceRelease?.();
       } else {
         clearRepeat();
       }
 
       didSwipeRef.current = false;
       didSentenceRef.current = false;
-      keyGesturesRef.current?.onBackspaceRelease?.();
     },
     [clearRepeat, keyDef, onPress, wordSwipeEnabled, wordSwipePx],
   );
 
   const handlePressIn = useCallback(() => {
     if (touchActiveRef.current) {
+      // Fast re-tap before pressOut arrives — still delete and restart hold tracking.
+      onPress(keyDef);
+      triggerKeyHaptic();
+      clearRepeat();
+      beginHold();
       return;
     }
     touchActiveRef.current = true;
@@ -153,8 +158,9 @@ function BackspaceKeyComponent({
     didSentenceRef.current = false;
     setPressed(true);
     triggerKeyHaptic();
+    onPress(keyDef);
     beginHold();
-  }, [beginHold]);
+  }, [beginHold, clearRepeat, keyDef, onPress]);
 
   const handlePressOut = useCallback(() => {
     finishPress();
@@ -204,7 +210,7 @@ function BackspaceKeyComponent({
 
   useEffect(() => () => clearRepeat(), [clearRepeat]);
 
-  const iconColor = theme.icon;
+  const iconColor = isEnterBackspace ? theme.iconOnEnter : theme.icon;
   const icon = isEnterBackspace ? (
     <BackspaceIcon width={24} height={16} color={iconColor} />
   ) : isNumpadBack ? (

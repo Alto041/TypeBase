@@ -13,7 +13,7 @@ import {useKeyboardTheme} from '../KeyboardThemeContext';
 import {keyboardBridge} from '../keyboardBridge';
 import {hideAllKeyPreviews} from '../KeyPreview';
 import {clampPoint, decimatePoints, distance} from './coordinates';
-import {decodeSwipeGesture} from './gestureDecoder';
+import {decodeSwipeGesture, previewSwipeGesture} from './gestureDecoder';
 import {ensureLearnedDictionaryLoaded} from '../suggestions/learnedDictionary';
 import {
   activeSwipePointerIdRef,
@@ -58,9 +58,48 @@ function pointerId(touch: {identifier: number | string}): number {
 /** Finger movement below this is treated as a tap, not a swipe. */
 const SWIPE_TAP_SLOP_DP = 10;
 const SWIPE_MIN_STEP_DP = 1.5;
-const SWIPE_MAX_POINTS = 240;
-const SWIPE_PREVIEW_INTERVAL_MS = 160;
+const SWIPE_MAX_POINTS = 320;
+const SWIPE_COMPACT_TARGET = 180;
+const SWIPE_TIMED_MAX_POINTS = 600;
+const SWIPE_PREVIEW_TIMED_POINTS = 180;
+const SWIPE_PREVIEW_INTERVAL_MS = 120;
 const TRAIL_MIN_STEP_DP = 1.15;
+
+function appendBoundedPoint(points: Point[], next: Point): Point[] {
+  const appended = [...points, next];
+  return appended.length > SWIPE_MAX_POINTS
+    ? decimatePoints(appended, SWIPE_COMPACT_TARGET)
+    : appended;
+}
+
+function compactTimedPoints(
+  points: Array<Point & {t: number}>,
+): Array<Point & {t: number}> {
+  if (points.length <= SWIPE_TIMED_MAX_POINTS) {
+    return points;
+  }
+  const compacted = [points[0]!];
+  for (let index = 1; index < points.length - 1; index += 2) {
+    compacted.push(points[index]!);
+  }
+  compacted.push(points[points.length - 1]!);
+  return compacted;
+}
+
+function sampleTimedPointsForPreview(
+  points: Array<Point & {t: number}>,
+): Array<Point & {t: number}> {
+  if (points.length <= SWIPE_PREVIEW_TIMED_POINTS) {
+    return points;
+  }
+  const stride = Math.ceil(points.length / SWIPE_PREVIEW_TIMED_POINTS);
+  const sampled = [points[0]!];
+  for (let index = stride; index < points.length - 1; index += stride) {
+    sampled.push(points[index]!);
+  }
+  sampled.push(points[points.length - 1]!);
+  return sampled;
+}
 
 function keyLayoutsToJson(layouts: KeyBounds[]): string {
   return JSON.stringify(
@@ -217,7 +256,9 @@ export function SwipeTypingProvider({
     const generation = previewGenerationRef.current + 1;
     previewGenerationRef.current = generation;
     const pointsJson = JSON.stringify(points);
-    const timedJson = JSON.stringify(timedPointsRef.current);
+    const timedJson = JSON.stringify(
+      sampleTimedPointsForPreview(timedPointsRef.current),
+    );
 
     if (Platform.OS === 'android') {
       void keyboardBridge
@@ -233,7 +274,7 @@ export function SwipeTypingProvider({
     }
 
     const layouts = layoutContext?.getLayouts() ?? [];
-    const word = decodeSwipeGesture(
+    const word = previewSwipeGesture(
       points,
       layouts,
       isUppercase,
@@ -320,6 +361,23 @@ export function SwipeTypingProvider({
     [layoutContext],
   );
 
+  const appendPagePoint = useCallback((pageX: number, pageY: number) => {
+    const points = pagePointsRef.current;
+    const minDistance = dp(SWIPE_MIN_STEP_DP);
+
+    if (points.length > 0) {
+      const last = points[points.length - 1];
+      const dx = pageX - last.pageX;
+      const dy = pageY - last.pageY;
+      if (dx * dx + dy * dy < minDistance * minDistance) {
+        return;
+      }
+    }
+
+    // Only the latest page-space point is needed to validate the lift jump.
+    pagePointsRef.current = [{pageX, pageY}];
+  }, []);
+
   const appendSwipePoint = useCallback(
     (pageX: number, pageY: number) => {
       const local = pageToTrailLocal(pageX, pageY);
@@ -334,8 +392,7 @@ export function SwipeTypingProvider({
         }
       }
       appendPagePoint(pageX, pageY);
-      const nextPoints = decimatePoints([...points, local], SWIPE_MAX_POINTS);
-      localPointsRef.current = nextPoints;
+      localPointsRef.current = appendBoundedPoint(points, local);
 
       appendTrailPoint(local);
       scheduleSwipePreview();
@@ -343,22 +400,6 @@ export function SwipeTypingProvider({
     },
     [appendPagePoint, appendTrailPoint, pageToTrailLocal, scheduleSwipePreview],
   );
-
-  const appendPagePoint = useCallback((pageX: number, pageY: number) => {
-    const points = pagePointsRef.current;
-    const minDistance = dp(SWIPE_MIN_STEP_DP);
-
-    if (points.length > 0) {
-      const last = points[points.length - 1];
-      const dx = pageX - last.pageX;
-      const dy = pageY - last.pageY;
-      if (dx * dx + dy * dy < minDistance * minDistance) {
-        return;
-      }
-    }
-
-    pagePointsRef.current = decimatePoints([...points, {pageX, pageY}], SWIPE_MAX_POINTS);
-  }, []);
 
   /** Record current position for pause detection on a *time* basis (not space).
    * This is what allows detecting dwells/pauses: even when finger moves <1dp,
@@ -375,8 +416,8 @@ export function SwipeTypingProvider({
 
     const buf = timedPointsRef.current;
     buf.push({ x: local.x, y: local.y, t: now });
-    if (buf.length > 450) {
-      buf.splice(0, buf.length - 450);
+    if (buf.length > SWIPE_TIMED_MAX_POINTS) {
+      timedPointsRef.current = compactTimedPoints(buf);
     }
 
     if (gestureSwipeActiveRef.current) {
@@ -413,6 +454,7 @@ export function SwipeTypingProvider({
       }
 
       let word: string | null = null;
+      let nativeDecodeSucceeded = false;
 
       try {
         if (Platform.OS === 'android') {
@@ -431,6 +473,7 @@ export function SwipeTypingProvider({
               isUppercase,
               timedJson,
             );
+            nativeDecodeSucceeded = true;
             if (nativeWord) {
               word = nativeWord;
             }
@@ -439,7 +482,9 @@ export function SwipeTypingProvider({
           }
         }
 
-        if (!word) {
+        // A successful native rejection is final. Running the full JS decoder
+        // afterward doubles the work and freezes the keyboard on noisy trails.
+        if (!word && (Platform.OS !== 'android' || !nativeDecodeSucceeded)) {
           word = decodeSwipeGesture(
             localPoints,
             layouts,
@@ -679,6 +724,7 @@ type SwipeTypingKeysHostProps = {
   getIsUppercase?: () => boolean;
   getLetterCommitText?: (keyValue: string) => string;
   onMultiTouchKeyCommit?: (keyDef: KeyDefinition, text: string) => void;
+  onSpaceLongPress?: () => void;
 };
 
 export function SwipeTypingKeysHost({
@@ -689,6 +735,7 @@ export function SwipeTypingKeysHost({
   getIsUppercase,
   getLetterCommitText,
   onMultiTouchKeyCommit,
+  onSpaceLongPress,
 }: SwipeTypingKeysHostProps) {
   const ctx = useContext(SwipeTypingContext);
   const layoutContext = useKeyLayoutContext();
@@ -755,6 +802,7 @@ export function SwipeTypingKeysHost({
           consumeNativeFastPathPointer: keyboardBridge.consumeNativeFastPathPointer,
           consumeNativeHapticPointer: keyboardBridge.consumeNativeHapticPointer,
           swipeTypingEnabled: Boolean(ctx?.enabled),
+          onSpaceLongPress,
         });
       }
     },
@@ -768,6 +816,7 @@ export function SwipeTypingKeysHost({
       layoutContext,
       multiTouchEnabled,
       onMultiTouchKeyCommit,
+      onSpaceLongPress,
     ],
   );
 

@@ -28,6 +28,8 @@ class NativeKeyFastPath {
   private var enabled = false
   @Volatile
   private var commitOnDown = true
+  @Volatile
+  private var zeroLatency = false
   private var areaPageX = 0f
   private var areaPageY = 0f
   private var hitSlopHorizontal = 0f
@@ -46,6 +48,7 @@ class NativeKeyFastPath {
       val obj = JSONObject(json)
       enabled = obj.optBoolean("enabled", false)
       commitOnDown = obj.optBoolean("commitOnDown", true)
+      zeroLatency = obj.optBoolean("zeroLatency", false)
       areaPageX = obj.optDouble("areaPageX", 0.0).toFloat()
       areaPageY = obj.optDouble("areaPageY", 0.0).toFloat()
       hitSlopHorizontal = obj.optDouble("hitSlopHorizontal", 0.0).toFloat()
@@ -56,11 +59,13 @@ class NativeKeyFastPath {
       capsLocked = obj.optBoolean("capsLocked", false)
       keys = parseKeys(obj.optJSONArray("keys") ?: JSONArray())
       if (!enabled) {
+        zeroLatency = false
         sessions.clear()
         consumedPointers.clear()
       }
     } catch (_: Exception) {
       enabled = false
+      zeroLatency = false
       keys = emptyList()
       sessions.clear()
       consumedPointers.clear()
@@ -69,6 +74,7 @@ class NativeKeyFastPath {
 
   fun clear() {
     enabled = false
+    zeroLatency = false
     keys = emptyList()
     sessions.clear()
     consumedPointers.clear()
@@ -76,6 +82,8 @@ class NativeKeyFastPath {
 
   /** True when this pointer already committed text on the native fast path. */
   fun consumePointer(pointerId: Int): Boolean = consumedPointers.remove(pointerId)
+
+  fun isZeroLatencyMode(): Boolean = zeroLatency
 
   /**
    * Commits letter keys on touch-down (before React processes the event) for minimal
@@ -95,6 +103,12 @@ class NativeKeyFastPath {
         val rawY = event.rawYForIndex(index)
         val key = hitTest(rawX, rawY) ?: return false
 
+        if (!zeroLatency) {
+          KeyboardInputBridge.performKeyHapticForPointer(pointerId)
+        } else {
+          KeyboardInputBridge.performLightKeyHapticForPointer(pointerId)
+        }
+
         if (!commitOnDown) {
           return false
         }
@@ -109,8 +123,10 @@ class NativeKeyFastPath {
         if (commitKeyTextOnly(key, text, shiftConsumed)) {
           consumedPointers.add(pointerId)
           sessions[pointerId] = TouchSession(pointerId, key, text)
-          KeyboardInputBridge.playKeyTapSound()
-          if (key.reactTag > 0) {
+          if (!zeroLatency) {
+            KeyboardInputBridge.playKeyTapSound()
+          }
+          if (!zeroLatency && key.reactTag > 0) {
             val tag = key.reactTag
             // Show immediately on the main looper — delayed posts race finger-up hides.
             if (Looper.myLooper() == Looper.getMainLooper()) {

@@ -12,6 +12,7 @@ import type {KeyDefinition} from '../layouts/qwerty';
 import {triggerKeyHaptic} from '../haptics';
 import {keyboardBridge} from '../keyboardBridge';
 import {KEY_HIT_SLOP} from '../theme';
+import {isZeroLatencyModeActive} from '../zeroLatencyMode';
 import type {KeyBounds} from './types';
 import {markSwipeTypingTapCommitted} from './gestureState';
 
@@ -24,9 +25,15 @@ export type KeyHitSlop = {
 export const DEFAULT_KEY_HIT_SLOP: KeyHitSlop = KEY_HIT_SLOP;
 
 const LONG_PRESS_MS = 350;
+const SPACE_ZERO_LATENCY_HOLD_MS = 420;
+const SPACE_HOLD_MOVE_TOLERANCE_PX = 8;
 const POPUP_CELL_SIZE = 44;
 
-const pressVisualHandlers = new Map<string, (pressed: boolean) => void>();
+type PressVisualHandler = (
+  pressed: boolean,
+  options?: {nativeCommitted?: boolean},
+) => void;
+const pressVisualHandlers = new Map<string, PressVisualHandler>();
 
 type MultiTouchSession = {
   keyId: string;
@@ -38,6 +45,8 @@ type MultiTouchSession = {
   selectedIndex: number;
   geometry: AlternatePopupGeometry | null;
   longPressTimer: ReturnType<typeof setTimeout> | null;
+  startPageX: number;
+  startPageY: number;
 };
 
 const activeSessions = new Map<number, MultiTouchSession>();
@@ -280,7 +289,7 @@ export function touchHitsPressableOnlyKey(
 
 export function registerMultiTouchKeyVisual(
   id: string,
-  handler: (pressed: boolean, options?: {nativeCommitted?: boolean}) => void,
+  handler: PressVisualHandler,
 ): () => void {
   pressVisualHandlers.set(id, handler);
   return () => {
@@ -298,6 +307,9 @@ export function setMultiTouchKeyPressed(
     pressedMultiTouchKeyIds.add(id);
   } else if (wasPressed) {
     pressedMultiTouchKeyIds.delete(id);
+  }
+  if (pressed && isZeroLatencyModeActive()) {
+    return;
   }
   pressVisualHandlers.get(id)?.(pressed, options);
 }
@@ -360,6 +372,7 @@ type DispatchMultiTouchOptions = {
   hitSlop?: KeyHitSlop;
   consumeNativeFastPathPointer?: (pointerId: number) => boolean;
   consumeNativeHapticPointer?: (pointerId: number) => boolean;
+  onSpaceLongPress?: () => void;
   /** When true, letter keys commit on lift so swipes do not leave a stray start letter. */
   swipeTypingEnabled?: boolean;
 };
@@ -451,12 +464,23 @@ export function dispatchMultiTouchStart(
         selectedIndex: 0,
         geometry: null,
         longPressTimer: null,
+        startPageX: touch.pageX,
+        startPageY: touch.pageY,
       };
       setMultiTouchKeyPressed(hit.id, true);
       triggerKeyHaptic();
       options.onKeyCommit(hit.keyDef, ' ');
       markSwipeTypingTapCommitted(pid);
       activeSessions.set(pid, session);
+      if (options.onSpaceLongPress && !isZeroLatencyModeActive()) {
+        session.longPressTimer = setTimeout(() => {
+          session.longPressTimer = null;
+          if (activeSessions.get(pid) !== session || session.phase !== 'holding') {
+            return;
+          }
+          options.onSpaceLongPress?.();
+        }, SPACE_ZERO_LATENCY_HOLD_MS);
+      }
       continue;
     }
 
@@ -481,6 +505,8 @@ export function dispatchMultiTouchStart(
       selectedIndex: 0,
       geometry: null,
       longPressTimer: null,
+      startPageX: touch.pageX,
+      startPageY: touch.pageY,
     };
 
     const nativeCommitted =
@@ -514,7 +540,18 @@ export function dispatchMultiTouchMove(
   for (const touch of touches) {
     const pid = pointerIdFromTouch(touch);
     const session = activeSessions.get(pid);
-    if (!session || session.phase !== 'popup' || !session.geometry) {
+    if (!session) {
+      continue;
+    }
+    if (
+      isMultiTouchSpaceKey(session.keyDef) &&
+      session.longPressTimer &&
+      (Math.abs(touch.pageX - session.startPageX) > SPACE_HOLD_MOVE_TOLERANCE_PX ||
+        Math.abs(touch.pageY - session.startPageY) > SPACE_HOLD_MOVE_TOLERANCE_PX)
+    ) {
+      clearSessionTimer(session);
+    }
+    if (session.phase !== 'popup' || !session.geometry) {
       continue;
     }
 

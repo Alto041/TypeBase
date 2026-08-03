@@ -787,12 +787,6 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
       nativeKeyFastPath.onTouchEvent(event)
 
       when (event.actionMasked) {
-        MotionEvent.ACTION_DOWN,
-        MotionEvent.ACTION_POINTER_DOWN -> {
-          KeyboardInputBridge.performKeyHapticForPointer(
-              event.getPointerId(event.actionIndex),
-          )
-        }
         MotionEvent.ACTION_UP,
         MotionEvent.ACTION_POINTER_UP -> {
           KeyboardInputBridge.releaseHapticPointer(event.getPointerId(event.actionIndex))

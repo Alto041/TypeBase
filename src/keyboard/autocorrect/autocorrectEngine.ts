@@ -54,16 +54,40 @@ const SUPPLEMENTAL_RANK = new Map<string, number>([
 
 // SymSpell lookup + prefix index — no fixed word slice or letter buckets.
 
-const MIN_AUTO_CONFIDENCE = 0.58;
+const MIN_AUTO_CONFIDENCE = 0.55;
 /** Show a bar correction only when confidence is at least this (may still block auto-apply). */
-const MIN_SUGGESTION_BAR_CONFIDENCE = 0.54;
+const MIN_SUGGESTION_BAR_CONFIDENCE = 0.51;
 /** Only consider the top N SymSpell hits — quality over quantity. */
-const HIGH_ACCURACY_SYMSPELL_LIMIT = 3;
+const HIGH_ACCURACY_SYMSPELL_LIMIT = 5;
 const COMMON_WORD_RANK = 4000;
-/** While typing: only exact dictionary fixes in the bar (fuzzy runs on space / after idle). */
-const LIVE_BAR_AUTOCORRECT_MIN_LENGTH = 4;
 /** Skip fuzzy autocorrect for long random key-mash tokens (perf + no useful fix). */
 export const MAX_LIVE_AUTOCORRECT_LENGTH = 18;
+
+const symTypoFixCache = new Map<string, string | null>();
+const SYM_TYPO_CACHE_MAX = 72;
+
+function symTypoCacheKey(lower: string, previousWord: string): string {
+  return `${lower}\0${previousWord}`;
+}
+
+function rememberSymTypoFix(key: string, value: string | null): void {
+  if (symTypoFixCache.size >= SYM_TYPO_CACHE_MAX) {
+    const oldest = symTypoFixCache.keys().next().value;
+    if (oldest) {
+      symTypoFixCache.delete(oldest);
+    }
+  }
+  symTypoFixCache.set(key, value);
+}
+
+/** SymSpell hit or dictionary membership — works before the 82k word Set finishes building. */
+function isValidCorrectionWord(word: string): boolean {
+  const lower = word.toLowerCase();
+  if (isKnownEnglishWord(lower)) {
+    return true;
+  }
+  return hasDictionaryWord(lower);
+}
 
 export function shouldSkipAutocorrectForToken(word: string): boolean {
   const lower = word.trim().toLowerCase();
@@ -328,7 +352,7 @@ function findBestSingleWordCorrection(
     if (match.word.includes(' ') || match.word === typed) {
       continue;
     }
-    if (!isEnglishDictionaryWord(match.word)) {
+    if (!isValidCorrectionWord(match.word)) {
       continue;
     }
     const staticRank = wordRank(match.word);
@@ -598,11 +622,16 @@ function scoreQuickTypoCandidate(
   return score;
 }
 
-function findQuickTypoFixes(typed: string, previousWord = ''): string | null {
+function findQuickTypoFixes(
+  typed: string,
+  previousWord = '',
+  options?: {includeNeighbors?: boolean},
+): string | null {
   if (shouldSkipAutocorrectForToken(typed)) {
     return null;
   }
 
+  const includeNeighbors = options?.includeNeighbors ?? true;
   type QuickCand = {word: string; kind: 'collapse' | 'neighbor' | 'transpose'};
   const candidates: QuickCand[] = [];
 
@@ -617,11 +646,13 @@ function findQuickTypoFixes(typed: string, previousWord = ''): string | null {
     }
   }
 
-  for (const neighbor of collectKeyboardNeighborFixes(typed)) {
-    if (wordRank(neighbor) >= 2_500) {
-      continue;
+  if (includeNeighbors) {
+    for (const neighbor of collectKeyboardNeighborFixes(typed)) {
+      if (wordRank(neighbor) >= 2_500) {
+        continue;
+      }
+      candidates.push({word: neighbor, kind: 'neighbor'});
     }
-    candidates.push({word: neighbor, kind: 'neighbor'});
   }
 
   if (candidates.length === 0) {
@@ -661,6 +692,11 @@ function pickBestSymSpellTypoFix(
     return null;
   }
 
+  const cacheKey = symTypoCacheKey(lower, previousWord);
+  if (symTypoFixCache.has(cacheKey)) {
+    return symTypoFixCache.get(cacheKey) ?? null;
+  }
+
   const maxEd = lower.length <= 4 ? 1 : 2;
   const hits = lookupCandidatesSync(lower, maxEd, HIGH_ACCURACY_SYMSPELL_LIMIT);
   let best: {word: string; score: number} | null = null;
@@ -669,7 +705,7 @@ function pickBestSymSpellTypoFix(
     if (hit.edits > maxEd || hit.word === lower || hit.word.includes(' ')) {
       continue;
     }
-    if (!isKnownEnglishWord(hit.word)) {
+    if (!isValidCorrectionWord(hit.word)) {
       continue;
     }
     if (isLikelyNameTrap(lower, hit.word)) {
@@ -693,7 +729,9 @@ function pickBestSymSpellTypoFix(
     }
   }
 
-  return best?.word ?? null;
+  const result = best?.word ?? null;
+  rememberSymTypoFix(cacheKey, result);
+  return result;
 }
 
 /** Lightweight preview while typing — no splits, compounds, or heavy scans. */
@@ -729,7 +767,9 @@ export function getFastAutocorrectPreview(
   }
 
   if (isEnglishLikeLang()) {
-    const quickFix = findQuickTypoFixes(lower, previousWord);
+    const quickFix = findQuickTypoFixes(lower, previousWord, {
+      includeNeighbors: false,
+    });
     if (quickFix && quickFix !== lower) {
       return applyCaseToWord(quickFix, typed);
     }
@@ -1548,7 +1588,9 @@ export function getAutocorrectCandidate(
 
   // Fast path: accidental double letter / adjacent-key slip (hhello, pwople).
   if (isEnglishLikeLang()) {
-    const quickFix = findQuickTypoFixes(lower, options?.previousWord ?? '');
+    const quickFix = findQuickTypoFixes(lower, options?.previousWord ?? '', {
+      includeNeighbors: true,
+    });
     if (
       quickFix &&
       quickFix !== lower &&
@@ -1810,6 +1852,17 @@ export function getSuggestionBarAutocorrect(
 
   const fast = options?.fast ?? false;
 
+  if (fast) {
+    const preview = getFastAutocorrectPreview(typed, {previousWord});
+    if (preview && preview.toLowerCase() !== typed.toLowerCase()) {
+      return {
+        keepTyped: offerKeepTyped ? typed : null,
+        correction: preview,
+      };
+    }
+    return {keepTyped: null, correction: null};
+  }
+
   if (!fast && isEnglishLikeLang()) {
     const quickFix = findQuickTypoFixes(lower, previousWord);
     if (
@@ -1822,10 +1875,6 @@ export function getSuggestionBarAutocorrect(
         correction: applyCaseToWord(quickFix, typed),
       };
     }
-  }
-
-  if (fast) {
-    return {keepTyped: null, correction: null};
   }
 
   if (getActiveLanguage() === 'hi-en') {

@@ -1,11 +1,20 @@
-import React, {Fragment, memo} from 'react';
-import {Image, Pressable, StyleSheet, Text, View} from 'react-native';
+import React, {Fragment, memo, useEffect, useRef, useState} from 'react';
+import {
+  Animated,
+  Image,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  type TextStyle,
+} from 'react-native';
 import AddIcon from '../../../assets/add.svg';
 import InsertIcon from '../../../assets/insert.svg';
 import BackIcon from '../../../assets/back.svg';
 import CheckIcon from '../../../assets/check.svg';
 import EmojiIcon from '../../../assets/emoji.svg';
 import ItemsIcon from '../../../assets/items.svg';
+import StopIcon from '../../../assets/stop.svg';
 import AppleComputerLogo from '../../../assets/Apple_Computer_Logo_rainbow.svg';
 import UndoIcon from '../../../assets/undo.svg';
 import RedoIcon from '../../../assets/redo.svg';
@@ -14,7 +23,7 @@ import SearchIcon from '../../../assets/enter.svg';
 import TranslateIcon from '../../../assets/plugins/translate.svg';
 import {VoiceConnectingDots} from './VoiceConnectingDots';
 import {VoiceEqualizerIcon} from './VoiceEqualizerIcon';
-import {VoiceTranscriptPreview} from './VoiceTranscriptPreview';
+import {VoiceSpeechPill} from './VoiceSpeechPill';
 import {clipboardPastePreviewText} from '../clipboard/clipboardPasteSuggestion';
 import type {ClipboardPasteSuggestion} from '../clipboard/clipboardPasteSuggestion';
 import {triggerKeyHaptic} from '../haptics';
@@ -35,6 +44,8 @@ export type AiAutocorrectSuggestionBarItem = {
 };
 
 const MAX_SUGGESTION_CHIPS = 3;
+const ZERO_LATENCY_LABEL = 'zero-latency';
+const ZERO_LATENCY_SCRAMBLE = '01abcdefghijklmnopqrstuvwxyz-';
 const TWO_CHIP_WORD_LENGTH = 13;
 const ONE_CHIP_WORD_LENGTH = 20;
 const THREE_CHIP_TEXT_LENGTH = 12;
@@ -156,6 +167,7 @@ type SuggestionBarProps = {
   essentialsForm?: EssentialsFormBarState;
   visible?: boolean;
   isListening?: boolean;
+  isVoiceSpeaking?: boolean;
   isVoiceConnecting?: boolean;
   isVoiceProcessing?: boolean;
   partialTranscript?: string;
@@ -181,6 +193,7 @@ type SuggestionBarProps = {
   showUndoRedo?: boolean;
   onUndo?: () => void;
   onRedo?: () => void;
+  zeroLatencyActive?: boolean;
   gifSearch?: PanelSearchBarState;
   panelSearch?: PanelSearchBarState;
 };
@@ -197,6 +210,7 @@ function SuggestionBarComponent({
   essentialsForm,
   visible = true,
   isListening = false,
+  isVoiceSpeaking = false,
   isVoiceConnecting = false,
   isVoiceProcessing = false,
   partialTranscript = '',
@@ -218,6 +232,7 @@ function SuggestionBarComponent({
   showUndoRedo = false,
   onUndo,
   onRedo,
+  zeroLatencyActive = false,
   gifSearch,
   panelSearch: panelSearchProp,
 }: SuggestionBarProps) {
@@ -296,13 +311,18 @@ function SuggestionBarComponent({
   }
 
   const isFormMode = Boolean(essentialsForm);
+  const showVoiceSession =
+    !isFormMode &&
+    (isVoiceConnecting || isListening || isVoiceProcessing);
   const showLeadingBack = isFormMode || leadingBack;
-  const showVoiceProcessing = !isFormMode && isVoiceProcessing;
+  const showVoiceProcessing =
+    !isFormMode && isVoiceProcessing && !showVoiceSession;
   const showPartial =
     !isFormMode &&
     isListening &&
     !isVoiceProcessing &&
-    partialTranscript.length > 0;
+    partialTranscript.length > 0 &&
+    !showVoiceSession;
   const hasEssentials = !isFormMode && essentialSuggestions.length > 0;
   const wordSuggestionChips = isFormMode
     ? []
@@ -357,6 +377,11 @@ function SuggestionBarComponent({
   const voiceActive = isListening || isVoiceConnecting;
   const voiceIconColor = voiceActive ? toolbarIconActive : toolbarIconMuted;
   const showUndoRedoButtons = showUndoRedo && !isFormMode && !centerTitle;
+  const showZeroLatencyBadge =
+    zeroLatencyActive &&
+    !isFormMode &&
+    !centerTitle &&
+    !showVoiceSession;
   const isMacintosh = theme.design === 'macintosh';
 
   return (
@@ -427,6 +452,16 @@ function SuggestionBarComponent({
         ) : null}
       </View>
 
+      {showVoiceSession ? (
+        <VoiceSpeechPill
+          visible={showVoiceSession}
+          connecting={isVoiceConnecting}
+          listening={isListening}
+          speaking={isVoiceSpeaking}
+          processing={isVoiceProcessing}
+          transcript={partialTranscript}
+        />
+      ) : (
       <View style={styles.center}>
         {isFormMode && essentialsForm ? (
           <View style={styles.formCenter}>
@@ -462,9 +497,7 @@ function SuggestionBarComponent({
           <View style={styles.aiProcessingContainer}>
             <VoiceConnectingDots size={22} color={theme.spaceLabel} />
           </View>
-        ) : showPartial ? (
-          <VoiceTranscriptPreview transcript={partialTranscript} />
-        ) : showSwipePreview ? (
+        ) : showPartial ? null : showSwipePreview ? (
           <View style={styles.swipePreviewContainer}>
             <Text style={styles.swipePreviewText} numberOfLines={1}>
               {middleTruncateSuggestion(swipePreview ?? '', ONE_CHIP_TEXT_LENGTH)}
@@ -587,6 +620,7 @@ function SuggestionBarComponent({
           </View>
         ) : null}
       </View>
+      )}
 
       {isFormMode && essentialsForm ? (
         <Pressable
@@ -646,22 +680,24 @@ function SuggestionBarComponent({
               <RedoIcon width={22} height={22} color={theme.icon} />
             </Pressable>
           ) : null}
-          <Pressable
-            onPressIn={() => {
-              triggerKeyHaptic();
-              onEmojiPress?.();
-            }}
-            style={({pressed}) => [
-              styles.toolbarButton,
-              pressed && styles.toolbarButtonPressed,
-            ]}
-            hitSlop={6}>
-            <EmojiIcon
-              width={toolbarIconSize}
-              height={toolbarIconSize}
-              color={emojiIconColor}
-            />
-          </Pressable>
+          {!showVoiceSession ? (
+            <Pressable
+              onPressIn={() => {
+                triggerKeyHaptic();
+                onEmojiPress?.();
+              }}
+              style={({pressed}) => [
+                styles.toolbarButton,
+                pressed && styles.toolbarButtonPressed,
+              ]}
+              hitSlop={6}>
+              <EmojiIcon
+                width={toolbarIconSize}
+                height={toolbarIconSize}
+                color={emojiIconColor}
+              />
+            </Pressable>
+          ) : null}
           <Pressable
             onPressIn={() => {
               triggerKeyHaptic();
@@ -672,14 +708,15 @@ function SuggestionBarComponent({
               pressed && styles.toolbarButtonPressed,
             ]}
             hitSlop={6}>
-            {isVoiceConnecting ? (
-              <VoiceConnectingDots
-                size={toolbarIconSize}
+            {voiceActive ? (
+              <StopIcon
+                width={toolbarIconSize}
+                height={toolbarIconSize}
                 color={voiceIconColor}
               />
             ) : (
               <VoiceEqualizerIcon
-                active={isListening}
+                active={false}
                 size={toolbarIconSize}
                 color={voiceIconColor}
               />
@@ -687,12 +724,114 @@ function SuggestionBarComponent({
           </Pressable>
         </View>
       )}
+      {showZeroLatencyBadge ? (
+        <View style={styles.centerTitleOverlay} pointerEvents="none">
+          <ZeroLatencyTitle textStyle={styles.zeroLatencyTitle} />
+        </View>
+      ) : null}
       {centerTitle ? (
         <View style={styles.centerTitleOverlay} pointerEvents="none">
           <Text style={styles.centerTitle}>{asDisplayText(centerTitle).toUpperCase()}</Text>
         </View>
       ) : null}
     </View>
+  );
+}
+
+function ZeroLatencyTitle({textStyle}: {textStyle: TextStyle}) {
+  const [text, setText] = useState('000000');
+  const opacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    let cancelled = false;
+    const timeouts: ReturnType<typeof setTimeout>[] = [];
+    const intervals: ReturnType<typeof setInterval>[] = [];
+
+    const schedule = (run: () => void, delayMs: number) => {
+      timeouts.push(
+        setTimeout(() => {
+          if (!cancelled) {
+            run();
+          }
+        }, delayMs),
+      );
+    };
+
+    Animated.timing(opacity, {
+      toValue: 1,
+      duration: 220,
+      useNativeDriver: true,
+    }).start();
+
+    schedule(() => setText('000000'), 0);
+
+    schedule(() => {
+      let length = 6;
+      const expand = setInterval(() => {
+        if (cancelled) {
+          return;
+        }
+        length += 1;
+        setText('0'.repeat(length));
+        if (length >= ZERO_LATENCY_LABEL.length) {
+          clearInterval(expand);
+        }
+      }, 28);
+      intervals.push(expand);
+    }, 180);
+
+    schedule(() => {
+      let resolved = 0;
+
+      const scramble = setInterval(() => {
+        if (cancelled) {
+          return;
+        }
+        setText(() => {
+          let next = '';
+          for (let index = 0; index < ZERO_LATENCY_LABEL.length; index++) {
+            if (index < resolved) {
+              next += ZERO_LATENCY_LABEL[index];
+            } else if (index === resolved) {
+              next +=
+                ZERO_LATENCY_SCRAMBLE[
+                  Math.floor(Math.random() * ZERO_LATENCY_SCRAMBLE.length)
+                ] ?? '0';
+            } else {
+              next += '0';
+            }
+          }
+          return next;
+        });
+      }, 32);
+      intervals.push(scramble);
+
+      const resolveNext = () => {
+        if (cancelled) {
+          return;
+        }
+        resolved += 1;
+        if (resolved > ZERO_LATENCY_LABEL.length) {
+          clearInterval(scramble);
+          setText(ZERO_LATENCY_LABEL);
+          return;
+        }
+        schedule(resolveNext, 46);
+      };
+
+      schedule(resolveNext, 70);
+    }, 180 + 28 * (ZERO_LATENCY_LABEL.length - 6) + 40);
+
+    return () => {
+      cancelled = true;
+      timeouts.forEach(clearTimeout);
+      intervals.forEach(clearInterval);
+      opacity.stopAnimation();
+    };
+  }, [opacity]);
+
+  return (
+    <Animated.Text style={[textStyle, {opacity}]}>{text}</Animated.Text>
   );
 }
 
@@ -740,6 +879,13 @@ function createSuggestionBarStyles(theme: KeyboardTheme) {
     justifyContent: 'center',
   },
   centerTitle: {
+    color: theme.spaceLabel,
+    fontSize: 12,
+    ...keyboardTypefaceStyle(theme, '600'),
+    letterSpacing: 0.8,
+    textAlign: 'center',
+  },
+  zeroLatencyTitle: {
     color: theme.spaceLabel,
     fontSize: 12,
     ...keyboardTypefaceStyle(theme, '600'),

@@ -1,9 +1,9 @@
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
-import {Dimensions, StyleSheet, View} from 'react-native';
-import {useKeyboardTheme} from '../KeyboardThemeContext';
-import type {KeyboardTheme} from '../theme';
+import {Dimensions, View} from 'react-native';
+import {useThemedStyles} from '../KeyboardThemeContext';
 import {EmojiCategoryGrid} from './EmojiCategoryGrid';
 import {EmojiSearchGrid} from './EmojiSearchGrid';
+import {createEmojiPanelShellStyles} from './emojiPanelLayout';
 import {GifCategoryGrid} from './GifCategoryGrid';
 import {SfxCategoryGrid} from './SfxCategoryGrid';
 import type {EmojiCategoryId} from './emojis';
@@ -41,17 +41,20 @@ export function EmojiPanel({
   onSfxPreview,
   installingSfxId = null,
 }: EmojiPanelProps) {
-  const theme = useKeyboardTheme();
   const emojiScrollHeight = Math.max(120, Math.round(panelHeight));
-  const styles = useMemo(
-    () => createEmojiPanelStyles(theme, emojiScrollHeight),
-    [theme, emojiScrollHeight],
+  const shellStyles = useThemedStyles(themeValue =>
+    createEmojiPanelShellStyles(themeValue, emojiScrollHeight),
   );
   const [panelWidth, setPanelWidth] = useState(() =>
     Math.max(280, Math.round(Dimensions.get('window').width)),
   );
   const [recentEmojis, setRecentEmojis] = useState<readonly string[]>([]);
   const [recentEmojisVersion, setRecentEmojisVersion] = useState(0);
+
+  const contentWidth = useMemo(
+    () => Math.max(200, panelWidth - 16),
+    [panelWidth],
+  );
 
   const reloadRecents = useCallback(() => {
     void ensureRecentEmojisLoaded().then(() => {
@@ -76,61 +79,51 @@ export function EmojiPanel({
     [onSelect],
   );
 
+  const content =
+    category === 'gif' ? (
+      <GifCategoryGrid
+        width={contentWidth}
+        height={emojiScrollHeight}
+        query={gifSearchQuery}
+        onSelect={onGifSelect}
+      />
+    ) : category === 'sfx' ? (
+      <SfxCategoryGrid
+        width={contentWidth}
+        height={emojiScrollHeight}
+        query={sfxSearchQuery}
+        onSelect={onSfxSelect}
+        onPreview={onSfxPreview}
+        installingId={installingSfxId}
+      />
+    ) : emojiSearchQuery.trim().length > 0 ? (
+      <EmojiSearchGrid
+        width={contentWidth}
+        height={emojiScrollHeight}
+        query={emojiSearchQuery}
+        onSelect={handleEmojiSelect}
+      />
+    ) : (
+      <EmojiCategoryGrid
+        category={category}
+        width={contentWidth}
+        height={emojiScrollHeight}
+        recentEmojis={recentEmojis}
+        recentEmojisVersion={recentEmojisVersion}
+        onSelect={handleEmojiSelect}
+      />
+    );
+
   return (
     <View
-      style={styles.container}
+      style={shellStyles.outer}
       onLayout={event => {
         const width = Math.round(event.nativeEvent.layout.width);
         if (width > 0 && width !== panelWidth) {
           setPanelWidth(width);
         }
       }}>
-      {category === 'gif' ? (
-        <GifCategoryGrid
-          width={panelWidth}
-          height={emojiScrollHeight}
-          query={gifSearchQuery}
-          onSelect={onGifSelect}
-        />
-      ) : category === 'sfx' ? (
-        <SfxCategoryGrid
-          width={panelWidth}
-          height={emojiScrollHeight}
-          query={sfxSearchQuery}
-          onSelect={onSfxSelect}
-          onPreview={onSfxPreview}
-          installingId={installingSfxId}
-        />
-      ) : emojiSearchQuery.trim().length > 0 ? (
-        <EmojiSearchGrid
-          width={panelWidth}
-          height={emojiScrollHeight}
-          query={emojiSearchQuery}
-          onSelect={handleEmojiSelect}
-        />
-      ) : (
-        <EmojiCategoryGrid
-          category={category}
-          width={panelWidth}
-          height={emojiScrollHeight}
-          recentEmojis={recentEmojis}
-          recentEmojisVersion={recentEmojisVersion}
-          onSelect={handleEmojiSelect}
-        />
-      )}
+      <View style={shellStyles.card}>{content}</View>
     </View>
   );
-}
-
-function createEmojiPanelStyles(
-  theme: KeyboardTheme,
-  emojiScrollHeight: number,
-) {
-  return StyleSheet.create({
-    container: {
-      height: emojiScrollHeight,
-      marginBottom: theme.emojiPanelGap,
-      overflow: 'hidden',
-    },
-  });
 }

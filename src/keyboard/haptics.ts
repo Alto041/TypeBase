@@ -1,4 +1,5 @@
 import {keyboardBridge} from './keyboardBridge';
+import {isZeroLatencyModeActive} from './zeroLatencyMode';
 
 type TriggerKeyHapticOptions = {
   /** Native fast path already committed this key (skip duplicate tap sound). */
@@ -13,6 +14,15 @@ export function triggerKeyHaptic(
   pointerId?: number,
   options?: TriggerKeyHapticOptions,
 ) {
+  if (isZeroLatencyModeActive()) {
+    const frameHapticHandled =
+      pointerId != null && keyboardBridge.consumeNativeHapticPointer(pointerId);
+    if (!frameHapticHandled) {
+      keyboardBridge.performLightKeyHaptic();
+    }
+    return;
+  }
+
   const frameHapticHandled =
     pointerId != null && keyboardBridge.consumeNativeHapticPointer(pointerId);
 

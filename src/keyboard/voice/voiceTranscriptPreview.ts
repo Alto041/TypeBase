@@ -1,4 +1,5 @@
 export const VOICE_PREVIEW_MAX_WORDS = 4;
+export const VOICE_PILL_PREVIEW_MAX_WORDS = 12;
 
 export function splitPartialWords(partial: string): {
   completeWords: string[];

@@ -4,7 +4,10 @@ import {
   isEnglishSymSpellReady,
   lookupSwipeCandidatesSync,
 } from '../autocorrect/dictionaryManager';
-import {rankFromSymSpellFrequency} from '../autocorrect/englishFrequencyDictionary';
+import {
+  getEnglishWordsByFrequency,
+  rankFromSymSpellFrequency,
+} from '../autocorrect/englishFrequencyDictionary';
 import {
   getLearnedCounts,
   learnedRankBoost,
@@ -317,7 +320,9 @@ export function getWordsByFirstLetter(
     return [];
   }
 
-  const baseWords = getBaseWords();
+  const languageWords = getBaseWords();
+  const baseWords =
+    languageWords.length > 0 ? languageWords : getEnglishWordsByFrequency();
   if (!baseWords.length) {
     return [];
   }

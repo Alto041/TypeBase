@@ -60,6 +60,7 @@ type KeyboardModuleType = {
   dismissKeyboard: () => void;
   openInputMethodSettings: () => void;
   performKeyHaptic: () => void;
+  performLightKeyHaptic: () => void;
   playKeyTapSound: () => void;
   syncCustomTapSound: () => void;
   playCustomTapSound: () => void;
@@ -419,6 +420,11 @@ export const keyboardBridge: KeyboardModuleType = {
   performKeyHaptic: () => {
     if (Platform.OS === 'android' && KeyboardModule?.performKeyHaptic) {
       KeyboardModule.performKeyHaptic();
+    }
+  },
+  performLightKeyHaptic: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.performLightKeyHaptic) {
+      KeyboardModule.performLightKeyHaptic();
     }
   },
   playKeyTapSound: () => {

@@ -221,6 +221,15 @@ object KeyboardInputBridge {
     synchronized(hapticHandledPointers) { hapticHandledPointers.add(pointerId) }
   }
 
+  /** Softer touch-down haptic for zero-latency fast typing. */
+  fun performLightKeyHapticForPointer(pointerId: Int) {
+    if (keyHapticEnabled) {
+      fireLightHapticPulse()
+      lastHapticMs = SystemClock.uptimeMillis()
+    }
+    synchronized(hapticHandledPointers) { hapticHandledPointers.add(pointerId) }
+  }
+
   fun playKeyTapSound() {
     scheduleTapSound()
   }
@@ -256,6 +265,20 @@ object KeyboardInputBridge {
     scheduleTapSound()
   }
 
+  /** JS-only light haptic (zero-latency mode). No tap sound. */
+  fun performLightKeyHaptic() {
+    val now = SystemClock.uptimeMillis()
+    if (now - lastHapticMs < JS_HAPTIC_DEBOUNCE_MS) {
+      return
+    }
+    lastHapticMs = now
+
+    if (!keyHapticEnabled) {
+      return
+    }
+    fireLightHapticPulse()
+  }
+
   /**
    * Use the device haptic engine (key-press / heavy-click primitives), not a raw
    * vibrator waveform buzz. Prefer View.performHapticFeedback(KEYBOARD_PRESS).
@@ -274,6 +297,19 @@ object KeyboardInputBridge {
     hapticEngineClickFallback()
   }
 
+  private fun fireLightHapticPulse() {
+    val view = inputService?.keyboardViewForFeedback
+    if (view != null) {
+      if (Looper.myLooper() == Looper.getMainLooper()) {
+        performViewLightKeyHaptic(view)
+      } else {
+        mainHandler.post { performViewLightKeyHaptic(view) }
+      }
+      return
+    }
+    lightHapticEngineFallback()
+  }
+
   private fun performViewKeyPressHaptic(view: View) {
     val flags =
         HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING or
@@ -290,6 +326,36 @@ object KeyboardInputBridge {
         }
     if (!ok) {
       hapticEngineClickFallback()
+    }
+  }
+
+  private fun performViewLightKeyHaptic(view: View) {
+    val flags =
+        HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING or
+            HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING
+    @Suppress("DEPRECATION")
+    val ok = view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK, flags)
+    if (!ok) {
+      lightHapticEngineFallback()
+    }
+  }
+
+  private fun lightHapticEngineFallback() {
+    val ctx = inputService?.applicationContext ?: return
+    val vib =
+        vibrator
+            ?: (ctx.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator)?.also { vibrator = it }
+            ?: return
+    if (!vib.hasVibrator()) {
+      return
+    }
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+      vib.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK))
+    } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+      vib.vibrate(VibrationEffect.createOneShot(8L, 48))
+    } else {
+      @Suppress("DEPRECATION")
+      vib.vibrate(8L)
     }
   }
 

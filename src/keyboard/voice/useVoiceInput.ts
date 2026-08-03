@@ -15,7 +15,7 @@ import {
   preloadVoiceActivationSound,
 } from './voiceActivationSound';
 import {SpeechmaticsVoiceService} from './speechmaticsService';
-import {getRollingPreviewWords} from './voiceTranscriptPreview';
+import {getRollingPreviewWords, VOICE_PILL_PREVIEW_MAX_WORDS} from './voiceTranscriptPreview';
 import {voiceRecorder} from './voiceRecorder';
 
 function formatDictationInsert(text: string): string {
@@ -55,6 +55,7 @@ function isMissingSpeechmaticsKey(error: unknown): boolean {
 
 export function useVoiceInput() {
   const [isListening, setIsListening] = useState(false);
+  const [isVoiceSpeaking, setIsVoiceSpeaking] = useState(false);
   const [isVoiceConnecting, setIsVoiceConnecting] = useState(false);
   const [isVoiceProcessing, setIsVoiceProcessing] = useState(false);
   const [partialTranscript, setPartialTranscript] = useState('');
@@ -64,12 +65,29 @@ export function useVoiceInput() {
   const sessionFinalsRef = useRef<string[]>([]);
   const lastPartialRef = useRef('');
   const stoppingRef = useRef(false);
+  const speakingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stopListeningRef = useRef<() => Promise<void>>(async () => {});
 
+  const markVoiceSpeaking = useCallback(() => {
+    if (speakingTimerRef.current) {
+      clearTimeout(speakingTimerRef.current);
+    }
+    setIsVoiceSpeaking(true);
+    speakingTimerRef.current = setTimeout(() => {
+      speakingTimerRef.current = null;
+      setIsVoiceSpeaking(false);
+    }, 700);
+  }, []);
+
   const resetSession = useCallback(() => {
+    if (speakingTimerRef.current) {
+      clearTimeout(speakingTimerRef.current);
+      speakingTimerRef.current = null;
+    }
     sessionFinalsRef.current = [];
     lastPartialRef.current = '';
     setPartialTranscript('');
+    setIsVoiceSpeaking(false);
     setIsVoiceProcessing(false);
     setIsVoiceConnecting(false);
   }, []);
@@ -79,6 +97,7 @@ export function useVoiceInput() {
       getRollingPreviewWords(
         sessionFinalsRef.current,
         lastPartialRef.current,
+        VOICE_PILL_PREVIEW_MAX_WORDS,
       ).join(' '),
     );
   }, []);
@@ -89,10 +108,13 @@ export function useVoiceInput() {
         return;
       }
 
+      if (partial.trim() && partial.trim() !== lastPartialRef.current.trim()) {
+        markVoiceSpeaking();
+      }
       lastPartialRef.current = partial;
       refreshPreview();
     },
-    [isVoiceProcessing, refreshPreview],
+    [isVoiceProcessing, markVoiceSpeaking, refreshPreview],
   );
 
   const appendFinalSegment = useCallback(
@@ -104,9 +126,10 @@ export function useVoiceInput() {
 
       lastPartialRef.current = '';
       sessionFinalsRef.current.push(trimmed);
+      markVoiceSpeaking();
       refreshPreview();
     },
-    [refreshPreview],
+    [markVoiceSpeaking, refreshPreview],
   );
 
   const finishSession = useCallback(async () => {
@@ -155,7 +178,12 @@ export function useVoiceInput() {
     stoppingRef.current = true;
 
     try {
+      if (speakingTimerRef.current) {
+        clearTimeout(speakingTimerRef.current);
+        speakingTimerRef.current = null;
+      }
       setIsListening(false);
+      setIsVoiceSpeaking(false);
       setIsVoiceConnecting(false);
 
       const activeProvider = activeSttProviderRef.current;
@@ -350,12 +378,16 @@ export function useVoiceInput() {
   useEffect(() => {
     preloadVoiceActivationSound();
     return () => {
+      if (speakingTimerRef.current) {
+        clearTimeout(speakingTimerRef.current);
+      }
       void stopListeningRef.current();
     };
   }, []);
 
   return {
     isListening,
+    isVoiceSpeaking,
     isVoiceConnecting,
     isVoiceProcessing,
     partialTranscript,

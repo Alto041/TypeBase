@@ -7,15 +7,20 @@ import {
   Text,
   View,
 } from 'react-native';
-import {useKeyboardTheme} from '../KeyboardThemeContext';
+import {useThemedStyles} from '../KeyboardThemeContext';
 import {triggerKeyHaptic} from '../haptics';
-import type {KeyboardTheme} from '../theme';
 import {
   chunkEmojis,
   EMOJI_COLUMNS,
   EMOJIS_BY_CATEGORY,
   type EmojiCategoryId,
 } from './emojis';
+import {
+  createEmojiPanelSharedStyles,
+  EMOJI_CELL_GAP,
+  RECENTS_CONTAINER_GAP,
+  RECENTS_STRIP_V_PADDING,
+} from './emojiPanelLayout';
 
 type EmojiCategoryGridProps = {
   category: Exclude<EmojiCategoryId, 'gif' | 'sfx'>;
@@ -54,38 +59,68 @@ export function EmojiCategoryGrid({
   selectionLockedRef,
   onSelect,
 }: EmojiCategoryGridProps) {
-  const theme = useKeyboardTheme();
-  const emojiScrollHeight = Math.max(120, Math.round(height));
-  const styles = useMemo(
-    () => createEmojiCategoryGridStyles(theme, emojiScrollHeight),
-    [theme, emojiScrollHeight],
-  );
-  const emojiRowHeight = Math.floor(emojiScrollHeight / 4);
+  const sharedStyles = useThemedStyles(createEmojiPanelSharedStyles);
   const hasRecents = recentEmojis.length > 0;
-  const dividerWidth = 1;
-  const availableWidth = width - dividerWidth;
-  const recentColumnWidth = Math.floor(
-    availableWidth / (EMOJI_COLUMNS + 1),
+  const recentsStripHeight = hasRecents
+    ? RECENTS_STRIP_V_PADDING * 2
+    : 0;
+  const rowHeight = useMemo(() => {
+    if (hasRecents) {
+      return Math.floor(
+        (height - recentsStripHeight - RECENTS_CONTAINER_GAP) / 5,
+      );
+    }
+    return Math.floor(height / 4);
+  }, [hasRecents, height, recentsStripHeight]);
+  const styles = useThemedStyles(() =>
+    createEmojiCategoryGridStyles(height, hasRecents, rowHeight, recentsStripHeight),
   );
-  const gridWidth = availableWidth - recentColumnWidth;
   const gridScrollGuard = useScrollGuard();
-  const recentScrollGuard = useScrollGuard();
-
-  // Keep guards in sync if one list starts scrolling; treat either as "user is scrolling emojis"
-  const isAnyScrolling = () =>
-    gridScrollGuard.scrollingRef.current || recentScrollGuard.scrollingRef.current;
 
   const gridRows = useMemo(
     () => chunkEmojis(EMOJIS_BY_CATEGORY[category], EMOJI_COLUMNS),
     [category],
   );
 
+  const recentSlots = useMemo(
+    () => recentEmojis.slice(0, EMOJI_COLUMNS),
+    [recentEmojis, recentEmojisVersion],
+  );
+
   const handleEmojiPress = (emoji: string) => {
-    if (selectionLockedRef?.current || isAnyScrolling()) {
+    if (selectionLockedRef?.current || gridScrollGuard.scrollingRef.current) {
       return;
     }
     onSelect(emoji);
     triggerKeyHaptic();
+  };
+
+  const renderEmojiCell = (
+    emoji: string | undefined,
+    key: string,
+    onPress?: () => void,
+  ) => {
+    if (!emoji) {
+      return (
+        <View
+          key={key}
+          style={[sharedStyles.emojiCell, styles.cell]}
+        />
+      );
+    }
+
+    return (
+      <Pressable
+        key={key}
+        onPress={onPress}
+        style={({pressed}) => [
+          sharedStyles.emojiCell,
+          styles.cell,
+          pressed && sharedStyles.emojiCellPressed,
+        ]}>
+        <Text style={[sharedStyles.emojiText, styles.emoji]}>{emoji}</Text>
+      </Pressable>
+    );
   };
 
   const renderGridRow: ListRenderItem<readonly string[]> = ({
@@ -93,181 +128,103 @@ export function EmojiCategoryGrid({
     index: rowIndex,
   }) => (
     <View style={styles.row}>
-      {row.map(emoji => (
-        <Pressable
-          key={`${category}-${rowIndex}-${emoji}`}
-          onPress={() => {
-            handleEmojiPress(emoji);
-          }}
-          style={styles.cell}>
-          <Text style={styles.emoji}>{emoji}</Text>
-        </Pressable>
-      ))}
+      {row.map(emoji =>
+        renderEmojiCell(emoji, `${category}-${rowIndex}-${emoji}`, () => {
+          handleEmojiPress(emoji);
+        }),
+      )}
       {row.length < EMOJI_COLUMNS
-        ? Array.from({length: EMOJI_COLUMNS - row.length}).map((_, index) => (
-            <View
-              key={`${category}-spacer-${rowIndex}-${index}`}
-              style={styles.cell}
-            />
-          ))
+        ? Array.from({length: EMOJI_COLUMNS - row.length}).map((_, index) =>
+            renderEmojiCell(undefined, `${category}-spacer-${rowIndex}-${index}`),
+          )
         : null}
     </View>
   );
 
-  const renderRecentItem: ListRenderItem<string> = ({item: emoji, index}) => (
-    <Pressable
-      onPress={() => {
-        handleEmojiPress(emoji);
-      }}
-      style={styles.recentCell}>
-      <Text style={styles.emoji}>{emoji}</Text>
-    </Pressable>
-  );
-
-  const gridList = (
-    <FlatList
-      style={[styles.gridScroll, {width: hasRecents ? gridWidth : width}]}
-      contentContainerStyle={styles.gridContent}
-      data={gridRows}
-      keyExtractor={(_, rowIndex) => `${category}-row-${rowIndex}`}
-      renderItem={renderGridRow}
-      keyboardShouldPersistTaps="handled"
-      nestedScrollEnabled
-      showsVerticalScrollIndicator={false}
-      removeClippedSubviews
-      initialNumToRender={4}
-      maxToRenderPerBatch={4}
-      windowSize={5}
-      updateCellsBatchingPeriod={16}
-      getItemLayout={(_, index) => ({
-        length: emojiRowHeight,
-        offset: emojiRowHeight * index,
-        index,
-      })}
-      scrollEventThrottle={16}
-      onScroll={gridScrollGuard.onScroll}
-      onScrollBeginDrag={gridScrollGuard.markScrollStart}
-      onMomentumScrollBegin={gridScrollGuard.markScrollStart}
-      onMomentumScrollEnd={gridScrollGuard.markScrollEnd}
-      onScrollEndDrag={gridScrollGuard.markScrollEnd}
-    />
-  );
-
-  if (!hasRecents) {
-    return (
-      <View style={[styles.panel, {width}]}>
-        {gridList}
+  const recentsStrip = hasRecents ? (
+    <View style={[sharedStyles.recentsStrip, styles.recentsStrip]}>
+      <View style={[sharedStyles.recentsRow, styles.row]}>
+        {Array.from({length: EMOJI_COLUMNS}).map((_, index) =>
+          renderEmojiCell(
+            recentSlots[index],
+            `recent-${recentSlots[index] ?? 'empty'}-${index}`,
+            recentSlots[index]
+              ? () => {
+                  handleEmojiPress(recentSlots[index]!);
+                }
+              : undefined,
+          ),
+        )}
       </View>
-    );
-  }
+    </View>
+  ) : null;
 
   return (
     <View style={[styles.panel, {width}]}>
-      <View style={[styles.recentColumn, {width: recentColumnWidth}]}>
-        <FlatList
-          style={styles.recentList}
-          contentContainerStyle={styles.recentContent}
-          data={recentEmojis as string[]}
-          keyExtractor={(emoji, index) => `recent-${emoji}-${index}`}
-          renderItem={renderRecentItem}
-          keyboardShouldPersistTaps="handled"
-          nestedScrollEnabled
-          showsVerticalScrollIndicator={false}
-          extraData={recentEmojisVersion}
-          initialNumToRender={4}
-          maxToRenderPerBatch={4}
-          windowSize={5}
-          updateCellsBatchingPeriod={16}
-          getItemLayout={(_, index) => ({
-            length: emojiRowHeight,
-            offset: emojiRowHeight * index,
-            index,
-          })}
-          scrollEventThrottle={16}
-          onScroll={recentScrollGuard.onScroll}
-          onScrollBeginDrag={recentScrollGuard.markScrollStart}
-          onMomentumScrollBegin={recentScrollGuard.markScrollStart}
-          onMomentumScrollEnd={recentScrollGuard.markScrollEnd}
-          onScrollEndDrag={recentScrollGuard.markScrollEnd}
-        />
-      </View>
-      <View style={styles.columnDivider} />
-      {gridList}
+      {recentsStrip}
+      <FlatList
+        style={styles.gridScroll}
+        contentContainerStyle={sharedStyles.scrollContent}
+        data={gridRows}
+        keyExtractor={(_, rowIndex) => `${category}-row-${rowIndex}`}
+        renderItem={renderGridRow}
+        keyboardShouldPersistTaps="handled"
+        nestedScrollEnabled
+        showsVerticalScrollIndicator={false}
+        removeClippedSubviews
+        initialNumToRender={4}
+        maxToRenderPerBatch={4}
+        windowSize={5}
+        updateCellsBatchingPeriod={16}
+        getItemLayout={(_, index) => ({
+          length: rowHeight,
+          offset: rowHeight * index,
+          index,
+        })}
+        scrollEventThrottle={16}
+        onScroll={gridScrollGuard.onScroll}
+        onScrollBeginDrag={gridScrollGuard.markScrollStart}
+        onMomentumScrollBegin={gridScrollGuard.markScrollStart}
+        onMomentumScrollEnd={gridScrollGuard.markScrollEnd}
+        onScrollEndDrag={gridScrollGuard.markScrollEnd}
+      />
     </View>
   );
 }
 
 function createEmojiCategoryGridStyles(
-  theme: KeyboardTheme,
-  emojiScrollHeight: number,
+  panelHeight: number,
+  hasRecents: boolean,
+  rowHeight: number,
+  recentsStripHeight: number,
 ) {
-  const emojiRowHeight = Math.floor(emojiScrollHeight / 4);
+  const recentsBlockHeight = hasRecents ? rowHeight + recentsStripHeight : 0;
+  const recentsGap = hasRecents ? RECENTS_CONTAINER_GAP : 0;
+  const gridHeight = panelHeight - recentsBlockHeight - recentsGap;
 
   return StyleSheet.create({
     panel: {
-      flexDirection: 'row',
-      height: emojiScrollHeight,
-      alignItems: 'stretch',
+      height: panelHeight,
     },
-    recentColumn: {
-      flexGrow: 0,
-      flexShrink: 0,
-      backgroundColor: theme.pluginCard,
-      borderRadius: 22,
-      marginLeft: 5,
-      marginTop: 2,
-      marginBottom: 6,
-      overflow: 'hidden',
-    },
-    recentList: {
-      flex: 1,
-      width: '100%',
-    },
-    recentContent: {
-      paddingTop: 4,
-      paddingBottom: 2,
-      gap: 2,
-    },
-    columnDivider: {
-      flexShrink: 0,
-      width: 1,
-      marginLeft: 4,
-      marginVertical: 10,
-      backgroundColor: theme.modifierKeyPressed,
+    recentsStrip: {
+      height: recentsBlockHeight,
+      marginBottom: recentsGap,
     },
     gridScroll: {
-      flexGrow: 0,
-      flexShrink: 0,
-      height: emojiScrollHeight,
-    },
-    gridContent: {
-      paddingLeft: 4,
-      paddingRight: 6,
-      paddingTop: 2,
-      gap: 2,
+      flex: 1,
+      height: gridHeight,
     },
     row: {
       flexDirection: 'row',
       alignItems: 'center',
-      height: emojiRowHeight,
+      height: rowHeight,
+      gap: EMOJI_CELL_GAP,
     },
     cell: {
-      flex: 1,
-      height: emojiRowHeight,
-      alignItems: 'center',
-      justifyContent: 'center',
-      borderRadius: 6,
-    },
-    recentCell: {
-      width: '100%',
-      height: emojiRowHeight,
-      alignItems: 'center',
-      justifyContent: 'center',
-      borderRadius: 6,
+      height: rowHeight,
     },
     emoji: {
-      fontSize: 22,
-      lineHeight: emojiRowHeight,
+      lineHeight: rowHeight,
     },
   });
 }

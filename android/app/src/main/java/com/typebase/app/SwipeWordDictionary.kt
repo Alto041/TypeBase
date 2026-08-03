@@ -16,10 +16,11 @@ import kotlin.math.min
 
 object SwipeWordDictionary {
   private const val LEARNED_WORDS_KEY = "learned_words"
-  private const val SWIPE_CANDIDATE_LIMIT = 800
-  private const val SWIPE_SCORE_LIMIT = 250
-  private const val PREVIEW_CANDIDATE_LIMIT = 280
-  private const val PREVIEW_SCORE_LIMIT = 90
+  private const val SWIPE_CANDIDATE_LIMIT = 320
+  private const val SWIPE_SCORE_LIMIT = 120
+  private const val PREVIEW_CANDIDATE_LIMIT = 120
+  private const val PREVIEW_SCORE_LIMIT = 45
+  private const val SHAPE_FALLBACK_SCORE_LIMIT = 1200
   /** Dictionary + commit length ceiling (was 16; blocked longer dict words). */
   private const val MAX_SWIPE_WORD_LENGTH = 22
 
@@ -54,6 +55,9 @@ object SwipeWordDictionary {
 
   private val words = ArrayList<String>(10_000)
   private val staticRank = HashMap<String, Int>(10_000)
+  /** Frequency-ordered buckets avoid walking the entire dictionary per decode. */
+  private val wordsByFirstLetter =
+      Array(26) { ArrayList<Pair<String, Int>>(512) }
 
   private data class Pt(val x: Double, val y: Double)
   private data class TimedPt(val x: Double, val y: Double, val t: Long)
@@ -87,6 +91,7 @@ object SwipeWordDictionary {
           val rank = words.size
           words.add(word)
           staticRank[word] = rank
+          wordsByFirstLetter[word[0] - 'a'].add(word to rank)
         }
       }
       loaded = true
@@ -110,6 +115,7 @@ object SwipeWordDictionary {
     }
 
     val first = normalized[0]
+    val firstLetterWords = wordsByFirstLetter[first - 'a']
     val maxEdits = traceEditBudget(normalized)
     val seen = HashSet<String>()
     val results = ArrayList<Pair<String, Int>>()
@@ -158,9 +164,8 @@ object SwipeWordDictionary {
     }
 
     // Length-aware first pass: keep long targets from being crowded out by short hits.
-    for (rank in words.indices) {
-      val word = words[rank]
-      if (word[0] != first || word.length < preferMinLen) {
+    for ((word, rank) in firstLetterWords) {
+      if (word.length < preferMinLen) {
         continue
       }
       if (push(word, rank, true)) {
@@ -173,11 +178,7 @@ object SwipeWordDictionary {
     }
 
     // Remaining trace matches of any length.
-    for (rank in words.indices) {
-      val word = words[rank]
-      if (word[0] != first) {
-        continue
-      }
+    for ((word, rank) in firstLetterWords) {
       if (push(word, rank, true)) {
         break
       }
@@ -188,11 +189,7 @@ object SwipeWordDictionary {
     }
 
     // Broad first-letter candidates for path-shape scoring.
-    for (rank in words.indices) {
-      val word = words[rank]
-      if (word[0] != first) {
-        continue
-      }
+    for ((word, rank) in firstLetterWords) {
       if (push(word, rank, false)) {
         break
       }
@@ -360,6 +357,7 @@ object SwipeWordDictionary {
     if (first !in 'a'..'z') {
       return emptyList()
     }
+    val firstLetterWords = wordsByFirstLetter[first - 'a']
 
     val maxEdits = traceEditBudget(normalized)
     val seen = HashSet<String>()
@@ -400,9 +398,8 @@ object SwipeWordDictionary {
     if (pauseAnchors.size >= 2) {
       val anchorPattern = pauseAnchors.joinToString("")
       if (anchorPattern.isNotEmpty() && anchorPattern != normalized) {
-        for (rank in words.indices) {
-          val word = words[rank]
-          if (word[0] == first && wordMatchesTrace(word, anchorPattern, maxEdits + 1)) {
+        for ((word, rank) in firstLetterWords) {
+          if (wordMatchesTrace(word, anchorPattern, maxEdits + 1)) {
             if (push(word, rank, false)) {
               return results
             }
@@ -412,25 +409,22 @@ object SwipeWordDictionary {
     }
 
     // Length-aware trace matches first (long words survive crowded short hits).
-    for (rank in words.indices) {
-      val word = words[rank]
-      if (word[0] == first && word.length >= preferMinLen && push(word, rank, true)) {
+    for ((word, rank) in firstLetterWords) {
+      if (word.length >= preferMinLen && push(word, rank, true)) {
         return results
       }
     }
 
     // Remaining trace matches of any length.
-    for (rank in words.indices) {
-      val word = words[rank]
-      if (word[0] == first && push(word, rank, true)) {
+    for ((word, rank) in firstLetterWords) {
+      if (push(word, rank, true)) {
         return results
       }
     }
 
     // Broad first-letter candidates for path-shape scoring.
-    for (rank in words.indices) {
-      val word = words[rank]
-      if (word[0] == first && push(word, rank, false)) {
+    for ((word, rank) in firstLetterWords) {
+      if (push(word, rank, false)) {
         return results
       }
     }
@@ -452,15 +446,12 @@ object SwipeWordDictionary {
       pauseAnchors: List<Char>,
   ): String? {
     val startLetter = nearestLetter(rawPoints.first(), keys) ?: return null
+    val firstLetterWords = wordsByFirstLetter[startLetter - 'a']
     val fallbackPattern = buildTracePattern(rawPoints, path, keys)
     var bestWord: String? = null
     var bestScore = Double.POSITIVE_INFINITY
 
-    for (rank in words.indices) {
-      val word = words[rank]
-      if (word[0] != startLetter) {
-        continue
-      }
+    for ((word, rank) in firstLetterWords.take(SHAPE_FALLBACK_SCORE_LIMIT)) {
       val pattern =
           if (fallbackPattern.length >= 2) fallbackPattern else keySequence(word)
       val score =

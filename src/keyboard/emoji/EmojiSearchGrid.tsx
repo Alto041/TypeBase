@@ -7,10 +7,13 @@ import {
   Text,
   View,
 } from 'react-native';
-import {useKeyboardTheme} from '../KeyboardThemeContext';
+import {useThemedStyles} from '../KeyboardThemeContext';
 import {triggerKeyHaptic} from '../haptics';
-import type {KeyboardTheme} from '../theme';
 import {chunkEmojis, EMOJI_COLUMNS} from './emojis';
+import {
+  createEmojiPanelSharedStyles,
+  EMOJI_CELL_GAP,
+} from './emojiPanelLayout';
 import {searchEmojis} from './gboardEmojiData';
 
 type EmojiSearchGridProps = {
@@ -26,20 +29,18 @@ export function EmojiSearchGrid({
   query,
   onSelect,
 }: EmojiSearchGridProps) {
-  const theme = useKeyboardTheme();
-  const emojiScrollHeight = Math.max(120, Math.round(height));
+  const sharedStyles = useThemedStyles(createEmojiPanelSharedStyles);
+  const rowHeight = useMemo(() => Math.floor(height / 4), [height]);
   const styles = useMemo(
-    () => createEmojiSearchGridStyles(theme, emojiScrollHeight),
-    [theme, emojiScrollHeight],
+    () => createEmojiSearchGridStyles(rowHeight),
+    [rowHeight],
   );
-  const emojiRowHeight = Math.floor(emojiScrollHeight / 4);
   const results = useMemo(() => searchEmojis(query), [query]);
   const rows = useMemo(
     () => chunkEmojis(results, EMOJI_COLUMNS),
     [results],
   );
 
-  // Guard to avoid treating scroll gestures as emoji picks
   const scrollingRef = useRef(false);
   const markScrolling = () => {
     scrollingRef.current = true;
@@ -63,13 +64,20 @@ export function EmojiSearchGrid({
           onPress={() => {
             handleEmojiPress(emoji);
           }}
-          style={styles.cell}>
-          <Text style={styles.emoji}>{emoji}</Text>
+          style={({pressed}) => [
+            sharedStyles.emojiCell,
+            styles.cell,
+            pressed && sharedStyles.emojiCellPressed,
+          ]}>
+          <Text style={[sharedStyles.emojiText, styles.emoji]}>{emoji}</Text>
         </Pressable>
       ))}
       {row.length < EMOJI_COLUMNS
         ? Array.from({length: EMOJI_COLUMNS - row.length}).map((_, spacer) => (
-            <View key={`search-spacer-${index}-${spacer}`} style={styles.cell} />
+            <View
+              key={`search-spacer-${index}-${spacer}`}
+              style={[sharedStyles.emojiCell, styles.cell]}
+            />
           ))
         : null}
     </View>
@@ -77,88 +85,78 @@ export function EmojiSearchGrid({
 
   if (!query.trim()) {
     return (
-      <View style={[styles.emptyState, {width}]}>
-        <Text style={styles.emptyText}>Type to search emojis</Text>
+      <View style={[sharedStyles.emptyState, {width, height}]}>
+        <Text style={sharedStyles.emptyTitle}>Search emojis</Text>
+        <Text style={sharedStyles.emptyHint}>
+          Tap the search bar above and type a keyword.
+        </Text>
       </View>
     );
   }
 
   if (results.length === 0) {
     return (
-      <View style={[styles.emptyState, {width}]}>
-        <Text style={styles.emptyText}>No emojis found</Text>
+      <View style={[sharedStyles.emptyState, {width, height}]}>
+        <Text style={sharedStyles.emptyTitle}>No emojis found</Text>
+        <Text style={sharedStyles.emptyHint}>
+          Try a different word or spelling.
+        </Text>
       </View>
     );
   }
 
   return (
-    <FlatList
-      style={{width}}
-      contentContainerStyle={styles.content}
-      data={rows}
-      keyExtractor={(_, rowIndex) => `search-row-${rowIndex}`}
-      renderItem={renderRow}
-      keyboardShouldPersistTaps="handled"
-      nestedScrollEnabled
-      showsVerticalScrollIndicator={false}
-      removeClippedSubviews
-      initialNumToRender={4}
-      maxToRenderPerBatch={4}
-      windowSize={5}
-      updateCellsBatchingPeriod={16}
-      scrollEventThrottle={16}
-      onScroll={markScrolling}
-      onScrollBeginDrag={markScrolling}
-      onScrollEndDrag={clearScrolling}
-      onMomentumScrollEnd={clearScrolling}
-      getItemLayout={(_, index) => ({
-        length: emojiRowHeight,
-        offset: emojiRowHeight * index,
-        index,
-      })}
-    />
+    <View style={{width, height}}>
+      <View style={sharedStyles.sectionHeader}>
+        <Text style={sharedStyles.sectionHeaderText}>
+          {results.length} result{results.length === 1 ? '' : 's'}
+        </Text>
+      </View>
+      <FlatList
+        style={styles.list}
+        contentContainerStyle={sharedStyles.scrollContent}
+        data={rows}
+        keyExtractor={(_, rowIndex) => `search-row-${rowIndex}`}
+        renderItem={renderRow}
+        keyboardShouldPersistTaps="handled"
+        nestedScrollEnabled
+        showsVerticalScrollIndicator={false}
+        removeClippedSubviews
+        initialNumToRender={4}
+        maxToRenderPerBatch={4}
+        windowSize={5}
+        updateCellsBatchingPeriod={16}
+        scrollEventThrottle={16}
+        onScroll={markScrolling}
+        onScrollBeginDrag={markScrolling}
+        onScrollEndDrag={clearScrolling}
+        onMomentumScrollEnd={clearScrolling}
+        getItemLayout={(_, index) => ({
+          length: rowHeight,
+          offset: rowHeight * index,
+          index,
+        })}
+      />
+    </View>
   );
 }
 
-function createEmojiSearchGridStyles(
-  theme: KeyboardTheme,
-  emojiScrollHeight: number,
-) {
-  const emojiRowHeight = Math.floor(emojiScrollHeight / 4);
-
+function createEmojiSearchGridStyles(rowHeight: number) {
   return StyleSheet.create({
-    content: {
-      paddingHorizontal: 6,
-      paddingTop: 2,
-      gap: 2,
+    list: {
+      flex: 1,
     },
     row: {
       flexDirection: 'row',
       alignItems: 'center',
-      height: emojiRowHeight,
+      height: rowHeight,
+      gap: EMOJI_CELL_GAP,
     },
     cell: {
-      flex: 1,
-      height: emojiRowHeight,
-      alignItems: 'center',
-      justifyContent: 'center',
-      borderRadius: 6,
+      height: rowHeight,
     },
     emoji: {
-      fontSize: 22,
-      lineHeight: emojiRowHeight,
-    },
-    emptyState: {
-      height: emojiScrollHeight,
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingHorizontal: 16,
-    },
-    emptyText: {
-      color: theme.spaceLabel,
-      fontSize: 14,
-      fontFamily: theme.fontFamily,
-      textAlign: 'center',
+      lineHeight: rowHeight,
     },
   });
 }

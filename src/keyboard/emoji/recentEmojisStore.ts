@@ -2,7 +2,7 @@ import {keyboardBridge} from '../keyboardBridge';
 
 const STORAGE_KEY = 'typebase_recent_emojis';
 const PERSIST_DEBOUNCE_MS = 600;
-export const MAX_RECENT_EMOJIS = 40;
+export const MAX_RECENT_EMOJIS = 9;
 
 let recents: string[] = [];
 let loadPromise: Promise<void> | null = null;
@@ -53,7 +53,7 @@ export async function ensureRecentEmojisLoaded(): Promise<void> {
   }
 
   loadPromise = (async () => {
-    recents = await readRecentsFromStorage();
+    recents = (await readRecentsFromStorage()).slice(0, MAX_RECENT_EMOJIS);
     recentsVersion += 1;
   })();
 

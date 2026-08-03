@@ -8,11 +8,17 @@ import {
   Text,
   View,
 } from 'react-native';
+import PauseIcon from '../../../assets/pause.svg';
+import PlayIcon from '../../../assets/play.svg';
 import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
 import {triggerKeyHaptic} from '../haptics';
 import type {KeyboardTheme} from '../theme';
-import PlayIcon from '../../../assets/play.svg';
-import PauseIcon from '../../../assets/pause.svg';
+import {keyboardTypefaceStyle} from '../theme';
+import {
+  createEmojiPanelSharedStyles,
+  getStackedTileRadius,
+  SFX_TILE_GAP,
+} from './emojiPanelLayout';
 import {
   fetchTrendingSounds,
   searchSounds,
@@ -38,14 +44,17 @@ export function SfxCategoryGrid({
   installingId = null,
 }: SfxCategoryGridProps) {
   const theme = useKeyboardTheme();
+  const sharedStyles = useThemedStyles(createEmojiPanelSharedStyles);
   const styles = useThemedStyles(themeValue =>
-    createSfxCategoryGridStyles(themeValue, height),
+    createSfxCategoryGridStyles(themeValue),
   );
   const [sounds, setSounds] = useState<MyInstantsSound[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [previewingId, setPreviewingId] = useState<string | null>(null);
   const requestIdRef = useRef(0);
+
+  const sectionTitle = query.trim().length > 0 ? 'Search results' : 'Trending sounds';
 
   const loadSounds = useCallback(async (searchQuery: string) => {
     const requestId = requestIdRef.current + 1;
@@ -89,16 +98,12 @@ export function SfxCategoryGrid({
     return () => clearTimeout(timer);
   }, [loadSounds, query]);
 
-  // Ensure any playing preview is stopped when this grid unmounts
-  // (e.g. switching emoji categories or closing the emoji panel)
   useEffect(() => {
     return () => {
       stopSfxPreview();
     };
   }, []);
 
-  // If the currently previewing sound is no longer in the loaded list
-  // (e.g. after a search refinement), clear the UI state without stopping audio.
   useEffect(() => {
     if (previewingId != null && !sounds.some(s => s.id === previewingId)) {
       setPreviewingId(null);
@@ -130,28 +135,33 @@ export function SfxCategoryGrid({
     [previewingId, onPreview],
   );
 
-  const renderSound: ListRenderItem<MyInstantsSound> = ({item: sound}) => {
+  const renderSound: ListRenderItem<MyInstantsSound> = ({item: sound, index}) => {
     const isInstalling = installingId === sound.id;
+    const isPreviewing = previewingId === sound.id;
+    const tileStyle = getStackedTileRadius(index, sounds.length);
 
     return (
       <View
         style={[
           styles.row,
+          tileStyle,
           isInstalling && styles.rowDisabled,
+          isPreviewing && styles.rowPreviewing,
         ]}>
         <Pressable
           onPress={() => {
             handlePreviewPress(sound);
           }}
-          hitSlop={10}
+          hitSlop={8}
           style={({pressed}) => [
             styles.playButton,
             pressed && styles.playButtonPressed,
+            isPreviewing && styles.playButtonActive,
           ]}>
-          {previewingId === sound.id ? (
-            <PauseIcon width={16} height={16} color={theme.label} />
+          {isPreviewing ? (
+            <PauseIcon width={15} height={15} color={theme.label} />
           ) : (
-            <PlayIcon width={16} height={16} color={theme.label} />
+            <PlayIcon width={15} height={15} color={theme.label} />
           )}
         </Pressable>
 
@@ -171,7 +181,9 @@ export function SfxCategoryGrid({
 
         {isInstalling ? (
           <ActivityIndicator color={theme.label} size="small" />
-        ) : null}
+        ) : (
+          <Text style={styles.insertHint}>›</Text>
+        )}
       </View>
     );
   };
@@ -179,75 +191,88 @@ export function SfxCategoryGrid({
   return (
     <View style={[styles.container, {width, height}]}>
       {loading ? (
-        <View style={styles.centered}>
+        <View style={sharedStyles.centeredLoader}>
           <ActivityIndicator color={theme.icon} />
         </View>
       ) : error ? (
-        <View style={styles.centered}>
-          <Text style={styles.errorText}>{error}</Text>
+        <View style={sharedStyles.centeredLoader}>
+          <Text style={sharedStyles.emptyTitle}>Could not load sounds</Text>
+          <Text style={sharedStyles.errorText}>{error}</Text>
         </View>
       ) : sounds.length === 0 ? (
-        <View style={styles.centered}>
-          <Text style={styles.emptyText}>No sounds found</Text>
+        <View style={sharedStyles.centeredLoader}>
+          <Text style={sharedStyles.emptyTitle}>No sounds found</Text>
+          <Text style={sharedStyles.emptyHint}>
+            Try another keyword or browse trending sounds.
+          </Text>
         </View>
       ) : (
-        <FlatList
-          style={styles.scroll}
-          contentContainerStyle={styles.content}
-          data={sounds}
-          keyExtractor={item => item.id}
-          renderItem={renderSound}
-          keyboardShouldPersistTaps="handled"
-          nestedScrollEnabled
-          showsVerticalScrollIndicator={false}
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
-          ListFooterComponent={
-            <Text style={styles.attribution}>
-              Sounds via{' '}
-              <Text style={styles.attributionLink}>MyInstants</Text>
-            </Text>
-          }
-        />
+        <>
+          <View style={sharedStyles.sectionHeader}>
+            <Text style={sharedStyles.sectionHeaderText}>{sectionTitle}</Text>
+          </View>
+          <FlatList
+            style={styles.scroll}
+            contentContainerStyle={styles.content}
+            data={sounds}
+            keyExtractor={item => item.id}
+            renderItem={renderSound}
+            keyboardShouldPersistTaps="handled"
+            nestedScrollEnabled
+            showsVerticalScrollIndicator={false}
+            ItemSeparatorComponent={() => <View style={styles.separator} />}
+            ListFooterComponent={
+              <Text style={sharedStyles.attribution}>
+                Sounds via MyInstants
+              </Text>
+            }
+          />
+        </>
       )}
     </View>
   );
 }
 
-function createSfxCategoryGridStyles(theme: KeyboardTheme, panelHeight: number) {
+function createSfxCategoryGridStyles(theme: KeyboardTheme) {
   return StyleSheet.create({
     container: {
-      height: panelHeight,
+      flex: 1,
       overflow: 'hidden',
     },
     scroll: {
       flex: 1,
     },
     content: {
-      paddingHorizontal: 10,
-      paddingBottom: 8,
+      paddingHorizontal: 8,
+      paddingBottom: 6,
     },
     row: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingHorizontal: 8,
-      paddingVertical: 10,
-      borderRadius: 10,
-      backgroundColor: theme.letterKey,
+      paddingHorizontal: 10,
+      paddingVertical: 11,
+      backgroundColor: theme.pluginCardSecondary,
       gap: 10,
     },
     rowDisabled: {
       opacity: 0.6,
     },
+    rowPreviewing: {
+      backgroundColor: theme.modifierKeyPressed,
+    },
     playButton: {
-      width: 34,
-      height: 34,
-      borderRadius: 17,
+      width: 32,
+      height: 32,
+      borderRadius: 16,
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: theme.modifierKey,
     },
+    playButtonActive: {
+      backgroundColor: theme.letterKey,
+    },
     playButtonPressed: {
-      opacity: 0.65,
+      opacity: 0.7,
     },
     titleArea: {
       flex: 1,
@@ -257,45 +282,22 @@ function createSfxCategoryGridStyles(theme: KeyboardTheme, panelHeight: number) 
       opacity: 0.7,
     },
     title: {
-      fontFamily: 'Geist',
+      ...keyboardTypefaceStyle(theme, '500'),
       fontSize: 15,
       lineHeight: 20,
       color: theme.label,
       letterSpacing: -0.2,
     },
+    insertHint: {
+      width: 22,
+      textAlign: 'center',
+      fontSize: 20,
+      lineHeight: 22,
+      color: theme.iconMuted,
+      opacity: 0.7,
+    },
     separator: {
-      height: 6,
-    },
-    centered: {
-      flex: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingHorizontal: 20,
-    },
-    errorText: {
-      fontFamily: 'Inter',
-      fontSize: 13,
-      color: theme.icon,
-      textAlign: 'center',
-    },
-    emptyText: {
-      fontFamily: 'Inter',
-      fontSize: 13,
-      color: theme.icon,
-      textAlign: 'center',
-    },
-    attribution: {
-      marginTop: 8,
-      marginBottom: 4,
-      textAlign: 'center',
-      fontFamily: 'Inter',
-      fontSize: 11,
-      color: theme.icon,
-      opacity: 0.65,
-    },
-    attributionLink: {
-      fontFamily: 'Inter',
-      color: theme.label,
+      height: SFX_TILE_GAP,
     },
   });
 }

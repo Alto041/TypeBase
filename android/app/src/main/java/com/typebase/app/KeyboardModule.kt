@@ -633,6 +633,8 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
       timedPointsJson: String,
       promise: Promise,
   ) {
+    // Final decode must not wait behind obsolete in-progress previews.
+    swipePreviewGeneration.incrementAndGet()
     swipeDecodeExecutor.execute {
       try {
         val word =
@@ -659,7 +661,8 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
       timedPointsJson: String,
       promise: Promise,
   ) {
-    val generation = swipePreviewGeneration.get()
+    // Each new preview invalidates older queued previews.
+    val generation = swipePreviewGeneration.incrementAndGet()
     swipeDecodeExecutor.execute {
       try {
         if (generation != swipePreviewGeneration.get()) {
@@ -1686,6 +1689,12 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   @ReactMethod(isBlockingSynchronousMethod = true)
   fun performKeyHaptic(): Boolean {
     performKeyHapticInternal()
+    return true
+  }
+
+  @ReactMethod(isBlockingSynchronousMethod = true)
+  fun performLightKeyHaptic(): Boolean {
+    KeyboardInputBridge.performLightKeyHaptic()
     return true
   }
 
