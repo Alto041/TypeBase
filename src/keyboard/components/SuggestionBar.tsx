@@ -8,6 +8,7 @@ import {
   View,
   type TextStyle,
 } from 'react-native';
+import {playZeroLatencySound} from '../zeroLatencySound';
 import AddIcon from '../../../assets/add.svg';
 import InsertIcon from '../../../assets/insert.svg';
 import BackIcon from '../../../assets/back.svg';
@@ -743,6 +744,8 @@ function ZeroLatencyTitle({textStyle}: {textStyle: TextStyle}) {
   const opacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    playZeroLatencySound();
+
     let cancelled = false;
     const timeouts: ReturnType<typeof setTimeout>[] = [];
     const intervals: ReturnType<typeof setInterval>[] = [];

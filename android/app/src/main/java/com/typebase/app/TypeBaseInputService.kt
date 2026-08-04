@@ -359,6 +359,10 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
     nativeKeyFastPath.updateConfig(json)
   }
 
+  fun setNativeZeroLatencyMode(enabled: Boolean) {
+    nativeKeyFastPath.setZeroLatencyMode(enabled)
+  }
+
   fun consumeNativeFastPathPointer(pointerId: Int): Boolean =
       nativeKeyFastPath.consumePointer(pointerId)
 

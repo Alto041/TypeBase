@@ -79,7 +79,7 @@ export const DEFAULT_KEYBOARD_LAYOUT_SETTINGS: KeyboardLayoutSettings = {
   numberRowEnabled: false,
   keyboardHeightOffset: 0,
   customTapSoundEnabled: true,
-  customTapSoundFile: 'haptic.wav',
+  customTapSoundFile: '1.mp3',
   keyHapticEnabled: true,
   autoCapitalizeEnabled: true,
   customFontEnabled: false,

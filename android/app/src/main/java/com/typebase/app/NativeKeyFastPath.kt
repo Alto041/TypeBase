@@ -85,6 +85,10 @@ class NativeKeyFastPath {
 
   fun isZeroLatencyMode(): Boolean = zeroLatency
 
+  fun setZeroLatencyMode(enabled: Boolean) {
+    zeroLatency = enabled
+  }
+
   /**
    * Commits letter keys on touch-down (before React processes the event) for minimal
    * input latency. Returns false so swipe typing and key visuals still receive touches.
@@ -120,7 +124,7 @@ class NativeKeyFastPath {
                 !capsLocked &&
                 text.length == 1 &&
                 text[0].isUpperCase()
-        if (commitKeyTextOnly(key, text, shiftConsumed)) {
+        if (commitKeyTextOnly(key, text, shiftConsumed, notifyJs = !zeroLatency)) {
           consumedPointers.add(pointerId)
           sessions[pointerId] = TouchSession(pointerId, key, text)
           if (!zeroLatency) {
@@ -227,17 +231,24 @@ class NativeKeyFastPath {
    * Commits text + notifies (used only for the fast-commit-on-down case).
    * Haptic is intentionally fired *before* calling this, in the touch handler.
    */
-  private fun commitKeyTextOnly(key: NativeKey, text: String, shiftConsumed: Boolean): Boolean {
+  private fun commitKeyTextOnly(
+      key: NativeKey,
+      text: String,
+      shiftConsumed: Boolean,
+      notifyJs: Boolean = true,
+  ): Boolean {
     val connection = KeyboardInputBridge.getInputConnection() ?: return false
 
     connection.commitText(text, 1)
-    KeyboardInputBridge.notifyNativeFastPathKey(
-        key.id,
-        key.type,
-        key.value,
-        text,
-        shiftConsumed,
-    )
+    if (notifyJs) {
+      KeyboardInputBridge.notifyNativeFastPathKey(
+          key.id,
+          key.type,
+          key.value,
+          text,
+          shiftConsumed,
+      )
+    }
 
     if (shiftConsumed) {
       shiftOn = false

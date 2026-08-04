@@ -15,6 +15,7 @@ class VoiceActivationSoundModule(reactContext: ReactApplicationContext) :
   private var switchPlayer: MediaPlayer? = null
   private var switchOffPlayer: MediaPlayer? = null
   private var navigationPlayer: MediaPlayer? = null
+  private var zeroPlayer: MediaPlayer? = null
 
   @ReactMethod
   fun preload(promise: Promise) {
@@ -86,6 +87,21 @@ class VoiceActivationSoundModule(reactContext: ReactApplicationContext) :
     }
   }
 
+  @ReactMethod
+  fun playZero(promise: Promise) {
+    try {
+      val mediaPlayer = ensureZeroPlayer()
+      if (mediaPlayer.isPlaying) {
+        mediaPlayer.pause()
+        mediaPlayer.seekTo(0)
+      }
+      mediaPlayer.start()
+      promise.resolve(true)
+    } catch (_: Exception) {
+      promise.resolve(false)
+    }
+  }
+
   private fun ensureVoicePlayer(): MediaPlayer {
     voicePlayer?.let { return it }
 
@@ -142,6 +158,20 @@ class VoiceActivationSoundModule(reactContext: ReactApplicationContext) :
     return mediaPlayer
   }
 
+  private fun ensureZeroPlayer(): MediaPlayer {
+    zeroPlayer?.let { return it }
+
+    val mediaPlayer =
+        MediaPlayer.create(reactApplicationContext, R.raw.zero)
+            ?: throw IllegalStateException("zero sound resource missing")
+
+    mediaPlayer.setOnCompletionListener { completed ->
+      completed.seekTo(0)
+    }
+    zeroPlayer = mediaPlayer
+    return mediaPlayer
+  }
+
   override fun invalidate() {
     voicePlayer?.release()
     voicePlayer = null
@@ -151,6 +181,8 @@ class VoiceActivationSoundModule(reactContext: ReactApplicationContext) :
     switchOffPlayer = null
     navigationPlayer?.release()
     navigationPlayer = null
+    zeroPlayer?.release()
+    zeroPlayer = null
     super.invalidate()
   }
 }

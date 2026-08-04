@@ -91,7 +91,25 @@ function isValidCorrectionWord(word: string): boolean {
 
 export function shouldSkipAutocorrectForToken(word: string): boolean {
   const lower = word.trim().toLowerCase();
+  // The active keyboard layout can remain English while users type native
+  // scripts through another IME or paste. Never run an English correction over
+  // those words.
+  if (/[^\p{ASCII}]/u.test(lower)) {
+    return true;
+  }
   if (shouldPreserveTypedLiteralToken(word)) {
+    return true;
+  }
+  // Romanized Malayalam/Hindi is indistinguishable from English at the script
+  // level. Preserve obvious native-language tokens when they are not already
+  // known English words. This keeps mixed-language typing safe without turning
+  // off ordinary English typo correction.
+  if (
+    getActiveLanguage() === 'en' &&
+    lower.length >= 4 &&
+    !isKnownEnglishWord(lower) &&
+    isLikelyRomanizedIndicToken(lower)
+  ) {
     return true;
   }
   if (lower.length <= MAX_LIVE_AUTOCORRECT_LENGTH) {
@@ -109,6 +127,12 @@ export function shouldSkipAutocorrectForToken(word: string): boolean {
     return false;
   }
   return true;
+}
+
+function isLikelyRomanizedIndicToken(word: string): boolean {
+  return /(?:^|[a-z])(?:njan|ningal|entha|engane|chetta|sheri|illa|alle|venam|venda|zh|nj|chh|bh|dh|gh|kh|ph|aa|ee|oo)(?:$|[a-z])/i.test(
+    word,
+  );
 }
 
 /**
@@ -896,7 +920,7 @@ function isProtectedWord(word: string, learnedUses: number): boolean {
   }
   // OOV / typo learned once used to permanently disable autocorrect. Only
   // protect after the user has clearly insisted (keep chip / repeated use).
-  return learnedUses >= 3;
+  return learnedUses >= 1;
 }
 
 function hasIntentionalCasing(word: string): boolean {
@@ -1570,6 +1594,12 @@ export function getAutocorrectCandidate(
     learned.get(lower) ?? learned.get(rawLower) ?? 0;
 
   if (shouldSkipAutocorrectForToken(lower)) {
+    return null;
+  }
+
+  // A backspace after an unwanted correction explicitly teaches us that this
+  // OOV token is intentional. Never correct it again, including exact fixes.
+  if (learnedUses >= 1) {
     return null;
   }
 

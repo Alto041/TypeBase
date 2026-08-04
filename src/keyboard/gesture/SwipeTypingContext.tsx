@@ -724,6 +724,7 @@ type SwipeTypingKeysHostProps = {
   getIsUppercase?: () => boolean;
   getLetterCommitText?: (keyValue: string) => string;
   onMultiTouchKeyCommit?: (keyDef: KeyDefinition, text: string) => void;
+  onNativeFastPathLetterCommit?: (text: string) => void;
   onSpaceLongPress?: () => void;
 };
 
@@ -735,6 +736,7 @@ export function SwipeTypingKeysHost({
   getIsUppercase,
   getLetterCommitText,
   onMultiTouchKeyCommit,
+  onNativeFastPathLetterCommit,
   onSpaceLongPress,
 }: SwipeTypingKeysHostProps) {
   const ctx = useContext(SwipeTypingContext);
@@ -801,6 +803,7 @@ export function SwipeTypingKeysHost({
           hitSlop: keyHitSlop,
           consumeNativeFastPathPointer: keyboardBridge.consumeNativeFastPathPointer,
           consumeNativeHapticPointer: keyboardBridge.consumeNativeHapticPointer,
+          onNativeFastPathLetterCommit,
           swipeTypingEnabled: Boolean(ctx?.enabled),
           onSpaceLongPress,
         });
@@ -816,6 +819,7 @@ export function SwipeTypingKeysHost({
       layoutContext,
       multiTouchEnabled,
       onMultiTouchKeyCommit,
+      onNativeFastPathLetterCommit,
       onSpaceLongPress,
     ],
   );

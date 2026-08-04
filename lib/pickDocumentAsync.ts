@@ -22,6 +22,14 @@ export function formatDocumentPickerError(error: unknown): string {
   ) {
     return 'A file picker is already open. Close it, wait a moment, and try again.';
   }
+  if (
+    lower.includes('not attached to an activity') ||
+    lower.includes('no current activity') ||
+    lower.includes('activity is null') ||
+    lower.includes('current activity')
+  ) {
+    return 'TypeBase is still switching back to the app. Wait a moment and try the upload again.';
+  }
   return message;
 }
 
@@ -32,6 +40,27 @@ async function waitForUiSettle(): Promise<void> {
   await new Promise<void>(resolve => {
     InteractionManager.runAfterInteractions(() => resolve());
   });
+}
+
+function isDetachedActivityError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? '');
+  const lower = message.toLowerCase();
+  return (
+    lower.includes('not attached to an activity') ||
+    lower.includes('no current activity') ||
+    lower.includes('activity is null') ||
+    lower.includes('current activity') ||
+    lower.includes('activity has been destroyed') ||
+    lower.includes('activity is destroyed')
+  );
+}
+
+async function waitForActivityReattach(): Promise<void> {
+  if (Platform.OS !== 'android') {
+    return;
+  }
+  await new Promise<void>(resolve => setTimeout(resolve, 500));
+  await waitForUiSettle();
 }
 
 /**
@@ -52,7 +81,19 @@ export async function pickDocumentAsync(
   activePickCount += 1;
   try {
     await waitForUiSettle();
-    return await DocumentPicker.getDocumentAsync(options);
+    await waitForActivityReattach();
+    try {
+      return await DocumentPicker.getDocumentAsync(options);
+    } catch (error) {
+      // The keyboard and the main app share one React host. When returning from
+      // the IME, Expo can briefly see a detached Activity; retry once after the
+      // host has had time to reattach instead of failing every font/sound import.
+      if (!isDetachedActivityError(error)) {
+        throw error;
+      }
+      await waitForActivityReattach();
+      return await DocumentPicker.getDocumentAsync(options);
+    }
   } finally {
     activePickCount = Math.max(0, activePickCount - 1);
     releaseTurn();

@@ -14,10 +14,12 @@ object KeyTapSoundPlayer {
   private const val LAYOUT_KEY = "keyboard_layout"
   private const val DESIGN_KEY = "keyboard_design"
   private const val TAP_SOUND_DIR = "keyboard_tap_sounds"
+  private const val DEFAULT_LOADED_TOKEN = "resource:default_tap"
   private const val MACINTOSH_ASSET = "sounds/mac-sfx.mp3"
   private const val MACINTOSH_LOADED_TOKEN = "asset:$MACINTOSH_ASSET"
 
   @Volatile private var enabled: Boolean = false
+  @Volatile private var soundReady: Boolean = false
 
   @Volatile private var loadedFile: String? = null
 
@@ -28,12 +30,19 @@ object KeyTapSoundPlayer {
   fun sync(context: Context) {
     val appContext = context.applicationContext
     val prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-    val layoutJson = prefs.getString(LAYOUT_KEY, null) ?: return
+    val layoutJson =
+        prefs.getString(
+            LAYOUT_KEY,
+            """{"customTapSoundEnabled":true,"customTapSoundFile":"1.mp3"}""",
+        )
+            ?: return
 
     try {
       val layout = JSONObject(layoutJson)
       KeyboardInputBridge.syncLayoutSettings(layoutJson)
-      val nextEnabled = layout.optBoolean("customTapSoundEnabled", false)
+      // Older saved layouts predate custom tap sound fields. Treat those as
+      // the bundled default instead of silently disabling all key audio.
+      val nextEnabled = layout.optBoolean("customTapSoundEnabled", true)
       val design = prefs.getString(DESIGN_KEY, "typebase") ?: "typebase"
 
       if (!nextEnabled) {
@@ -49,7 +58,9 @@ object KeyTapSoundPlayer {
       }
 
       val fileName =
-          layout.optString("customTapSoundFile", "").trim().takeIf { it.isNotEmpty() }
+          layout.optString("customTapSoundFile", "1.mp3")
+              .trim()
+              .takeIf { it.isNotEmpty() }
 
       // Meme SFX (named `myinstants_*`) must never be used as a key tap sound.
       val isMemeSound = fileName?.startsWith("myinstants_") == true
@@ -58,6 +69,11 @@ object KeyTapSoundPlayer {
         release()
         enabled = false
         loadedFile = null
+        return
+      }
+
+      if (fileName == "1.mp3") {
+        loadBundledDefaultSound(appContext)
         return
       }
 
@@ -75,6 +91,12 @@ object KeyTapSoundPlayer {
 
       release()
       val pool = createSoundPool()
+      pool.setOnLoadCompleteListener { loadedPool, _, status ->
+        if (status == 0 && loadedPool === soundPool) {
+          enabled = true
+          soundReady = true
+        }
+      }
       val id = pool.load(soundFile.absolutePath, 1)
       if (id == 0) {
         pool.release()
@@ -85,12 +107,45 @@ object KeyTapSoundPlayer {
 
       soundPool = pool
       soundId = id
-      enabled = true
+      enabled = false
+      soundReady = false
       loadedFile = soundFile.absolutePath
     } catch (error: Exception) {
       Log.w(TAG, "Failed to sync custom tap sound", error)
       release()
       enabled = false
+      loadedFile = null
+    }
+  }
+
+  private fun loadBundledDefaultSound(appContext: Context) {
+    if (enabled && loadedFile == DEFAULT_LOADED_TOKEN && soundId != 0) {
+      return
+    }
+
+    release()
+    try {
+      val pool = createSoundPool()
+      pool.setOnLoadCompleteListener { loadedPool, _, status ->
+        if (status == 0 && loadedPool === soundPool) {
+          enabled = true
+          soundReady = true
+        }
+      }
+      val id = pool.load(appContext, com.typebase.app.R.raw.default_tap, 1)
+      if (id == 0) {
+        pool.release()
+        loadedFile = null
+        return
+      }
+      soundPool = pool
+      soundId = id
+      enabled = false
+      soundReady = false
+      loadedFile = DEFAULT_LOADED_TOKEN
+    } catch (error: Exception) {
+      Log.w(TAG, "Failed to load bundled default tap sound", error)
+      release()
       loadedFile = null
     }
   }
@@ -105,6 +160,12 @@ object KeyTapSoundPlayer {
     try {
       afd = appContext.assets.openFd(MACINTOSH_ASSET)
       val pool = createSoundPool()
+      pool.setOnLoadCompleteListener { loadedPool, _, status ->
+        if (status == 0 && loadedPool === soundPool) {
+          enabled = true
+          soundReady = true
+        }
+      }
       val id = pool.load(afd, 1)
       if (id == 0) {
         pool.release()
@@ -114,7 +175,8 @@ object KeyTapSoundPlayer {
       }
       soundPool = pool
       soundId = id
-      enabled = true
+      enabled = false
+      soundReady = false
       loadedFile = MACINTOSH_LOADED_TOKEN
     } catch (error: Exception) {
       Log.w(TAG, "Failed to load Macintosh tap sound", error)
@@ -136,7 +198,7 @@ object KeyTapSoundPlayer {
     }
     val pool = soundPool
     val id = soundId
-    if (pool == null || id == 0) {
+    if (pool == null || id == 0 || !soundReady) {
       return
     }
     pool.play(id, 0.45f, 0.45f, 1, 0, 1f)
@@ -155,6 +217,8 @@ object KeyTapSoundPlayer {
   }
 
   private fun release() {
+    enabled = false
+    soundReady = false
     soundPool?.release()
     soundPool = null
     soundId = 0

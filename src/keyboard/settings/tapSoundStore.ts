@@ -6,10 +6,10 @@ import {keyboardBridge} from '../keyboardBridge';
 import {updateKeyboardLayoutSetting} from './layoutStore';
 
 export const TAP_SOUND_DIR_NAME = 'keyboard_tap_sounds';
-export const DEFAULT_TAP_SOUND_FILE = 'haptic.wav';
+export const DEFAULT_TAP_SOUND_FILE = '1.mp3';
 const TAP_SOUND_BASENAME = 'custom_tap';
 
-const DEFAULT_TAP_SOUND_ASSET = require('../../../assets/sounds/haptic.wav');
+const DEFAULT_TAP_SOUND_ASSET = require('../../../assets/HapticsSound/1.mp3');
 
 const AUDIO_MIME_TYPES = [
   'audio/*',
@@ -82,7 +82,7 @@ export function resolveCustomTapSoundPath(fileName: string | null | undefined): 
   return `${tapSoundDir()}/${fileName}`;
 }
 
-/** Copies the bundled haptic.wav into keyboard storage if it is not already present. */
+/** Copies the bundled HapticsSound/1.mp3 into keyboard storage if needed. */
 export async function ensureBundledDefaultTapSound(): Promise<void> {
   if (Platform.OS !== 'android' || !FileSystem.documentDirectory) {
     return;

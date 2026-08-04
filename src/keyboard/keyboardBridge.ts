@@ -67,6 +67,7 @@ type KeyboardModuleType = {
   setKeyboardHeight: (heightDp: number) => void;
   setTouchpadGestureConsuming: (active: boolean) => void;
   setNativeKeyFastPathConfig: (json: string) => void;
+  setNativeZeroLatencyMode: (enabled: boolean) => void;
   consumeNativeFastPathPointer: (pointerId: number) => boolean;
   consumeNativeHapticPointer: (pointerId: number) => boolean;
   getGestureSettings: () => Promise<string>;
@@ -455,6 +456,11 @@ export const keyboardBridge: KeyboardModuleType = {
   setNativeKeyFastPathConfig: (json: string) => {
     if (Platform.OS === 'android' && KeyboardModule?.setNativeKeyFastPathConfig) {
       KeyboardModule.setNativeKeyFastPathConfig(json);
+    }
+  },
+  setNativeZeroLatencyMode: (enabled: boolean) => {
+    if (Platform.OS === 'android' && KeyboardModule?.setNativeZeroLatencyMode) {
+      KeyboardModule.setNativeZeroLatencyMode(enabled);
     }
   },
   consumeNativeFastPathPointer: (pointerId: number): boolean => {

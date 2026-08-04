@@ -212,7 +212,7 @@ import {useVoiceInput} from './voice/useVoiceInput';
 const DOUBLE_TAP_MS = 350;
 /** Debounced async refresh (phrases, essentials, native cursor sync). */
 const SUGGESTION_FULL_REFRESH_DEBOUNCE_MS = 140;
-const SUGGESTION_TYPING_IDLE_MS = 120;
+const INSTANT_SUGGESTION_MIN_INTERVAL_MS = 48;
 const BACKSPACE_SUGGESTION_DEBOUNCE_MS = 900;
 /** Coalesce suggestion-bar work while backspacing — one update per burst. */
 const BACKSPACE_BAR_FLUSH_MS = 32;
@@ -363,6 +363,7 @@ type LetterKeyboardRowsProps = {
   capsLocked: boolean;
   onKeyPress: (keyDef: KeyDefinition) => void;
   onMultiTouchKeyCommit: (keyDef: KeyDefinition, text: string) => void;
+  onNativeFastPathLetterCommit?: (text: string) => void;
   onSpaceLongPress?: () => void;
   keyGestures?: KeyGesturesConfig;
   keyHeight?: number;
@@ -383,6 +384,7 @@ const LetterKeyboardRows = React.memo(function LetterKeyboardRows({
   capsLocked,
   onKeyPress,
   onMultiTouchKeyCommit,
+  onNativeFastPathLetterCommit,
   onSpaceLongPress,
   keyGestures,
   keyHeight,
@@ -405,6 +407,7 @@ const LetterKeyboardRows = React.memo(function LetterKeyboardRows({
       getIsUppercase={getIsUppercase}
       getLetterCommitText={getLetterCommitText}
       onMultiTouchKeyCommit={onMultiTouchKeyCommit}
+      onNativeFastPathLetterCommit={onNativeFastPathLetterCommit}
       onSpaceLongPress={onSpaceLongPress}>
       {rows.map((row, index) => (
         <KeyboardRow
@@ -540,6 +543,7 @@ function KeyboardBody({
   const autocorrectPreviewRef = useRef<string | null>(null);
   const nativeFastPathActiveRef = useRef(false);
   const instantSuggestionRafRef = useRef<number | null>(null);
+  const instantSuggestionLastFlushAtRef = useRef(0);
   const backspaceBarTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const backspaceSyncSeqRef = useRef(0);
   const autocorrectUndoStackRef = useRef<AutocorrectHistoryEdit[]>([]);
@@ -951,6 +955,7 @@ function KeyboardBody({
     livePrefixRef.current = '';
     zeroLatencyModeRef.current = false;
     setZeroLatencyRuntimeActive(false);
+    keyboardBridge.setNativeZeroLatencyMode(false);
 
     setMode({type: 'typing'});
     setLayout('letters');
@@ -1018,10 +1023,10 @@ function KeyboardBody({
       return;
     }
 
-    // Confirm activation before feedback is disabled for the rest of this session.
     keyboardBridge.performLightKeyHaptic();
     zeroLatencyModeRef.current = true;
     setZeroLatencyRuntimeActive(true);
+    keyboardBridge.setNativeZeroLatencyMode(true);
     suggestionRefreshRunIdRef.current += 1;
     aiProofreadRunIdRef.current += 1;
     livePrefixRef.current = '';
@@ -1049,20 +1054,8 @@ function KeyboardBody({
       instantSuggestionRafRef.current = null;
     }
 
-    clearClipboardPasteSuggestion();
-    setSuggestions([]);
-    setEssentialSuggestions([]);
-    setEssentialTriggerLength(0);
-    setCurrentPrefix('');
-    setSwipePreview(null);
-    setTypedKeepSuggestion(null);
-    setAutocorrectPreview(null);
-    setAiAutocorrectSuggestion(null);
-    setIsAiAutocorrectProcessing(false);
-    stoppedTypingRef.current = true;
-    setStoppedTyping(true);
     setZeroLatencyMode(true);
-  }, [clearClipboardPasteSuggestion]);
+  }, []);
 
   useEffect(() => {
     const hiddenSubscription = DeviceEventEmitter.addListener(
@@ -1072,15 +1065,8 @@ function KeyboardBody({
         resetToMainAlphabetView();
       },
     );
-    const sessionSubscription = DeviceEventEmitter.addListener(
-      'keyboardSessionStart',
-      () => {
-        resetToMainAlphabetView();
-      },
-    );
     return () => {
       hiddenSubscription.remove();
-      sessionSubscription.remove();
     };
   }, [resetToMainAlphabetView]);
 
@@ -1626,6 +1612,14 @@ function KeyboardBody({
       if (nextPrefix === lastInstantPrefixRef.current) {
         return;
       }
+      if (
+        nextPrefix &&
+        Date.now() - instantSuggestionLastFlushAtRef.current <
+          INSTANT_SUGGESTION_MIN_INTERVAL_MS
+      ) {
+        return;
+      }
+      instantSuggestionLastFlushAtRef.current = Date.now();
       lastInstantPrefixRef.current = nextPrefix;
 
       if (!nextPrefix) {
@@ -1859,9 +1853,10 @@ function KeyboardBody({
       : SUGGESTION_FULL_REFRESH_DEBOUNCE_MS;
     suggestionRefreshTimerRef.current = setTimeout(() => {
       suggestionRefreshTimerRef.current = null;
-      const stillTyping =
-        Date.now() - lastTypingAtRef.current < SUGGESTION_TYPING_IDLE_MS;
-      void refreshSuggestions({fast: stillTyping});
+      // Keep the background path prefix-only while typing. Full SymSpell
+      // autocorrect is still applied at the word boundary, but must not
+      // occasionally block a key frame after a typing burst.
+      void refreshSuggestions({fast: true});
     }, debounceMs);
   },
   [applyInstantSuggestionBar, refreshSuggestions],
@@ -1954,9 +1949,21 @@ function KeyboardBody({
       insertBoundary: () => void,
       boundary = '',
       typedWordFallback = '',
+      options?: {
+        boundaryPreInserted?: boolean;
+        contextPromise?: Promise<string>;
+      },
     ) => {
       const zeroLatency = zeroLatencyModeRef.current;
-      const context = await keyboardBridge.getTextBeforeCursor(96);
+      const boundaryLength = options?.boundaryPreInserted ? boundary.length : 0;
+      const boundaryText = options?.boundaryPreInserted ? boundary : '';
+      const applyBoundary = () => {
+        if (!options?.boundaryPreInserted) {
+          insertBoundary();
+        }
+      };
+      const context = await (options?.contextPromise ??
+        keyboardBridge.getTextBeforeCursor(96));
       if (endsWithRewriteCommand(context)) {
         keyboardBridge.replaceWordPrefix(REWRITE_COMMAND.length, '');
         await openRewritePanel();
@@ -1968,7 +1975,7 @@ function KeyboardBody({
           expansion.triggerLength,
           expansion.value,
         );
-        insertBoundary();
+        applyBoundary();
         if (!zeroLatency) {
           scheduleAiProofread();
           requestAnimationFrame(() => {
@@ -2008,8 +2015,8 @@ function KeyboardBody({
             Math.max(0, context.length - phraseFix.replaceLength),
           );
           keyboardBridge.replaceWordPrefix(
-            phraseFix.replaceLength,
-            phraseFix.phrase,
+          phraseFix.replaceLength + boundaryLength,
+          phraseFix.phrase + boundaryText,
           );
           recordLearnedPhrase(phraseFix.phrase);
           for (const part of phraseFix.phrase.split(' ')) {
@@ -2019,7 +2026,7 @@ function KeyboardBody({
             context.slice(0, context.length - phraseFix.replaceLength) +
               phraseFix.phrase,
           );
-          insertBoundary();
+          applyBoundary();
           if (!zeroLatency) {
             scheduleAiProofread();
           }
@@ -2047,7 +2054,10 @@ function KeyboardBody({
           ),
         });
         if (shouldAutoApply(candidate, typedWord)) {
-          keyboardBridge.replaceWordPrefix(typedWord.length, candidate!.correction);
+          keyboardBridge.replaceWordPrefix(
+            typedWord.length + boundaryLength,
+            candidate!.correction + boundaryText,
+          );
           const correctionParts = candidate!.correction.split(/\s+/);
           for (const part of correctionParts) {
             recordLearnedWord(part);
@@ -2056,7 +2066,7 @@ function KeyboardBody({
             context.slice(0, Math.max(0, context.length - typedWord.length)) +
               candidate!.correction,
           );
-          insertBoundary();
+          applyBoundary();
           if (!zeroLatency) {
             scheduleAiProofread();
           }
@@ -2088,7 +2098,7 @@ function KeyboardBody({
       }
       learnPhrasesFromContext(context);
 
-      insertBoundary();
+      applyBoundary();
       if (!zeroLatency) {
         scheduleAiProofread();
         requestAnimationFrame(() => {
@@ -2412,6 +2422,42 @@ function KeyboardBody({
     void toggleClipboardPin(item.id).then(reloadClipboard);
   }, [reloadClipboard]);
 
+  const handleAutocorrectBackspace = useCallback((): boolean => {
+    const edit = autocorrectUndoStackRef.current.at(-1);
+    if (!edit) {
+      return false;
+    }
+
+    void (async () => {
+      const expected = `${edit.correction}${edit.boundary}`;
+      const context = await keyboardBridge.getTextBeforeCursor(
+        expected.length + 8,
+      );
+      if (!context.endsWith(expected)) {
+        autocorrectUndoStackRef.current =
+          autocorrectUndoStackRef.current.slice(0, -1);
+        keyboardBridge.deleteBackward();
+        return;
+      }
+
+      autocorrectUndoStackRef.current =
+        autocorrectUndoStackRef.current.slice(0, -1);
+      autocorrectRedoStackRef.current = [];
+      keyboardBridge.replaceWordPrefix(
+        expected.length,
+        `${edit.original}${edit.boundary}`,
+      );
+      // Backspace after an unwanted correction is an explicit keep signal.
+      // Learn the original token immediately so it is protected next time.
+      recordLearnedWord(edit.original);
+      livePrefixRef.current = '';
+      autocorrectPreviewRef.current = null;
+      setAutocorrectPreview(null);
+      scheduleRefreshSuggestions();
+    })();
+    return true;
+  }, [scheduleRefreshSuggestions]);
+
   const handleKeyPressImpl = useCallback(
     (keyDef: KeyDefinition) => {
       const mode = modeRef.current;
@@ -2426,6 +2472,9 @@ function KeyboardBody({
 
       if (mode.type === 'typing' && zeroLatencyModeRef.current) {
         if (keyDef.type === 'backspace' || keyDef.type === 'numpad-back') {
+          if (keyDef.type === 'backspace' && handleAutocorrectBackspace()) {
+            return;
+          }
           keyboardBridge.deleteBackward();
           livePrefixRef.current = livePrefixRef.current.slice(0, -1);
           return;
@@ -2576,6 +2625,9 @@ function KeyboardBody({
 
       switch (keyDef.type) {
         case 'backspace':
+          if (handleAutocorrectBackspace()) {
+            return;
+          }
           keyboardBridge.deleteBackward();
           backspaceSyncSeqRef.current += 1;
           livePrefixRef.current = livePrefixRef.current.slice(0, -1);
@@ -2589,20 +2641,40 @@ function KeyboardBody({
           return;
         case 'space': {
           const typedFallback = livePrefixRef.current;
+          const contextPromise = keyboardBridge.getTextBeforeCursor(96);
           livePrefixRef.current = '';
+          keyboardBridge.insertText(' ');
+          if (zeroLatencyModeRef.current) {
+            void commitTypedWordBoundary(
+              () => {},
+              ' ',
+              typedFallback,
+              {boundaryPreInserted: true, contextPromise},
+            );
+            return;
+          }
           applyInstantSuggestionBar('');
           void commitTypedWordBoundary(
-            () => {
-              keyboardBridge.insertText(' ');
-            },
+            () => {},
             ' ',
             typedFallback,
+            {boundaryPreInserted: true, contextPromise},
           );
           return;
         }
         case 'enter': {
           const typedFallback = livePrefixRef.current;
           livePrefixRef.current = '';
+          if (zeroLatencyModeRef.current) {
+            keyboardBridge.submitEnterKey();
+            void commitTypedWordBoundary(
+              () => {},
+              '',
+              typedFallback,
+              {boundaryPreInserted: true},
+            );
+            return;
+          }
           void commitTypedWordBoundary(
             () => {
               keyboardBridge.submitEnterKey();
@@ -2669,6 +2741,7 @@ function KeyboardBody({
       clearSuggestionBarForPrefix,
       commitTypedWordBoundary,
       consumeLetterCommitText,
+      handleAutocorrectBackspace,
       handleFormConfirm,
       handleShiftPress,
       resetCase,
@@ -2813,9 +2886,9 @@ function KeyboardBody({
         }
         suggestionRefreshTimerRef.current = setTimeout(() => {
           suggestionRefreshTimerRef.current = null;
-          const idleMs = Date.now() - lastTypingAtRef.current;
-          const stillTyping = idleMs < SUGGESTION_TYPING_IDLE_MS;
-          void refreshSuggestions({fast: stillTyping});
+          // Boundary autocorrect owns correction; this refresh only updates
+          // cheap prefix suggestions during normal typing.
+          void refreshSuggestions({fast: true});
         }, SUGGESTION_FULL_REFRESH_DEBOUNCE_MS);
       }
 
@@ -2884,8 +2957,23 @@ function KeyboardBody({
       keyboardBridge.insertKeyText(text);
       applyCommittedKeyTextSideEffects(text);
     },
-    [appendToFormField, applyCommittedKeyTextSideEffects, markTyping],
+    [
+      appendToFormField,
+      applyCommittedKeyTextSideEffects,
+      markTyping,
+    ],
   );
+
+  const handleNativeFastPathLetterCommit = useCallback((text: string) => {
+    if (
+      zeroLatencyModeRef.current &&
+      layoutRef.current === 'letters' &&
+      modeRef.current.type === 'typing' &&
+      /[a-z]/i.test(text)
+    ) {
+      livePrefixRef.current += text;
+    }
+  }, []);
 
   useEffect(() => {
     const subscription = DeviceEventEmitter.addListener(
@@ -2897,7 +2985,9 @@ function KeyboardBody({
         }
         if (payload?.shiftConsumed) {
           shiftOnRef.current = false;
-          setShiftOn(false);
+          if (!zeroLatencyModeRef.current) {
+            setShiftOn(false);
+          }
         }
         if (clipboardPasteSuggestionRef.current) {
           clearClipboardPasteSuggestion();
@@ -3098,7 +3188,7 @@ function KeyboardBody({
       keyboardBridge.setNativeKeyFastPathConfig(
         JSON.stringify({
           enabled: true,
-          commitOnDown: !gestureEnabled,
+          commitOnDown: zeroLatencyMode || !gestureEnabled,
           zeroLatency: zeroLatencyMode,
           areaPageX: origin.pageX,
           areaPageY: origin.pageY,
@@ -3154,6 +3244,7 @@ function KeyboardBody({
     return () => {
       zeroLatencyModeRef.current = false;
       setZeroLatencyRuntimeActive(false);
+      keyboardBridge.setNativeZeroLatencyMode(false);
       keyboardBridge.setNativeKeyFastPathConfig(JSON.stringify({enabled: false}));
     };
   }, []);
@@ -3732,6 +3823,7 @@ function KeyboardBody({
                 capsLocked={capsLocked}
                 onKeyPress={handleKeyPress}
                 onMultiTouchKeyCommit={handleMultiTouchKeyCommit}
+                onNativeFastPathLetterCommit={handleNativeFastPathLetterCommit}
                 onSpaceLongPress={
                   mode.type === 'typing' ? activateZeroLatencyMode : undefined
                 }

@@ -3,6 +3,7 @@ import {keyboardBridge} from '../keyboardBridge';
 import {normalizeLetterLayoutId} from '../layouts/resolveLetterLayout';
 import {ensureCustomLayoutsLoaded} from './customLayoutStore';
 import {
+  DEFAULT_TAP_SOUND_FILE,
   ensureBundledDefaultTapSound,
 } from './tapSoundStore';
 import {
@@ -95,9 +96,12 @@ function normalizeLayout(raw: unknown): KeyboardLayoutSettings {
 
 async function loadFromStorage(): Promise<void> {
   await ensureCustomLayoutsLoaded();
+  let storedLayout: Record<string, unknown> | null = null;
   try {
     const raw = await keyboardBridge.getKeyboardLayoutSettings();
-    cachedLayout = normalizeLayout(JSON.parse(raw));
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    storedLayout = parsed;
+    cachedLayout = normalizeLayout(parsed);
   } catch {
     cachedLayout = {...DEFAULT_KEYBOARD_LAYOUT_SETTINGS};
   }
@@ -116,6 +120,22 @@ async function loadFromStorage(): Promise<void> {
       });
     } catch {
       // Ignore; the native guard also refuses to play `myinstants_*` files.
+    }
+  }
+  // Migrate the previous bundled default to the new bundled touch sound.
+  if (
+    cachedLayout.customTapSoundEnabled &&
+    (!storedLayout?.customTapSoundFile ||
+      cachedLayout.customTapSoundFile === 'haptic.wav')
+  ) {
+    try {
+      await setKeyboardLayoutSettings({
+        ...cachedLayout,
+        customTapSoundFile: DEFAULT_TAP_SOUND_FILE,
+        customTapSoundEnabled: true,
+      });
+    } catch {
+      // Keep the in-memory settings; the bundled asset install below is best-effort.
     }
   }
   try {

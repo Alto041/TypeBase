@@ -372,6 +372,8 @@ type DispatchMultiTouchOptions = {
   hitSlop?: KeyHitSlop;
   consumeNativeFastPathPointer?: (pointerId: number) => boolean;
   consumeNativeHapticPointer?: (pointerId: number) => boolean;
+  /** Native already committed this letter; keep live prefix in sync without a JS bridge event. */
+  onNativeFastPathLetterCommit?: (text: string) => void;
   onSpaceLongPress?: () => void;
   /** When true, letter keys commit on lift so swipes do not leave a stray start letter. */
   swipeTypingEnabled?: boolean;
@@ -513,8 +515,14 @@ export function dispatchMultiTouchStart(
       !deferLetterCommit &&
       (options.consumeNativeFastPathPointer?.(pid) ?? false);
 
+    if (nativeCommitted && isZeroLatencyModeActive()) {
+      options.onNativeFastPathLetterCommit?.(defaultCommit);
+    }
+
     setMultiTouchKeyPressed(hit.id, true, {nativeCommitted});
-    triggerKeyHaptic(pid, {nativeCommitted});
+    if (!isZeroLatencyModeActive() || !nativeCommitted) {
+      triggerKeyHaptic(pid, {nativeCommitted});
+    }
     if (!deferLetterCommit && !nativeCommitted) {
       options.onKeyCommit(hit.keyDef, defaultCommit);
     }

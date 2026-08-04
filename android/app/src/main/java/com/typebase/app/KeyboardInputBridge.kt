@@ -182,6 +182,10 @@ object KeyboardInputBridge {
     inputService?.setNativeKeyFastPathConfig(json)
   }
 
+  fun setNativeZeroLatencyMode(enabled: Boolean) {
+    inputService?.setNativeZeroLatencyMode(enabled)
+  }
+
   fun isKeyHapticEnabled(): Boolean = keyHapticEnabled
 
   fun syncLayoutSettings(json: String) {
