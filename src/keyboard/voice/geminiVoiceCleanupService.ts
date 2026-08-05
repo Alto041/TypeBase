@@ -3,7 +3,11 @@ import {ensureAiProviderLoaded, getAiProvider} from '../settings/aiProviderStore
 import {buildGemmaVoiceCleanupPrompt} from '../ai/gemmaPrompts';
 import {generateOnDeviceText} from '../ai/onDeviceTextAi';
 import {GEMINI_GENERATION_CONFIG} from '../ai/generationConfig';
-import {GEMINI_API_URL} from '../translate/geminiConfig';
+import {GEMINI_VOICE_API_URL} from '../translate/geminiConfig';
+import {
+  isFaithfulVoiceCleanup,
+  resolveVoiceCleanupText,
+} from './voiceCleanupUtils';
 
 export class VoiceCleanupError extends Error {
   constructor(message = 'Voice cleanup failed') {
@@ -33,14 +37,15 @@ type GeminiResponse = {
 };
 
 function buildCleanupPrompt(transcript: string): string {
-  return `You clean up short voice-dictation snippets from a mobile keyboard.
+  return `You clean up raw speech-to-text from a mobile keyboard.
 
-TASK:
-- Fix capitalization and punctuation.
-- Remove duplicated words, false starts, and obvious speech-to-text stutter (e.g. "Yo Yo" -> "Yo").
-- Keep the same language as the input — never translate.
-- Do not add new words, opinions, or commentary.
-- If the input is empty or unintelligible, return {"text":"","detectedLanguageCode":null}.
+STRICT RULES:
+- Preserve meaning and wording. Do NOT rephrase, summarize, expand, or "improve" the message.
+- Only fix capitalization, ending punctuation, and obvious STT stutter/duplicates (e.g. "I I think" -> "I think").
+- Keep slang, names, numbers, emoji, and mixed-language text exactly as spoken.
+- Never translate or switch languages.
+- If the input is already fine, return it almost unchanged.
+- If empty or unintelligible, return {"text":"","detectedLanguageCode":null}.
 
 OUTPUT: Return ONLY valid JSON (no markdown):
 {"text":"<cleaned text>","detectedLanguageCode":"<ISO 639-1 code or null>"}
@@ -102,10 +107,12 @@ export async function cleanupVoiceTranscript(
     try {
       const raw = await generateOnDeviceText(buildGemmaVoiceCleanupPrompt(input));
       const parsed = parseOnDeviceCleanupResult(raw);
+      const text = resolveVoiceCleanupText(input, parsed.text);
       const result: VoiceCleanupResult = {
-        ...parsed,
+        text,
+        detectedLanguageCode: parsed.detectedLanguageCode,
         usedGemini: false,
-        usedOnDeviceAi: true,
+        usedOnDeviceAi: text !== input.trim(),
       };
       console.log('[VoiceCleanup/OnDevice] Parsed result:', result);
       return result;
@@ -131,7 +138,7 @@ export async function cleanupVoiceTranscript(
   console.log('[VoiceCleanup/Gemini] Input transcript:', input);
 
   try {
-    const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
+    const response = await fetch(`${GEMINI_VOICE_API_URL}?key=${apiKey}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -173,9 +180,16 @@ export async function cleanupVoiceTranscript(
     }
 
     const parsed = parseCleanupResult(rawText);
+    const text = resolveVoiceCleanupText(input, parsed.text);
+    if (!isFaithfulVoiceCleanup(input, parsed.text)) {
+      console.warn(
+        '[VoiceCleanup/Gemini] Rejected over-edited result, using raw transcript',
+      );
+    }
     const result: VoiceCleanupResult = {
-      ...parsed,
-      usedGemini: true,
+      text,
+      detectedLanguageCode: parsed.detectedLanguageCode,
+      usedGemini: text !== input.trim(),
       usedOnDeviceAi: false,
     };
     console.log('[VoiceCleanup/Gemini] Parsed result:', result);

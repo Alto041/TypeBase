@@ -53,6 +53,9 @@ function isMissingSpeechmaticsKey(error: unknown): boolean {
   );
 }
 
+/** Benign Android STT errors where we should keep listening instead of ending the session. */
+const ANDROID_STT_RESTARTABLE_ERRORS = new Set([6, 7]);
+
 export function useVoiceInput() {
   const [isListening, setIsListening] = useState(false);
   const [isVoiceSpeaking, setIsVoiceSpeaking] = useState(false);
@@ -65,6 +68,9 @@ export function useVoiceInput() {
   const sessionFinalsRef = useRef<string[]>([]);
   const lastPartialRef = useRef('');
   const stoppingRef = useRef(false);
+  const listeningRef = useRef(false);
+  const androidRestartingRef = useRef(false);
+  const androidSessionReadyRef = useRef(false);
   const speakingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stopListeningRef = useRef<() => Promise<void>>(async () => {});
 
@@ -86,6 +92,9 @@ export function useVoiceInput() {
     }
     sessionFinalsRef.current = [];
     lastPartialRef.current = '';
+    listeningRef.current = false;
+    androidRestartingRef.current = false;
+    androidSessionReadyRef.current = false;
     setPartialTranscript('');
     setIsVoiceSpeaking(false);
     setIsVoiceProcessing(false);
@@ -185,6 +194,7 @@ export function useVoiceInput() {
       setIsListening(false);
       setIsVoiceSpeaking(false);
       setIsVoiceConnecting(false);
+      listeningRef.current = false;
 
       const activeProvider = activeSttProviderRef.current;
 
@@ -213,6 +223,28 @@ export function useVoiceInput() {
 
   stopListeningRef.current = stopListening;
 
+  const restartAndroidSttIfNeeded = useCallback(async () => {
+    if (
+      !listeningRef.current ||
+      stoppingRef.current ||
+      androidRestartingRef.current ||
+      activeSttProviderRef.current !== 'android'
+    ) {
+      return;
+    }
+
+    androidRestartingRef.current = true;
+    try {
+      await voiceRecorder.startAndroidStt();
+    } catch {
+      if (!stoppingRef.current && listeningRef.current) {
+        void stopListeningRef.current();
+      }
+    } finally {
+      androidRestartingRef.current = false;
+    }
+  }, []);
+
   const startAndroidListening = useCallback(async (): Promise<boolean> => {
     activeSttProviderRef.current = 'android';
     const isAvailable = await voiceRecorder.isAndroidSttAvailable();
@@ -225,16 +257,29 @@ export function useVoiceInput() {
       onReady: () => {
         setIsVoiceConnecting(false);
         setIsListening(true);
-        playVoiceActivationSound();
+        listeningRef.current = true;
+        if (!androidSessionReadyRef.current) {
+          androidSessionReadyRef.current = true;
+          playVoiceActivationSound();
+        }
       },
       onPartial: partial => {
         updateLivePreview(partial);
       },
       onFinal: text => {
         appendFinalSegment(text);
-        void stopListeningRef.current();
+        void restartAndroidSttIfNeeded();
       },
-      onError: () => {
+      onError: (_message, code) => {
+        if (
+          listeningRef.current &&
+          !stoppingRef.current &&
+          code != null &&
+          ANDROID_STT_RESTARTABLE_ERRORS.has(code)
+        ) {
+          void restartAndroidSttIfNeeded();
+          return;
+        }
         if (!stoppingRef.current) {
           void stopListeningRef.current();
         }
@@ -251,7 +296,7 @@ export function useVoiceInput() {
       setIsListening(false);
       return false;
     }
-  }, [appendFinalSegment, updateLivePreview]);
+  }, [appendFinalSegment, restartAndroidSttIfNeeded, updateLivePreview]);
 
   const startListening = useCallback(async () => {
     if (isVoiceProcessing || stoppingRef.current) {
@@ -322,6 +367,7 @@ export function useVoiceInput() {
       });
       await voiceRecorder.start();
       setIsListening(true);
+      listeningRef.current = true;
     } catch {
       const startedFallback = await startAndroidListening();
       if (startedFallback) {

@@ -77,7 +77,7 @@ export const voiceRecorder = {
     onReady?: () => void;
     onPartial?: (text: string) => void;
     onFinal?: (text: string) => void;
-    onError?: (message: string) => void;
+    onError?: (message: string, code?: number) => void;
   }) => {
     const subscriptions = [
       emitter?.addListener('VoiceRecorderAndroidSttReady', () => {
@@ -101,8 +101,11 @@ export const voiceRecorder = {
       ),
       emitter?.addListener(
         'VoiceRecorderAndroidSttError',
-        (event: {message?: string}) => {
-          handlers.onError?.(event.message ?? 'Android speech recognition error');
+        (event: {message?: string; code?: number}) => {
+          handlers.onError?.(
+            event.message ?? 'Android speech recognition error',
+            event.code,
+          );
         },
       ),
     ];

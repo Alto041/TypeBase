@@ -12,6 +12,13 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import Reanimated, {
+  Easing,
+  LinearTransition,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 import {SafeAreaProvider, SafeAreaView, useSafeAreaInsets} from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import {useFonts} from 'expo-font';
@@ -24,6 +31,9 @@ import HomeIcon from './assets/home.svg';
 import CustomizeIcon from './assets/customize.svg';
 import ThemesIcon from './assets/themes.svg';
 import SettingsIcon from './assets/settings.svg';
+import ActionsIcon from './assets/actions.svg';
+import AddIcon from './assets/add.svg';
+import RemoveIcon from './assets/remove.svg';
 
 import { CustomizeScreen, ThemesScreen } from './KeyboardCustomization';
 import { GeneralSettingsScreen } from './GeneralSettingsScreen';
@@ -425,6 +435,51 @@ function SetupScreen() {
   );
 }
 
+const QUICK_ACTIONS_ADD_SIZE = 14;
+const QUICK_ACTIONS_REMOVE_SIZE = 12;
+
+function QuickActionsToggleIcon({expanded}: {expanded: boolean}) {
+  const progress = useSharedValue(expanded ? 1 : 0);
+
+  useEffect(() => {
+    progress.value = withTiming(expanded ? 1 : 0, {
+      duration: 160,
+      easing: Easing.out(Easing.cubic),
+    });
+  }, [expanded, progress]);
+
+  const addStyle = useAnimatedStyle(() => ({
+    opacity: 1 - progress.value,
+    transform: [{scale: 0.9 + (1 - progress.value) * 0.1}],
+  }));
+
+  const removeStyle = useAnimatedStyle(() => ({
+    opacity: progress.value,
+    transform: [{scale: 0.9 + progress.value * 0.1}],
+  }));
+
+  return (
+    <View style={styles.quickActionsToggle}>
+      <Reanimated.View style={[styles.quickActionsToggleIcon, addStyle]}>
+        <AddIcon
+          width={QUICK_ACTIONS_ADD_SIZE}
+          height={QUICK_ACTIONS_ADD_SIZE}
+          color={C.sub}
+          fill={C.sub}
+        />
+      </Reanimated.View>
+      <Reanimated.View style={[styles.quickActionsToggleIcon, removeStyle]}>
+        <RemoveIcon
+          width={QUICK_ACTIONS_REMOVE_SIZE}
+          height={QUICK_ACTIONS_REMOVE_SIZE}
+          color={C.sub}
+          fill={C.sub}
+        />
+      </Reanimated.View>
+    </View>
+  );
+}
+
 function LaunchpadScreen({
   onOpenAiConfig,
   onOpenLanguageLayout,
@@ -432,6 +487,8 @@ function LaunchpadScreen({
   onOpenAiConfig: () => void;
   onOpenLanguageLayout: () => void;
 }) {
+  const [quickActionsExpanded, setQuickActionsExpanded] = useState(false);
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={C.bg} />
@@ -485,6 +542,42 @@ function LaunchpadScreen({
             onPress={onOpenLanguageLayout}
             position="solo"
           />
+          <Reanimated.View
+            layout={LinearTransition.duration(180)}
+            style={styles.quickActionsCard}>
+            <Pressable
+              onPress={() => setQuickActionsExpanded(current => !current)}
+              style={styles.quickActionsHeader}>
+              <View style={styles.quickActionsLabel}>
+                <View style={styles.launchpadIconWrap}>
+                  <ActionsIcon
+                    width={HOME_ICON}
+                    height={HOME_ICON}
+                    color="#000000"
+                    fill="#000000"
+                  />
+                </View>
+                <Text style={styles.quickActionsTitle}>QUICK ACTIONS</Text>
+              </View>
+              <QuickActionsToggleIcon expanded={quickActionsExpanded} />
+            </Pressable>
+            {quickActionsExpanded ? (
+              <View style={styles.quickActionsBody}>
+                <View style={styles.quickActionRow}>
+                  <Text style={styles.quickActionKey}>,</Text>
+                  <Text style={styles.quickActionText}>AI Rewrite</Text>
+                </View>
+                <View style={styles.quickActionRow}>
+                  <Text style={styles.quickActionKey}>.</Text>
+                  <Text style={styles.quickActionText}>App shortcut</Text>
+                </View>
+                <View style={styles.quickActionRow}>
+                  <Text style={styles.quickActionKey}>Space</Text>
+                  <Text style={styles.quickActionText}>Zero latency</Text>
+                </View>
+              </View>
+            ) : null}
+          </Reanimated.View>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -697,6 +790,76 @@ const styles = StyleSheet.create({
     color: C.text,
     fontSize: 18,
     fontWeight: '700',
+  },
+  quickActionsCard: {
+    backgroundColor: C.card,
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 4,
+    marginTop: 10,
+    overflow: 'hidden',
+  },
+  quickActionsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+  },
+  quickActionsLabel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  quickActionsTitle: {
+    fontFamily: 'FragmentMono',
+    fontSize: 16,
+    color: C.text,
+    fontWeight: '400',
+    textTransform: 'uppercase',
+  },
+  quickActionsToggle: {
+    width: 22,
+    height: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quickActionsToggleIcon: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quickActionsBody: {
+    marginTop: 4,
+    paddingTop: 6,
+    paddingBottom: 12,
+    borderTopWidth: 1,
+    borderTopColor: C.border,
+  },
+  quickActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+  },
+  quickActionKey: {
+    minWidth: 54,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: '#111111',
+    color: '#FFFFFF',
+    fontFamily: 'FragmentMono',
+    fontSize: 13,
+    textAlign: 'center',
+  },
+  quickActionText: {
+    marginLeft: 10,
+    color: C.text,
+    fontSize: 13,
+    fontFamily: 'FragmentMono',
   },
   step: {
     color: C.text,

@@ -21,6 +21,7 @@ import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.WritableMap
 import com.facebook.react.modules.core.DeviceEventManagerModule
+import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
 
 class VoiceRecorderModule(reactContext: ReactApplicationContext) :
@@ -241,7 +242,12 @@ class VoiceRecorderModule(reactContext: ReactApplicationContext) :
                   RecognizerIntent.LANGUAGE_MODEL_FREE_FORM,
               )
               putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-              putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+              putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, false)
+              putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault().toLanguageTag())
+              putExtra(
+                  RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE,
+                  Locale.getDefault().toLanguageTag(),
+              )
               putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, reactApplicationContext.packageName)
             }
 

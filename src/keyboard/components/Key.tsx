@@ -2,7 +2,6 @@ import React, {memo, useCallback, useEffect, useMemo, useRef, useState} from 're
 import {
   Animated,
   findNodeHandle,
-  Image,
   PanResponder,
   Platform,
   Pressable,
@@ -18,6 +17,7 @@ import ShiftFilledIcon from '../../../assets/filled.svg';
 import ShiftLockIcon from '../../../assets/Lock.svg';
 import EnterIcon from '../../../assets/enter.svg';
 import QuivoxEnterIcon from '../../../assets/quivox_enter.svg';
+import QuivoxIcon from '../../../assets/quivox.svg';
 import NextLineIcon from '../../../assets/next_line.svg';
 import NumbersIcon from '../../../assets/123.svg';
 import SymbolsIcon from '../../../assets/symbols.svg';
@@ -47,7 +47,8 @@ import {
 } from '../theme';
 import {MacintoshKeyBevels} from './MacintoshKeyBevels';
 
-const QUIVOX_SPACE_LOGO = require('../../../assets/quivox_logo.png');
+const QUIVOX_SPACE_LOGO_WIDTH = 16;
+const QUIVOX_SPACE_LOGO_HEIGHT = 14;
 
 const COMMA_HOLD_DELAY_MS = 400;
 const PERIOD_HOLD_DELAY_MS = 400;
@@ -428,17 +429,13 @@ function KeyComponent({
       </View>
     </View>
   ) : isSpaceKey && isQuivox ? (
-    <View style={styles.spaceMacintoshRow}>
-      <Text style={[styles.keyLabel, styles.spaceLabel]}>
-        {displayLabel ?? 'space'}
-      </Text>
-      <View style={styles.spaceQuivoxLogo}>
-        <Image
-          source={QUIVOX_SPACE_LOGO}
-          style={styles.spaceQuivoxLogoImage}
-          resizeMode="contain"
-        />
-      </View>
+    <View style={styles.spaceQuivoxLogo}>
+      <QuivoxIcon
+        width={QUIVOX_SPACE_LOGO_WIDTH}
+        height={QUIVOX_SPACE_LOGO_HEIGHT}
+        color={theme.spaceKeyLabel}
+        fill={theme.spaceKeyLabel}
+      />
     </View>
   ) : (
     <>
@@ -1014,13 +1011,8 @@ function createKeyStyles(theme: KeyboardTheme) {
       alignItems: 'center',
     },
     spaceQuivoxLogo: {
-      marginTop: 2,
       justifyContent: 'center',
       alignItems: 'center',
-    },
-    spaceQuivoxLogoImage: {
-      width: 12,
-      height: 12,
     },
     spaceNothingMark: {
       fontFamily: 'Ndot',

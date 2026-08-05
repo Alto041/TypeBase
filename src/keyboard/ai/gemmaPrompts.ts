@@ -73,9 +73,15 @@ Text:
 }
 
 export function buildGemmaVoiceCleanupPrompt(transcript: string): string {
-  return wrapGemmaPrompt(`Hey, I want you to improve the message, fix grammatical mistakes, and make it sound natural and easy to read.
+  return wrapGemmaPrompt(`Clean up this raw speech-to-text transcript for a mobile keyboard.
 
-Return only the polished text and nothing else.
+Rules:
+- Keep the same words and meaning. Do NOT rephrase or add new ideas.
+- Only fix capitalization, ending punctuation, and obvious STT duplicates.
+- Keep slang, names, numbers, and mixed-language text unchanged.
+- Never translate.
+
+Return only the cleaned text and nothing else.
 
 Text:
 "${transcript}"`);
