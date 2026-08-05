@@ -14,7 +14,7 @@ const WORD_SET_CHUNK = 6_000;
 const WORD_SET_DELAY_MS = 20;
 
 /** Top-frequency words loaded synchronously so OOV checks and ranking stay accurate immediately. */
-export const ENGLISH_ACCURACY_BOOTSTRAP_WORDS = 12_000;
+export const ENGLISH_ACCURACY_BOOTSTRAP_WORDS = 3_000;
 
 let wordSetBootstrapWords = 0;
 let rankMapBootstrapWords = 0;

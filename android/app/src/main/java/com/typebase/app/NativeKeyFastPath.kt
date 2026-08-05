@@ -18,10 +18,11 @@ class NativeKeyFastPath {
       val reactTag: Int,
   )
 
-  private data class TouchSession(
+  private class TouchSession(
       val pointerId: Int,
       val key: NativeKey,
       val commitText: String,
+      var jsConsumed: Boolean = false,
   )
 
   @Volatile
@@ -40,7 +41,6 @@ class NativeKeyFastPath {
   private var capsLocked = false
   private var keys = emptyList<NativeKey>()
   private val sessions = mutableMapOf<Int, TouchSession>()
-  private val consumedPointers = mutableSetOf<Int>()
   private val previewHandler = Handler(Looper.getMainLooper())
 
   fun updateConfig(json: String) {
@@ -61,14 +61,12 @@ class NativeKeyFastPath {
       if (!enabled) {
         zeroLatency = false
         sessions.clear()
-        consumedPointers.clear()
       }
     } catch (_: Exception) {
       enabled = false
       zeroLatency = false
       keys = emptyList()
       sessions.clear()
-      consumedPointers.clear()
     }
   }
 
@@ -77,11 +75,21 @@ class NativeKeyFastPath {
     zeroLatency = false
     keys = emptyList()
     sessions.clear()
-    consumedPointers.clear()
   }
 
-  /** True when this pointer already committed text on the native fast path. */
-  fun consumePointer(pointerId: Int): Boolean = consumedPointers.remove(pointerId)
+  /**
+   * True when native already committed text for this touch. RN touch identifiers often
+   * differ from MotionEvent pointer ids, so fall back to any pending native commit.
+   */
+  fun consumePointer(pointerId: Int): Boolean {
+    sessions[pointerId]?.takeIf { !it.jsConsumed }?.let { session ->
+      session.jsConsumed = true
+      return true
+    }
+    val pending = sessions.values.firstOrNull { !it.jsConsumed } ?: return false
+    pending.jsConsumed = true
+    return true
+  }
 
   fun isZeroLatencyMode(): Boolean = zeroLatency
 
@@ -125,7 +133,6 @@ class NativeKeyFastPath {
                 text.length == 1 &&
                 text[0].isUpperCase()
         if (commitKeyTextOnly(key, text, shiftConsumed, notifyJs = !zeroLatency)) {
-          consumedPointers.add(pointerId)
           sessions[pointerId] = TouchSession(pointerId, key, text)
           if (!zeroLatency) {
             KeyboardInputBridge.playKeyTapSound()
@@ -146,12 +153,14 @@ class NativeKeyFastPath {
       MotionEvent.ACTION_UP,
       MotionEvent.ACTION_POINTER_UP -> {
         val pointerId = event.getPointerId(event.actionIndex)
-        sessions.remove(pointerId)?.key?.reactTag?.let { reactTag ->
+        sessions[pointerId]?.key?.reactTag?.let { reactTag ->
           if (reactTag > 0) {
             KeyboardInputBridge.hideKeyPreview(reactTag)
           }
         }
-        consumedPointers.remove(pointerId)
+        // Keep sessions briefly so JS can acknowledge native commits even when
+        // touch identifiers do not match MotionEvent pointer ids.
+        previewHandler.postDelayed({ sessions.remove(pointerId) }, 450)
         false
       }
 
@@ -162,7 +171,6 @@ class NativeKeyFastPath {
           }
         }
         sessions.clear()
-        consumedPointers.clear()
         false
       }
 

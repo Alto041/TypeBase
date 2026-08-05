@@ -38,6 +38,7 @@ import RemoveIcon from './assets/remove.svg';
 import { CustomizeScreen, ThemesScreen } from './KeyboardCustomization';
 import { GeneralSettingsScreen } from './GeneralSettingsScreen';
 import { ConsoleSettingsScreen } from './ConsoleSettingsScreen';
+import { EngineStatsScreen } from './EngineStatsScreen';
 import { keyboardBridge } from './src/keyboard/keyboardBridge';
 import { AiConfigScreen } from './AiConfigScreen';
 import { OnboardingScreen } from './OnboardingScreen';
@@ -342,6 +343,7 @@ function SetupScreen() {
   const [showAiConfig, setShowAiConfig] = useState(false);
   const [showLanguageLayout, setShowLanguageLayout] = useState(false);
   const [showConsoleSettings, setShowConsoleSettings] = useState(false);
+  const [showEngineStats, setShowEngineStats] = useState(false);
   const { animatedStyle, transitionTo } = useScreenTransition();
 
   const changeTab = (next: NavTab) => {
@@ -351,6 +353,7 @@ function SetupScreen() {
     transitionTo(() => {
       setTab(next);
       setShowConsoleSettings(false);
+      setShowEngineStats(false);
     });
   };
 
@@ -378,6 +381,14 @@ function SetupScreen() {
     transitionTo(() => setShowConsoleSettings(false));
   };
 
+  const openEngineStats = () => {
+    transitionTo(() => setShowEngineStats(true));
+  };
+
+  const closeEngineStats = () => {
+    transitionTo(() => setShowEngineStats(false));
+  };
+
   if (showAiConfig) {
     return (
       <View style={styles.setupRoot}>
@@ -402,12 +413,21 @@ function SetupScreen() {
     );
   }
 
+  if (showEngineStats) {
+    return (
+      <View style={styles.setupRoot}>
+        <EngineStatsScreen onBack={closeEngineStats} />
+      </View>
+    );
+  }
+
   const screenForTab = (): React.ReactNode => {
     if (tab === 'settings') {
       return (
         <GeneralSettingsScreen
           onBack={() => changeTab('home')}
           onOpenConsole={openConsoleSettings}
+          onOpenEngineStats={openEngineStats}
         />
       );
     }

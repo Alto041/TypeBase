@@ -107,7 +107,7 @@ import {
   proofreadRecentTypingContext,
   type AiAutocorrectResult,
 } from './autocorrect/aiAutocorrectService';
-import {getActiveLanguage, preloadActiveDictionary, scheduleBackgroundEnglishSymSpellSeed} from './autocorrect/dictionaryManager';
+import {getActiveLanguage, isEnglishSymSpellReady, preloadActiveDictionary, scheduleBackgroundEnglishSymSpellSeed} from './autocorrect/dictionaryManager';
 import {scheduleEnglishWordSetBuild} from './autocorrect/englishFrequencyDictionary';
 import {GesturesPanel} from './gestures/GesturesPanel';
 import {TranslatePanel} from './translate/TranslatePanel';
@@ -434,6 +434,50 @@ const LetterKeyboardRows = React.memo(function LetterKeyboardRows({
     </SwipeTypingKeysHost>
   );
 });
+
+function pickTypedWordForBoundary(fromContext: string, tracked: string): string {
+  const contextWord = fromContext.trim();
+  const trackedWord = tracked.trim();
+  if (!trackedWord) {
+    return contextWord;
+  }
+  if (!contextWord) {
+    return trackedWord;
+  }
+  const ctxLower = contextWord.toLowerCase();
+  const trkLower = trackedWord.toLowerCase();
+  if (trkLower === ctxLower) {
+    return trackedWord;
+  }
+  if (trkLower.endsWith(ctxLower) || ctxLower.endsWith(trkLower)) {
+    return trackedWord.length >= contextWord.length ? trackedWord : contextWord;
+  }
+  return trackedWord.length >= contextWord.length ? trackedWord : contextWord;
+}
+
+function reconcileLivePrefixFromContext(
+  context: string,
+  tracked: string,
+  recentlyCommitted: boolean,
+): string {
+  const contextPrefix = extractCurrentWord(context);
+  if (!tracked) {
+    return contextPrefix;
+  }
+  if (!contextPrefix) {
+    if (recentlyCommitted || tracked.length > 0) {
+      return tracked;
+    }
+    return '';
+  }
+  if (
+    contextPrefix.length < tracked.length &&
+    tracked.toLowerCase().startsWith(contextPrefix.toLowerCase())
+  ) {
+    return tracked;
+  }
+  return contextPrefix.length > tracked.length ? contextPrefix : tracked;
+}
 
 function sanitizeSuggestionText(value: string | null | undefined): string | null {
   if (value == null) {
@@ -1511,6 +1555,7 @@ function KeyboardBody({
       const barState = computeTypingSuggestionBar(livePrefix, {
         fast: true,
         previousWord: previousWordRef.current,
+        suggestionsOnly: true,
       });
       startTransition(() => {
         setCurrentPrefix(livePrefix);
@@ -1530,8 +1575,14 @@ function KeyboardBody({
       return;
     }
     if (context.length === 0 && emptyContextTrustworthyRef.current) {
-      hasTypedInFieldRef.current = false;
-      livePrefixRef.current = '';
+      if (
+        !livePrefixRef.current &&
+        !hasTypedInFieldRef.current &&
+        Date.now() - lastLetterCommitAtRef.current > 250
+      ) {
+        hasTypedInFieldRef.current = false;
+        livePrefixRef.current = '';
+      }
     }
     syncAutoCapitalizeShift(context, {
       fieldWasCleared:
@@ -1564,7 +1615,13 @@ function KeyboardBody({
       }
     }
 
-    const prefix = extractCurrentWord(context);
+    const recentlyCommitted =
+      Date.now() - lastLetterCommitAtRef.current < 250;
+    const prefix = reconcileLivePrefixFromContext(
+      context,
+      livePrefixRef.current,
+      recentlyCommitted,
+    );
     livePrefixRef.current = prefix;
     previousWordRef.current = extractPreviousWordFromContext(context, prefix);
 
@@ -1572,6 +1629,7 @@ function KeyboardBody({
       fast,
       context,
       previousWord: previousWordRef.current,
+      suggestionsOnly: fast,
     });
 
     startTransition(() => {
@@ -1664,6 +1722,7 @@ function KeyboardBody({
         const barState = computeTypingSuggestionBar(nextPrefix, {
           fast: true,
           previousWord: previousWordRef.current,
+          suggestionsOnly: true,
         });
         setCurrentPrefix(nextPrefix);
         setTypedKeepSuggestion(barState.typedKeepSuggestion);
@@ -2016,16 +2075,7 @@ function KeyboardBody({
       }
 
       let typedWord = extractCurrentWord(context);
-      // Some editors return stale/empty text-before-cursor; fall back to the
-      // live letter prefix we already tracked from key commits.
-      if (
-        typedWordFallback &&
-        (!typedWord ||
-          (typedWordFallback.length > typedWord.length &&
-            typedWordFallback.toLowerCase().endsWith(typedWord.toLowerCase())))
-      ) {
-        typedWord = typedWordFallback;
-      }
+      typedWord = pickTypedWordForBoundary(typedWord, typedWordFallback);
       const autocorrectOn = getAutocorrectSettings().enabled;
 
       if (autocorrectOn && typedWord.length >= 2) {
@@ -2068,11 +2118,20 @@ function KeyboardBody({
         let candidate = getAutocorrectCandidate(typedWord, {
           lightweight: true,
           skipFrequentScan: true,
+          boundary: true,
           previousWord: extractPreviousWordFromContext(
             context,
             typedWord,
           ),
         });
+        if (
+          candidate &&
+          !isEnglishSymSpellReady() &&
+          candidate.confidence < 0.92 &&
+          !candidate.correction.includes(' ')
+        ) {
+          candidate = null;
+        }
         if (shouldAutoApply(candidate, typedWord)) {
           keyboardBridge.replaceWordPrefix(
             typedWord.length + boundaryLength,
@@ -2986,11 +3045,12 @@ function KeyboardBody({
 
   const handleNativeFastPathLetterCommit = useCallback((text: string) => {
     if (
-      zeroLatencyModeRef.current &&
       layoutRef.current === 'letters' &&
       modeRef.current.type === 'typing' &&
       /[a-z]/i.test(text)
     ) {
+      hasTypedInFieldRef.current = true;
+      lastLetterCommitAtRef.current = Date.now();
       livePrefixRef.current += text;
     }
   }, []);

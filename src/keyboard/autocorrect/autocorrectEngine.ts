@@ -551,6 +551,8 @@ type CollectOptions = {
 export type AutocorrectLookupOptions = CollectOptions & {
   /** Word before the token being corrected — light context for short typos. */
   previousWord?: string;
+  /** Space/enter boundary — allow missing-space splits without a full fuzzy scan. */
+  boundary?: boolean;
 };
 
 export type AutocorrectCandidate = {
@@ -802,6 +804,13 @@ export function getFastAutocorrectPreview(
   const symFix = pickBestSymSpellTypoFix(lower, previousWord, learnedUses);
   if (symFix) {
     return applyCaseToWord(symFix, typed);
+  }
+
+  if (lower.length >= MISSING_SPACE_MIN_LENGTH) {
+    const missingSpace = findMissingSpaceCorrection(lower, learnedUses);
+    if (missingSpace) {
+      return applyCaseToWord(missingSpace, typed);
+    }
   }
 
   return null;
@@ -1690,10 +1699,12 @@ export function getAutocorrectCandidate(
   // Missing-space / run-on: run before the proper-noun guard. Sentence-start
   // auto-caps turn "haveyou" into "Haveyou", which used to look like a name
   // and skipped splits entirely.
+  const allowMissingSpaceSplit =
+    options?.boundary === true || options?.lightweight !== true;
   const missingSpace =
-    options?.lightweight === true
-      ? null
-      : findMissingSpaceCorrection(lower, learnedUses);
+    allowMissingSpaceSplit
+      ? findMissingSpaceCorrection(lower, learnedUses)
+      : null;
   if (missingSpace) {
     return {
       correction: applyCaseToWord(missingSpace, typed),
@@ -1702,9 +1713,9 @@ export function getAutocorrectCandidate(
   }
 
   const compound =
-    options?.lightweight === true
-      ? null
-      : lookupCompoundSync(lower);
+    allowMissingSpaceSplit
+      ? lookupCompoundSync(lower)
+      : null;
   if (
     compound &&
     compound.term &&

@@ -468,7 +468,9 @@ function KeyComponent({
     const nativeCommitted =
       pointerId != null &&
       keyboardBridge.consumeNativeFastPathPointer(pointerId);
-    onPress(keyDef);
+    if (!nativeCommitted) {
+      onPress(keyDef);
+    }
     triggerKeyHaptic(pointerId, {nativeCommitted});
   }, [keyDef, onPress, isEnterAction]);
 

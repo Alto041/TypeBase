@@ -18,6 +18,7 @@ import DiscordIcon from './assets/discord.svg';
 import FeedbackIcon from './assets/feedback.svg';
 import GraphicEqIcon from './assets/graphic_eq.svg';
 import DevIcon from './assets/dev.svg';
+import StatsIcon from './assets/stats.svg';
 import SymbolToggleIcon from './assets/symbol-toggle.svg';
 import NumberRowIcon from './assets/123.svg';
 import AutoCapIcon from './assets/format-letter-case-upper.svg';
@@ -56,9 +57,11 @@ const TEXT_KERNING = -0.7;
 export function GeneralSettingsScreen({
   onBack,
   onOpenConsole,
+  onOpenEngineStats,
 }: {
   onBack: () => void;
   onOpenConsole?: () => void;
+  onOpenEngineStats?: () => void;
 }) {
   const [uiSoundsEnabled, setUiSoundsEnabledState] = useState(true);
   const [keyHapticEnabled, setKeyHapticEnabledState] = useState(true);
@@ -375,6 +378,18 @@ export function GeneralSettingsScreen({
               </View>
             </View>
           </View>
+
+          {/* Engine stats */}
+          <Pressable
+            style={[styles.rowCard, styles.middleSettingCard]}
+            onPress={() => {
+              if (onOpenEngineStats) onOpenEngineStats();
+            }}>
+            <View style={styles.rowInner}>
+              <StatsIcon width={ROW_ICON} height={ROW_ICON} color={C.text} />
+              <Text style={styles.rowTitle}>Engine Stats</Text>
+            </View>
+          </Pressable>
 
           {/* Console (no sublabel) */}
           <Pressable
