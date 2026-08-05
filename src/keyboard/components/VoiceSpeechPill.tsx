@@ -157,7 +157,7 @@ export function VoiceSpeechPill({
       <Animated.View style={[styles.shell, shellStyle]}>
         <Animated.View
           pointerEvents="none"
-          style={[styles.glow, glowStyle, {backgroundColor: theme.essentialsAccent}]}
+          style={[styles.glow, glowStyle, {backgroundColor: theme.voiceSpeechGlow}]}
         />
         <Animated.View style={[styles.inner, contentStyle]}>
           {processing || connecting ? (

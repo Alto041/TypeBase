@@ -1,4 +1,7 @@
-import {getEnglishWordsByFrequency} from './englishFrequencyDictionary';
+import {
+  ENGLISH_ACCURACY_BOOTSTRAP_WORDS,
+  getEnglishWordsByFrequency,
+} from './englishFrequencyDictionary';
 
 type TrieNode = {
   top: string[];
@@ -9,7 +12,7 @@ const MAX_WORDS_PER_NODE = 24;
 const BUILD_CHUNK = 500;
 const BUILD_DELAY_MS = 45;
 /** Sync insert on first lookup — common prefixes work without waiting for full build. */
-const SYNC_PREFIX_BOOTSTRAP_WORDS = 4_000;
+const SYNC_PREFIX_BOOTSTRAP_WORDS = ENGLISH_ACCURACY_BOOTSTRAP_WORDS;
 /** Cap linear fallback when trie node is sparse (never walk tens of thousands). */
 const MAX_FALLBACK_SCAN = 360;
 

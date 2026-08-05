@@ -718,6 +718,11 @@ export function createKeyboardTheme(
      * schemes, so this stays dark even when `spaceLabel` is used as muted panel text.
      */
     spaceKeyLabel: design === 'quivox' ? '#111111' : palette.spaceLabel,
+    /** Soft glow behind the voice dictation pill — white on Nothing + Quivox. */
+    voiceSpeechGlow:
+      design === 'quivox' || design === 'typebase'
+        ? '#FFFFFF'
+        : palette.essentialsAccent,
     /** @deprecated Use letterKey */
     key: palette.letterKey,
     /** @deprecated Use letterKeyPressed for letter keys, modifierKeyPressed for others */

@@ -1,4 +1,6 @@
 import {
+  ENGLISH_ACCURACY_BOOTSTRAP_WORDS,
+  ensureEnglishAccuracyBootstrap,
   getEnglishWordsByFrequency,
   isEnglishDictionaryWord,
   rankFromSymSpellFrequency,
@@ -175,11 +177,13 @@ export function isSymSpellLookupReady(): boolean {
   return readySymSpell != null;
 }
 
-const SYM_SPELL_BOOTSTRAP_WORDS = 8_000;
+const SYM_SPELL_BOOTSTRAP_WORDS = ENGLISH_ACCURACY_BOOTSTRAP_WORDS;
 const SYM_SEED_CHUNK = 500;
 const SYM_SEED_DELAY_MS = 32;
 
 function bootstrapEnglishSymSpell(words: readonly string[]): SymSpell {
+  ensureEnglishAccuracyBootstrap();
+  scheduleEnglishRankMapBuild();
   const en = new SymSpell(90_000, 2, 7);
   const bootstrapCount = Math.min(SYM_SPELL_BOOTSTRAP_WORDS, words.length);
   for (let i = 0; i < bootstrapCount; i += 1) {
@@ -224,7 +228,6 @@ export function scheduleBackgroundEnglishSymSpellSeed(): void {
     englishSymSpellSeeded = true;
     englishSymSpellSeeding = false;
     scheduleEnglishPrefixIndexBuild();
-    scheduleEnglishRankMapBuild();
   };
 
   if (index < words.length) {
@@ -233,7 +236,6 @@ export function scheduleBackgroundEnglishSymSpellSeed(): void {
     englishSymSpellSeeded = true;
     englishSymSpellSeeding = false;
     scheduleEnglishPrefixIndexBuild();
-    scheduleEnglishRankMapBuild();
   }
 }
 

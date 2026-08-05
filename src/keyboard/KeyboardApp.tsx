@@ -475,12 +475,12 @@ function computeTypingSuggestionBar(
     fast || !options.context || shouldSkipAutocorrectForToken(prefix)
       ? []
       : getPhraseSuggestions(options.context, 2);
-  // Prefix completions (trie) are cheap — show while typing. Fuzzy SymSpell stays off (skipFuzzy).
+  // Prefix completions (trie) plus a small high-confidence fuzzy pass while typing.
   let wordSuggestions =
     shouldSkipAutocorrectForToken(prefix) || prefix.length < 1
       ? []
       : getWordSuggestions(prefix, TYPING_BAR_WORD_LIMIT, {
-        skipFuzzy: true,
+        skipFuzzy: suggestionsOnly,
         lightweight: true,
       });
   const reserved = new Set<string>();
@@ -1502,6 +1502,28 @@ function KeyboardBody({
       return;
     }
 
+    const fast = options?.fast ?? false;
+    const livePrefix = livePrefixRef.current;
+    const canUseLivePrefixFastPath =
+      fast && livePrefix.length > 0 && !livePrefix.includes('@');
+
+    if (canUseLivePrefixFastPath) {
+      const barState = computeTypingSuggestionBar(livePrefix, {
+        fast: true,
+        previousWord: previousWordRef.current,
+      });
+      startTransition(() => {
+        setCurrentPrefix(livePrefix);
+        setTypedKeepSuggestion(barState.typedKeepSuggestion);
+        setAutocorrectPreview(barState.autocorrectPreview);
+        autocorrectPreviewRef.current = barState.autocorrectPreview;
+        setSuggestions(barState.suggestions);
+        setEssentialSuggestions([]);
+        setEssentialTriggerLength(0);
+      });
+      return;
+    }
+
     await ensureEssentialsLoaded();
     const context = await keyboardBridge.getTextBeforeCursor(96);
     if (suggestionRefreshRunIdRef.current !== runId) {
@@ -1546,7 +1568,6 @@ function KeyboardBody({
     livePrefixRef.current = prefix;
     previousWordRef.current = extractPreviousWordFromContext(context, prefix);
 
-    const fast = options?.fast ?? false;
     const barState = computeTypingSuggestionBar(prefix, {
       fast,
       context,
@@ -1622,37 +1643,36 @@ function KeyboardBody({
       instantSuggestionLastFlushAtRef.current = Date.now();
       lastInstantPrefixRef.current = nextPrefix;
 
-      if (!nextPrefix) {
-        setCurrentPrefix('');
-        setTypedKeepSuggestion(null);
-        setAutocorrectPreview(null);
-        autocorrectPreviewRef.current = null;
+      startTransition(() => {
+        if (!nextPrefix) {
+          setCurrentPrefix('');
+          setTypedKeepSuggestion(null);
+          setAutocorrectPreview(null);
+          autocorrectPreviewRef.current = null;
+          setEssentialSuggestions([]);
+          setEssentialTriggerLength(0);
+          // Hinglish / Franglais: keep preferred-language starters visible between words.
+          if (getActiveLanguage() === 'hi-en' || getActiveLanguage() === 'fr-en') {
+            const barState = computeTypingSuggestionBar('', {fast: true});
+            setSuggestions(barState.suggestions);
+          } else {
+            setSuggestions([]);
+          }
+          return;
+        }
+
+        const barState = computeTypingSuggestionBar(nextPrefix, {
+          fast: true,
+          previousWord: previousWordRef.current,
+        });
+        setCurrentPrefix(nextPrefix);
+        setTypedKeepSuggestion(barState.typedKeepSuggestion);
+        setAutocorrectPreview(barState.autocorrectPreview);
+        autocorrectPreviewRef.current = barState.autocorrectPreview;
+        setSuggestions(barState.suggestions);
         setEssentialSuggestions([]);
         setEssentialTriggerLength(0);
-        // Hinglish / Franglais: keep preferred-language starters visible between words.
-        if (getActiveLanguage() === 'hi-en' || getActiveLanguage() === 'fr-en') {
-          const barState = computeTypingSuggestionBar('', {fast: true});
-          setSuggestions(barState.suggestions);
-        } else {
-          setSuggestions([]);
-        }
-        return;
-      }
-
-      const barState = computeTypingSuggestionBar(nextPrefix, {
-        fast: true,
-        previousWord: previousWordRef.current,
-        // Keep this frame-budget path trie-only. Autocorrect and native
-        // context are added by the short delayed refresh below.
-        suggestionsOnly: true,
       });
-      setCurrentPrefix(nextPrefix);
-      setTypedKeepSuggestion(barState.typedKeepSuggestion);
-      setAutocorrectPreview(barState.autocorrectPreview);
-      autocorrectPreviewRef.current = barState.autocorrectPreview;
-      setSuggestions(barState.suggestions);
-      setEssentialSuggestions([]);
-      setEssentialTriggerLength(0);
     };
 
     if (instantSuggestionRafRef.current !== null) {
@@ -1854,8 +1874,8 @@ function KeyboardBody({
     suggestionRefreshTimerRef.current = setTimeout(() => {
       suggestionRefreshTimerRef.current = null;
       // Keep the background path prefix-only while typing. Full SymSpell
-      // autocorrect is still applied at the word boundary, but must not
-      // occasionally block a key frame after a typing burst.
+      // autocorrect is still applied at the word boundary, but the debounced
+      // refresh uses the high-confidence fast preview path.
       void refreshSuggestions({fast: true});
     }, debounceMs);
   },

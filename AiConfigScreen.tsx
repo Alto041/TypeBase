@@ -78,9 +78,9 @@ export function AiConfigScreen({
   variant?: 'standalone' | 'wizard';
   onContinue?: () => void;
 }) {
-  const [provider, setProvider] = useState<AiProvider>('gemini');
+  const [provider, setProvider] = useState<AiProvider>('on_device');
   const [voiceProvider, setVoiceProviderState] =
-    useState<VoiceSttProvider>('speechmatics');
+    useState<VoiceSttProvider>('android');
   const [apiKeys, setApiKeysState] = useState<ApiKeys>({
     geminiApiKey: '',
     speechmaticsApiKey: '',
@@ -103,14 +103,28 @@ export function AiConfigScreen({
       await ensureVoiceSttProviderLoaded();
       await ensureApiKeysLoaded();
 
-      setProvider(getAiProvider());
-      const loadedVoiceProvider = getVoiceSttProvider();
-      setVoiceProviderState(loadedVoiceProvider);
-      voiceProviderAnim.setValue(loadedVoiceProvider === 'android' ? 1 : 0);
-      setApiKeysState(getApiKeys());
-      setIsOnDeviceSupported(isOnDeviceAiSupported());
+      const keys = getApiKeys();
+      const isFreshSetup = !keys.geminiApiKey && !keys.speechmaticsApiKey;
+      const onDeviceSupported = isOnDeviceAiSupported();
+      const shouldApplyWizardDefaults = variant === 'wizard' && isFreshSetup;
 
-      if (isOnDeviceAiSupported()) {
+      let nextProvider = getAiProvider();
+      let nextVoiceProvider = getVoiceSttProvider();
+
+      if (shouldApplyWizardDefaults) {
+        nextProvider = onDeviceSupported ? 'on_device' : 'gemini';
+        nextVoiceProvider = 'android';
+        await setAiProvider(nextProvider);
+        await setVoiceSttProvider(nextVoiceProvider);
+      }
+
+      setProvider(nextProvider);
+      setVoiceProviderState(nextVoiceProvider);
+      voiceProviderAnim.setValue(nextVoiceProvider === 'android' ? 1 : 0);
+      setApiKeysState(keys);
+      setIsOnDeviceSupported(onDeviceSupported);
+
+      if (onDeviceSupported) {
         const downloaded = await isGemmaModelDownloaded();
         setIsModelDownloaded(downloaded);
       }
@@ -119,7 +133,7 @@ export function AiConfigScreen({
     };
 
     loadData();
-  }, []);
+  }, [variant, voiceProviderAnim]);
 
   // Handle Android back button/gesture
   useEffect(() => {

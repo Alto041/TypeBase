@@ -517,7 +517,7 @@ export const keyboardBridge: KeyboardModuleType = {
     if (Platform.OS === 'android' && KeyboardModule?.getAiProvider) {
       return KeyboardModule.getAiProvider() as Promise<string>;
     }
-    return Promise.resolve('gemini');
+    return Promise.resolve('on_device');
   },
   setAiProvider: (provider: string) => {
     if (Platform.OS === 'android' && KeyboardModule?.setAiProvider) {
@@ -529,7 +529,7 @@ export const keyboardBridge: KeyboardModuleType = {
     if (Platform.OS === 'android' && KeyboardModule?.getVoiceSttProvider) {
       return KeyboardModule.getVoiceSttProvider() as Promise<string>;
     }
-    return Promise.resolve('speechmatics');
+    return Promise.resolve('android');
   },
   setVoiceSttProvider: (provider: string) => {
     if (Platform.OS === 'android' && KeyboardModule?.setVoiceSttProvider) {

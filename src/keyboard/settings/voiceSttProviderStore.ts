@@ -2,7 +2,7 @@ import {keyboardBridge} from '../keyboardBridge';
 
 export type VoiceSttProvider = 'speechmatics' | 'android';
 
-const DEFAULT_PROVIDER: VoiceSttProvider = 'speechmatics';
+const DEFAULT_PROVIDER: VoiceSttProvider = 'android';
 
 let cachedProvider: VoiceSttProvider = DEFAULT_PROVIDER;
 let loadPromise: Promise<void> | null = null;

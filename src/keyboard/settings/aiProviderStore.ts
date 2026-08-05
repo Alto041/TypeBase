@@ -2,7 +2,7 @@ import {keyboardBridge} from '../keyboardBridge';
 
 export type AiProvider = 'gemini' | 'on_device';
 
-const DEFAULT_PROVIDER: AiProvider = 'gemini';
+const DEFAULT_PROVIDER: AiProvider = 'on_device';
 
 let cachedProvider: AiProvider = DEFAULT_PROVIDER;
 let loadPromise: Promise<void> | null = null;

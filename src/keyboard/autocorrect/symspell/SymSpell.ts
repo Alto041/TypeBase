@@ -159,9 +159,12 @@ export class SymSpell {
       }
     }
 
-    // If nothing found within the delete index, fall back to a very small direct scan
-    // for extremely close items (helps for very short inputs or edge cases).
-    if (suggestions.length === 0 && maxEditDistance >= 1) {
+    // Fallback scan is O(n) over the full dictionary — only for very short inputs.
+    if (
+      suggestions.length === 0 &&
+      maxEditDistance >= 1 &&
+      inputLower.length <= 5
+    ) {
       for (const [term, cnt] of this.words) {
         if (Math.abs(term.length - inputLower.length) > maxEditDistance) continue;
         const dist = levenshtein(inputLower, term);

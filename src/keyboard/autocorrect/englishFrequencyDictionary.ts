@@ -13,8 +13,40 @@ let rankMapBuilding = false;
 const WORD_SET_CHUNK = 6_000;
 const WORD_SET_DELAY_MS = 20;
 
+/** Top-frequency words loaded synchronously so OOV checks and ranking stay accurate immediately. */
+export const ENGLISH_ACCURACY_BOOTSTRAP_WORDS = 12_000;
+
+let wordSetBootstrapWords = 0;
+let rankMapBootstrapWords = 0;
+
 export function getEnglishWordsByFrequency(): readonly string[] {
   return WORDS;
+}
+
+/** Sync-load the most common words for dictionary membership and rank scoring. */
+export function ensureEnglishAccuracyBootstrap(): void {
+  const end = Math.min(ENGLISH_ACCURACY_BOOTSTRAP_WORDS, WORDS.length);
+
+  if (wordSetBootstrapWords < end) {
+    if (!wordSet && !wordSetPartial) {
+      wordSetPartial = new Set<string>();
+    }
+    const target = wordSet ?? wordSetPartial!;
+    for (let i = wordSetBootstrapWords; i < end; i += 1) {
+      target.add(WORDS[i]!);
+    }
+    wordSetBootstrapWords = end;
+  }
+
+  if (rankMapBootstrapWords < end) {
+    if (!rankByWord) {
+      rankByWord = new Map();
+    }
+    for (let i = rankMapBootstrapWords; i < end; i += 1) {
+      rankByWord.set(WORDS[i]!, i);
+    }
+    rankMapBootstrapWords = end;
+  }
 }
 
 /** Build word Set in idle chunks — never block the keyboard on 82k inserts. */
@@ -22,10 +54,13 @@ export function scheduleEnglishWordSetBuild(): void {
   if (wordSet || wordSetBuilding || WORDS.length === 0) {
     return;
   }
+  ensureEnglishAccuracyBootstrap();
   wordSetBuilding = true;
-  const partial = new Set<string>();
-  wordSetPartial = partial;
-  let index = 0;
+  if (!wordSetPartial) {
+    wordSetPartial = new Set<string>();
+  }
+  const partial = wordSetPartial;
+  let index = wordSetBootstrapWords;
 
   const step = (): void => {
     const end = Math.min(index + WORD_SET_CHUNK, WORDS.length);
@@ -39,9 +74,16 @@ export function scheduleEnglishWordSetBuild(): void {
     wordSet = partial;
     wordSetPartial = null;
     wordSetBuilding = false;
+    wordSetBootstrapWords = WORDS.length;
   };
 
-  setTimeout(step, 400);
+  if (index < WORDS.length) {
+    setTimeout(step, 400);
+  } else {
+    wordSet = partial;
+    wordSetPartial = null;
+    wordSetBuilding = false;
+  }
 }
 
 export function isEnglishWordSetReady(): boolean {
@@ -73,9 +115,12 @@ export function scheduleEnglishRankMapBuild(): void {
   if (rankMapReady || rankMapBuilding || WORDS.length === 0) {
     return;
   }
+  ensureEnglishAccuracyBootstrap();
   rankMapBuilding = true;
-  rankByWord = new Map();
-  let index = 0;
+  if (!rankByWord) {
+    rankByWord = new Map();
+  }
+  let index = rankMapBootstrapWords;
   const chunk = 4_000;
 
   const step = (): void => {
@@ -89,14 +134,20 @@ export function scheduleEnglishRankMapBuild(): void {
     }
     rankMapReady = true;
     rankMapBuilding = false;
+    rankMapBootstrapWords = WORDS.length;
   };
 
-  setTimeout(step, 2_500);
+  if (index < WORDS.length) {
+    setTimeout(step, 120);
+  } else {
+    rankMapReady = true;
+    rankMapBuilding = false;
+  }
 }
 
-/** Lower rank = more common. Undefined until rank map finishes building. */
+/** Lower rank = more common. Available for bootstrapped words before the full map is ready. */
 export function getEnglishStaticRank(word: string): number | undefined {
-  if (!rankMapReady || !rankByWord) {
+  if (!rankByWord) {
     return undefined;
   }
   return rankByWord.get(word.toLowerCase());
