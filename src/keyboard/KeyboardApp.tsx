@@ -211,8 +211,9 @@ import {useVoiceInput} from './voice/useVoiceInput';
 
 const DOUBLE_TAP_MS = 350;
 /** Debounced async refresh (phrases, essentials, native cursor sync). */
-const SUGGESTION_FULL_REFRESH_DEBOUNCE_MS = 140;
-const INSTANT_SUGGESTION_MIN_INTERVAL_MS = 48;
+const SUGGESTION_FULL_REFRESH_DEBOUNCE_MS = 280;
+const INSTANT_SUGGESTION_MIN_INTERVAL_MS = 160;
+const LETTER_SIDE_EFFECTS_DEBOUNCE_MS = 200;
 const BACKSPACE_SUGGESTION_DEBOUNCE_MS = 900;
 /** Coalesce suggestion-bar work while backspacing — one update per burst. */
 const BACKSPACE_BAR_FLUSH_MS = 32;
@@ -363,6 +364,7 @@ type LetterKeyboardRowsProps = {
   capsLocked: boolean;
   onKeyPress: (keyDef: KeyDefinition) => void;
   onMultiTouchKeyCommit: (keyDef: KeyDefinition, text: string) => void;
+  isNativeTypingCommitActive?: () => boolean;
   onNativeFastPathLetterCommit?: (text: string) => void;
   onSpaceLongPress?: () => void;
   keyGestures?: KeyGesturesConfig;
@@ -384,6 +386,7 @@ const LetterKeyboardRows = React.memo(function LetterKeyboardRows({
   capsLocked,
   onKeyPress,
   onMultiTouchKeyCommit,
+  isNativeTypingCommitActive,
   onNativeFastPathLetterCommit,
   onSpaceLongPress,
   keyGestures,
@@ -407,6 +410,7 @@ const LetterKeyboardRows = React.memo(function LetterKeyboardRows({
       getIsUppercase={getIsUppercase}
       getLetterCommitText={getLetterCommitText}
       onMultiTouchKeyCommit={onMultiTouchKeyCommit}
+      isNativeTypingCommitActive={isNativeTypingCommitActive}
       onNativeFastPathLetterCommit={onNativeFastPathLetterCommit}
       onSpaceLongPress={onSpaceLongPress}>
       {rows.map((row, index) => (
@@ -573,6 +577,9 @@ function KeyboardBody({
     useState(false);
   const lastShiftTapRef = useRef(0);
   const userChoseLettersRef = useRef(false);
+  const letterSideEffectsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const suggestionRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
@@ -2567,6 +2574,15 @@ function KeyboardBody({
             layout === 'letters'
               ? consumeLetterCommitText(keyDef.value)
               : keyDef.value;
+          if (
+            nativeFastPathActiveRef.current &&
+            keyboardBridge.isNativeTypingCommitActive()
+          ) {
+            if (layout === 'letters' && /[a-z]/i.test(text)) {
+              livePrefixRef.current += text;
+            }
+            return;
+          }
           keyboardBridge.insertText(text);
           if (layout === 'letters' && /[a-z]/i.test(text)) {
             livePrefixRef.current += text;
@@ -2940,42 +2956,49 @@ function KeyboardBody({
 
   const applyCommittedKeyTextSideEffects = useCallback(
     (text: string) => {
-      if (zeroLatencyModeRef.current) {
-        if (
-          layoutRef.current === 'letters' &&
-          modeRef.current.type === 'typing' &&
-          /[a-z]/i.test(text)
-        ) {
-          livePrefixRef.current += text;
-        }
+      if (layoutRef.current !== 'letters' || modeRef.current.type !== 'typing') {
         return;
       }
-      queueMicrotask(() => recordKeystroke(/[a-z0-9]/i.test(text) ? 'char' : 'other'));
-      if (layoutRef.current === 'letters' && modeRef.current.type === 'typing') {
-        hasTypedInFieldRef.current = true;
-        if (/[a-z]/i.test(text)) {
-          lastLetterCommitAtRef.current = Date.now();
-        }
-        livePrefixRef.current += text;
-        lastTypingAtRef.current = Date.now();
-        applyInstantSuggestionBar(livePrefixRef.current);
 
-        if (suggestionRefreshTimerRef.current) {
-          clearTimeout(suggestionRefreshTimerRef.current);
-        }
-        suggestionRefreshTimerRef.current = setTimeout(() => {
-          suggestionRefreshTimerRef.current = null;
-          // Boundary autocorrect owns correction; this refresh only updates
-          // cheap prefix suggestions during normal typing.
-          void refreshSuggestions({fast: true});
-        }, SUGGESTION_FULL_REFRESH_DEBOUNCE_MS);
+      hasTypedInFieldRef.current = true;
+      if (/[a-z]/i.test(text)) {
+        lastLetterCommitAtRef.current = Date.now();
+        livePrefixRef.current += text;
+      }
+      lastTypingAtRef.current = Date.now();
+
+      if (zeroLatencyModeRef.current) {
+        return;
       }
 
-      deferKeyboardSideEffect(() => {
-        markTyping();
-      });
+      queueMicrotask(() =>
+        recordKeystroke(/[a-z0-9]/i.test(text) ? 'char' : 'other'),
+      );
+
+      if (letterSideEffectsTimerRef.current) {
+        clearTimeout(letterSideEffectsTimerRef.current);
+      }
+      letterSideEffectsTimerRef.current = setTimeout(() => {
+        letterSideEffectsTimerRef.current = null;
+        if (modeRef.current.type !== 'typing') {
+          return;
+        }
+        applyInstantSuggestionBar(livePrefixRef.current);
+        if (stoppedTypingRef.current) {
+          stoppedTypingRef.current = false;
+          setStoppedTyping(false);
+        }
+        if (typingIdleTimerRef.current) {
+          clearTimeout(typingIdleTimerRef.current);
+        }
+        typingIdleTimerRef.current = setTimeout(() => {
+          typingIdleTimerRef.current = null;
+          stoppedTypingRef.current = true;
+          setStoppedTyping(true);
+        }, 450);
+      }, LETTER_SIDE_EFFECTS_DEBOUNCE_MS);
     },
-    [applyInstantSuggestionBar, markTyping, refreshSuggestions],
+    [applyInstantSuggestionBar],
   );
 
   const handleMultiTouchKeyCommit = useCallback(
@@ -3263,12 +3286,11 @@ function KeyboardBody({
         return;
       }
 
-      nativeFastPathActiveRef.current = true;
       const origin = layoutContext.areaOriginRef.current;
       keyboardBridge.setNativeKeyFastPathConfig(
         JSON.stringify({
           enabled: true,
-          commitOnDown: zeroLatencyMode || !gestureEnabled,
+          commitOnDown: true,
           zeroLatency: zeroLatencyMode,
           areaPageX: origin.pageX,
           areaPageY: origin.pageY,
@@ -3290,6 +3312,7 @@ function KeyboardBody({
           })),
         }),
       );
+      nativeFastPathActiveRef.current = true;
     };
 
     publishConfig();
@@ -3350,6 +3373,19 @@ function KeyboardBody({
     setPeriodRewriteActive(false);
     setCommaLauncherActive(false);
     void setCommaLauncherArmed(false);
+  }, [mode.type]);
+
+  // Zero-latency is a temporary typing-session mode. Do not carry its
+  // animation/gesture configuration into plugin pages or a later keyboard
+  // session when the keyboard view remains mounted.
+  useEffect(() => {
+    if (mode.type === 'typing') {
+      return;
+    }
+    zeroLatencyModeRef.current = false;
+    setZeroLatencyRuntimeActive(false);
+    keyboardBridge.setNativeZeroLatencyMode(false);
+    setZeroLatencyMode(false);
   }, [mode.type]);
 
   const keyGestures = useMemo<KeyGesturesConfig | undefined>(() => {
@@ -3903,6 +3939,7 @@ function KeyboardBody({
                 capsLocked={capsLocked}
                 onKeyPress={handleKeyPress}
                 onMultiTouchKeyCommit={handleMultiTouchKeyCommit}
+                isNativeTypingCommitActive={() => nativeFastPathActiveRef.current}
                 onNativeFastPathLetterCommit={handleNativeFastPathLetterCommit}
                 onSpaceLongPress={
                   mode.type === 'typing' ? activateZeroLatencyMode : undefined

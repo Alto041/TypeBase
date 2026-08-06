@@ -249,27 +249,30 @@ function KeyComponent({
     if (!usesMultiTouchDispatch) {
       return;
     }
-    return registerMultiTouchKeyVisual(keyDef.id, (pressed, _options) => {
+    return registerMultiTouchKeyVisual(keyDef.id, (pressed, options) => {
       if (usesMultiTouchRouter) {
         if (gestureSwipeActiveRef.current && pressed) {
           return;
         }
-        const tag = reactTagRef.current ?? findNodeHandle(keyRef.current);
-        if (!tag) {
-          return;
-        }
-        reactTagRef.current = tag;
-        if (pressed) {
-          const raw = keyDef.value ?? keyDef.label ?? '';
-          const label =
-            /^[a-z]$/i.test(raw) && isUppercase
-              ? raw.toUpperCase()
-              : /^[a-z]$/i.test(raw)
-                ? raw.toLowerCase()
-                : raw;
-          showKeyPreview(tag, label);
-        } else {
-          hideKeyPreview(tag);
+        const nativeHandledPreview = pressed && options?.nativeCommitted;
+        if (!nativeHandledPreview) {
+          const tag = reactTagRef.current ?? findNodeHandle(keyRef.current);
+          if (!tag) {
+            return;
+          }
+          reactTagRef.current = tag;
+          if (pressed) {
+            const raw = keyDef.value ?? keyDef.label ?? '';
+            const label =
+              /^[a-z]$/i.test(raw) && isUppercase
+                ? raw.toUpperCase()
+                : /^[a-z]$/i.test(raw)
+                  ? raw.toLowerCase()
+                  : raw;
+            showKeyPreview(tag, label);
+          } else {
+            hideKeyPreview(tag);
+          }
         }
       }
       animateMultiTouchPress(pressed);

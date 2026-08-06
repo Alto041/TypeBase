@@ -41,6 +41,7 @@ type MultiTouchSession = {
   alternates: string[];
   defaultCommit: string;
   committedOnDown: boolean;
+  nativeCommitted: boolean;
   phase: 'holding' | 'popup';
   selectedIndex: number;
   geometry: AlternatePopupGeometry | null;
@@ -363,6 +364,7 @@ function finishSession(
 
 type DispatchMultiTouchOptions = {
   onKeyCommit: (keyDef: KeyDefinition, text: string) => void;
+  layouts?: KeyBounds[];
   getLayouts: () => KeyBounds[];
   areaOrigin: {pageX: number; pageY: number};
   areaWidth: number;
@@ -370,6 +372,14 @@ type DispatchMultiTouchOptions = {
   getIsUppercase: () => boolean;
   getLetterCommitText?: (keyValue: string) => string;
   hitSlop?: KeyHitSlop;
+  /** When true, Kotlin already committed letter text — never call sync RN bridge here. */
+  isNativeTypingCommitActive?: () => boolean;
+  pollNativeFastPathCommit?: () => {
+    keyId: string;
+    text: string;
+    pointerId: number;
+  } | null;
+  rollbackNativeFastPathPointer?: (pointerId: number) => boolean;
   consumeNativeFastPathPointer?: (pointerId: number) => boolean;
   consumeNativeHapticPointer?: (pointerId: number) => boolean;
   /** Native already committed this letter; keep live prefix in sync without a JS bridge event. */
@@ -397,16 +407,30 @@ type TouchLike = {
   timestamp?: number;
 };
 
+function undoCommittedText(pointerId: number, session: MultiTouchSession): void {
+  if (!session.committedOnDown) {
+    return;
+  }
+  if (session.nativeCommitted) {
+    if (
+      !keyboardBridge.rollbackNativeFastPathPointer(pointerId)
+    ) {
+      keyboardBridge.deleteBackward();
+    }
+  } else {
+    keyboardBridge.deleteBackward();
+  }
+  session.committedOnDown = false;
+  session.nativeCommitted = false;
+}
+
 function openAlternatePopup(
   pointerId: number,
   session: MultiTouchSession,
   hit: KeyBounds,
   areaWidth: number,
 ) {
-  if (session.committedOnDown) {
-    keyboardBridge.deleteBackward();
-    session.committedOnDown = false;
-  }
+  undoCommittedText(pointerId, session);
 
   session.phase = 'popup';
   session.selectedIndex = 0;
@@ -426,16 +450,20 @@ export function dispatchMultiTouchStart(
   pointerToKeyId: Map<number, string>,
   options: DispatchMultiTouchOptions,
 ): void {
-  const layouts = options.getLayouts();
+  const layouts = options.layouts ?? options.getLayouts();
   if (layouts.length === 0) {
     return;
   }
 
   const hitSlop = options.hitSlop ?? DEFAULT_KEY_HIT_SLOP;
+  const nativeTypingActive = options.isNativeTypingCommitActive?.() ?? false;
 
-  const touches = [...changedTouches].sort(
-    (left, right) => (left.timestamp ?? 0) - (right.timestamp ?? 0),
-  );
+  const touches =
+    changedTouches.length <= 1
+      ? changedTouches
+      : [...changedTouches].sort(
+          (left, right) => (left.timestamp ?? 0) - (right.timestamp ?? 0),
+        );
 
   for (const touch of touches) {
     const pid = pointerIdFromTouch(touch);
@@ -448,6 +476,7 @@ export function dispatchMultiTouchStart(
     if (touchHitsPressableOnlyKey(localX, localY, layouts, hitSlop)) {
       continue;
     }
+
     const hit = hitTestKey(localX, localY, layouts, hitSlop);
     if (!hit || !isMultiTouchDispatchKey(hit.keyDef)) {
       continue;
@@ -462,6 +491,7 @@ export function dispatchMultiTouchStart(
         alternates: [],
         defaultCommit: ' ',
         committedOnDown: true,
+        nativeCommitted: false,
         phase: 'holding',
         selectedIndex: 0,
         geometry: null,
@@ -487,22 +517,28 @@ export function dispatchMultiTouchStart(
     }
 
     const isUppercase = options.getIsUppercase();
-    const alternates = getKeyAlternates(
-      hit.keyDef,
-      options.keyboardLayout,
-      isUppercase,
-    );
-    const defaultCommit = resolveLetterCommitText(hit.keyDef.value ?? '', options);
-    const opensAlternatePopup = shouldShowAlternatePopup(alternates);
-    const deferLetterCommit =
-      Boolean(options.swipeTypingEnabled) && isMultiTouchTextKey(hit.keyDef);
+    const nativeCommit =
+      nativeTypingActive &&
+      isMultiTouchTextKey(hit.keyDef) &&
+      options.pollNativeFastPathCommit
+        ? options.pollNativeFastPathCommit()
+        : null;
+    const nativeCommitted = nativeCommit != null;
+    const defaultCommit =
+      nativeCommit?.text ??
+      resolveLetterCommitText(hit.keyDef.value ?? '', options);
+
+    if (!nativeCommitted) {
+      options.onKeyCommit(hit.keyDef, defaultCommit);
+    }
 
     const session: MultiTouchSession = {
       keyId: hit.id,
       keyDef: hit.keyDef,
-      alternates,
+      alternates: [],
       defaultCommit,
-      committedOnDown: !deferLetterCommit,
+      committedOnDown: true,
+      nativeCommitted,
       phase: 'holding',
       selectedIndex: 0,
       geometry: null,
@@ -511,31 +547,28 @@ export function dispatchMultiTouchStart(
       startPageY: touch.pageY,
     };
 
-    const nativeCommitted =
-      !deferLetterCommit &&
-      (options.consumeNativeFastPathPointer?.(pid) ?? false);
+    if (nativeCommitted) {
+      queueMicrotask(() => {
+        setMultiTouchKeyPressed(hit.id, true, {nativeCommitted: true});
+      });
+    } else {
+      setMultiTouchKeyPressed(hit.id, true);
+      triggerKeyHaptic(pid, {nativeCommitted: false});
+    }
+    markSwipeTypingTapCommitted(pid);
 
-    if (nativeCommitted && isZeroLatencyModeActive()) {
-      options.onNativeFastPathLetterCommit?.(defaultCommit);
-    }
-
-    setMultiTouchKeyPressed(hit.id, true, {nativeCommitted});
-    if (!isZeroLatencyModeActive() || !nativeCommitted) {
-      triggerKeyHaptic(pid, {nativeCommitted});
-    }
-    if (!deferLetterCommit && !nativeCommitted) {
-      options.onKeyCommit(hit.keyDef, defaultCommit);
-    }
-    if (!deferLetterCommit) {
-      markSwipeTypingTapCommitted(pid);
-    }
-
-    if (opensAlternatePopup) {
-      session.longPressTimer = setTimeout(() => {
-        session.longPressTimer = null;
+    session.longPressTimer = setTimeout(() => {
+      session.longPressTimer = null;
+      const alternates = getKeyAlternates(
+        hit.keyDef,
+        options.keyboardLayout,
+        isUppercase,
+      );
+      session.alternates = alternates;
+      if (shouldShowAlternatePopup(alternates)) {
         openAlternatePopup(pid, session, hit, options.areaWidth);
-      }, LONG_PRESS_MS);
-    }
+      }
+    }, LONG_PRESS_MS);
 
     activeSessions.set(pid, session);
   }
@@ -619,9 +652,7 @@ export function cancelMultiTouchPointer(
   const session = activeSessions.get(pointerId);
   if (session) {
     clearSessionTimer(session);
-    if (session.committedOnDown) {
-      keyboardBridge.deleteBackward();
-    }
+    undoCommittedText(pointerId, session);
     setMultiTouchKeyPressed(session.keyId, false);
     activeSessions.delete(pointerId);
     notifyPopup(null);

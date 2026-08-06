@@ -801,18 +801,6 @@ export function getFastAutocorrectPreview(
     }
   }
 
-  const symFix = pickBestSymSpellTypoFix(lower, previousWord, learnedUses);
-  if (symFix) {
-    return applyCaseToWord(symFix, typed);
-  }
-
-  if (lower.length >= MISSING_SPACE_MIN_LENGTH) {
-    const missingSpace = findMissingSpaceCorrection(lower, learnedUses);
-    if (missingSpace) {
-      return applyCaseToWord(missingSpace, typed);
-    }
-  }
-
   return null;
 }
 

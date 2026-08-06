@@ -14,24 +14,18 @@ export function triggerKeyHaptic(
   pointerId?: number,
   options?: TriggerKeyHapticOptions,
 ) {
-  if (isZeroLatencyModeActive()) {
-    const frameHapticHandled =
-      pointerId != null && keyboardBridge.consumeNativeHapticPointer(pointerId);
-    if (!frameHapticHandled) {
-      keyboardBridge.performLightKeyHaptic();
-    }
-    return;
-  }
-
   const frameHapticHandled =
     pointerId != null && keyboardBridge.consumeNativeHapticPointer(pointerId);
 
   if (!frameHapticHandled) {
-    keyboardBridge.performKeyHaptic();
-    return;
+    keyboardBridge.performLightKeyHaptic();
   }
 
-  if (!options?.nativeCommitted) {
+  if (
+    !isZeroLatencyModeActive() &&
+    !frameHapticHandled &&
+    !options?.nativeCommitted
+  ) {
     keyboardBridge.playKeyTapSound();
   }
 }

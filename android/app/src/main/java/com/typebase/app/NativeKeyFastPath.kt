@@ -25,6 +25,12 @@ class NativeKeyFastPath {
       var jsConsumed: Boolean = false,
   )
 
+  data class PendingJsCommit(
+      val pointerId: Int,
+      val keyId: String,
+      val commitText: String,
+  )
+
   @Volatile
   private var enabled = false
   @Volatile
@@ -41,6 +47,8 @@ class NativeKeyFastPath {
   private var capsLocked = false
   private var keys = emptyList<NativeKey>()
   private val sessions = mutableMapOf<Int, TouchSession>()
+  private val pendingJsCommits = ArrayDeque<PendingJsCommit>()
+  private val pendingJsCommitsLock = Any()
   private val previewHandler = Handler(Looper.getMainLooper())
 
   fun updateConfig(json: String) {
@@ -61,12 +69,14 @@ class NativeKeyFastPath {
       if (!enabled) {
         zeroLatency = false
         sessions.clear()
+        synchronized(pendingJsCommitsLock) { pendingJsCommits.clear() }
       }
     } catch (_: Exception) {
       enabled = false
       zeroLatency = false
       keys = emptyList()
       sessions.clear()
+      synchronized(pendingJsCommitsLock) { pendingJsCommits.clear() }
     }
   }
 
@@ -75,6 +85,16 @@ class NativeKeyFastPath {
     zeroLatency = false
     keys = emptyList()
     sessions.clear()
+    synchronized(pendingJsCommitsLock) { pendingJsCommits.clear() }
+  }
+
+  /** O(1) ack for JS — avoids pointer-id mismatches vs MotionEvent ids. */
+  fun pollPendingCommit(): PendingJsCommit? {
+    val pending =
+        synchronized(pendingJsCommitsLock) { pendingJsCommits.removeFirstOrNull() }
+            ?: return null
+    sessions[pending.pointerId]?.jsConsumed = true
+    return pending
   }
 
   /**
@@ -91,10 +111,28 @@ class NativeKeyFastPath {
     return true
   }
 
+  fun isTypingCommitActive(): Boolean = enabled && commitOnDown && keys.isNotEmpty()
+
   fun isZeroLatencyMode(): Boolean = zeroLatency
 
   fun setZeroLatencyMode(enabled: Boolean) {
     zeroLatency = enabled
+  }
+
+  /** Undo a native letter commit when a touch becomes a swipe gesture. */
+  fun rollbackPointerCommit(pointerId: Int): Boolean {
+    val session =
+        sessions[pointerId]
+            ?: sessions.values.lastOrNull { it.commitText.isNotEmpty() }
+            ?: return false
+    val connection = KeyboardInputBridge.getInputConnection() ?: return false
+    val length = session.commitText.length
+    if (length <= 0) {
+      return false
+    }
+    connection.deleteSurroundingText(length, 0)
+    sessions.remove(session.pointerId)
+    return true
   }
 
   /**
@@ -115,12 +153,6 @@ class NativeKeyFastPath {
         val rawY = event.rawYForIndex(index)
         val key = hitTest(rawX, rawY) ?: return false
 
-        if (!zeroLatency) {
-          KeyboardInputBridge.performKeyHapticForPointer(pointerId)
-        } else {
-          KeyboardInputBridge.performLightKeyHapticForPointer(pointerId)
-        }
-
         if (!commitOnDown) {
           return false
         }
@@ -132,19 +164,23 @@ class NativeKeyFastPath {
                 !capsLocked &&
                 text.length == 1 &&
                 text[0].isUpperCase()
-        if (commitKeyTextOnly(key, text, shiftConsumed, notifyJs = !zeroLatency)) {
-          sessions[pointerId] = TouchSession(pointerId, key, text)
+        if (!commitKeyTextOnly(key, text, shiftConsumed)) {
+          return false
+        }
+
+        sessions[pointerId] = TouchSession(pointerId, key, text)
+        synchronized(pendingJsCommitsLock) {
+          pendingJsCommits.addLast(PendingJsCommit(pointerId, key.id, text))
+        }
+
+        // Never block touch return on haptic, preview, or sound.
+        previewHandler.post {
+          KeyboardInputBridge.performLightKeyHapticForPointer(pointerId)
           if (!zeroLatency) {
-            KeyboardInputBridge.playKeyTapSound()
-          }
-          if (!zeroLatency && key.reactTag > 0) {
-            val tag = key.reactTag
-            // Show immediately on the main looper — delayed posts race finger-up hides.
-            if (Looper.myLooper() == Looper.getMainLooper()) {
-              KeyboardInputBridge.showKeyPreview(tag, text)
-            } else {
-              previewHandler.post { KeyboardInputBridge.showKeyPreview(tag, text) }
+            if (key.reactTag > 0) {
+              KeyboardInputBridge.showKeyPreview(key.reactTag, text)
             }
+            KeyboardInputBridge.playKeyTapSound()
           }
         }
         false
@@ -171,6 +207,7 @@ class NativeKeyFastPath {
           }
         }
         sessions.clear()
+        synchronized(pendingJsCommitsLock) { pendingJsCommits.clear() }
         false
       }
 
@@ -243,24 +280,28 @@ class NativeKeyFastPath {
       key: NativeKey,
       text: String,
       shiftConsumed: Boolean,
-      notifyJs: Boolean = true,
   ): Boolean {
     val connection = KeyboardInputBridge.getInputConnection() ?: return false
 
     connection.commitText(text, 1)
-    if (notifyJs) {
-      KeyboardInputBridge.notifyNativeFastPathKey(
-          key.id,
-          key.type,
-          key.value,
-          text,
-          shiftConsumed,
-      )
-    }
 
     if (shiftConsumed) {
       shiftOn = false
       uppercase = false
+    }
+
+    // Notify JS after commit — never block the touch path on the RN bridge.
+    val keyId = key.id
+    val keyType = key.type
+    val keyValue = key.value
+    previewHandler.post {
+      KeyboardInputBridge.notifyNativeFastPathKey(
+          keyId,
+          keyType,
+          keyValue,
+          text,
+          shiftConsumed,
+      )
     }
 
     return true

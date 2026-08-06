@@ -366,6 +366,14 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
   fun consumeNativeFastPathPointer(pointerId: Int): Boolean =
       nativeKeyFastPath.consumePointer(pointerId)
 
+  fun pollNativeFastPathCommit(): NativeKeyFastPath.PendingJsCommit? =
+      nativeKeyFastPath.pollPendingCommit()
+
+  fun isNativeTypingCommitActive(): Boolean = nativeKeyFastPath.isTypingCommitActive()
+
+  fun rollbackNativeFastPathPointer(pointerId: Int): Boolean =
+      nativeKeyFastPath.rollbackPointerCommit(pointerId)
+
   private fun keyboardHeightPx(heightDp: Int): Int =
       TypedValue.applyDimension(
               TypedValue.COMPLEX_UNIT_DIP,

@@ -724,6 +724,7 @@ type SwipeTypingKeysHostProps = {
   getIsUppercase?: () => boolean;
   getLetterCommitText?: (keyValue: string) => string;
   onMultiTouchKeyCommit?: (keyDef: KeyDefinition, text: string) => void;
+  isNativeTypingCommitActive?: () => boolean;
   onNativeFastPathLetterCommit?: (text: string) => void;
   onSpaceLongPress?: () => void;
 };
@@ -736,6 +737,7 @@ export function SwipeTypingKeysHost({
   getIsUppercase,
   getLetterCommitText,
   onMultiTouchKeyCommit,
+  isNativeTypingCommitActive,
   onNativeFastPathLetterCommit,
   onSpaceLongPress,
 }: SwipeTypingKeysHostProps) {
@@ -793,6 +795,7 @@ export function SwipeTypingKeysHost({
         passThroughTouches.length > 0
       ) {
         dispatchMultiTouchStart(passThroughTouches, pointerToKeyRef.current, {
+          layouts,
           onKeyCommit: onMultiTouchKeyCommit,
           getLayouts: layoutContext.getLayouts,
           areaOrigin: origin,
@@ -801,7 +804,9 @@ export function SwipeTypingKeysHost({
           getIsUppercase: getIsUppercase ?? (() => isUppercase),
           getLetterCommitText,
           hitSlop: keyHitSlop,
-          consumeNativeFastPathPointer: keyboardBridge.consumeNativeFastPathPointer,
+          isNativeTypingCommitActive,
+          pollNativeFastPathCommit: keyboardBridge.pollNativeFastPathCommit,
+          rollbackNativeFastPathPointer: keyboardBridge.rollbackNativeFastPathPointer,
           consumeNativeHapticPointer: keyboardBridge.consumeNativeHapticPointer,
           onNativeFastPathLetterCommit,
           swipeTypingEnabled: Boolean(ctx?.enabled),
@@ -819,6 +824,7 @@ export function SwipeTypingKeysHost({
       layoutContext,
       multiTouchEnabled,
       onMultiTouchKeyCommit,
+      isNativeTypingCommitActive,
       onNativeFastPathLetterCommit,
       onSpaceLongPress,
     ],

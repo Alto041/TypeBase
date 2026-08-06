@@ -1,4 +1,4 @@
-import React, {useEffect} from 'react';
+import React, {useEffect, useState} from 'react';
 import {
   BackHandler,
   Pressable,
@@ -13,42 +13,61 @@ import {SafeAreaView} from 'react-native-safe-area-context';
 import StatsIcon from './assets/stats.svg';
 import DeviceIcon from './assets/device.svg';
 import GraphicEqIcon from './assets/graphic_eq.svg';
+import {keyboardBridge} from './src/keyboard/keyboardBridge';
+import {
+  getActiveLanguage,
+  isEnglishSymSpellReady,
+  isSymSpellLookupReady,
+} from './src/keyboard/autocorrect/dictionaryManager';
+import {isEnglishPrefixIndexReady} from './src/keyboard/autocorrect/englishPrefixIndex';
+import {getEnglishWordsByFrequency} from './src/keyboard/autocorrect/englishFrequencyDictionary';
+import {
+  getGemmaRuntimeStats,
+  isGemmaModelDownloaded,
+  isGemmaModelLoaded,
+  askGemma,
+} from './src/keyboard/ai/gemmaBridge';
+import {ensureGemmaModelLoaded} from './src/keyboard/ai/gemmaModelManager';
+import {loadMetricsSnapshot} from './src/keyboard/metrics/metricsStore';
 
-/** Placeholder snapshot — wire to real engine telemetry later. */
-const MOCK_SNAPSHOT = {
-  live: true,
+const DEFAULT_SNAPSHOT = {
   autocorrectLang: 'en',
-  symSpellReady: true,
-  symSpellWords: 82_834,
-  prefixIndexReady: true,
-  learnedWords: 142,
-  learnedPhrases: 18,
+  symSpellReady: false,
+  symSpellWords: 0,
+  prefixIndexReady: false,
+  learnedWords: 0,
+  learnedPhrases: 0,
   aiProvider: 'on_device',
-  gemmaDownloaded: true,
+  gemmaDownloaded: false,
   gemmaLoaded: false,
   gemmaLoadMs: null as number | null,
   gemmaLastMs: null as number | null,
   gemmaP50Ms: null as number | null,
   voiceStt: 'android',
   voiceCleanup: 'on_device',
-  fastPath: true,
+  fastPath: false,
   zeroLatency: false,
   swipeTyping: true,
   session: {
-    exactFix: 12,
-    symSpell: 34,
-    missingSpace: 3,
+    exactFix: 0,
+    symSpell: 0,
+    missingSpace: 0,
     hinglish: 0,
-    ai: 1,
-    avgBoundaryMs: 4.2,
+    ai: 0,
+    avgBoundaryMs: 0,
+  },
+  typing: {
+    characters: 0,
+    words: 0,
+    charsSaved: 0,
   },
   dictionary: {
-    bootstrapWords: 3_000,
-    targetWords: 82_834,
+    bootstrapWords: 0,
+    targetWords: 0,
     cachedLangs: ['en'],
     seeding: false,
   },
-} as const;
+};
 
 const C = {
   bg: '#f2f2f4',
@@ -64,19 +83,6 @@ const C = {
 const CARD_R = 14;
 const HERO_R = 20;
 const TEXT_KERNING = -0.7;
-
-type StatusTone = 'ready' | 'idle' | 'warn';
-
-function StatusChip({label, tone}: {label: string; tone: StatusTone}) {
-  const dotColor =
-    tone === 'ready' ? C.green : tone === 'warn' ? C.amber : C.muted;
-  return (
-    <View style={styles.statusChip}>
-      <View style={[styles.statusDot, {backgroundColor: dotColor}]} />
-      <Text style={styles.statusChipText}>{label}</Text>
-    </View>
-  );
-}
 
 function StatTile({
   label,
@@ -160,7 +166,8 @@ function formatMs(value: number | null): string {
 }
 
 export function EngineStatsScreen({onBack}: {onBack: () => void}) {
-  const snap = MOCK_SNAPSHOT;
+  const [snap, setSnap] = useState(DEFAULT_SNAPSHOT);
+  const [diagnosticMessage, setDiagnosticMessage] = useState('');
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -170,12 +177,136 @@ export function EngineStatsScreen({onBack}: {onBack: () => void}) {
     return () => subscription.remove();
   }, [onBack]);
 
-  const symSpellTone: StatusTone = snap.symSpellReady ? 'ready' : 'warn';
-  const gemmaTone: StatusTone = snap.gemmaLoaded
-    ? 'ready'
-    : snap.gemmaDownloaded
-      ? 'idle'
-      : 'warn';
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadStats = async () => {
+      const language = getActiveLanguage();
+      const englishWordCount = getEnglishWordsByFrequency().length;
+      const gemmaState = await Promise.all([
+        isGemmaModelDownloaded().catch(() => false),
+        isGemmaModelLoaded().catch(() => false),
+      ]);
+      const [
+        autocorrectRaw,
+        gestureRaw,
+        aiProvider,
+        voiceStt,
+        words,
+        phrases,
+        metrics,
+      ] =
+        await Promise.all([
+          keyboardBridge.getAutocorrectSettings().catch(() => '{}'),
+          keyboardBridge.getGestureSettings().catch(() => '{}'),
+          keyboardBridge.getAiProvider().catch(() => 'on_device'),
+          keyboardBridge.getVoiceSttProvider().catch(() => 'android'),
+          keyboardBridge.getLearnedWordCounts().catch(() => ({})),
+          keyboardBridge.getLearnedPhraseCounts().catch(() => ({})),
+          loadMetricsSnapshot(),
+        ]);
+
+      if (cancelled) {
+        return;
+      }
+
+      let autocorrect: {enabled?: boolean} = {};
+      let gestures: {swipeTyping?: boolean} = {};
+      try {
+        autocorrect = JSON.parse(autocorrectRaw) as typeof autocorrect;
+      } catch {
+        // Keep defaults when storage contains an older or invalid value.
+      }
+      try {
+        gestures = JSON.parse(gestureRaw) as typeof gestures;
+      } catch {
+        // Keep defaults when storage contains an older or invalid value.
+      }
+
+      const learnedWords = Object.keys(words).length;
+      const learnedPhrases = Object.keys(phrases).length;
+      setSnap(current => ({
+        ...current,
+        learnedWords,
+        learnedPhrases,
+        autocorrectLang: language,
+        symSpellReady: isSymSpellLookupReady(),
+        symSpellWords: language === 'en' ? englishWordCount : 0,
+        prefixIndexReady:
+          language === 'en' ? isEnglishPrefixIndexReady() : false,
+        gemmaDownloaded: gemmaState[0],
+        gemmaLoaded: gemmaState[1],
+        gemmaLoadMs: getGemmaRuntimeStats().lastLoadMs,
+        gemmaLastMs: getGemmaRuntimeStats().lastInferenceMs,
+        gemmaP50Ms: getGemmaRuntimeStats().p50InferenceMs,
+        aiProvider: aiProvider === 'on_device' ? 'on_device' : 'cloud',
+        voiceStt: voiceStt === 'android' ? 'android' : 'speechmatics',
+        fastPath: (() => {
+          try {
+            return keyboardBridge.isNativeTypingCommitActive();
+          } catch {
+            return false;
+          }
+        })(),
+        swipeTyping: gestures.swipeTyping ?? current.swipeTyping,
+        dictionary: {
+          ...current.dictionary,
+          bootstrapWords: language === 'en' ? englishWordCount : 0,
+          targetWords: language === 'en' ? englishWordCount : 0,
+          cachedLangs: [language],
+        },
+        session: {
+          ...current.session,
+          exactFix: autocorrect.enabled === false ? 0 : metrics.today.corrections,
+          symSpell: 0,
+          missingSpace: 0,
+          hinglish: 0,
+          ai: 0,
+        },
+        typing: {
+          characters: metrics.today.characters,
+          words: metrics.today.words,
+          charsSaved: metrics.today.charsSaved,
+        },
+      }));
+    };
+
+    void loadStats();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const runBenchmark = () => {
+    const startedAt = Date.now();
+    const words = getEnglishWordsByFrequency();
+    const sample = words.slice(0, 1000);
+    const elapsed = Date.now() - startedAt;
+    setDiagnosticMessage(
+      `Checked ${sample.length.toLocaleString()} dictionary entries in ${elapsed}ms.`,
+    );
+  };
+
+  const testInference = async () => {
+    setDiagnosticMessage('Running a short on-device inference…');
+    try {
+      await ensureGemmaModelLoaded();
+      await askGemma('Reply with the single word: ready');
+      const runtime = getGemmaRuntimeStats();
+      setSnap(current => ({
+        ...current,
+        gemmaLoaded: true,
+        gemmaLastMs: runtime.lastInferenceMs,
+        gemmaP50Ms: runtime.p50InferenceMs,
+        gemmaLoadMs: runtime.lastLoadMs,
+      }));
+      setDiagnosticMessage('On-device inference completed.');
+    } catch (error) {
+      setDiagnosticMessage(
+        error instanceof Error ? error.message : 'Inference is unavailable.',
+      );
+    }
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -187,15 +318,6 @@ export function EngineStatsScreen({onBack}: {onBack: () => void}) {
           <View style={styles.titleBlock}>
             <Text style={styles.pageTitle}>Engine</Text>
             <Text style={styles.pageSubtitle}>On-device runtime</Text>
-          </View>
-          <View style={styles.liveBadge}>
-            <View
-              style={[
-                styles.liveDot,
-                {backgroundColor: snap.live ? C.green : C.muted},
-              ]}
-            />
-            <Text style={styles.liveText}>{snap.live ? 'LIVE' : 'OFF'}</Text>
           </View>
         </View>
 
@@ -210,22 +332,6 @@ export function EngineStatsScreen({onBack}: {onBack: () => void}) {
                 SymSpell · dictionaries · Gemma
               </Text>
             </View>
-          </View>
-          <View style={styles.statusRow}>
-            <StatusChip
-              label={snap.symSpellReady ? 'SymSpell ready' : 'SymSpell loading'}
-              tone={symSpellTone}
-            />
-            <StatusChip
-              label={
-                snap.gemmaLoaded
-                  ? 'Gemma loaded'
-                  : snap.gemmaDownloaded
-                    ? 'Gemma idle'
-                    : 'Gemma missing'
-              }
-              tone={gemmaTone}
-            />
           </View>
         </View>
 
@@ -253,15 +359,20 @@ export function EngineStatsScreen({onBack}: {onBack: () => void}) {
           />
         </View>
 
-        <SectionCard title="Autocorrect · session">
-          <SectionRow label="Exact fix" value={String(snap.session.exactFix)} />
-          <SectionRow label="SymSpell" value={String(snap.session.symSpell)} />
+        <SectionCard title="Typing · today">
           <SectionRow
-            label="Missing space"
-            value={String(snap.session.missingSpace)}
+            label="Corrections"
+            value={String(snap.session.exactFix)}
           />
-          <SectionRow label="Hinglish" value={String(snap.session.hinglish)} />
-          <SectionRow label="AI" value={String(snap.session.ai)} />
+          <SectionRow
+            label="Characters"
+            value={String(snap.typing.characters)}
+          />
+          <SectionRow label="Words" value={String(snap.typing.words)} />
+          <SectionRow
+            label="Characters saved"
+            value={String(snap.typing.charsSaved)}
+          />
         </SectionCard>
 
         <SectionCard title="Gemma">
@@ -333,20 +444,23 @@ export function EngineStatsScreen({onBack}: {onBack: () => void}) {
             <Text style={styles.toolsTitle}>Diagnostics</Text>
           </View>
           <Text style={styles.toolsHint}>
-            Benchmarks and live event tracing will land here.
+            Run a lightweight dictionary check or test the on-device model.
           </Text>
-          <Pressable style={styles.toolButton} disabled>
+          <Pressable style={styles.toolButton} onPress={runBenchmark}>
             <GraphicEqIcon width={16} height={16} color={C.muted} />
             <Text style={styles.toolButtonText}>Run benchmarks</Text>
           </Pressable>
-          <Pressable style={styles.toolButton} disabled>
+          <Pressable style={styles.toolButton} onPress={() => void testInference()}>
             <DeviceIcon width={16} height={16} color={C.muted} />
             <Text style={styles.toolButtonText}>Test inference</Text>
           </Pressable>
+          {diagnosticMessage ? (
+            <Text style={styles.toolsResult}>{diagnosticMessage}</Text>
+          ) : null}
         </View>
 
         <Text style={styles.footerNote}>
-          UI preview · values are placeholders until engine telemetry ships.
+          Settings and learned-data values are read from this device.
         </Text>
       </ScrollView>
     </SafeAreaView>
@@ -387,27 +501,6 @@ const styles = StyleSheet.create({
     fontFamily: 'FragmentMono',
     textTransform: 'uppercase',
   },
-  liveBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: C.card,
-  },
-  liveDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  liveText: {
-    fontSize: 11,
-    color: C.sub,
-    fontFamily: 'FragmentMono',
-    letterSpacing: 0.8,
-  },
   heroCard: {
     backgroundColor: C.card,
     borderRadius: HERO_R,
@@ -440,31 +533,6 @@ const styles = StyleSheet.create({
   heroSub: {
     fontSize: 12,
     color: C.sub,
-    letterSpacing: TEXT_KERNING,
-  },
-  statusRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  statusChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: C.bg,
-  },
-  statusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  statusChipText: {
-    fontSize: 11,
-    color: C.text,
-    fontFamily: 'FragmentMono',
     letterSpacing: TEXT_KERNING,
   },
   statGrid: {
@@ -573,6 +641,12 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   toolsHint: {
+    fontSize: 12,
+    color: C.sub,
+    lineHeight: 17,
+    letterSpacing: TEXT_KERNING,
+  },
+  toolsResult: {
     fontSize: 12,
     color: C.sub,
     lineHeight: 17,

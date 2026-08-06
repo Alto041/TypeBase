@@ -478,6 +478,15 @@ object KeyboardInputBridge {
   fun consumeNativeFastPathPointer(pointerId: Int): Boolean =
       inputService?.consumeNativeFastPathPointer(pointerId) ?: false
 
+  fun pollNativeFastPathCommit(): NativeKeyFastPath.PendingJsCommit? =
+      inputService?.pollNativeFastPathCommit()
+
+  fun isNativeTypingCommitActive(): Boolean =
+      inputService?.isNativeTypingCommitActive() ?: false
+
+  fun rollbackNativeFastPathPointer(pointerId: Int): Boolean =
+      inputService?.rollbackNativeFastPathPointer(pointerId) ?: false
+
   fun notifyControllerInput(json: String) {
     controllerInputListeners.forEach { listener -> listener(json) }
   }

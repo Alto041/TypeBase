@@ -722,6 +722,26 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   }
 
   @ReactMethod(isBlockingSynchronousMethod = true)
+  fun pollNativeFastPathCommit(): WritableMap? {
+    val pending = KeyboardInputBridge.pollNativeFastPathCommit() ?: return null
+    return Arguments.createMap().apply {
+      putString("keyId", pending.keyId)
+      putString("text", pending.commitText)
+      putInt("pointerId", pending.pointerId)
+    }
+  }
+
+  @ReactMethod(isBlockingSynchronousMethod = true)
+  fun isNativeTypingCommitActive(): Boolean {
+    return KeyboardInputBridge.isNativeTypingCommitActive()
+  }
+
+  @ReactMethod(isBlockingSynchronousMethod = true)
+  fun rollbackNativeFastPathPointer(pointerId: Int): Boolean {
+    return KeyboardInputBridge.rollbackNativeFastPathPointer(pointerId)
+  }
+
+  @ReactMethod(isBlockingSynchronousMethod = true)
   fun consumeNativeHapticPointer(pointerId: Int): Boolean {
     return KeyboardInputBridge.consumeNativeHapticPointer(pointerId)
   }

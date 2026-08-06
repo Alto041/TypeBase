@@ -69,6 +69,13 @@ type KeyboardModuleType = {
   setNativeKeyFastPathConfig: (json: string) => void;
   setNativeZeroLatencyMode: (enabled: boolean) => void;
   consumeNativeFastPathPointer: (pointerId: number) => boolean;
+  pollNativeFastPathCommit: () => {
+    keyId: string;
+    text: string;
+    pointerId: number;
+  } | null;
+  isNativeTypingCommitActive: () => boolean;
+  rollbackNativeFastPathPointer: (pointerId: number) => boolean;
   consumeNativeHapticPointer: (pointerId: number) => boolean;
   getGestureSettings: () => Promise<string>;
   setGestureSettings: (json: string) => Promise<boolean>;
@@ -466,6 +473,40 @@ export const keyboardBridge: KeyboardModuleType = {
   consumeNativeFastPathPointer: (pointerId: number): boolean => {
     if (Platform.OS === 'android' && KeyboardModule?.consumeNativeFastPathPointer) {
       return KeyboardModule.consumeNativeFastPathPointer(pointerId);
+    }
+    return false;
+  },
+  pollNativeFastPathCommit: (): {
+    keyId: string;
+    text: string;
+    pointerId: number;
+  } | null => {
+    if (Platform.OS === 'android' && KeyboardModule?.pollNativeFastPathCommit) {
+      const result = KeyboardModule.pollNativeFastPathCommit();
+      if (
+        result &&
+        typeof result.keyId === 'string' &&
+        typeof result.text === 'string'
+      ) {
+        return {
+          keyId: result.keyId,
+          text: result.text,
+          pointerId:
+            typeof result.pointerId === 'number' ? result.pointerId : -1,
+        };
+      }
+    }
+    return null;
+  },
+  isNativeTypingCommitActive: (): boolean => {
+    if (Platform.OS === 'android' && KeyboardModule?.isNativeTypingCommitActive) {
+      return KeyboardModule.isNativeTypingCommitActive();
+    }
+    return false;
+  },
+  rollbackNativeFastPathPointer: (pointerId: number): boolean => {
+    if (Platform.OS === 'android' && KeyboardModule?.rollbackNativeFastPathPointer) {
+      return KeyboardModule.rollbackNativeFastPathPointer(pointerId);
     }
     return false;
   },

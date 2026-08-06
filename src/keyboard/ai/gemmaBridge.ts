@@ -27,6 +27,34 @@ type GemmaNativeModule = {
   generateResponse: (prompt: string) => Promise<string>;
 };
 
+export type GemmaRuntimeStats = {
+  lastLoadMs: number | null;
+  lastInferenceMs: number | null;
+  p50InferenceMs: number | null;
+  inferenceCount: number;
+};
+
+let gemmaInferenceTimes: number[] = [];
+let lastGemmaLoadMs: number | null = null;
+
+export function getGemmaRuntimeStats(): GemmaRuntimeStats {
+  if (gemmaInferenceTimes.length === 0) {
+    return {
+      lastLoadMs: lastGemmaLoadMs,
+      lastInferenceMs: null,
+      p50InferenceMs: null,
+      inferenceCount: 0,
+    };
+  }
+  const sorted = [...gemmaInferenceTimes].sort((a, b) => a - b);
+  return {
+    lastLoadMs: lastGemmaLoadMs,
+    lastInferenceMs: gemmaInferenceTimes[gemmaInferenceTimes.length - 1]!,
+    p50InferenceMs: sorted[Math.floor((sorted.length - 1) * 0.5)]!,
+    inferenceCount: gemmaInferenceTimes.length,
+  };
+}
+
 const GemmaModule: GemmaNativeModule | undefined =
   Platform.OS === 'android' ? NativeModules.GemmaModule : undefined;
 
@@ -58,8 +86,10 @@ export async function loadGemmaModel(): Promise<void> {
   if (!GemmaModule) {
     throw new Error('On-device AI is only available on Android.');
   }
+  const startedAt = Date.now();
   try {
     await GemmaModule.loadModel();
+    lastGemmaLoadMs = Date.now() - startedAt;
   } catch (error) {
     throw new Error(formatNativeError(error));
   }
@@ -73,8 +103,14 @@ export async function askGemma(prompt: string): Promise<string> {
   if (!GemmaModule) {
     throw new Error('On-device AI is only available on Android.');
   }
+  const startedAt = Date.now();
   try {
-    return await GemmaModule.generateResponse(prompt);
+    const response = await GemmaModule.generateResponse(prompt);
+    gemmaInferenceTimes = [
+      ...gemmaInferenceTimes.slice(-99),
+      Date.now() - startedAt,
+    ];
+    return response;
   } catch (error) {
     throw new Error(formatNativeError(error));
   }
