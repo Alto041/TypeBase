@@ -16,7 +16,6 @@ import GraphicEqIcon from './assets/graphic_eq.svg';
 import {keyboardBridge} from './src/keyboard/keyboardBridge';
 import {
   getActiveLanguage,
-  isEnglishSymSpellReady,
   isSymSpellLookupReady,
 } from './src/keyboard/autocorrect/dictionaryManager';
 import {isEnglishPrefixIndexReady} from './src/keyboard/autocorrect/englishPrefixIndex';
@@ -29,6 +28,7 @@ import {
 } from './src/keyboard/ai/gemmaBridge';
 import {ensureGemmaModelLoaded} from './src/keyboard/ai/gemmaModelManager';
 import {loadMetricsSnapshot} from './src/keyboard/metrics/metricsStore';
+import {getAiAutocorrectTelemetry} from './src/keyboard/autocorrect/aiAutocorrectTelemetry';
 
 const DEFAULT_SNAPSHOT = {
   autocorrectLang: 'en',
@@ -60,6 +60,12 @@ const DEFAULT_SNAPSHOT = {
     characters: 0,
     words: 0,
     charsSaved: 0,
+  },
+  aiPreflight: {
+    requests: 0,
+    accepted: 0,
+    stale: 0,
+    p50Ms: null as number | null,
   },
   dictionary: {
     bootstrapWords: 0,
@@ -225,6 +231,7 @@ export function EngineStatsScreen({onBack}: {onBack: () => void}) {
 
       const learnedWords = Object.keys(words).length;
       const learnedPhrases = Object.keys(phrases).length;
+      const aiTelemetry = getAiAutocorrectTelemetry();
       setSnap(current => ({
         ...current,
         learnedWords,
@@ -267,6 +274,12 @@ export function EngineStatsScreen({onBack}: {onBack: () => void}) {
           characters: metrics.today.characters,
           words: metrics.today.words,
           charsSaved: metrics.today.charsSaved,
+        },
+        aiPreflight: {
+          requests: aiTelemetry.preflightRequests,
+          accepted: aiTelemetry.preflightAccepted,
+          stale: aiTelemetry.staleResults,
+          p50Ms: aiTelemetry.p50PreflightMs,
         },
       }));
     };
@@ -372,6 +385,14 @@ export function EngineStatsScreen({onBack}: {onBack: () => void}) {
           <SectionRow
             label="Characters saved"
             value={String(snap.typing.charsSaved)}
+          />
+          <SectionRow
+            label="AI preflight"
+            value={`${snap.aiPreflight.accepted}/${snap.aiPreflight.requests}`}
+          />
+          <SectionRow
+            label="AI p50"
+            value={formatMs(snap.aiPreflight.p50Ms)}
           />
         </SectionCard>
 

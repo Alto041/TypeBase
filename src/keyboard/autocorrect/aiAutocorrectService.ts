@@ -7,6 +7,7 @@ import {GEMINI_API_URL} from '../translate/geminiConfig';
 
 const MIN_SNIPPET_LENGTH = 8;
 const MAX_SNIPPET_LENGTH = 180;
+const MIN_TOKEN_LENGTH = 4;
 const LOG_PREFIX = '[AiAutocorrect]';
 
 const SHORT_ACCEPTED_SNIPPETS = new Set([
@@ -86,6 +87,22 @@ TEXT:
 ${input}`;
 }
 
+function buildTokenAutocorrectPrompt(input: string): string {
+  return `You are correcting one mobile keyboard token.
+
+TASK:
+- Correct spelling, an obvious duplicated letter, or a missing apostrophe.
+- Preserve the token's meaning and casing style.
+- Do not expand, explain, or rewrite it.
+- If it is already correct or is slang, return it unchanged.
+
+OUTPUT: Return ONLY valid JSON (no markdown):
+{"text":"<corrected token>"}
+
+TOKEN:
+${input}`;
+}
+
 /** Same plain-text parsing voice polish uses for on-device Gemma. */
 function parseOnDeviceAutocorrectResult(raw: string): string {
   const trimmed = raw.trim();
@@ -138,7 +155,7 @@ function lastProofreadSnippet(context: string): string | null {
     console.log(LOG_PREFIX, 'skip: short accepted snippet', {snippet});
     return null;
   }
-  if (!/[\p{L}]/.test(snippet)) {
+  if (!/[\p{L}]/u.test(snippet)) {
     console.log(LOG_PREFIX, 'skip: no letters in snippet', {snippet});
     return null;
   }
@@ -238,7 +255,10 @@ function classifyCorrection(
   };
 }
 
-async function generateGeminiProofread(input: string): Promise<string | null> {
+async function generateGeminiProofread(
+  input: string,
+  promptBuilder: (value: string) => string = buildGeminiAutocorrectPrompt,
+): Promise<string | null> {
   const apiKey = await getGeminiApiKeyOptional();
   if (!apiKey) {
     console.log(LOG_PREFIX, 'skip: missing Gemini API key');
@@ -255,7 +275,7 @@ async function generateGeminiProofread(input: string): Promise<string | null> {
       contents: [
         {
           role: 'user',
-          parts: [{text: buildGeminiAutocorrectPrompt(input)}],
+          parts: [{text: promptBuilder(input)}],
         },
       ],
       generationConfig: {
@@ -279,16 +299,23 @@ async function generateGeminiProofread(input: string): Promise<string | null> {
   return raw;
 }
 
-async function generateProofread(input: string): Promise<string | null> {
+async function generateProofread(
+  input: string,
+  promptBuilder: (value: string) => string = buildGeminiAutocorrectPrompt,
+): Promise<string | null> {
   await ensureAiProviderLoaded();
   if (getAiProvider() === 'on_device') {
     console.log(LOG_PREFIX, 'on-device request', {input});
-    const raw = await generateOnDeviceText(buildGemmaAutocorrectPrompt(input));
+    const prompt =
+      promptBuilder === buildTokenAutocorrectPrompt
+        ? buildTokenAutocorrectPrompt(input)
+        : buildGemmaAutocorrectPrompt(input);
+    const raw = await generateOnDeviceText(prompt);
     console.log(LOG_PREFIX, 'on-device raw response', {raw});
     return parseOnDeviceAutocorrectResult(raw);
   }
 
-  const raw = await generateGeminiProofread(input);
+  const raw = await generateGeminiProofread(input, promptBuilder);
   if (!raw) {
     return null;
   }
@@ -318,6 +345,35 @@ export async function proofreadRecentTypingContext(
     return classifyCorrection(original, correction);
   } catch (error) {
     console.log(LOG_PREFIX, 'proofread failed', {
+      message: error instanceof Error ? error.message : String(error),
+    });
+    return {kind: 'none'};
+  }
+}
+
+/** Lightweight background correction for the currently typed word. */
+export async function proofreadActiveToken(
+  token: string,
+): Promise<AiAutocorrectResult> {
+  const normalized = token.trim();
+  if (
+    normalized.length < MIN_TOKEN_LENGTH ||
+    !/^[A-Za-z']+$/.test(normalized)
+  ) {
+    return {kind: 'none'};
+  }
+
+  try {
+    const correction = await generateProofread(
+      normalized,
+      buildTokenAutocorrectPrompt,
+    );
+    if (!correction) {
+      return {kind: 'none'};
+    }
+    return classifyCorrection(normalized, correction);
+  } catch (error) {
+    console.log(LOG_PREFIX, 'token proofread failed', {
       message: error instanceof Error ? error.message : String(error),
     });
     return {kind: 'none'};

@@ -104,9 +104,15 @@ import {
 } from './autocorrect/learnedPhrases';
 import type {AutocorrectSettings} from './autocorrect/types';
 import {
+  proofreadActiveToken,
   proofreadRecentTypingContext,
   type AiAutocorrectResult,
 } from './autocorrect/aiAutocorrectService';
+import {
+  recordAiPreflightRequest,
+  recordAiPreflightResult,
+  recordAiPreflightStale,
+} from './autocorrect/aiAutocorrectTelemetry';
 import {getActiveLanguage, isEnglishSymSpellReady, preloadActiveDictionary, scheduleBackgroundEnglishSymSpellSeed} from './autocorrect/dictionaryManager';
 import {scheduleEnglishWordSetBuild} from './autocorrect/englishFrequencyDictionary';
 import {GesturesPanel} from './gestures/GesturesPanel';
@@ -217,6 +223,9 @@ const LETTER_SIDE_EFFECTS_DEBOUNCE_MS = 200;
 const BACKSPACE_SUGGESTION_DEBOUNCE_MS = 900;
 /** Coalesce suggestion-bar work while backspacing — one update per burst. */
 const BACKSPACE_BAR_FLUSH_MS = 32;
+const AI_PREFLIGHT_DEBOUNCE_MS = 360;
+const AI_PREFLIGHT_MIN_TOKEN_LENGTH = 4;
+const AI_PREFLIGHT_CACHE_LIMIT = 12;
 const NATIVE_FAST_PATH_MIN_KEYS = 20;
 const NATIVE_FAST_PATH_ENABLED = true;
 const AI_AUTOCORRECT_LOG_PREFIX = '[AiAutocorrect]';
@@ -587,6 +596,11 @@ function KeyboardBody({
   const suggestionDictionariesReadyRef = useRef(false);
   const aiProofreadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const aiProofreadRunIdRef = useRef(0);
+  const aiPreflightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const aiPreflightRunIdRef = useRef(0);
+  const aiPreflightCacheRef = useRef<
+    Map<string, Extract<AiAutocorrectResult, {kind: 'auto' | 'suggest'}>>
+  >(new Map());
   const lastAiProofreadOriginalRef = useRef<string | null>(null);
   const livePrefixRef = useRef('');
   const lastInstantPrefixRef = useRef('');
@@ -1048,6 +1062,12 @@ function KeyboardBody({
       aiProofreadTimerRef.current = null;
     }
     aiProofreadRunIdRef.current += 1;
+    if (aiPreflightTimerRef.current) {
+      clearTimeout(aiPreflightTimerRef.current);
+      aiPreflightTimerRef.current = null;
+    }
+    aiPreflightRunIdRef.current += 1;
+    aiPreflightCacheRef.current.clear();
     lastAiProofreadOriginalRef.current = null;
 
     autocorrectUndoStackRef.current = [];
@@ -1096,6 +1116,12 @@ function KeyboardBody({
       clearTimeout(aiProofreadTimerRef.current);
       aiProofreadTimerRef.current = null;
     }
+    if (aiPreflightTimerRef.current) {
+      clearTimeout(aiPreflightTimerRef.current);
+      aiPreflightTimerRef.current = null;
+    }
+    aiPreflightRunIdRef.current += 1;
+    aiPreflightCacheRef.current.clear();
     if (backspaceBarTimerRef.current) {
       clearTimeout(backspaceBarTimerRef.current);
       backspaceBarTimerRef.current = null;
@@ -1217,6 +1243,11 @@ function KeyboardBody({
     }
     lastTypingAtRef.current = Date.now();
     aiProofreadRunIdRef.current += 1;
+    aiPreflightRunIdRef.current += 1;
+    if (aiPreflightTimerRef.current) {
+      clearTimeout(aiPreflightTimerRef.current);
+      aiPreflightTimerRef.current = null;
+    }
     lastAiProofreadOriginalRef.current = null;
     setAiAutocorrectSuggestion(current => (current === null ? current : null));
     setIsAiAutocorrectProcessing(current => (current ? false : current));
@@ -1802,6 +1833,86 @@ function KeyboardBody({
     [recordAutocorrectHistory, refreshSuggestions],
   );
 
+  const scheduleAiPreflight = useCallback(() => {
+    if (
+      zeroLatencyModeRef.current ||
+      layoutRef.current !== 'letters' ||
+      modeRef.current.type !== 'typing'
+    ) {
+      return;
+    }
+    const settings = getAutocorrectSettings();
+    if (!settings.enabled || !settings.aiAutoCorrectEnabled) {
+      return;
+    }
+
+    const token = livePrefixRef.current.trim();
+    if (
+      token.length < AI_PREFLIGHT_MIN_TOKEN_LENGTH ||
+      shouldSkipAutocorrectForToken(token)
+    ) {
+      return;
+    }
+
+    if (aiPreflightTimerRef.current) {
+      clearTimeout(aiPreflightTimerRef.current);
+    }
+    const runId = aiPreflightRunIdRef.current + 1;
+    aiPreflightRunIdRef.current = runId;
+    aiPreflightTimerRef.current = setTimeout(() => {
+      aiPreflightTimerRef.current = null;
+      const requestedToken = token;
+      if (livePrefixRef.current.trim() !== requestedToken) {
+        return;
+      }
+      const localCandidate = getAutocorrectCandidate(requestedToken, {
+        lightweight: true,
+        skipFrequentScan: true,
+        previousWord: previousWordRef.current,
+      });
+      if (localCandidate && localCandidate.confidence >= 0.82) {
+        return;
+      }
+      const startedAt = Date.now();
+      recordAiPreflightRequest();
+      setIsAiAutocorrectProcessing(true);
+      void proofreadActiveToken(requestedToken)
+        .then(result => {
+          const accepted =
+            result.kind === 'auto' || result.kind === 'suggest';
+          recordAiPreflightResult(Date.now() - startedAt, accepted);
+          if (
+            aiPreflightRunIdRef.current !== runId ||
+            livePrefixRef.current.trim() !== requestedToken ||
+            !accepted
+          ) {
+            if (aiPreflightRunIdRef.current !== runId) {
+              recordAiPreflightStale();
+            }
+            return;
+          }
+          const cache = aiPreflightCacheRef.current;
+          cache.delete(requestedToken);
+          cache.set(requestedToken, result);
+          while (cache.size > AI_PREFLIGHT_CACHE_LIMIT) {
+            const oldest = cache.keys().next().value;
+            if (typeof oldest !== 'string') {
+              break;
+            }
+            cache.delete(oldest);
+          }
+          if (result.kind === 'suggest') {
+            setAiAutocorrectSuggestion(result);
+          }
+        })
+        .finally(() => {
+          if (aiPreflightRunIdRef.current === runId) {
+            setIsAiAutocorrectProcessing(false);
+          }
+        });
+    }, AI_PREFLIGHT_DEBOUNCE_MS);
+  }, []);
+
   const scheduleAiProofread = useCallback(
     (delayMs = 1_600) => {
       if (
@@ -2027,6 +2138,11 @@ function KeyboardBody({
       if (aiProofreadTimerRef.current) {
         clearTimeout(aiProofreadTimerRef.current);
       }
+      if (aiPreflightTimerRef.current) {
+        clearTimeout(aiPreflightTimerRef.current);
+      }
+      aiPreflightRunIdRef.current += 1;
+      aiPreflightCacheRef.current.clear();
     };
   }, []);
 
@@ -2086,6 +2202,21 @@ function KeyboardBody({
       const autocorrectOn = getAutocorrectSettings().enabled;
 
       if (autocorrectOn && typedWord.length >= 2) {
+        const preflight = aiPreflightCacheRef.current.get(typedWord);
+        aiPreflightCacheRef.current.delete(typedWord);
+        if (preflight?.kind === 'auto') {
+          const applied = await applyAiAutocorrectEdit(preflight);
+          if (applied) {
+            applyBoundary();
+            if (!zeroLatency) {
+              requestAnimationFrame(() => {
+                void refreshSuggestions();
+              });
+            }
+            return;
+          }
+        }
+
         const phraseFix = getPhraseCorrection(context, typedWord);
         if (phraseFix) {
           const original = context.slice(
@@ -2194,6 +2325,7 @@ function KeyboardBody({
     },
     [
       openRewritePanel,
+      applyAiAutocorrectEdit,
       recordAutocorrectHistory,
       refreshSuggestions,
       scheduleAiProofread,
@@ -2964,6 +3096,7 @@ function KeyboardBody({
       if (/[a-z]/i.test(text)) {
         lastLetterCommitAtRef.current = Date.now();
         livePrefixRef.current += text;
+        scheduleAiPreflight();
       }
       lastTypingAtRef.current = Date.now();
 
@@ -2998,7 +3131,7 @@ function KeyboardBody({
         }, 450);
       }, LETTER_SIDE_EFFECTS_DEBOUNCE_MS);
     },
-    [applyInstantSuggestionBar],
+    [applyInstantSuggestionBar, scheduleAiPreflight],
   );
 
   const handleMultiTouchKeyCommit = useCallback(

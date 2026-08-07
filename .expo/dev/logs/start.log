@@ -25973,3 +25973,519 @@
 {"_e":"metro:client_log","_t":1786033698777,"level":"warn","data":["Require cycle: src/keyboard/settings/layoutStore.ts -> src/keyboard/settings/tapSoundStore.ts -> src/keyboard/settings/layoutStore.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
 {"_e":"metro:client_log","_t":1786033698777,"level":"warn","data":["Require cycle: src/keyboard/autocorrect/dictionaryManager.ts -> src/keyboard/suggestions/learnedDictionary.ts -> src/keyboard/autocorrect/dictionaryManager.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
 {"_e":"metro:client_log","_t":1786033698777,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"root:init","_t":1786066707715,"format":"v0-jsonl","version":"56.1.14"}
+{"_e":"devserver:start","_t":1786066707758,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../..\\..\\src\\app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1786066709086,"serverRoot":"../..\\..","projectRoot":"../..\\..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"metro:instantiate","_t":1786066735826,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"metro:bundling:started","_t":1786066741231,"id":"1","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1786066741232,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1786066741239,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1786066741341,"id":"1","progress":0.0012755102040816326,"total":140,"current":5}
+{"_e":"metro:bundling:progress","_t":1786066741441,"id":"1","progress":0.02817602040816326,"total":280,"current":47}
+{"_e":"metro:bundling:progress","_t":1786066741541,"id":"1","progress":0.04324364765405082,"total":327,"current":68}
+{"_e":"metro:bundling:progress","_t":1786066741650,"id":"1","progress":0.11435506079488436,"total":414,"current":140}
+{"_e":"metro:bundling:progress","_t":1786066741750,"id":"1","progress":0.16028998634740602,"total":552,"current":221}
+{"_e":"metro:bundling:progress","_t":1786066741851,"id":"1","progress":0.2582391500654628,"total":673,"current":342}
+{"_e":"metro:bundling:progress","_t":1786066741951,"id":"1","progress":0.3121506662951368,"total":741,"current":414}
+{"_e":"metro:bundling:progress","_t":1786066742051,"id":"1","progress":0.4269526638632769,"total":805,"current":526}
+{"_e":"metro:bundling:progress","_t":1786066742151,"id":"1","progress":0.4269526638632769,"total":948,"current":611}
+{"_e":"metro:bundling:progress","_t":1786066742252,"id":"1","progress":0.5311448400888545,"total":1014,"current":739}
+{"_e":"metro:bundling:progress","_t":1786066742355,"id":"1","progress":0.7202130475227364,"total":1077,"current":914}
+{"_e":"metro:bundling:progress","_t":1786066742470,"id":"1","progress":0.816751980325431,"total":1122,"current":1014}
+{"_e":"metro:bundling:progress","_t":1786066742569,"id":"1","progress":0.8700786832182642,"total":1205,"current":1124}
+{"_e":"metro:bundling:progress","_t":1786066742671,"id":"1","progress":0.8924657417921021,"total":1284,"current":1213}
+{"_e":"metro:bundling:progress","_t":1786066742770,"id":"1","progress":0.9134254646413368,"total":1378,"current":1317}
+{"_e":"metro:bundling:progress","_t":1786066742871,"id":"1","progress":0.965364610420845,"total":1431,"current":1406}
+{"_e":"metro:bundling:progress","_t":1786066742974,"id":"1","progress":0.999,"total":1456,"current":1456}
+{"_e":"metro:bundling:done","_t":1786066743106,"id":"1","total":1456,"ms":1874.6154}
+{"_e":"metro:client_log","_t":1786066745965,"level":"warn","data":["Require cycle: src/keyboard/settings/layoutStore.ts -> src/keyboard/settings/tapSoundStore.ts -> src/keyboard/settings/layoutStore.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1786066745965,"level":"warn","data":["Require cycle: src/keyboard/autocorrect/dictionaryManager.ts -> src/keyboard/suggestions/learnedDictionary.ts -> src/keyboard/autocorrect/dictionaryManager.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1786066745965,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1786066845156,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":11,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1786066845406,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"metro:client_log","_t":1786066848324,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 2}"]}
+{"_e":"metro:client_log","_t":1786066849089,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 4}"]}
+{"_e":"metro:client_log","_t":1786066849381,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 6}"]}
+{"_e":"metro:client_log","_t":1786066850202,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 8}"]}
+{"_e":"metro:client_log","_t":1786066851020,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 10}"]}
+{"_e":"metro:client_log","_t":1786066851650,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 12}"]}
+{"_e":"metro:client_log","_t":1786066852286,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 14}"]}
+{"_e":"metro:client_log","_t":1786066853030,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 16}"]}
+{"_e":"metro:client_log","_t":1786066854701,"level":"log","data":["[AiAutocorrect]","running proofread","{\"contextTail\": \"Hwy guys i hope you all are doing extremel\", \"runId\": 16}"]}
+{"_e":"metro:client_log","_t":1786066854702,"level":"log","data":["[AiAutocorrect]","snippet selected","{\"snippet\": \"Hwy guys i hope you all are doing extremel\"}"]}
+{"_e":"metro:client_log","_t":1786066854704,"level":"log","data":["[AiAutocorrect]","on-device request","{\"input\": \"Hwy guys i hope you all are doing extremel\"}"]}
+{"_e":"metro:client_log","_t":1786066854981,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 18}"]}
+{"_e":"metro:client_log","_t":1786066856046,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 20}"]}
+{"_e":"metro:client_log","_t":1786066857047,"level":"log","data":["[AiAutocorrect]","on-device raw response","{\"raw\": \"\\\"Hey guys i hope you all are doing extremel.\\\"\"}"]}
+{"_e":"metro:client_log","_t":1786066857048,"level":"log","data":["[AiAutocorrect]","parsed correction","{\"correction\": \"Hey guys i hope you all are doing extremel.\", \"original\": \"Hwy guys i hope you all are doing extremel\"}"]}
+{"_e":"metro:client_log","_t":1786066857051,"level":"log","data":["[AiAutocorrect]","auto result","{\"autoDistanceLimit\": 24, \"correction\": \"Hey guys i hope you all are doing extremel.\", \"distance\": 2, \"original\": \"Hwy guys i hope you all are doing extremel\", \"wordDelta\": 0}"]}
+{"_e":"metro:client_log","_t":1786066857053,"level":"log","data":["[AiAutocorrect]","run finished: no correction","{\"resultKind\": \"auto\", \"runId\": 16, \"stale\": true}"]}
+{"_e":"metro:client_log","_t":1786067405373,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 3}"]}
+{"_e":"metro:client_log","_t":1786067405741,"level":"log","data":["[AiAutocorrect]","on-device request","{\"input\": \"Ford\"}"]}
+{"_e":"metro:client_log","_t":1786067407276,"level":"log","data":["[AiAutocorrect]","running proofread","{\"contextTail\": \"Ford ec\", \"runId\": 3}"]}
+{"_e":"metro:client_log","_t":1786067407300,"level":"log","data":["[AiAutocorrect]","skip: context too short","{\"length\": 7}"]}
+{"_e":"metro:client_log","_t":1786067407313,"level":"log","data":["[AiAutocorrect]","run finished: no correction","{\"resultKind\": \"none\", \"runId\": 3, \"stale\": false}"]}
+{"_e":"metro:client_log","_t":1786067409599,"level":"log","data":["[AiAutocorrect]","on-device request","{\"input\": \"ecospo\"}"]}
+{"_e":"metro:client_log","_t":1786067410619,"level":"log","data":["[AiAutocorrect]","on-device request","{\"input\": \"ecosport\"}"]}
+{"_e":"metro:client_log","_t":1786067411701,"level":"log","data":["[AiAutocorrect]","on-device raw response","{\"raw\": \"```json\n{\\\"text\\\":\\\"Ford\\\"}\n```\"}"]}
+{"_e":"metro:client_log","_t":1786067411703,"level":"log","data":["[AiAutocorrect]","suggestion result","{\"correction\": \"```json {\\\"text\\\":\\\"Ford\\\"} ```\", \"distance\": 23, \"original\": \"Ford\", \"wordDelta\": 2}"]}
+{"_e":"metro:client_log","_t":1786067415375,"level":"log","data":["[AiAutocorrect]","on-device raw response","{\"raw\": \"{\\\"text\\\":\\\"ecospo\\\"}\"}"]}
+{"_e":"metro:client_log","_t":1786067415376,"level":"log","data":["[AiAutocorrect]","auto result","{\"autoDistanceLimit\": 20, \"correction\": \"{\\\"text\\\":\\\"ecospo\\\"}\", \"distance\": 11, \"original\": \"ecospo\", \"wordDelta\": 0}"]}
+{"_e":"metro:client_log","_t":1786067417615,"level":"log","data":["[AiAutocorrect]","on-device raw response","{\"raw\": \"```json\n{\\\"text\\\":\\\"ecosport\\\"}\n```\"}"]}
+{"_e":"metro:client_log","_t":1786067417616,"level":"log","data":["[AiAutocorrect]","suggestion result","{\"correction\": \"```json {\\\"text\\\":\\\"ecosport\\\"} ```\", \"distance\": 23, \"original\": \"ecosport\", \"wordDelta\": 2}"]}
+{"_e":"metro:client_log","_t":1786067419887,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:bundling:started","_t":1786067773362,"id":"2","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1786067773362,"id":"2","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1786067773364,"id":"2","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1786067773464,"id":"2","progress":0.10897953258818405,"total":415,"current":137}
+{"_e":"metro:bundling:progress","_t":1786067773564,"id":"2","progress":0.2670701688955192,"total":685,"current":354}
+{"_e":"metro:bundling:progress","_t":1786067773664,"id":"2","progress":0.5781025886209958,"total":847,"current":644}
+{"_e":"metro:bundling:progress","_t":1786067773764,"id":"2","progress":0.6791672591605027,"total":1103,"current":909}
+{"_e":"metro:bundling:progress","_t":1786067773864,"id":"2","progress":0.8508607638911602,"total":1173,"current":1082}
+{"_e":"metro:bundling:progress","_t":1786067773964,"id":"2","progress":0.9106612244897959,"total":1400,"current":1336}
+{"_e":"metro:bundling:done","_t":1786067774173,"id":"2","total":1400,"ms":810.7887}
+{"_e":"metro:client_log","_t":1786067776975,"level":"warn","data":["Require cycle: src/keyboard/settings/layoutStore.ts -> src/keyboard/settings/tapSoundStore.ts -> src/keyboard/settings/layoutStore.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1786067776975,"level":"warn","data":["Require cycle: src/keyboard/autocorrect/dictionaryManager.ts -> src/keyboard/suggestions/learnedDictionary.ts -> src/keyboard/autocorrect/dictionaryManager.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1786067776975,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1786067776975,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":11,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1786067777010,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"metro:client_log","_t":1786067781731,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1786067782591,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1786067782949,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1786067783826,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1786067789381,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 6}"]}
+{"_e":"metro:client_log","_t":1786067789758,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 8}"]}
+{"_e":"metro:client_log","_t":1786067790530,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 10}"]}
+{"_e":"metro:client_log","_t":1786067791762,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 12}"]}
+{"_e":"metro:client_log","_t":1786067792437,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 14}"]}
+{"_e":"metro:client_log","_t":1786067793159,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 16}"]}
+{"_e":"metro:client_log","_t":1786067794322,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 18}"]}
+{"_e":"metro:client_log","_t":1786067795974,"level":"log","data":["[AiAutocorrect]","running proofread","{\"contextTail\": \"Hay guys i hope ypuball are doing great that being said \", \"runId\": 18}"]}
+{"_e":"metro:client_log","_t":1786067795976,"level":"log","data":["[AiAutocorrect]","snippet selected","{\"snippet\": \"Hay guys i hope ypuball are doing great that being said\"}"]}
+{"_e":"metro:client_log","_t":1786067795978,"level":"log","data":["[AiAutocorrect]","on-device request","{\"input\": \"Hay guys i hope ypuball are doing great that being said\"}"]}
+{"_e":"metro:client_log","_t":1786067799503,"level":"log","data":["[AiAutocorrect]","on-device raw response","{\"raw\": \"\\\"Hey guys i hope your party's doing great that being said.\\\"\"}"]}
+{"_e":"metro:client_log","_t":1786067799543,"level":"log","data":["[AiAutocorrect]","parsed correction","{\"correction\": \"Hey guys i hope your party's doing great that being said.\", \"original\": \"Hay guys i hope ypuball are doing great that being said\"}"]}
+{"_e":"metro:client_log","_t":1786067799544,"level":"log","data":["[AiAutocorrect]","auto result","{\"autoDistanceLimit\": 31, \"correction\": \"Hey guys i hope your party's doing great that being said.\", \"distance\": 12, \"original\": \"Hay guys i hope ypuball are doing great that being said\", \"wordDelta\": 0}"]}
+{"_e":"metro:client_log","_t":1786067799544,"level":"log","data":["[AiAutocorrect]","auto result","{\"correction\": \"Hey guys i hope your party's doing great that being said.\", \"original\": \"Hay guys i hope ypuball are doing great that being said\"}"]}
+{"_e":"metro:client_log","_t":1786067799544,"level":"log","data":["[AiAutocorrect]","applying correction","{\"correction\": \"Hey guys i hope your party's doing great that being said.\", \"original\": \"Hay guys i hope ypuball are doing great that being said\", \"replaceLength\": 56}"]}
+{"_e":"metro:client_log","_t":1786067805685,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 20}"]}
+{"_e":"metro:client_log","_t":1786067806260,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 22}"]}
+{"_e":"metro:client_log","_t":1786067806857,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 24}"]}
+{"_e":"metro:client_log","_t":1786067808013,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 26}"]}
+{"_e":"metro:client_log","_t":1786067809614,"level":"log","data":["[AiAutocorrect]","running proofread","{\"contextTail\": \"Hay guys i hope you all are doing g\", \"runId\": 26}"]}
+{"_e":"metro:client_log","_t":1786067809618,"level":"log","data":["[AiAutocorrect]","snippet selected","{\"snippet\": \"Hay guys i hope you all are doing g\"}"]}
+{"_e":"metro:client_log","_t":1786067809618,"level":"log","data":["[AiAutocorrect]","on-device request","{\"input\": \"Hay guys i hope you all are doing g\"}"]}
+{"_e":"metro:client_log","_t":1786067811555,"level":"log","data":["[AiAutocorrect]","on-device raw response","{\"raw\": \"\\\"Hey guys i hope you all are doing great.\\\"\"}"]}
+{"_e":"metro:client_log","_t":1786067811555,"level":"log","data":["[AiAutocorrect]","parsed correction","{\"correction\": \"Hey guys i hope you all are doing great.\", \"original\": \"Hay guys i hope you all are doing g\"}"]}
+{"_e":"metro:client_log","_t":1786067811556,"level":"log","data":["[AiAutocorrect]","auto result","{\"autoDistanceLimit\": 20, \"correction\": \"Hey guys i hope you all are doing great.\", \"distance\": 6, \"original\": \"Hay guys i hope you all are doing g\", \"wordDelta\": 0}"]}
+{"_e":"metro:client_log","_t":1786067811556,"level":"log","data":["[AiAutocorrect]","auto result","{\"correction\": \"Hey guys i hope you all are doing great.\", \"original\": \"Hay guys i hope you all are doing g\"}"]}
+{"_e":"metro:client_log","_t":1786067811569,"level":"log","data":["[AiAutocorrect]","apply skipped: context changed","{\"contextTail\": \"Hay guys i hope you all are doing grea\", \"correction\": \"Hey guys i hope you all are doing great.\", \"original\": \"Hay guys i hope you all are doing g\"}"]}
+{"_e":"metro:client_log","_t":1786067813719,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 28}"]}
+{"_e":"metro:client_log","_t":1786067815075,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 30}"]}
+{"_e":"metro:client_log","_t":1786067816119,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 32}"]}
+{"_e":"metro:client_log","_t":1786067817720,"level":"log","data":["[AiAutocorrect]","running proofread","{\"contextTail\": \"Hay guys i hope you all are doing great and that be\", \"runId\": 32}"]}
+{"_e":"metro:client_log","_t":1786067817759,"level":"log","data":["[AiAutocorrect]","snippet selected","{\"snippet\": \"Hay guys i hope you all are doing great and that be\"}"]}
+{"_e":"metro:client_log","_t":1786067817759,"level":"log","data":["[AiAutocorrect]","on-device request","{\"input\": \"Hay guys i hope you all are doing great and that be\"}"]}
+{"_e":"metro:client_log","_t":1786067818776,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 34}"]}
+{"_e":"metro:client_log","_t":1786067819492,"level":"log","data":["[AiAutocorrect]","on-device raw response","{\"raw\": \"\\\"Hey guys i hope you all are doing great and that be.\\\"\"}"]}
+{"_e":"metro:client_log","_t":1786067819493,"level":"log","data":["[AiAutocorrect]","parsed correction","{\"correction\": \"Hey guys i hope you all are doing great and that be.\", \"original\": \"Hay guys i hope you all are doing great and that be\"}"]}
+{"_e":"metro:client_log","_t":1786067819494,"level":"log","data":["[AiAutocorrect]","auto result","{\"autoDistanceLimit\": 29, \"correction\": \"Hey guys i hope you all are doing great and that be.\", \"distance\": 2, \"original\": \"Hay guys i hope you all are doing great and that be\", \"wordDelta\": 0}"]}
+{"_e":"metro:client_log","_t":1786067819494,"level":"log","data":["[AiAutocorrect]","run finished: no correction","{\"resultKind\": \"auto\", \"runId\": 32, \"stale\": true}"]}
+{"_e":"metro:client_log","_t":1786067820410,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 36}"]}
+{"_e":"metro:client_log","_t":1786067820411,"level":"log","data":["[AiAutocorrect]","run skipped: stale run","{\"currentRunId\": 36, \"runId\": 34}"]}
+{"_e":"metro:client_log","_t":1786067821480,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 38}"]}
+{"_e":"metro:client_log","_t":1786067823075,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 40}"]}
+{"_e":"metro:client_log","_t":1786067824704,"level":"log","data":["[AiAutocorrect]","running proofread","{\"contextTail\": \"Hay guys i hope you all are doing great and that being said cab you app\", \"runId\": 40}"]}
+{"_e":"metro:client_log","_t":1786067824707,"level":"log","data":["[AiAutocorrect]","snippet selected","{\"snippet\": \"Hay guys i hope you all are doing great and that being said cab you app\"}"]}
+{"_e":"metro:client_log","_t":1786067824707,"level":"log","data":["[AiAutocorrect]","on-device request","{\"input\": \"Hay guys i hope you all are doing great and that being said cab you app\"}"]}
+{"_e":"metro:client_log","_t":1786067824898,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 42}"]}
+{"_e":"metro:client_log","_t":1786067826490,"level":"log","data":["[AiAutocorrect]","running proofread","{\"contextTail\": \"Hay guys i hope you all are doing great and that being said cab you app ar\", \"runId\": 42}"]}
+{"_e":"metro:client_log","_t":1786067826491,"level":"log","data":["[AiAutocorrect]","snippet selected","{\"snippet\": \"Hay guys i hope you all are doing great and that being said cab you app ar\"}"]}
+{"_e":"metro:client_log","_t":1786067826491,"level":"log","data":["[AiAutocorrect]","on-device request","{\"input\": \"Hay guys i hope you all are doing great and that being said cab you app ar\"}"]}
+{"_e":"metro:client_log","_t":1786067826721,"level":"log","data":["[AiAutocorrect]","on-device raw response","{\"raw\": \"\\\"Hey guys i hope you all are doing great and that being said can you app.\\\"\"}"]}
+{"_e":"metro:client_log","_t":1786067826723,"level":"log","data":["[AiAutocorrect]","parsed correction","{\"correction\": \"Hey guys i hope you all are doing great and that being said can you app.\", \"original\": \"Hay guys i hope you all are doing great and that being said cab you app\"}"]}
+{"_e":"metro:client_log","_t":1786067826724,"level":"log","data":["[AiAutocorrect]","auto result","{\"autoDistanceLimit\": 40, \"correction\": \"Hey guys i hope you all are doing great and that being said can you app.\", \"distance\": 3, \"original\": \"Hay guys i hope you all are doing great and that being said cab you app\", \"wordDelta\": 0}"]}
+{"_e":"metro:client_log","_t":1786067826724,"level":"log","data":["[AiAutocorrect]","run finished: no correction","{\"resultKind\": \"auto\", \"runId\": 40, \"stale\": true}"]}
+{"_e":"metro:client_log","_t":1786067828432,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 44}"]}
+{"_e":"metro:client_log","_t":1786067828834,"level":"log","data":["[AiAutocorrect]","on-device raw response","{\"raw\": \"\\\"Hey guys i hope you all are doing great and that being said can you app ar.\\\"\"}"]}
+{"_e":"metro:client_log","_t":1786067828835,"level":"log","data":["[AiAutocorrect]","parsed correction","{\"correction\": \"Hey guys i hope you all are doing great and that being said can you app ar.\", \"original\": \"Hay guys i hope you all are doing great and that being said cab you app ar\"}"]}
+{"_e":"metro:client_log","_t":1786067828836,"level":"log","data":["[AiAutocorrect]","auto result","{\"autoDistanceLimit\": 41, \"correction\": \"Hey guys i hope you all are doing great and that being said can you app ar.\", \"distance\": 3, \"original\": \"Hay guys i hope you all are doing great and that being said cab you app ar\", \"wordDelta\": 0}"]}
+{"_e":"metro:client_log","_t":1786067828837,"level":"log","data":["[AiAutocorrect]","run finished: no correction","{\"resultKind\": \"auto\", \"runId\": 42, \"stale\": true}"]}
+{"_e":"metro:client_log","_t":1786067830023,"level":"log","data":["[AiAutocorrect]","running proofread","{\"contextTail\": \"Hay guys i hope you all are doing great and that being said cab you app arrive tomorr\", \"runId\": 44}"]}
+{"_e":"metro:client_log","_t":1786067830024,"level":"log","data":["[AiAutocorrect]","snippet selected","{\"snippet\": \"Hay guys i hope you all are doing great and that being said cab you app arrive tomorr\"}"]}
+{"_e":"metro:client_log","_t":1786067830024,"level":"log","data":["[AiAutocorrect]","on-device request","{\"input\": \"Hay guys i hope you all are doing great and that being said cab you app arrive tomorr\"}"]}
+{"_e":"metro:client_log","_t":1786067830406,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 46}"]}
+{"_e":"metro:client_log","_t":1786067832010,"level":"log","data":["[AiAutocorrect]","running proofread","{\"contextTail\": \"Hay guys i hope you all are doing great and that being said cab you app arrive tomorrow ealrt\", \"runId\": 46}"]}
+{"_e":"metro:client_log","_t":1786067832010,"level":"log","data":["[AiAutocorrect]","snippet selected","{\"snippet\": \"Hay guys i hope you all are doing great and that being said cab you app arrive tomorrow ealrt\"}"]}
+{"_e":"metro:client_log","_t":1786067832010,"level":"log","data":["[AiAutocorrect]","on-device request","{\"input\": \"Hay guys i hope you all are doing great and that being said cab you app arrive tomorrow ealrt\"}"]}
+{"_e":"metro:client_log","_t":1786067832114,"level":"log","data":["[AiAutocorrect]","on-device request","{\"input\": \"ealrt\"}"]}
+{"_e":"metro:client_log","_t":1786067832182,"level":"log","data":["[AiAutocorrect]","on-device raw response","{\"raw\": \"\\\"Hey guys I hope you all are doing great and that being said can you app arrive tomorrow?\\\"\"}"]}
+{"_e":"metro:client_log","_t":1786067832183,"level":"log","data":["[AiAutocorrect]","parsed correction","{\"correction\": \"Hey guys I hope you all are doing great and that being said can you app arrive tomorrow?\", \"original\": \"Hay guys i hope you all are doing great and that being said cab you app arrive tomorr\"}"]}
+{"_e":"metro:client_log","_t":1786067832189,"level":"log","data":["[AiAutocorrect]","auto result","{\"autoDistanceLimit\": 47, \"correction\": \"Hey guys I hope you all are doing great and that being said can you app arrive tomorrow?\", \"distance\": 5, \"original\": \"Hay guys i hope you all are doing great and that being said cab you app arrive tomorr\", \"wordDelta\": 0}"]}
+{"_e":"metro:client_log","_t":1786067832191,"level":"log","data":["[AiAutocorrect]","run finished: no correction","{\"resultKind\": \"auto\", \"runId\": 44, \"stale\": true}"]}
+{"_e":"metro:client_log","_t":1786067835580,"level":"log","data":["[AiAutocorrect]","on-device raw response","{\"raw\": \"\\\"Hey guys i hope you all are doing great and that being said can you app arrive tomorrow evening?\\\"\"}"]}
+{"_e":"metro:client_log","_t":1786067835580,"level":"log","data":["[AiAutocorrect]","parsed correction","{\"correction\": \"Hey guys i hope you all are doing great and that being said can you app arrive tomorrow evening?\", \"original\": \"Hay guys i hope you all are doing great and that being said cab you app arrive tomorrow ealrt\"}"]}
+{"_e":"metro:client_log","_t":1786067835580,"level":"log","data":["[AiAutocorrect]","auto result","{\"autoDistanceLimit\": 52, \"correction\": \"Hey guys i hope you all are doing great and that being said can you app arrive tomorrow evening?\", \"distance\": 9, \"original\": \"Hay guys i hope you all are doing great and that being said cab you app arrive tomorrow ealrt\", \"wordDelta\": 0}"]}
+{"_e":"metro:client_log","_t":1786067835581,"level":"log","data":["[AiAutocorrect]","auto result","{\"correction\": \"Hey guys i hope you all are doing great and that being said can you app arrive tomorrow evening?\", \"original\": \"Hay guys i hope you all are doing great and that being said cab you app arrive tomorrow ealrt\"}"]}
+{"_e":"metro:client_log","_t":1786067835581,"level":"log","data":["[AiAutocorrect]","applying correction","{\"correction\": \"Hey guys i hope you all are doing great and that being said can you app arrive tomorrow evening?\", \"original\": \"Hay guys i hope you all are doing great and that being said cab you app arrive tomorrow ealrt\", \"replaceLength\": 93}"]}
+{"_e":"metro:client_log","_t":1786067836944,"level":"log","data":["[AiAutocorrect]","on-device raw response","{\"raw\": \"{\\\"text\\\":\\\"realrt\\\"}\"}"]}
+{"_e":"metro:client_log","_t":1786067836944,"level":"log","data":["[AiAutocorrect]","auto result","{\"autoDistanceLimit\": 20, \"correction\": \"{\\\"text\\\":\\\"realrt\\\"}\", \"distance\": 12, \"original\": \"ealrt\", \"wordDelta\": 0}"]}
+{"_e":"metro:client_log","_t":1786068235682,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 52}"]}
+{"_e":"metro:client_log","_t":1786068236347,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 54}"]}
+{"_e":"metro:client_log","_t":1786068236714,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 56}"]}
+{"_e":"metro:client_log","_t":1786068237525,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 58}"]}
+{"_e":"metro:client_log","_t":1786068238231,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 60}"]}
+{"_e":"metro:client_log","_t":1786068239855,"level":"log","data":["[AiAutocorrect]","running proofread","{\"contextTail\": \"Hey guys i hope this journ\", \"runId\": 60}"]}
+{"_e":"metro:client_log","_t":1786068239857,"level":"log","data":["[AiAutocorrect]","snippet selected","{\"snippet\": \"Hey guys i hope this journ\"}"]}
+{"_e":"metro:client_log","_t":1786068239859,"level":"log","data":["[AiAutocorrect]","on-device request","{\"input\": \"Hey guys i hope this journ\"}"]}
+{"_e":"metro:client_log","_t":1786068240381,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 62}"]}
+{"_e":"metro:client_log","_t":1786068241070,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 64}"]}
+{"_e":"metro:client_log","_t":1786068241898,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 66}"]}
+{"_e":"metro:client_log","_t":1786068242049,"level":"log","data":["[AiAutocorrect]","on-device raw response","{\"raw\": \"\\\"Hey guys i hope this journ.\\\"\"}"]}
+{"_e":"metro:client_log","_t":1786068242049,"level":"log","data":["[AiAutocorrect]","parsed correction","{\"correction\": \"Hey guys i hope this journ.\", \"original\": \"Hey guys i hope this journ\"}"]}
+{"_e":"metro:client_log","_t":1786068242050,"level":"log","data":["[AiAutocorrect]","auto result","{\"autoDistanceLimit\": 20, \"correction\": \"Hey guys i hope this journ.\", \"distance\": 1, \"original\": \"Hey guys i hope this journ\", \"wordDelta\": 0}"]}
+{"_e":"metro:client_log","_t":1786068242050,"level":"log","data":["[AiAutocorrect]","run finished: no correction","{\"resultKind\": \"auto\", \"runId\": 60, \"stale\": true}"]}
+{"_e":"metro:client_log","_t":1786068242506,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 68}"]}
+{"_e":"metro:client_log","_t":1786068243925,"level":"log","data":["[AiAutocorrect]","on-device request","{\"input\": \"empow\"}"]}
+{"_e":"metro:client_log","_t":1786068244123,"level":"log","data":["[AiAutocorrect]","running proofread","{\"contextTail\": \"Hey guys i hope this journey is going to empow\", \"runId\": 68}"]}
+{"_e":"metro:client_log","_t":1786068244127,"level":"log","data":["[AiAutocorrect]","snippet selected","{\"snippet\": \"Hey guys i hope this journey is going to empow\"}"]}
+{"_e":"metro:client_log","_t":1786068244128,"level":"log","data":["[AiAutocorrect]","on-device request","{\"input\": \"Hey guys i hope this journey is going to empow\"}"]}
+{"_e":"metro:client_log","_t":1786068245288,"level":"log","data":["[AiAutocorrect]","on-device raw response","{\"raw\": \"{\\\"text\\\":\\\"empower\\\"}\"}"]}
+{"_e":"metro:client_log","_t":1786068245288,"level":"log","data":["[AiAutocorrect]","auto result","{\"autoDistanceLimit\": 20, \"correction\": \"{\\\"text\\\":\\\"empower\\\"}\", \"distance\": 13, \"original\": \"empow\", \"wordDelta\": 0}"]}
+{"_e":"metro:client_log","_t":1786068246246,"level":"log","data":["[AiAutocorrect]","on-device request","{\"input\": \"empow\"}"]}
+{"_e":"metro:client_log","_t":1786068246546,"level":"log","data":["[AiAutocorrect]","on-device raw response","{\"raw\": \"\\\"Hey guys i hope this journey going gonna empower.\\\"\"}"]}
+{"_e":"metro:client_log","_t":1786068246548,"level":"log","data":["[AiAutocorrect]","parsed correction","{\"correction\": \"Hey guys i hope this journey going gonna empower.\", \"original\": \"Hey guys i hope this journey is going to empow\"}"]}
+{"_e":"metro:client_log","_t":1786068246548,"level":"log","data":["[AiAutocorrect]","auto result","{\"autoDistanceLimit\": 26, \"correction\": \"Hey guys i hope this journey going gonna empower.\", \"distance\": 10, \"original\": \"Hey guys i hope this journey is going to empow\", \"wordDelta\": 1}"]}
+{"_e":"metro:client_log","_t":1786068246548,"level":"log","data":["[AiAutocorrect]","auto result","{\"correction\": \"Hey guys i hope this journey going gonna empower.\", \"original\": \"Hey guys i hope this journey is going to empow\"}"]}
+{"_e":"metro:client_log","_t":1786068246552,"level":"log","data":["[AiAutocorrect]","apply skipped: context changed","{\"contextTail\": \"Hey guys i hope this journey is going to empowe\", \"correction\": \"Hey guys i hope this journey going gonna empower.\", \"original\": \"Hey guys i hope this journey is going to empow\"}"]}
+{"_e":"metro:client_log","_t":1786068246938,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 70}"]}
+{"_e":"metro:client_log","_t":1786068247820,"level":"log","data":["[AiAutocorrect]","on-device raw response","{\"raw\": \"{\\\"text\\\":\\\"empower\\\"}\"}"]}
+{"_e":"metro:client_log","_t":1786068247821,"level":"log","data":["[AiAutocorrect]","auto result","{\"autoDistanceLimit\": 20, \"correction\": \"{\\\"text\\\":\\\"empower\\\"}\", \"distance\": 13, \"original\": \"empow\", \"wordDelta\": 0}"]}
+{"_e":"metro:client_log","_t":1786068248073,"level":"log","data":["[AiAutocorrect]","on-device request","{\"input\": \"every\"}"]}
+{"_e":"metro:client_log","_t":1786068248694,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 72}"]}
+{"_e":"metro:client_log","_t":1786068248798,"level":"log","data":["[AiAutocorrect]","run skipped: stale run","{\"currentRunId\": 72, \"runId\": 70}"]}
+{"_e":"metro:client_log","_t":1786068249206,"level":"log","data":["[AiAutocorrect]","on-device raw response","{\"raw\": \"{\\\"text\\\":\\\"every\\\"}\"}"]}
+{"_e":"metro:client_log","_t":1786068249207,"level":"log","data":["[AiAutocorrect]","auto result","{\"autoDistanceLimit\": 20, \"correction\": \"{\\\"text\\\":\\\"every\\\"}\", \"distance\": 11, \"original\": \"every\", \"wordDelta\": 0}"]}
+{"_e":"metro:client_log","_t":1786068249324,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 74}"]}
+{"_e":"metro:client_log","_t":1786068249873,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 76}"]}
+{"_e":"metro:client_log","_t":1786068250326,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 78}"]}
+{"_e":"metro:client_log","_t":1786068250800,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 80}"]}
+{"_e":"metro:client_log","_t":1786068252396,"level":"log","data":["[AiAutocorrect]","running proofread","{\"contextTail\": \"Hey guys i hope this journey is going to empower every single one of us \", \"runId\": 80}"]}
+{"_e":"metro:client_log","_t":1786068252398,"level":"log","data":["[AiAutocorrect]","snippet selected","{\"snippet\": \"Hey guys i hope this journey is going to empower every single one of us\"}"]}
+{"_e":"metro:client_log","_t":1786068252398,"level":"log","data":["[AiAutocorrect]","on-device request","{\"input\": \"Hey guys i hope this journey is going to empower every single one of us\"}"]}
+{"_e":"metro:client_log","_t":1786068254028,"level":"log","data":["[AiAutocorrect]","on-device raw response","{\"raw\": \"\\\"Hey guys i hope this journey going's going' gonna empower every single one of us.\\\"\"}"]}
+{"_e":"metro:client_log","_t":1786068254029,"level":"log","data":["[AiAutocorrect]","parsed correction","{\"correction\": \"Hey guys i hope this journey going's going' gonna empower every single one of us.\", \"original\": \"Hey guys i hope this journey is going to empower every single one of us\"}"]}
+{"_e":"metro:client_log","_t":1786068254030,"level":"log","data":["[AiAutocorrect]","auto result","{\"autoDistanceLimit\": 40, \"correction\": \"Hey guys i hope this journey going's going' gonna empower every single one of us.\", \"distance\": 11, \"original\": \"Hey guys i hope this journey is going to empower every single one of us\", \"wordDelta\": 0}"]}
+{"_e":"metro:client_log","_t":1786068254034,"level":"log","data":["[AiAutocorrect]","auto result","{\"correction\": \"Hey guys i hope this journey going's going' gonna empower every single one of us.\", \"original\": \"Hey guys i hope this journey is going to empower every single one of us\"}"]}
+{"_e":"metro:client_log","_t":1786068254034,"level":"log","data":["[AiAutocorrect]","applying correction","{\"correction\": \"Hey guys i hope this journey going's going' gonna empower every single one of us.\", \"original\": \"Hey guys i hope this journey is going to empower every single one of us\", \"replaceLength\": 72}"]}
+{"_e":"metro:client_log","_t":1786068259128,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 82}"]}
+{"_e":"metro:client_log","_t":1786068260007,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 84}"]}
+{"_e":"metro:client_log","_t":1786068260649,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 86}"]}
+{"_e":"metro:client_log","_t":1786068261015,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 88}"]}
+{"_e":"metro:client_log","_t":1786068261877,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 90}"]}
+{"_e":"metro:client_log","_t":1786068262539,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 92}"]}
+{"_e":"metro:client_log","_t":1786068263595,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 94}"]}
+{"_e":"metro:client_log","_t":1786068263955,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 96}"]}
+{"_e":"metro:client_log","_t":1786068265330,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 98}"]}
+{"_e":"metro:client_log","_t":1786068266023,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 100}"]}
+{"_e":"metro:client_log","_t":1786068266893,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 102}"]}
+{"_e":"metro:client_log","_t":1786068267296,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 104}"]}
+{"_e":"metro:client_log","_t":1786068268481,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 106}"]}
+{"_e":"metro:client_log","_t":1786068269240,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 108}"]}
+{"_e":"metro:client_log","_t":1786068269614,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 110}"]}
+{"_e":"metro:client_log","_t":1786068270207,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 112}"]}
+{"_e":"metro:client_log","_t":1786068270702,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 114}"]}
+{"_e":"metro:client_log","_t":1786068270973,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 116}"]}
+{"_e":"metro:client_log","_t":1786068272257,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 118}"]}
+{"_e":"metro:client_log","_t":1786068273861,"level":"log","data":["[AiAutocorrect]","running proofread","{\"contextTail\": \"gonna empower every single one of us. that being said i love you gang i love you to the extend that we all are a family \", \"runId\": 118}"]}
+{"_e":"metro:client_log","_t":1786068273862,"level":"log","data":["[AiAutocorrect]","snippet selected","{\"snippet\": \"that being said i love you gang i love you to the extend that we all are a family\"}"]}
+{"_e":"metro:client_log","_t":1786068273864,"level":"log","data":["[AiAutocorrect]","on-device request","{\"input\": \"that being said i love you gang i love you to the extend that we all are a family\"}"]}
+{"_e":"metro:client_log","_t":1786068275379,"level":"log","data":["[AiAutocorrect]","on-device raw response","{\"raw\": \"\\\"that being said i love you gang i love you that extend that we all are family.\\\"\"}"]}
+{"_e":"metro:client_log","_t":1786068275380,"level":"log","data":["[AiAutocorrect]","parsed correction","{\"correction\": \"that being said i love you gang i love you that extend that we all are family.\", \"original\": \"that being said i love you gang i love you to the extend that we all are a family\"}"]}
+{"_e":"metro:client_log","_t":1786068275383,"level":"log","data":["[AiAutocorrect]","auto result","{\"autoDistanceLimit\": 45, \"correction\": \"that being said i love you gang i love you that extend that we all are family.\", \"distance\": 7, \"original\": \"that being said i love you gang i love you to the extend that we all are a family\", \"wordDelta\": 2}"]}
+{"_e":"metro:client_log","_t":1786068275384,"level":"log","data":["[AiAutocorrect]","auto result","{\"correction\": \"that being said i love you gang i love you that extend that we all are family.\", \"original\": \"that being said i love you gang i love you to the extend that we all are a family\"}"]}
+{"_e":"metro:client_log","_t":1786068275385,"level":"log","data":["[AiAutocorrect]","applying correction","{\"correction\": \"that being said i love you gang i love you that extend that we all are family.\", \"original\": \"that being said i love you gang i love you to the extend that we all are a family\", \"replaceLength\": 82}"]}
+{"_e":"metro:client_log","_t":1786068600265,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 123}"]}
+{"_e":"metro:client_log","_t":1786068601508,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 125}"]}
+{"_e":"metro:client_log","_t":1786068603118,"level":"log","data":["[AiAutocorrect]","running proofread","{\"contextTail\": \"\", \"runId\": 125}"]}
+{"_e":"metro:client_log","_t":1786068603118,"level":"log","data":["[AiAutocorrect]","skip: context too short","{\"length\": 0}"]}
+{"_e":"metro:client_log","_t":1786068603118,"level":"log","data":["[AiAutocorrect]","run finished: no correction","{\"resultKind\": \"none\", \"runId\": 125, \"stale\": false}"]}
+{"_e":"metro:client_log","_t":1786068624521,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 132}"]}
+{"_e":"metro:bundling:started","_t":1786068834049,"id":"3","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1786068834049,"id":"3","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1786068834151,"id":"3","total":1,"ms":102.2515}
+{"_e":"metro:bundling:started","_t":1786068837417,"id":"4","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1786068837417,"id":"4","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1786068837516,"id":"4","total":1,"ms":98.6197}
+{"_e":"metro:client_log","_t":1786068840399,"level":"warn","data":["Require cycle: src/keyboard/settings/layoutStore.ts -> src/keyboard/settings/tapSoundStore.ts -> src/keyboard/settings/layoutStore.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1786068840399,"level":"warn","data":["Require cycle: src/keyboard/autocorrect/dictionaryManager.ts -> src/keyboard/suggestions/learnedDictionary.ts -> src/keyboard/autocorrect/dictionaryManager.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1786068840399,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1786068847627,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":41,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1786068847688,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"metro:client_log","_t":1786068849754,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 2}"]}
+{"_e":"metro:client_log","_t":1786068850482,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 4}"]}
+{"_e":"metro:client_log","_t":1786068850858,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 6}"]}
+{"_e":"metro:client_log","_t":1786068851766,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 8}"]}
+{"_e":"metro:client_log","_t":1786068852581,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 10}"]}
+{"_e":"metro:client_log","_t":1786068853941,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 12}"]}
+{"_e":"metro:client_log","_t":1786068854806,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 14}"]}
+{"_e":"metro:client_log","_t":1786068856013,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 16}"]}
+{"_e":"metro:client_log","_t":1786068856566,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 18}"]}
+{"_e":"metro:client_log","_t":1786068857212,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 20}"]}
+{"_e":"metro:client_log","_t":1786068857605,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 22}"]}
+{"_e":"metro:client_log","_t":1786068859272,"level":"log","data":["[AiAutocorrect]","run skipped: stale run","{\"currentRunId\": 23, \"runId\": 22}"]}
+{"_e":"metro:client_log","_t":1786068868832,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 25}"]}
+{"_e":"metro:client_log","_t":1786068870484,"level":"log","data":["[AiAutocorrect]","running proofread","{\"contextTail\": \"Hey guys i hope this journey will keeep us safe and healrhy \", \"runId\": 25}"]}
+{"_e":"metro:client_log","_t":1786068873183,"level":"log","data":["[AiAutocorrect]","run finished: no correction","{\"resultKind\": \"none\", \"runId\": 25, \"stale\": false}"]}
+{"_e":"metro:client_log","_t":1786068895227,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 27}"]}
+{"_e":"metro:client_log","_t":1786068896828,"level":"log","data":["[AiAutocorrect]","running proofread","{\"contextTail\": \"Hey guys i hope this journey will keeep us safe and healrhy \", \"runId\": 27}"]}
+{"_e":"metro:client_log","_t":1786068898378,"level":"log","data":["[AiAutocorrect]","run finished: no correction","{\"resultKind\": \"none\", \"runId\": 27, \"stale\": false}"]}
+{"_e":"metro:bundling:started","_t":1786068915098,"id":"5","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1786068915099,"id":"5","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1786068915223,"id":"5","total":1,"ms":123.9887}
+{"_e":"metro:bundling:started","_t":1786068918168,"id":"6","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1786068918168,"id":"6","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1786068918279,"id":"6","total":1,"ms":110.647}
+{"_e":"metro:bundling:started","_t":1786068921093,"id":"7","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1786068921093,"id":"7","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1786068921213,"id":"7","total":1,"ms":119.8608}
+{"_e":"metro:bundling:started","_t":1786068924073,"id":"8","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1786068924073,"id":"8","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1786068924188,"id":"8","total":1,"ms":114.9632}
+{"_e":"metro:bundling:started","_t":1786069101498,"id":"9","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1786069101498,"id":"9","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1786069101499,"id":"9","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1786069101602,"id":"9","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1786069102080,"id":"9","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1786069102192,"id":"9","total":1,"ms":694.1095}
+{"_e":"metro:client_log","_t":1786069104931,"level":"warn","data":["Require cycle: src/keyboard/settings/layoutStore.ts -> src/keyboard/settings/tapSoundStore.ts -> src/keyboard/settings/layoutStore.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1786069104931,"level":"warn","data":["Require cycle: src/keyboard/autocorrect/dictionaryManager.ts -> src/keyboard/suggestions/learnedDictionary.ts -> src/keyboard/autocorrect/dictionaryManager.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1786069104932,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1786069113965,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":71,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1786069114030,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"metro:client_log","_t":1786069130712,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":81,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1786069138838,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 3}"]}
+{"_e":"metro:client_log","_t":1786069142683,"level":"log","data":["[AiAutocorrect]","running word batch","{\"contextWordCount\": 2, \"runId\": 3, \"targetCount\": 1}"]}
+{"_e":"metro:client_log","_t":1786069142684,"level":"log","data":["[AiAutocorrect]","run finished: no correction","{\"resultKind\": \"none\", \"runId\": 3, \"stale\": false}"]}
+{"_e":"metro:client_log","_t":1786069235750,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 8}"]}
+{"_e":"metro:client_log","_t":1786069240184,"level":"log","data":["[AiAutocorrect]","running word batch","{\"contextWordCount\": 1, \"runId\": 8, \"targetCount\": 1}"]}
+{"_e":"metro:client_log","_t":1786069240185,"level":"log","data":["[AiAutocorrect]","run finished: no correction","{\"resultKind\": \"none\", \"runId\": 8, \"stale\": true}"]}
+{"_e":"metro:bundling:started","_t":1786069271717,"id":"a","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1786069271717,"id":"a","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1786069271834,"id":"a","total":1,"ms":116.5122}
+{"_e":"metro:client_log","_t":1786069274970,"level":"warn","data":["Require cycle: src/keyboard/settings/layoutStore.ts -> src/keyboard/settings/tapSoundStore.ts -> src/keyboard/settings/layoutStore.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1786069274970,"level":"warn","data":["Require cycle: src/keyboard/autocorrect/dictionaryManager.ts -> src/keyboard/suggestions/learnedDictionary.ts -> src/keyboard/autocorrect/dictionaryManager.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1786069274970,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1786069295181,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":101,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1786069295252,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"metro:client_log","_t":1786069297806,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 2}"]}
+{"_e":"metro:client_log","_t":1786069301899,"level":"log","data":["[AiAutocorrect]","running word batch","{\"contextWordCount\": 2, \"runId\": 2, \"targetCount\": 1}"]}
+{"_e":"metro:client_log","_t":1786069301900,"level":"log","data":["[AiAutocorrect]","run finished: no correction","{\"resultKind\": \"none\", \"runId\": 2, \"stale\": false}"]}
+{"_e":"metro:bundling:started","_t":1786069327791,"id":"b","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1786069327791,"id":"b","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1786069327922,"id":"b","total":1,"ms":131.6629}
+{"_e":"metro:client_log","_t":1786069331063,"level":"warn","data":["Require cycle: src/keyboard/settings/layoutStore.ts -> src/keyboard/settings/tapSoundStore.ts -> src/keyboard/settings/layoutStore.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1786069331063,"level":"warn","data":["Require cycle: src/keyboard/autocorrect/dictionaryManager.ts -> src/keyboard/suggestions/learnedDictionary.ts -> src/keyboard/autocorrect/dictionaryManager.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1786069331063,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1786069331063,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":101,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1786069331438,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"metro:client_log","_t":1786069537049,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":111,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1786069538726,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 2}"]}
+{"_e":"metro:client_log","_t":1786069543022,"level":"log","data":["[AiAutocorrect]","running word batch","{\"contextWordCount\": 2, \"runId\": 2, \"targetCount\": 1}"]}
+{"_e":"metro:client_log","_t":1786069543023,"level":"log","data":["[AiAutocorrect]","run finished: no correction","{\"resultKind\": \"none\", \"runId\": 2, \"stale\": false}"]}
+{"_e":"metro:bundling:started","_t":1786069553903,"id":"c","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1786069553903,"id":"c","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1786069554000,"id":"c","total":1,"ms":96.6424}
+{"_e":"metro:client_log","_t":1786069557093,"level":"warn","data":["Require cycle: src/keyboard/settings/layoutStore.ts -> src/keyboard/settings/tapSoundStore.ts -> src/keyboard/settings/layoutStore.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1786069557093,"level":"warn","data":["Require cycle: src/keyboard/autocorrect/dictionaryManager.ts -> src/keyboard/suggestions/learnedDictionary.ts -> src/keyboard/autocorrect/dictionaryManager.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1786069557093,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1786069557093,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":111,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1786069557563,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"metro:client_log","_t":1786069563661,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 4}"]}
+{"_e":"metro:client_log","_t":1786069567769,"level":"log","data":["[AiAutocorrect]","running word batch","{\"contextWordCount\": 2, \"runId\": 4, \"targetCount\": 1}"]}
+{"_e":"metro:client_log","_t":1786069567771,"level":"log","data":["[AiAutocorrect]","run finished: no correction","{\"resultKind\": \"none\", \"runId\": 4, \"stale\": false}"]}
+{"_e":"metro:client_log","_t":1786069682699,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 10}"]}
+{"_e":"metro:client_log","_t":1786069685603,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 12}"]}
+{"_e":"metro:client_log","_t":1786069686702,"level":"log","data":["[AiAutocorrect]","running word batch","{\"contextWordCount\": 2, \"runId\": 10, \"targetCount\": 1}"]}
+{"_e":"metro:client_log","_t":1786069686739,"level":"log","data":["[AiAutocorrect]","run finished: no correction","{\"resultKind\": \"none\", \"runId\": 10, \"stale\": true}"]}
+{"_e":"metro:client_log","_t":1786069690520,"level":"log","data":["[AiAutocorrect]","running word batch","{\"contextWordCount\": 1, \"runId\": 12, \"targetCount\": 1}"]}
+{"_e":"metro:client_log","_t":1786069690520,"level":"log","data":["[AiAutocorrect]","run finished: no correction","{\"resultKind\": \"none\", \"runId\": 12, \"stale\": false}"]}
+{"_e":"metro:bundling:started","_t":1786069693983,"id":"d","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1786069693984,"id":"d","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1786069694078,"id":"d","total":1,"ms":94.6615}
+{"_e":"metro:client_log","_t":1786069698518,"level":"warn","data":["Require cycle: src/keyboard/settings/layoutStore.ts -> src/keyboard/settings/tapSoundStore.ts -> src/keyboard/settings/layoutStore.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1786069698518,"level":"warn","data":["Require cycle: src/keyboard/autocorrect/dictionaryManager.ts -> src/keyboard/suggestions/learnedDictionary.ts -> src/keyboard/autocorrect/dictionaryManager.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1786069698518,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1786069698518,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":111,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1786069710767,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":121,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1786069710901,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"metro:client_log","_t":1786069738486,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 13}"]}
+{"_e":"metro:client_log","_t":1786069743653,"level":"log","data":["[AiAutocorrect]","running word batch","{\"contextWordCount\": 2, \"runId\": 13, \"targetCount\": 1}"]}
+{"_e":"metro:client_log","_t":1786069743690,"level":"log","data":["[AiAutocorrect]","run finished: no correction","{\"resultKind\": \"none\", \"runId\": 13, \"stale\": false}"]}
+{"_e":"metro:client_log","_t":1786069780045,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":131,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1786069782182,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 2}"]}
+{"_e":"metro:client_log","_t":1786069786018,"level":"log","data":["[AiAutocorrect]","running word batch","{\"contextWordCount\": 2, \"runId\": 2, \"targetCount\": 1}"]}
+{"_e":"metro:client_log","_t":1786069786020,"level":"log","data":["[AiAutocorrect]","run finished: no correction","{\"resultKind\": \"none\", \"runId\": 2, \"stale\": false}"]}
+{"_e":"metro:client_log","_t":1786069824232,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 6}"]}
+{"_e":"metro:client_log","_t":1786069824611,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 8}"]}
+{"_e":"metro:client_log","_t":1786069825073,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 10}"]}
+{"_e":"metro:client_log","_t":1786069829182,"level":"log","data":["[AiAutocorrect]","running word batch","{\"contextWordCount\": 2, \"runId\": 10, \"targetCount\": 1}"]}
+{"_e":"metro:client_log","_t":1786069829185,"level":"log","data":["[AiAutocorrect]","run finished: no correction","{\"resultKind\": \"none\", \"runId\": 10, \"stale\": false}"]}
+{"_e":"metro:client_log","_t":1786069830285,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 12}"]}
+{"_e":"metro:client_log","_t":1786069830959,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 14}"]}
+{"_e":"metro:client_log","_t":1786069835193,"level":"log","data":["[AiAutocorrect]","running word batch","{\"contextWordCount\": 2, \"runId\": 14, \"targetCount\": 1}"]}
+{"_e":"metro:client_log","_t":1786069835194,"level":"log","data":["[AiAutocorrect]","run finished: no correction","{\"resultKind\": \"none\", \"runId\": 14, \"stale\": false}"]}
+{"_e":"metro:bundling:started","_t":1786069963102,"id":"e","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1786069963103,"id":"e","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1786069963201,"id":"e","total":1,"ms":98.5084}
+{"_e":"metro:bundling:started","_t":1786069966207,"id":"f","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1786069966207,"id":"f","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1786069966303,"id":"f","total":1,"ms":95.9325}
+{"_e":"metro:bundling:started","_t":1786069969235,"id":"g","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1786069969235,"id":"g","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1786069969329,"id":"g","total":1,"ms":94.2871}
+{"_e":"metro:client_log","_t":1786069972288,"level":"warn","data":["Require cycle: src/keyboard/settings/layoutStore.ts -> src/keyboard/settings/tapSoundStore.ts -> src/keyboard/settings/layoutStore.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1786069972288,"level":"warn","data":["Require cycle: src/keyboard/autocorrect/dictionaryManager.ts -> src/keyboard/suggestions/learnedDictionary.ts -> src/keyboard/autocorrect/dictionaryManager.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1786069972288,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1786069982866,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":161,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1786069982934,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"metro:client_log","_t":1786069985224,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 2}"]}
+{"_e":"metro:client_log","_t":1786069989214,"level":"log","data":["[AiAutocorrect]","word batch response","{\"responseLength\": 66, \"responseShape\": \"object\"}"]}
+{"_e":"metro:client_log","_t":1786069989219,"level":"log","data":["[AiAutocorrect]","auto result","{\"autoDistanceLimit\": 20, \"correction\": \"corrected\", \"distance\": 8, \"original\": \"job\", \"wordDelta\": 0}"]}
+{"_e":"metro:client_log","_t":1786069989220,"level":"log","data":["[AiAutocorrect]","running word batch","{\"contextWordCount\": 2, \"runId\": 2, \"targetCount\": 1}"]}
+{"_e":"metro:client_log","_t":1786069989220,"level":"log","data":["[AiAutocorrect]","auto result","{\"correction\": \"corrected\", \"original\": \"job\"}"]}
+{"_e":"metro:client_log","_t":1786069989260,"level":"log","data":["[AiAutocorrect]","applying correction","{\"replaceLength\": 4}"]}
+{"_e":"metro:client_log","_t":1786070047663,"level":"log","data":["[AiAutocorrect]","word batch response","{\"responseLength\": 66, \"responseShape\": \"object\"}"]}
+{"_e":"metro:client_log","_t":1786070047702,"level":"log","data":["[AiAutocorrect]","auto result","{\"autoDistanceLimit\": 20, \"correction\": \"corrected\", \"distance\": 7, \"original\": \"arhear\", \"wordDelta\": 0}"]}
+{"_e":"metro:client_log","_t":1786070049422,"level":"log","data":["[AiAutocorrect]","word batch response","{\"responseLength\": 66, \"responseShape\": \"object\"}"]}
+{"_e":"metro:client_log","_t":1786070049423,"level":"log","data":["[AiAutocorrect]","auto result","{\"autoDistanceLimit\": 20, \"correction\": \"corrected\", \"distance\": 7, \"original\": \"arheart\", \"wordDelta\": 0}"]}
+{"_e":"metro:client_log","_t":1786070050912,"level":"log","data":["[AiAutocorrect]","word batch response","{\"responseLength\": 66, \"responseShape\": \"object\"}"]}
+{"_e":"metro:client_log","_t":1786070050914,"level":"log","data":["[AiAutocorrect]","auto result","{\"autoDistanceLimit\": 20, \"correction\": \"corrected\", \"distance\": 7, \"original\": \"arhearth\", \"wordDelta\": 0}"]}
+{"_e":"metro:client_log","_t":1786070053115,"level":"log","data":["[AiAutocorrect]","word batch response","{\"responseLength\": 66, \"responseShape\": \"object\"}"]}
+{"_e":"metro:client_log","_t":1786070053153,"level":"log","data":["[AiAutocorrect]","auto result","{\"autoDistanceLimit\": 20, \"correction\": \"corrected\", \"distance\": 7, \"original\": \"arhearthy\", \"wordDelta\": 0}"]}
+{"_e":"metro:client_log","_t":1786070063919,"level":"log","data":["[AiAutocorrect]","word batch response","{\"responseLength\": 66, \"responseShape\": \"object\"}"]}
+{"_e":"metro:client_log","_t":1786070063921,"level":"log","data":["[AiAutocorrect]","auto result","{\"autoDistanceLimit\": 20, \"correction\": \"corrected\", \"distance\": 7, \"original\": \"arhear\", \"wordDelta\": 0}"]}
+{"_e":"metro:client_log","_t":1786070065785,"level":"log","data":["[AiAutocorrect]","word batch response","{\"responseLength\": 66, \"responseShape\": \"object\"}"]}
+{"_e":"metro:client_log","_t":1786070065786,"level":"log","data":["[AiAutocorrect]","auto result","{\"autoDistanceLimit\": 20, \"correction\": \"corrected\", \"distance\": 8, \"original\": \"arhearlthy\", \"wordDelta\": 0}"]}
+{"_e":"metro:client_log","_t":1786070069469,"level":"log","data":["[AiAutocorrect]","apply skipped: context changed","{\"replaceLength\": 10}"]}
+{"_e":"metro:client_log","_t":1786070069819,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 5}"]}
+{"_e":"metro:client_log","_t":1786070073118,"level":"log","data":["[AiAutocorrect]","word batch response","{\"responseLength\": 66, \"responseShape\": \"object\"}"]}
+{"_e":"metro:client_log","_t":1786070073157,"level":"log","data":["[AiAutocorrect]","auto result","{\"autoDistanceLimit\": 20, \"correction\": \"corrected\", \"distance\": 8, \"original\": \"arhearlthy\", \"wordDelta\": 0}"]}
+{"_e":"metro:client_log","_t":1786070073157,"level":"log","data":["[AiAutocorrect]","running word batch","{\"contextWordCount\": 2, \"runId\": 5, \"targetCount\": 1}"]}
+{"_e":"metro:client_log","_t":1786070073157,"level":"log","data":["[AiAutocorrect]","result skipped: context/original gate","{\"lastOriginal\": null, \"runId\": 5}"]}
+{"_e":"metro:client_log","_t":1786070080277,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 7}"]}
+{"_e":"metro:client_log","_t":1786070081956,"level":"log","data":["[AiAutocorrect]","word batch response","{\"responseLength\": 66, \"responseShape\": \"object\"}"]}
+{"_e":"metro:client_log","_t":1786070081957,"level":"log","data":["[AiAutocorrect]","auto result","{\"autoDistanceLimit\": 20, \"correction\": \"corrected\", \"distance\": 8, \"original\": \"life\", \"wordDelta\": 0}"]}
+{"_e":"metro:client_log","_t":1786070083658,"level":"log","data":["[AiAutocorrect]","word batch response","{\"responseLength\": 66, \"responseShape\": \"object\"}"]}
+{"_e":"metro:client_log","_t":1786070083660,"level":"log","data":["[AiAutocorrect]","auto result","{\"autoDistanceLimit\": 20, \"correction\": \"corrected\", \"distance\": 8, \"original\": \"life\", \"wordDelta\": 0}"]}
+{"_e":"metro:client_log","_t":1786070083660,"level":"log","data":["[AiAutocorrect]","running word batch","{\"contextWordCount\": 2, \"runId\": 7, \"targetCount\": 1}"]}
+{"_e":"metro:client_log","_t":1786070083660,"level":"log","data":["[AiAutocorrect]","result skipped: context/original gate","{\"lastOriginal\": null, \"runId\": 7}"]}
+{"_e":"metro:client_log","_t":1786070085023,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 9}"]}
+{"_e":"metro:client_log","_t":1786070085452,"level":"log","data":["[AiAutocorrect]","word batch response","{\"responseLength\": 66, \"responseShape\": \"object\"}"]}
+{"_e":"metro:client_log","_t":1786070085453,"level":"log","data":["[AiAutocorrect]","auto result","{\"autoDistanceLimit\": 20, \"correction\": \"corrected\", \"distance\": 8, \"original\": \"heal\", \"wordDelta\": 0}"]}
+{"_e":"metro:client_log","_t":1786070088395,"level":"log","data":["[AiAutocorrect]","word batch response","{\"responseLength\": 64, \"responseShape\": \"object\"}"]}
+{"_e":"metro:client_log","_t":1786070088396,"level":"log","data":["[AiAutocorrect]","running word batch","{\"contextWordCount\": 2, \"runId\": 9, \"targetCount\": 1}"]}
+{"_e":"metro:client_log","_t":1786070088396,"level":"log","data":["[AiAutocorrect]","run finished: no correction","{\"resultKind\": \"none\", \"runId\": 9, \"stale\": false}"]}
+{"_e":"metro:client_log","_t":1786070089915,"level":"log","data":["[AiAutocorrect]","word batch response","{\"responseLength\": 64, \"responseShape\": \"object\"}"]}
+{"_e":"metro:client_log","_t":1786070089917,"level":"log","data":["[AiAutocorrect]","auto result","{\"autoDistanceLimit\": 20, \"correction\": \"healthy\", \"distance\": 7, \"original\": \"wife\", \"wordDelta\": 0}"]}
+{"_e":"metro:client_log","_t":1786070093446,"level":"log","data":["[AiAutocorrect]","applying correction","{\"replaceLength\": 5}"]}
+{"_e":"metro:client_log","_t":1786070098324,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 12}"]}
+{"_e":"metro:client_log","_t":1786070101870,"level":"log","data":["[AiAutocorrect]","word batch response","{\"responseLength\": 64, \"responseShape\": \"object\"}"]}
+{"_e":"metro:client_log","_t":1786070101871,"level":"log","data":["[AiAutocorrect]","running word batch","{\"contextWordCount\": 2, \"runId\": 12, \"targetCount\": 1}"]}
+{"_e":"metro:client_log","_t":1786070101871,"level":"log","data":["[AiAutocorrect]","run finished: no correction","{\"resultKind\": \"none\", \"runId\": 12, \"stale\": false}"]}
+{"_e":"metro:bundling:started","_t":1786070415412,"id":"h","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1786070415412,"id":"h","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1786070415506,"id":"h","total":1,"ms":94.4659}
+{"_e":"metro:bundling:started","_t":1786070418610,"id":"i","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1786070418610,"id":"i","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1786070418717,"id":"i","total":1,"ms":106.818}
+{"_e":"metro:bundling:started","_t":1786070421745,"id":"j","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1786070421745,"id":"j","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1786070421847,"id":"j","total":1,"ms":102.4734}
+{"_e":"metro:bundling:started","_t":1786070424744,"id":"k","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1786070424744,"id":"k","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1786070424839,"id":"k","total":1,"ms":95.6895}
+{"_e":"metro:bundling:started","_t":1786070434080,"id":"l","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1786070434080,"id":"l","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1786070434179,"id":"l","total":1,"ms":99.0796}
+{"_e":"metro:client_log","_t":1786070438028,"level":"warn","data":["Require cycle: src/keyboard/settings/layoutStore.ts -> src/keyboard/settings/tapSoundStore.ts -> src/keyboard/settings/layoutStore.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1786070438028,"level":"warn","data":["Require cycle: src/keyboard/autocorrect/dictionaryManager.ts -> src/keyboard/suggestions/learnedDictionary.ts -> src/keyboard/autocorrect/dictionaryManager.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1786070438028,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1786070439303,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":11,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1786070439523,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"metro:client_log","_t":1786070445689,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 3}"]}
+{"_e":"metro:client_log","_t":1786070450614,"level":"log","data":["[AiAutocorrect]","word batch response","{\"responseLength\": 66, \"responseShape\": \"object\"}"]}
+{"_e":"metro:client_log","_t":1786070450617,"level":"log","data":["[AiAutocorrect]","running word batch","{\"contextWordCount\": 2, \"runId\": 3, \"targetCount\": 1}"]}
+{"_e":"metro:client_log","_t":1786070450618,"level":"log","data":["[AiAutocorrect]","run finished: no correction","{\"resultKind\": \"none\", \"runId\": 3, \"stale\": false}"]}
+{"_e":"metro:client_log","_t":1786070452975,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 5}"]}
+{"_e":"metro:client_log","_t":1786070453817,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 7}"]}
+{"_e":"metro:client_log","_t":1786070454585,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 9}"]}
+{"_e":"metro:client_log","_t":1786070455418,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 11}"]}
+{"_e":"metro:client_log","_t":1786070458119,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 13}"]}
+{"_e":"metro:client_log","_t":1786070458494,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 15}"]}
+{"_e":"metro:client_log","_t":1786070458866,"level":"log","data":["[AiAutocorrect]","word batch response","{\"responseLength\": 66, \"responseShape\": \"object\"}"]}
+{"_e":"metro:client_log","_t":1786070458866,"level":"log","data":["[AiAutocorrect]","running word batch","{\"contextWordCount\": 2, \"runId\": 11, \"targetCount\": 1}"]}
+{"_e":"metro:client_log","_t":1786070458866,"level":"log","data":["[AiAutocorrect]","run finished: no correction","{\"resultKind\": \"none\", \"runId\": 11, \"stale\": true}"]}
+{"_e":"metro:client_log","_t":1786070460218,"level":"log","data":["[AiAutocorrect]","run skipped: stale run","{\"currentRunId\": 16, \"runId\": 15}"]}
+{"_e":"metro:client_log","_t":1786070460242,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 17}"]}
+{"_e":"metro:client_log","_t":1786070463623,"level":"log","data":["[AiAutocorrect]","word batch response","{\"responseLength\": 63, \"responseShape\": \"object\"}"]}
+{"_e":"metro:client_log","_t":1786070463623,"level":"log","data":["[AiAutocorrect]","running word batch","{\"contextWordCount\": 2, \"runId\": 17, \"targetCount\": 1}"]}
+{"_e":"metro:client_log","_t":1786070463623,"level":"log","data":["[AiAutocorrect]","run finished: no correction","{\"resultKind\": \"none\", \"runId\": 17, \"stale\": false}"]}
+{"_e":"metro:client_log","_t":1786070519633,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 19}"]}
+{"_e":"metro:client_log","_t":1786070521257,"level":"log","data":["[AiAutocorrect]","running proofread","{\"contextTail\": \"doinjg good what about you broth \", \"runId\": 19}"]}
+{"_e":"metro:client_log","_t":1786070521259,"level":"log","data":["[AiAutocorrect]","snippet selected","{\"snippet\": \"doinjg good what about you broth\"}"]}
+{"_e":"metro:client_log","_t":1786070521259,"level":"log","data":["[AiAutocorrect]","on-device request","{\"input\": \"doinjg good what about you broth\"}"]}
+{"_e":"metro:client_log","_t":1786070522460,"level":"log","data":["[AiAutocorrect]","scheduled","{\"delayMs\": 1600, \"runId\": 21}"]}
+{"_e":"metro:client_log","_t":1786070522820,"level":"log","data":["[AiAutocorrect]","on-device raw response","{\"raw\": \"\\\"Doin' good what about you broth?\\\"\"}"]}
+{"_e":"metro:client_log","_t":1786070522821,"level":"log","data":["[AiAutocorrect]","parsed correction","{\"correction\": \"Doin' good what about you broth?\", \"original\": \"doinjg good what about you broth\"}"]}
+{"_e":"metro:client_log","_t":1786070522821,"level":"log","data":["[AiAutocorrect]","auto result","{\"autoDistanceLimit\": 20, \"correction\": \"Doin' good what about you broth?\", \"distance\": 3, \"original\": \"doinjg good what about you broth\", \"wordDelta\": 0}"]}
+{"_e":"metro:client_log","_t":1786070522821,"level":"log","data":["[AiAutocorrect]","run finished: no correction","{\"resultKind\": \"auto\", \"runId\": 19, \"stale\": true}"]}
+{"_e":"metro:client_log","_t":1786070524084,"level":"log","data":["[AiAutocorrect]","running proofread","{\"contextTail\": \"doinjg good what about you brotha a \", \"runId\": 21}"]}
+{"_e":"metro:client_log","_t":1786070524085,"level":"log","data":["[AiAutocorrect]","snippet selected","{\"snippet\": \"doinjg good what about you brotha a\"}"]}
+{"_e":"metro:client_log","_t":1786070524086,"level":"log","data":["[AiAutocorrect]","on-device request","{\"input\": \"doinjg good what about you brotha a\"}"]}
+{"_e":"metro:client_log","_t":1786070525336,"level":"log","data":["[AiAutocorrect]","on-device raw response","{\"raw\": \"\\\"Doin' good what about you brotha?\\\"\"}"]}
+{"_e":"metro:client_log","_t":1786070525337,"level":"log","data":["[AiAutocorrect]","parsed correction","{\"correction\": \"Doin' good what about you brotha?\", \"original\": \"doinjg good what about you brotha a\"}"]}
+{"_e":"metro:client_log","_t":1786070525337,"level":"log","data":["[AiAutocorrect]","auto result","{\"autoDistanceLimit\": 20, \"correction\": \"Doin' good what about you brotha?\", \"distance\": 4, \"original\": \"doinjg good what about you brotha a\", \"wordDelta\": 1}"]}
+{"_e":"metro:client_log","_t":1786070525338,"level":"log","data":["[AiAutocorrect]","auto result","{\"correction\": \"Doin' good what about you brotha?\", \"original\": \"doinjg good what about you brotha a\"}"]}
+{"_e":"metro:client_log","_t":1786070525341,"level":"log","data":["[AiAutocorrect]","applying correction","{\"correction\": \"Doin' good what about you brotha?\", \"original\": \"doinjg good what about you brotha a\", \"replaceLength\": 36}"]}
+{"_e":"metro:client_log","_t":1786070696091,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1786070696930,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1786070697222,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1786070698087,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1786070698551,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1786070699294,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1786070700272,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1786070700702,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1786070701710,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1786070702833,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1786070704013,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1786070706353,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1786070706674,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1786070707288,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1786070708688,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1786070709275,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1786070709587,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1786070710417,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1786070711035,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1786070711482,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1786070712491,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1786070713610,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1786070715054,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1786071206462,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1786071207801,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1786071208306,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1786071209911,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1786071210766,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1786071211365,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1786071211994,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1786071212706,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1786071213843,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1786071218792,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1786071227300,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1786071227870,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1786071229451,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1786071230199,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1786071230865,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1786071231511,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1786071232959,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1786071233454,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
