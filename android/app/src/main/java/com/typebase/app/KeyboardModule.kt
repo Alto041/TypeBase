@@ -1189,7 +1189,12 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   @ReactMethod
   fun setVoiceSttProvider(provider: String, promise: Promise) {
     try {
-      val normalized = if (provider == "android") "android" else "speechmatics"
+      val normalized =
+          when (provider) {
+            "android" -> "android"
+            "parakeet" -> "parakeet"
+            else -> "speechmatics"
+          }
       val saved =
           learnedWordsPrefs().edit().putString(VOICE_STT_PROVIDER_KEY, normalized).commit()
       promise.resolve(saved)

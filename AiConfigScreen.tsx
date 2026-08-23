@@ -39,6 +39,11 @@ import {
   setVoiceSttProvider,
   type VoiceSttProvider,
 } from './src/keyboard/settings/voiceSttProviderStore';
+import {
+  ensureParakeetModelDownloaded,
+  isParakeetVoiceSupported,
+} from './src/keyboard/voice/parakeetModelManager';
+import {isParakeetModelDownloaded} from './src/keyboard/voice/parakeetBridge';
 import {isGemmaModelDownloaded} from './src/keyboard/ai/gemmaBridge';
 import {
   ensureGemmaModelDownloaded,
@@ -90,6 +95,10 @@ export function AiConfigScreen({
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [isModelDownloaded, setIsModelDownloaded] = useState(false);
+  const [isParakeetDownloading, setIsParakeetDownloading] = useState(false);
+  const [parakeetDownloadProgress, setParakeetDownloadProgress] = useState(0);
+  const [isParakeetModelReady, setIsParakeetModelReady] = useState(false);
+  const [isParakeetSupported, setIsParakeetSupported] = useState(false);
 
   const scrollViewRef = useRef<ScrollView | null>(null);
   const geminiApiKeyInputRef = useRef<TextInput | null>(null);
@@ -113,7 +122,10 @@ export function AiConfigScreen({
 
       if (shouldApplyWizardDefaults) {
         nextProvider = onDeviceSupported ? 'on_device' : 'gemini';
-        nextVoiceProvider = 'android';
+        nextVoiceProvider =
+          onDeviceSupported && isParakeetVoiceSupported()
+            ? 'parakeet'
+            : 'android';
         await setAiProvider(nextProvider);
         await setVoiceSttProvider(nextVoiceProvider);
       }
@@ -123,10 +135,15 @@ export function AiConfigScreen({
       voiceProviderAnim.setValue(nextVoiceProvider === 'android' ? 1 : 0);
       setApiKeysState(keys);
       setIsOnDeviceSupported(onDeviceSupported);
+      setIsParakeetSupported(isParakeetVoiceSupported());
 
       if (onDeviceSupported) {
         const downloaded = await isGemmaModelDownloaded();
         setIsModelDownloaded(downloaded);
+      }
+
+      if (isParakeetVoiceSupported()) {
+        setIsParakeetModelReady(await isParakeetModelDownloaded());
       }
 
       setIsLoading(false);
@@ -157,6 +174,11 @@ export function AiConfigScreen({
     playSwitchOnSound();
     setProvider(newProvider);
     await setAiProvider(newProvider);
+    if (newProvider === 'on_device' && isParakeetVoiceSupported()) {
+      setVoiceProviderState('parakeet');
+      animateToggle(voiceProviderAnim, 0);
+      await setVoiceSttProvider('parakeet');
+    }
   };
 
   const animateToggle = (anim: Animated.Value, toValue: number) => {
@@ -225,6 +247,23 @@ export function AiConfigScreen({
       console.error('Failed to download model:', error);
     } finally {
       setIsDownloading(false);
+    }
+  };
+
+  const handleDownloadParakeetModel = async () => {
+    void Haptics.selectionAsync().catch(() => {});
+    setIsParakeetDownloading(true);
+    setParakeetDownloadProgress(0);
+
+    try {
+      await ensureParakeetModelDownloaded((progress: number) => {
+        setParakeetDownloadProgress(progress);
+      });
+      setIsParakeetModelReady(true);
+    } catch (error) {
+      console.error('Failed to download Parakeet model:', error);
+    } finally {
+      setIsParakeetDownloading(false);
     }
   };
 
@@ -374,43 +413,82 @@ export function AiConfigScreen({
             </View>
           )}
 
-          {/* On-Device Model Download */}
+          {/* On-Device Models */}
           {provider === 'on_device' && isOnDeviceSupported && (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>On-Device Model</Text>
-              <View style={styles.modelCard}>
-                <View style={styles.modelInfo}>
-                  <Text style={styles.modelTitle}>Gemma 3 1B IT</Text>
-                  <Text style={styles.modelSubtitle}>~550 MB</Text>
+              <Text style={styles.sectionTitle}>On-Device Models</Text>
+              <View style={styles.modelGroup}>
+                <View style={styles.modelCard}>
+                  <View style={styles.modelInfo}>
+                    <Text style={styles.modelTitle}>Gemma 3 1B IT</Text>
+                    <Text style={styles.modelSubtitle}>~550 MB</Text>
+                  </View>
+
+                  {isModelDownloaded ? (
+                    <View style={styles.downloadedBadge}>
+                      <Text style={styles.downloadedText}>Downloaded</Text>
+                    </View>
+                  ) : isDownloading ? (
+                    <View style={styles.downloadProgress}>
+                      <View style={styles.progressBar}>
+                        <View
+                          style={[
+                            styles.progressFill,
+                            { width: `${Math.round(downloadProgress * 100)}%` },
+                          ]}
+                        />
+                      </View>
+                      <Text style={styles.progressText}>
+                        {Math.round(downloadProgress * 100)}%
+                      </Text>
+                    </View>
+                  ) : (
+                    <Pressable
+                      onPress={handleDownloadModel}
+                      style={styles.downloadButton}
+                    >
+                      <DownloadIcon width={18} height={18} />
+                      <Text style={styles.downloadButtonText}>Download</Text>
+                    </Pressable>
+                  )}
                 </View>
 
-                {isModelDownloaded ? (
-                  <View style={styles.downloadedBadge}>
-                    <Text style={styles.downloadedText}>Downloaded</Text>
-                  </View>
-                ) : isDownloading ? (
-                  <View style={styles.downloadProgress}>
-                    <View style={styles.progressBar}>
-                      <View
-                        style={[
-                          styles.progressFill,
-                          { width: `${Math.round(downloadProgress * 100)}%` },
-                        ]}
-                      />
+                {isParakeetSupported && voiceProvider === 'parakeet' ? (
+                  <View style={[styles.modelCard, styles.modelCardDivider]}>
+                    <View style={styles.modelInfo}>
+                      <Text style={styles.modelTitle}>Parakeet TDT 0.6B v3</Text>
+                      <Text style={styles.modelSubtitle}>~1.2 GB</Text>
                     </View>
-                    <Text style={styles.progressText}>
-                      {Math.round(downloadProgress * 100)}%
-                    </Text>
+
+                    {isParakeetModelReady ? (
+                      <View style={styles.downloadedBadge}>
+                        <Text style={styles.downloadedText}>Downloaded</Text>
+                      </View>
+                    ) : isParakeetDownloading ? (
+                      <View style={styles.downloadProgress}>
+                        <View style={styles.progressBar}>
+                          <View
+                            style={[
+                              styles.progressFill,
+                              { width: `${Math.round(parakeetDownloadProgress * 100)}%` },
+                            ]}
+                          />
+                        </View>
+                        <Text style={styles.progressText}>
+                          {Math.round(parakeetDownloadProgress * 100)}%
+                        </Text>
+                      </View>
+                    ) : (
+                      <Pressable
+                        onPress={handleDownloadParakeetModel}
+                        style={styles.downloadButton}
+                      >
+                        <DownloadIcon width={18} height={18} />
+                        <Text style={styles.downloadButtonText}>Download</Text>
+                      </Pressable>
+                    )}
                   </View>
-                ) : (
-                  <Pressable
-                    onPress={handleDownloadModel}
-                    style={styles.downloadButton}
-                  >
-                    <DownloadIcon width={18} height={18} />
-                    <Text style={styles.downloadButtonText}>Download</Text>
-                  </Pressable>
-                )}
+                ) : null}
               </View>
             </View>
           )}
@@ -450,7 +528,9 @@ export function AiConfigScreen({
             <Text style={styles.inputHint}>
               {voiceProvider === 'android'
                 ? 'Device speech recognition'
-                : 'Off: Speechmatics'}
+                : voiceProvider === 'parakeet'
+                  ? 'On-device Parakeet TDT 0.6B v3'
+                  : 'Off: Speechmatics'}
             </Text>
           </View>
 
@@ -808,9 +888,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: C.card,
-    borderRadius: CARD_R,
     padding: 16,
     gap: 12,
+  },
+  modelCardDivider: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: C.border,
+  },
+  modelGroup: {
+    backgroundColor: C.card,
+    borderRadius: CARD_R,
+    overflow: 'hidden',
   },
   modelInfo: {
     flex: 1,

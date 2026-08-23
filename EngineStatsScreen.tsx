@@ -247,7 +247,12 @@ export function EngineStatsScreen({onBack}: {onBack: () => void}) {
         gemmaLastMs: getGemmaRuntimeStats().lastInferenceMs,
         gemmaP50Ms: getGemmaRuntimeStats().p50InferenceMs,
         aiProvider: aiProvider === 'on_device' ? 'on_device' : 'cloud',
-        voiceStt: voiceStt === 'android' ? 'android' : 'speechmatics',
+        voiceStt:
+          voiceStt === 'android'
+            ? 'android'
+            : voiceStt === 'parakeet'
+              ? 'parakeet'
+              : 'speechmatics',
         fastPath: (() => {
           try {
             return keyboardBridge.isNativeTypingCommitActive();
@@ -436,7 +441,13 @@ export function EngineStatsScreen({onBack}: {onBack: () => void}) {
         <SectionCard title="Voice">
           <SectionRow
             label="STT"
-            value={snap.voiceStt === 'android' ? 'Android' : 'Speechmatics'}
+            value={
+              snap.voiceStt === 'android'
+                ? 'Android'
+                : snap.voiceStt === 'parakeet'
+                  ? 'Parakeet'
+                  : 'Speechmatics'
+            }
           />
           <SectionRow
             label="Cleanup"

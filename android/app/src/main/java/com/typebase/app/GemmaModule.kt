@@ -25,6 +25,10 @@ class GemmaModule(private val reactContext: ReactApplicationContext) :
   private var llmInference: LlmInference? = null
   private var downloadCancelled = AtomicBoolean(false)
 
+  init {
+    Holder.instance = this
+  }
+
   override fun getName(): String = "GemmaModule"
 
   private fun modelFile(): File =
@@ -216,6 +220,7 @@ class GemmaModule(private val reactContext: ReactApplicationContext) :
   }
 
   override fun invalidate() {
+    Holder.instance = null
     downloadCancelled.set(true)
     executor.execute {
       llmInference?.close()
@@ -251,5 +256,22 @@ class GemmaModule(private val reactContext: ReactApplicationContext) :
     private const val MODEL_TEMPERATURE = 0f
     private const val MODEL_TOP_K = 1
     private const val MODEL_TOP_P = 1f
+
+    private object Holder {
+      @Volatile var instance: GemmaModule? = null
+    }
+
+    /** Frees Gemma weights before loading the Parakeet voice pipeline in the IME. */
+    fun releaseForVoiceSession() {
+      Holder.instance?.releaseModelSynchronously()
+    }
+  }
+
+  private fun releaseModelSynchronously() {
+    try {
+      llmInference?.close()
+    } catch (_: Exception) {
+    }
+    llmInference = null
   }
 }

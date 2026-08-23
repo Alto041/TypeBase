@@ -16,6 +16,7 @@ class KeyboardModulePackage : ReactPackage {
           VoiceActivationSoundModule(reactContext),
           KeyPreviewModule(reactContext),
           GemmaModule(reactContext),
+          ParakeetVoiceModule(reactContext),
           PlayLicenseModule(reactContext),
       )
 

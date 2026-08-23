@@ -15,6 +15,7 @@ import {
   preloadVoiceActivationSound,
 } from './voiceActivationSound';
 import {SpeechmaticsVoiceService} from './speechmaticsService';
+import {unloadGemmaModel} from '../ai/gemmaBridge';
 import {getRollingPreviewWords, VOICE_PILL_PREVIEW_MAX_WORDS} from './voiceTranscriptPreview';
 import {voiceRecorder} from './voiceRecorder';
 
@@ -193,7 +194,11 @@ export function useVoiceInput() {
 
       const activeProvider = activeSttProviderRef.current;
 
-      if (activeProvider === 'android') {
+      if (activeProvider === 'parakeet') {
+        await voiceRecorder.stopParakeetStt().catch(() => {});
+        unsubscribeRef.current?.();
+        unsubscribeRef.current = null;
+      } else if (activeProvider === 'android') {
         await voiceRecorder.stopAndroidStt().catch(() => {});
         unsubscribeRef.current?.();
         unsubscribeRef.current = null;
@@ -217,6 +222,46 @@ export function useVoiceInput() {
   }, [finishSession]);
 
   stopListeningRef.current = stopListening;
+
+  const startParakeetListening = useCallback(async (): Promise<boolean> => {
+    activeSttProviderRef.current = 'parakeet';
+    const isAvailable = await voiceRecorder.isParakeetSttAvailable();
+    if (!isAvailable) {
+      activeSttProviderRef.current = null;
+      return false;
+    }
+
+    unsubscribeRef.current = voiceRecorder.subscribeParakeetStt({
+      onReady: () => {
+        setIsVoiceConnecting(false);
+        setIsListening(true);
+        playVoiceActivationSound();
+      },
+      onPartial: partial => {
+        updateLivePreview(partial);
+      },
+      onFinal: text => {
+        appendFinalSegment(text);
+      },
+      onError: () => {
+        if (!stoppingRef.current) {
+          void stopListeningRef.current();
+        }
+      },
+    });
+
+    try {
+      unloadGemmaModel();
+      await voiceRecorder.startParakeetStt();
+      return true;
+    } catch {
+      unsubscribeRef.current?.();
+      unsubscribeRef.current = null;
+      activeSttProviderRef.current = null;
+      setIsListening(false);
+      return false;
+    }
+  }, [appendFinalSegment, updateLivePreview]);
 
   const startAndroidListening = useCallback(async (): Promise<boolean> => {
     activeSttProviderRef.current = 'android';
@@ -274,6 +319,20 @@ export function useVoiceInput() {
 
     await ensureVoiceSttProviderLoaded();
     const sttProvider = getVoiceSttProvider();
+
+    if (sttProvider === 'parakeet') {
+      const started = await startParakeetListening();
+      if (!started) {
+        const androidStarted = await startAndroidListening();
+        if (!androidStarted) {
+          setIsVoiceConnecting(false);
+          activeSttProviderRef.current = null;
+          resetSession();
+        }
+      }
+      return;
+    }
+
     activeSttProviderRef.current = sttProvider;
 
     if (sttProvider === 'android') {
@@ -343,6 +402,7 @@ export function useVoiceInput() {
     isVoiceProcessing,
     resetSession,
     startAndroidListening,
+    startParakeetListening,
     updateLivePreview,
   ]);
 
@@ -353,7 +413,9 @@ export function useVoiceInput() {
 
     if (isVoiceConnecting) {
       setIsVoiceConnecting(false);
-      if (activeSttProviderRef.current === 'android') {
+      if (activeSttProviderRef.current === 'parakeet') {
+        await voiceRecorder.stopParakeetStt().catch(() => {});
+      } else if (activeSttProviderRef.current === 'android') {
         await voiceRecorder.stopAndroidStt().catch(() => {});
       }
       const service = serviceRef.current;

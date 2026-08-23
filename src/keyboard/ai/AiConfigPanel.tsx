@@ -35,10 +35,16 @@ import {
   setVoiceSttProvider,
   type VoiceSttProvider,
 } from '../settings/voiceSttProviderStore';
+import {isGemmaModelDownloaded} from './gemmaBridge';
 import {
   ensureGemmaModelDownloaded,
   isOnDeviceAiSupported,
 } from './gemmaModelManager';
+import {isParakeetModelDownloaded} from '../voice/parakeetBridge';
+import {
+  ensureParakeetModelDownloaded,
+  isParakeetVoiceSupported,
+} from '../voice/parakeetModelManager';
 
 type ProviderOption = {
   id: AiProvider;
@@ -66,6 +72,11 @@ const PROVIDER_OPTIONS: ProviderOption[] = [
 ];
 
 const VOICE_PROVIDER_OPTIONS: VoiceProviderOption[] = [
+  {
+    id: 'parakeet',
+    title: 'On-device Parakeet',
+    subtitle: 'Parakeet TDT 0.6B v3 — offline, 25 European languages',
+  },
   {
     id: 'speechmatics',
     title: 'Speechmatics',
@@ -180,16 +191,21 @@ function ProviderSelector({
 function VoiceProviderSelector({
   selectedProvider,
   onSelect,
+  showParakeet,
 }: {
   selectedProvider: VoiceSttProvider;
   onSelect: (provider: VoiceSttProvider) => void;
+  showParakeet: boolean;
 }) {
   const styles = useThemedStyles(createStyles);
+  const options = VOICE_PROVIDER_OPTIONS.filter(
+    option => option.id !== 'parakeet' || showParakeet,
+  );
 
   return (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>Voice Input Provider</Text>
-      {VOICE_PROVIDER_OPTIONS.map((option, index) => {
+      {options.map((option, index) => {
         const isSelected = selectedProvider === option.id;
 
         return (
@@ -201,7 +217,7 @@ function VoiceProviderSelector({
             }}
             style={[
               styles.providerRow,
-              getTileStyle(index, VOICE_PROVIDER_OPTIONS.length),
+              getTileStyle(index, options.length),
               isSelected && styles.providerRowSelected,
             ]}>
             <View style={styles.providerInfo}>
@@ -264,56 +280,111 @@ function ApiKeyInput({
   );
 }
 
-function ModelDownloadSection({
+function ModelDownloadRow({
+  modelTitle,
+  sizeLabel,
   onDownload,
   downloadProgress,
   isDownloading,
   isDownloaded,
+  isLast,
 }: {
+  modelTitle: string;
+  sizeLabel: string;
   onDownload: () => void;
   downloadProgress: number;
   isDownloading: boolean;
   isDownloaded: boolean;
+  isLast?: boolean;
 }) {
-  const theme = useKeyboardTheme();
+  const styles = useThemedStyles(createStyles);
+
+  return (
+    <View
+      style={[
+        styles.modelRow,
+        !isLast && styles.modelRowDivider,
+        isLast && styles.modelRowLast,
+      ]}>
+      <View style={styles.modelInfo}>
+        <Text style={styles.modelTitle}>{modelTitle}</Text>
+        <Text style={styles.modelSubtitle}>{sizeLabel}</Text>
+      </View>
+      {isDownloaded ? (
+        <Text style={styles.downloadedBadge}>Downloaded</Text>
+      ) : isDownloading ? (
+        <View style={styles.downloadProgressContainer}>
+          <View
+            style={[
+              styles.downloadProgressBar,
+              {width: `${Math.round(downloadProgress * 100)}%`},
+            ]}
+          />
+          <Text style={styles.downloadProgressText}>
+            {Math.round(downloadProgress * 100)}%
+          </Text>
+        </View>
+      ) : (
+        <Pressable
+          onPress={() => {
+            triggerKeyHaptic();
+            onDownload();
+          }}
+          style={styles.downloadButton}>
+          <Text style={styles.downloadButtonText}>Download</Text>
+        </Pressable>
+      )}
+    </View>
+  );
+}
+
+function OnDeviceModelsSection({
+  showParakeet,
+  gemmaDownloaded,
+  gemmaDownloading,
+  gemmaProgress,
+  onDownloadGemma,
+  parakeetDownloaded,
+  parakeetDownloading,
+  parakeetProgress,
+  onDownloadParakeet,
+}: {
+  showParakeet: boolean;
+  gemmaDownloaded: boolean;
+  gemmaDownloading: boolean;
+  gemmaProgress: number;
+  onDownloadGemma: () => void;
+  parakeetDownloaded: boolean;
+  parakeetDownloading: boolean;
+  parakeetProgress: number;
+  onDownloadParakeet: () => void;
+}) {
   const styles = useThemedStyles(createStyles);
 
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>On-Device Model</Text>
-      <View style={[styles.modelRow, styles.modelRowSingle]}>
-        <View style={styles.modelInfo}>
-          <Text style={styles.modelTitle}>Gemma 3 1B IT</Text>
-          <Text style={styles.modelSubtitle}>
-            {isDownloaded
-              ? 'Model downloaded and ready'
-              : 'Required for on-device AI'}
-          </Text>
-        </View>
-        {isDownloaded ? (
-          <Text style={styles.downloadedBadge}>Downloaded</Text>
-        ) : isDownloading ? (
-          <View style={styles.downloadProgressContainer}>
-            <View
-              style={[
-                styles.downloadProgressBar,
-                {width: `${Math.round(downloadProgress * 100)}%`},
-              ]}
-            />
-            <Text style={styles.downloadProgressText}>
-              {Math.round(downloadProgress * 100)}%
-            </Text>
-          </View>
-        ) : (
-          <Pressable
-            onPress={() => {
-              triggerKeyHaptic();
-              onDownload();
-            }}
-            style={styles.downloadButton}>
-            <Text style={styles.downloadButtonText}>Download</Text>
-          </Pressable>
-        )}
+      <Text style={styles.sectionTitle}>On-Device Models</Text>
+      <View style={[styles.modelGroup, styles.modelGroupSingle]}>
+        <ModelDownloadRow
+          modelTitle="Gemma 3 1B IT"
+          sizeLabel="~550 MB"
+          isDownloaded={gemmaDownloaded}
+          isDownloading={gemmaDownloading}
+          downloadProgress={gemmaProgress}
+          onDownload={onDownloadGemma}
+          isLast={!showParakeet}
+        />
+        {showParakeet ? (
+          <ModelDownloadRow
+            modelTitle="Parakeet TDT 0.6B v3"
+            sizeLabel="~1.2 GB"
+            isDownloaded={parakeetDownloaded}
+            isDownloading={parakeetDownloading}
+            downloadProgress={parakeetProgress}
+            onDownload={onDownloadParakeet}
+            isLast
+          />
+        ) : null}
       </View>
     </View>
   );
@@ -335,6 +406,10 @@ export function AiConfigPanel() {
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [isModelDownloaded, setIsModelDownloaded] = useState(false);
+  const [isParakeetDownloading, setIsParakeetDownloading] = useState(false);
+  const [parakeetDownloadProgress, setParakeetDownloadProgress] = useState(0);
+  const [isParakeetModelReady, setIsParakeetModelReady] = useState(false);
+  const [isParakeetSupported, setIsParakeetSupported] = useState(false);
 
   // Load initial data
   useEffect(() => {
@@ -347,6 +422,13 @@ export function AiConfigPanel() {
       setVoiceProviderState(getVoiceSttProvider());
       setApiKeysState(getApiKeys());
       setIsOnDeviceSupported(isOnDeviceAiSupported());
+      setIsParakeetSupported(isParakeetVoiceSupported());
+      if (isParakeetVoiceSupported()) {
+        setIsParakeetModelReady(await isParakeetModelDownloaded());
+      }
+      if (isOnDeviceAiSupported()) {
+        setIsModelDownloaded(await isGemmaModelDownloaded());
+      }
       setIsLoading(false);
     };
 
@@ -357,6 +439,10 @@ export function AiConfigPanel() {
   const handleProviderChange = useCallback(async (newProvider: AiProvider) => {
     setProvider(newProvider);
     await setAiProvider(newProvider);
+    if (newProvider === 'on_device' && isParakeetVoiceSupported()) {
+      setVoiceProviderState('parakeet');
+      await setVoiceSttProvider('parakeet');
+    }
   }, []);
 
   const handleVoiceProviderChange = useCallback(
@@ -379,6 +465,22 @@ export function AiConfigPanel() {
     setApiKeysState(newKeys);
     await setApiKeys({speechmaticsApiKey: value});
   }, [apiKeys]);
+
+  const handleDownloadParakeetModel = useCallback(async () => {
+    setIsParakeetDownloading(true);
+    setParakeetDownloadProgress(0);
+
+    try {
+      await ensureParakeetModelDownloaded((progress: number) => {
+        setParakeetDownloadProgress(progress);
+      });
+      setIsParakeetModelReady(true);
+    } catch (error) {
+      console.error('Failed to download Parakeet model:', error);
+    } finally {
+      setIsParakeetDownloading(false);
+    }
+  }, []);
 
   // Handle model download
   const handleDownloadModel = useCallback(async () => {
@@ -418,6 +520,7 @@ export function AiConfigPanel() {
         <VoiceProviderSelector
           selectedProvider={voiceProvider}
           onSelect={handleVoiceProviderChange}
+          showParakeet={isParakeetSupported}
         />
 
         {/* Cloud AI Settings */}
@@ -432,11 +535,16 @@ export function AiConfigPanel() {
 
         {/* On-Device AI Settings */}
         {provider === 'on_device' && isOnDeviceSupported && (
-          <ModelDownloadSection
-            onDownload={handleDownloadModel}
-            downloadProgress={downloadProgress}
-            isDownloading={isDownloading}
-            isDownloaded={isModelDownloaded}
+          <OnDeviceModelsSection
+            showParakeet={isParakeetSupported && voiceProvider === 'parakeet'}
+            gemmaDownloaded={isModelDownloaded}
+            gemmaDownloading={isDownloading}
+            gemmaProgress={downloadProgress}
+            onDownloadGemma={handleDownloadModel}
+            parakeetDownloaded={isParakeetModelReady}
+            parakeetDownloading={isParakeetDownloading}
+            parakeetProgress={parakeetDownloadProgress}
+            onDownloadParakeet={handleDownloadParakeetModel}
           />
         )}
 
@@ -541,12 +649,23 @@ function createStyles(theme: KeyboardTheme) {
     modelRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: theme.pluginCard,
       paddingHorizontal: 12,
       paddingVertical: 12,
       minHeight: 56,
     },
-    modelRowSingle: {
+    modelRowDivider: {
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.borderSubtle,
+    },
+    modelRowLast: {
+      borderBottomWidth: 0,
+    },
+    modelGroup: {
+      backgroundColor: theme.pluginCard,
+      borderRadius: PLUGIN_OUTER_RADIUS,
+      overflow: 'hidden',
+    },
+    modelGroupSingle: {
       borderRadius: PLUGIN_OUTER_RADIUS,
     },
     modelInfo: {
