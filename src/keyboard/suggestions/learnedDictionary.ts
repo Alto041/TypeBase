@@ -1,86 +1,62 @@
-import {keyboardBridge} from '../keyboardBridge';
+import type {LearningSource} from '../personalTyping/types';
 import {addLearnedWord} from '../autocorrect/dictionaryManager';
+import {
+  ensurePersonalTypingLoaded,
+  getLearnedWordMap,
+  observeWordCommitted,
+  reloadPersonalTypingFromStorage,
+  resetPersonalTypingCache,
+  learnedRankBoostFromPersonal,
+  learnedSwipeBonusFromPersonal,
+} from '../personalTyping/personalTypingEngine';
+import {
+  isLearnableWord,
+  normalizeLearnedWord,
+} from '../personalTyping/learnedText';
 
-const learnedCounts = new Map<string, number>();
-let loadPromise: Promise<void> | null = null;
-let loadGeneration = 0;
-
-export function isLearnableWord(word: string): boolean {
-  const normalized = word.trim().toLowerCase();
-  // Letters only (no digits) — supports accented Latin, Cyrillic, Arabic, etc.
-  // Apostrophes allowed for contractions the user confirmed (it's, don't).
-  return (
-    normalized.length >= 2 &&
-    /^[\p{L}\p{M}']+$/u.test(normalized) &&
-    !normalized.includes("''")
-  );
-}
-
-export function normalizeLearnedWord(word: string): string {
-  return word.trim().toLowerCase();
-}
+export {isLearnableWord, normalizeLearnedWord};
 
 export function resetLearnedDictionaryCache(): void {
-  loadGeneration += 1;
-  learnedCounts.clear();
-  loadPromise = null;
+  resetPersonalTypingCache();
 }
 
 export async function ensureLearnedDictionaryLoaded(): Promise<void> {
-  if (loadPromise) {
-    return loadPromise;
-  }
-
-  const generation = loadGeneration;
-  loadPromise = (async () => {
-    const counts = await keyboardBridge.getLearnedWordCounts();
-    if (generation !== loadGeneration) {
-      return;
-    }
-    learnedCounts.clear();
-    for (const [word, count] of Object.entries(counts)) {
-      if (count > 0) {
-        learnedCounts.set(word, count);
-      }
-    }
-  })();
-
-  return loadPromise;
+  await ensurePersonalTypingLoaded();
 }
 
 export async function reloadLearnedDictionaryFromStorage(): Promise<void> {
-  resetLearnedDictionaryCache();
-  await ensureLearnedDictionaryLoaded();
+  await reloadPersonalTypingFromStorage();
 }
 
 export function getLearnedCounts(): ReadonlyMap<string, number> {
-  return learnedCounts;
+  return getLearnedWordMap();
 }
 
 export async function clearLearnedDictionary(): Promise<void> {
-  resetLearnedDictionaryCache();
-  const cleared = await keyboardBridge.clearLearnedWords();
-  if (!cleared) {
-    throw new Error('Failed to clear learned words');
-  }
-  loadPromise = Promise.resolve();
+  const {clearPersonalTypingProfile} = await import(
+    '../personalTyping/personalTypingEngine'
+  );
+  await clearPersonalTypingProfile();
 }
 
-export function recordLearnedWord(word: string): void {
+export function recordLearnedWord(
+  word: string,
+  source: LearningSource = 'typed',
+): void {
   if (!isLearnableWord(word)) {
     return;
   }
 
   const normalized = normalizeLearnedWord(word);
-  const nextCount = (learnedCounts.get(normalized) ?? 0) + 1;
-  learnedCounts.set(normalized, nextCount);
-  keyboardBridge.recordLearnedWord(normalized);
-  // Boost the live SymSpell instance(s) for the active (and cached) language(s).
+  observeWordCommitted(normalized, source);
   addLearnedWord(normalized);
 }
 
 /** Lower swipe score is better; small nudge for words the user has typed before. */
-export function learnedSwipeBonus(uses: number): number {
+export function learnedSwipeBonus(uses: number, word?: string): number {
+  if (word) {
+    return learnedSwipeBonusFromPersonal(word);
+  }
   if (uses <= 0) {
     return 0;
   }
@@ -88,7 +64,10 @@ export function learnedSwipeBonus(uses: number): number {
   return Math.min(uses * 0.08 + Math.log10(uses + 1) * 0.08, 0.45);
 }
 
-export function learnedRankBoost(uses: number): number {
+export function learnedRankBoost(uses: number, word?: string): number {
+  if (word) {
+    return learnedRankBoostFromPersonal(word);
+  }
   if (uses <= 0) {
     return 0;
   }

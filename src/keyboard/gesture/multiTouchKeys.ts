@@ -4,7 +4,6 @@ import {
   computeAlternatePopupGeometry,
   getKeyAlternates,
   hitTestAlternateIndex,
-  shouldShowAlternatePopup,
   type AlternatePopupGeometry,
 } from '../keyAlternates';
 import type {KeyboardLayout} from '../layouts/qwerty';
@@ -15,6 +14,11 @@ import {KEY_HIT_SLOP} from '../theme';
 import {isZeroLatencyModeActive} from '../zeroLatencyMode';
 import type {KeyBounds} from './types';
 import {markSwipeTypingTapCommitted} from './gestureState';
+import {
+  intelligentHitTestKey,
+  recordTouchIntelligenceTap,
+} from './touchIntelligence';
+import {annotateLastTouchIntelligenceCommit} from './touchIntelligenceTelemetry';
 
 /** Half the visual gap between keys — matches theme keyGap / keyRowMargin. */
 export type KeyHitSlop = {
@@ -162,8 +166,8 @@ function dispatchKeyLayouts(layouts: readonly KeyBounds[]): KeyBounds[] {
   return layouts.filter(layout => isMultiTouchDispatchKey(layout.keyDef));
 }
 
-/** Nearest-key hit test with gap slop (Gboard-style taps between keys/rows). */
-export function hitTestKey(
+/** Geometric nearest-key hit test with gap slop (Gboard-style). */
+export function hitTestKeyGeometric(
   localX: number,
   localY: number,
   layouts: readonly KeyBounds[],
@@ -245,6 +249,28 @@ export function hitTestKey(
   }
 
   return null;
+}
+
+/** Touch-intelligence hit test — predicts intended key from context and kinematics. */
+export function hitTestKey(
+  localX: number,
+  localY: number,
+  layouts: readonly KeyBounds[],
+  slop: KeyHitSlop = DEFAULT_KEY_HIT_SLOP,
+  touchTimestampMs?: number,
+): KeyBounds | null {
+  return intelligentHitTestKey(
+    localX,
+    localY,
+    layouts,
+    slop,
+    {
+      localX,
+      localY,
+      timestampMs: touchTimestampMs ?? Date.now(),
+    },
+    true,
+  );
 }
 
 const BACKSPACE_PRESSABLE_SLOP_HORIZONTAL = 10;
@@ -477,7 +503,13 @@ export function dispatchMultiTouchStart(
       continue;
     }
 
-    const hit = hitTestKey(localX, localY, layouts, hitSlop);
+    const hit = hitTestKey(
+      localX,
+      localY,
+      layouts,
+      hitSlop,
+      touch.timestamp ?? Date.now(),
+    );
     if (!hit || !isMultiTouchDispatchKey(hit.keyDef)) {
       continue;
     }
@@ -503,6 +535,8 @@ export function dispatchMultiTouchStart(
       triggerKeyHaptic();
       options.onKeyCommit(hit.keyDef, ' ');
       markSwipeTypingTapCommitted(pid);
+      recordTouchIntelligenceTap(' ', localX, localY, touch.timestamp ?? Date.now());
+      annotateLastTouchIntelligenceCommit(' ', 'js', localX, localY);
       activeSessions.set(pid, session);
       if (options.onSpaceLongPress && !isZeroLatencyModeActive()) {
         session.longPressTimer = setTimeout(() => {
@@ -530,7 +564,16 @@ export function dispatchMultiTouchStart(
 
     if (!nativeCommitted) {
       options.onKeyCommit(hit.keyDef, defaultCommit);
+      annotateLastTouchIntelligenceCommit(defaultCommit, 'js', localX, localY);
+    } else {
+      annotateLastTouchIntelligenceCommit(defaultCommit, 'native', localX, localY);
     }
+    recordTouchIntelligenceTap(
+      defaultCommit,
+      localX,
+      localY,
+      touch.timestamp ?? Date.now(),
+    );
 
     const session: MultiTouchSession = {
       keyId: hit.id,
@@ -565,7 +608,7 @@ export function dispatchMultiTouchStart(
         isUppercase,
       );
       session.alternates = alternates;
-      if (shouldShowAlternatePopup(alternates)) {
+      if (alternates.length > 0) {
         openAlternatePopup(pid, session, hit, options.areaWidth);
       }
     }, LONG_PRESS_MS);

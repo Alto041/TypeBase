@@ -139,8 +139,6 @@ class ParakeetVoiceModule(private val reactContext: ReactApplicationContext) :
 
     moduleScope.launch(Dispatchers.Default) {
       try {
-        GemmaModule.releaseForVoiceSession()
-
         val modelDir =
             ModelManager.modelDir(
                 reactContext,

@@ -3,7 +3,11 @@ import {StyleSheet, Text, View} from 'react-native';
 import type {AlternatePopupGeometry} from '../keyAlternates';
 import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
 import type {KeyboardTheme} from '../theme';
-import {keyboardAlternatePopupRadii} from '../theme';
+import {
+  keyboardAlternatePopupRadii,
+  keyboardGeistTypefaceStyle,
+} from '../theme';
+import {shouldUseGeistForAlternateChar} from '../keyAlternates';
 
 export type AlternatePopupState = {
   alternates: string[];
@@ -96,10 +100,10 @@ function KeyAlternatePopupComponent({popup}: KeyAlternatePopupProps) {
                       style={[
                         styles.cellLabel,
                         {
-                          // Custom keyboard fonts often lack ö/ä/ü glyphs — fall
-                          // back to the system UI font so umlauts always render.
                           color: theme.label,
-                          fontFamily: undefined,
+                          ...(shouldUseGeistForAlternateChar(char)
+                            ? keyboardGeistTypefaceStyle('500')
+                            : {}),
                         },
                       ]}>
                       {char ?? ''}

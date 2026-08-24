@@ -2,6 +2,7 @@ import {getEnglishStaticRank} from '../autocorrect/englishFrequencyDictionary';
 import {getPrefixCompletions} from '../autocorrect/englishPrefixIndex';
 import {getSimilarWordSuggestions} from '../autocorrect/autocorrectEngine';
 import {getLearnedCounts} from './learnedDictionary';
+import {getPersonalWordStrength} from '../personalTyping/personalTypingEngine';
 import {getBaseWords, getActiveLanguage} from '../autocorrect/dictionaryManager';
 import {getHinglishSuggestions} from '../autocorrect/hinglishDictionary';
 
@@ -35,7 +36,10 @@ function baseRank(word: string, lang: string): number {
 }
 
 export function extractCurrentWord(text: string): string {
-  const match = text.match(/[\p{L}\p{M}0-9']+$/u);
+  // Only the active line — JS `$` matches before a trailing `\n`, which would
+  // otherwise resurrect the previous line's last word after Enter.
+  const lineTail = text.split(/\r?\n/).pop() ?? '';
+  const match = lineTail.match(/[\p{L}\p{M}0-9']+$/u);
   return match ? match[0] : '';
 }
 
@@ -60,17 +64,30 @@ function scorePrefixCandidate(
   lang: string,
 ): number {
   const learnedUses = learned.get(word) ?? learned.get(word.replace(/\s+/g, '')) ?? 0;
+  const personalBoost = getPersonalWordStrength(word) * LEARNED_SCORE_BOOST;
   const extraLengthPenalty = Math.max(0, word.length - prefix.length) * 4;
   if (lang === 'hi-en') {
     const isPhrase = word.includes(' ');
     const hinglishBias = isPhrase ? -800 : -400;
-    return extraLengthPenalty - learnedUses * LEARNED_SCORE_BOOST + hinglishBias;
+    return (
+      extraLengthPenalty -
+      learnedUses * LEARNED_SCORE_BOOST -
+      personalBoost +
+      hinglishBias
+    );
   }
   if (lang === 'fr-en') {
-    return baseRank(word, lang) + extraLengthPenalty - learnedUses * LEARNED_SCORE_BOOST;
+    return (
+      baseRank(word, lang) +
+      extraLengthPenalty -
+      learnedUses * LEARNED_SCORE_BOOST -
+      personalBoost
+    );
   }
   const staticRank = getEnglishStaticRank(word) ?? 50_000;
-  return staticRank + extraLengthPenalty - learnedUses * LEARNED_SCORE_BOOST;
+  return (
+    staticRank + extraLengthPenalty - learnedUses * LEARNED_SCORE_BOOST - personalBoost
+  );
 }
 
 function scoreFuzzyCandidate(
@@ -81,6 +98,7 @@ function scoreFuzzyCandidate(
   lang: string,
 ): number {
   const learnedUses = learned.get(word) ?? 0;
+  const personalBoost = getPersonalWordStrength(word) * LEARNED_SCORE_BOOST;
   const sharedStemBonus =
     word.slice(0, 2) === prefix.slice(0, 2) ? 500 : 0;
   const staticRank =
@@ -93,6 +111,7 @@ function scoreFuzzyCandidate(
     edits * FUZZY_EDIT_WEIGHT +
     staticRank -
     learnedUses * LEARNED_SCORE_BOOST -
+    personalBoost -
     sharedStemBonus
   );
 }

@@ -113,7 +113,7 @@ function AiProviderCard() {
       <Text style={styles.hint}>
         Choose cloud Gemini or on-device Gemma 3 for Translate, Rewrite, and
         voice cleanup. On-device runs locally on Android after you download the
-        model (~550 MB).
+        model (~290 MB).
       </Text>
 
       <Pressable

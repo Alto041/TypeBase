@@ -359,6 +359,10 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
     nativeKeyFastPath.updateConfig(json)
   }
 
+  fun updateTouchIntelligenceContext(json: String) {
+    nativeKeyFastPath.updateTouchIntelligenceContext(json)
+  }
+
   fun setNativeZeroLatencyMode(enabled: Boolean) {
     nativeKeyFastPath.setZeroLatencyMode(enabled)
   }

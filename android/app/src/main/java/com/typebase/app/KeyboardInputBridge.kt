@@ -182,6 +182,10 @@ object KeyboardInputBridge {
     inputService?.setNativeKeyFastPathConfig(json)
   }
 
+  fun updateTouchIntelligenceContext(json: String) {
+    inputService?.updateTouchIntelligenceContext(json)
+  }
+
   fun setNativeZeroLatencyMode(enabled: Boolean) {
     inputService?.setNativeZeroLatencyMode(enabled)
   }

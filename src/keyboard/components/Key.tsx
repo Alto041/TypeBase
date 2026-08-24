@@ -43,6 +43,7 @@ import type {KeyboardTheme} from '../theme';
 import {
   keyboardKeyChromeStyle,
   keyboardKeyPressMotionStyle,
+  keyboardGeistTypefaceStyle,
   keyboardTypefaceStyle,
 } from '../theme';
 import {MacintoshKeyBevels} from './MacintoshKeyBevels';
@@ -452,7 +453,9 @@ function KeyComponent({
         {displayLabel ?? ''}
       </Text>
       {symbolHint ? (
-        <Text style={styles.symbolHint}>{symbolHint}</Text>
+        <Text style={[styles.symbolHint, keyboardGeistTypefaceStyle('500')]}>
+          {symbolHint}
+        </Text>
       ) : null}
     </>
   );
@@ -989,7 +992,6 @@ function createKeyStyles(theme: KeyboardTheme) {
       bottom: Math.max(3, Math.round(theme.keyRadius * 0.28)),
       color: theme.iconMuted,
       fontSize: theme.design === 'quivox' ? 8 : 9,
-      ...keyboardTypefaceStyle(theme, '500'),
       lineHeight: theme.design === 'quivox' ? 9 : 10,
     },
     specialKeyLabel: {

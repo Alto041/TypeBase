@@ -15,8 +15,22 @@ class NativeKeyFastPath {
       val top: Float,
       val right: Float,
       val bottom: Float,
+      val centerX: Float,
+      val centerY: Float,
       val reactTag: Int,
-  )
+  ) {
+    fun toGeometry(): TouchIntelligence.KeyGeometry =
+        TouchIntelligence.KeyGeometry(
+            id = id,
+            value = value,
+            left = left,
+            top = top,
+            right = right,
+            bottom = bottom,
+            centerX = centerX,
+            centerY = centerY,
+        )
+  }
 
   private class TouchSession(
       val pointerId: Int,
@@ -46,6 +60,8 @@ class NativeKeyFastPath {
   private var shiftOn = false
   private var capsLocked = false
   private var keys = emptyList<NativeKey>()
+  private var keyById = emptyMap<String, NativeKey>()
+  private val touchIntelligence = TouchIntelligence()
   private val sessions = mutableMapOf<Int, TouchSession>()
   private val pendingJsCommits = ArrayDeque<PendingJsCommit>()
   private val pendingJsCommitsLock = Any()
@@ -66,6 +82,13 @@ class NativeKeyFastPath {
       shiftOn = obj.optBoolean("shiftOn", false)
       capsLocked = obj.optBoolean("capsLocked", false)
       keys = parseKeys(obj.optJSONArray("keys") ?: JSONArray())
+      keyById = keys.associateBy { it.id }
+      touchIntelligence.updateConfig(
+          obj.optJSONObject("touchIntelligence"),
+          hitSlopHorizontal,
+          hitSlopVertical,
+          keys.map { key -> key.toGeometry() },
+      )
       if (!enabled) {
         zeroLatency = false
         sessions.clear()
@@ -84,8 +107,32 @@ class NativeKeyFastPath {
     enabled = false
     zeroLatency = false
     keys = emptyList()
+    keyById = emptyMap()
     sessions.clear()
     synchronized(pendingJsCommitsLock) { pendingJsCommits.clear() }
+  }
+
+  fun updateTouchIntelligenceContext(json: String) {
+    try {
+      val obj = JSONObject(json)
+      val likelyNextLetters = mutableListOf<String>()
+      val array = obj.optJSONArray("likelyNextLetters")
+      if (array != null) {
+        for (index in 0 until array.length()) {
+          val letter = array.optString(index, "").trim().lowercase()
+          if (letter.length == 1 && letter[0].isLetter()) {
+            likelyNextLetters.add(letter)
+          }
+        }
+      }
+      touchIntelligence.updateTypingContext(
+          obj.optString("previousKeyLetter", "").takeIf { it.isNotEmpty() },
+          obj.optString("wordPrefix", ""),
+          likelyNextLetters,
+      )
+    } catch (_: Exception) {
+      // Ignore malformed context payloads.
+    }
   }
 
   /** O(1) ack for JS — avoids pointer-id mismatches vs MotionEvent ids. */
@@ -151,7 +198,9 @@ class NativeKeyFastPath {
         val pointerId = event.getPointerId(index)
         val rawX = event.rawXForIndex(index)
         val rawY = event.rawYForIndex(index)
-        val key = hitTest(rawX, rawY) ?: return false
+        val localX = rawX - areaPageX
+        val localY = rawY - areaPageY
+        val key = hitTest(localX, localY, event.eventTime) ?: return false
 
         if (!commitOnDown) {
           return false
@@ -169,6 +218,7 @@ class NativeKeyFastPath {
         }
 
         sessions[pointerId] = TouchSession(pointerId, key, text)
+        touchIntelligence.recordTap(text, localX, localY, event.eventTime)
         synchronized(pendingJsCommitsLock) {
           pendingJsCommits.addLast(PendingJsCommit(pointerId, key.id, text))
         }
@@ -240,6 +290,24 @@ class NativeKeyFastPath {
               bottom =
                   obj.optDouble("y", 0.0).toFloat() +
                       obj.optDouble("height", 0.0).toFloat(),
+              centerX =
+                  obj.optDouble("centerX", Double.NaN).toFloat().let { parsedCenterX ->
+                    if (parsedCenterX.isNaN()) {
+                      obj.optDouble("x", 0.0).toFloat() +
+                          obj.optDouble("width", 0.0).toFloat() / 2f
+                    } else {
+                      parsedCenterX
+                    }
+                  },
+              centerY =
+                  obj.optDouble("centerY", Double.NaN).toFloat().let { parsedCenterY ->
+                    if (parsedCenterY.isNaN()) {
+                      obj.optDouble("y", 0.0).toFloat() +
+                          obj.optDouble("height", 0.0).toFloat() / 2f
+                    } else {
+                      parsedCenterY
+                    }
+                  },
               reactTag = obj.optInt("reactTag", 0),
           ),
       )
@@ -247,29 +315,9 @@ class NativeKeyFastPath {
     return parsed
   }
 
-  private fun hitTest(rawX: Float, rawY: Float): NativeKey? {
-    val localX = rawX - areaPageX
-    val localY = rawY - areaPageY
-    var match: NativeKey? = null
-    var smallestArea = Float.MAX_VALUE
-
-    for (key in keys) {
-      if (
-          localX < key.left - hitSlopHorizontal ||
-              localX > key.right + hitSlopHorizontal ||
-              localY < key.top - hitSlopVertical ||
-              localY > key.bottom + hitSlopVertical
-      ) {
-        continue
-      }
-      val area = (key.right - key.left) * (key.bottom - key.top)
-      if (area < smallestArea) {
-        smallestArea = area
-        match = key
-      }
-    }
-
-    return match
+  private fun hitTest(localX: Float, localY: Float, timestampMs: Long): NativeKey? {
+    val geometry = touchIntelligence.hitTest(localX, localY, timestampMs) ?: return null
+    return keyById[geometry.id]
   }
 
   /**

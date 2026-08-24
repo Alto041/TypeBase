@@ -25,10 +25,6 @@ class GemmaModule(private val reactContext: ReactApplicationContext) :
   private var llmInference: LlmInference? = null
   private var downloadCancelled = AtomicBoolean(false)
 
-  init {
-    Holder.instance = this
-  }
-
   override fun getName(): String = "GemmaModule"
 
   private fun modelFile(): File =
@@ -78,6 +74,7 @@ class GemmaModule(private val reactContext: ReactApplicationContext) :
     downloadCancelled.set(false)
     executor.execute {
       try {
+        removeLegacyModelIfPresent()
         val destination = modelFile()
         destination.parentFile?.mkdirs()
         val tempFile = File(destination.parentFile, "$MODEL_FILENAME.download")
@@ -220,7 +217,6 @@ class GemmaModule(private val reactContext: ReactApplicationContext) :
   }
 
   override fun invalidate() {
-    Holder.instance = null
     downloadCancelled.set(true)
     executor.execute {
       llmInference?.close()
@@ -248,30 +244,24 @@ class GemmaModule(private val reactContext: ReactApplicationContext) :
     }
   }
 
-  companion object {
-    private const val MODEL_URL =
-        "https://pub-8e31d16ca4f04d94b8e3e5f258fcbc2b.r2.dev/gemma3-1B-it-int4.task"
-    private const val MODEL_FILENAME = "gemma3-1b-it-int4.task"
-    private const val MIN_MODEL_BYTES = 100L * 1024L * 1024L
-    private const val MODEL_TEMPERATURE = 0f
-    private const val MODEL_TOP_K = 1
-    private const val MODEL_TOP_P = 1f
-
-    private object Holder {
-      @Volatile var instance: GemmaModule? = null
-    }
-
-    /** Frees Gemma weights before loading the Parakeet voice pipeline in the IME. */
-    fun releaseForVoiceSession() {
-      Holder.instance?.releaseModelSynchronously()
+  private fun removeLegacyModelIfPresent() {
+    for (legacyName in LEGACY_MODEL_FILENAMES) {
+      val legacy = File(reactContext.filesDir, legacyName)
+      if (legacy.exists()) {
+        legacy.delete()
+      }
     }
   }
 
-  private fun releaseModelSynchronously() {
-    try {
-      llmInference?.close()
-    } catch (_: Exception) {
-    }
-    llmInference = null
+  companion object {
+    private const val MODEL_URL =
+        "https://pub-8e31d16ca4f04d94b8e3e5f258fcbc2b.r2.dev/gemma-3-270m-it-int8.task"
+    private const val MODEL_FILENAME = "gemma-3-270m-it-int8.task"
+    private val LEGACY_MODEL_FILENAMES =
+        listOf("gemma3-1b-it-int4.task", "gemma3-270m-it-int4.task")
+    private const val MIN_MODEL_BYTES = 200L * 1024L * 1024L
+    private const val MODEL_TEMPERATURE = 0f
+    private const val MODEL_TOP_K = 1
+    private const val MODEL_TOP_P = 1f
   }
 }

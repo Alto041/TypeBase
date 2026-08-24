@@ -26,6 +26,7 @@ import java.io.FileOutputStream
 import java.security.MessageDigest
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
+import com.facebook.react.bridge.ReadableMap
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
@@ -712,6 +713,11 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   }
 
   @ReactMethod
+  fun updateTouchIntelligenceContext(json: String) {
+    KeyboardInputBridge.updateTouchIntelligenceContext(json)
+  }
+
+  @ReactMethod
   fun setNativeZeroLatencyMode(enabled: Boolean) {
     KeyboardInputBridge.setNativeZeroLatencyMode(enabled)
   }
@@ -1273,10 +1279,68 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
               .edit()
               .putString(LEARNED_WORDS_KEY, "{}")
               .putString(LEARNED_PHRASES_KEY, "{}")
+              .putString(PERSONAL_TYPING_PROFILE_KEY, "{}")
               .commit()
       promise.resolve(saved)
     } catch (error: Exception) {
       promise.reject("CLEAR_LEARNED_AUTOCORRECT_FAILED", error)
+    }
+  }
+
+  @ReactMethod
+  fun getPersonalTypingProfile(promise: Promise) {
+    try {
+      val raw =
+          learnedWordsPrefs().getString(PERSONAL_TYPING_PROFILE_KEY, "{}") ?: "{}"
+      promise.resolve(raw)
+    } catch (error: Exception) {
+      promise.reject("GET_PERSONAL_TYPING_PROFILE_FAILED", error)
+    }
+  }
+
+  @ReactMethod
+  fun setPersonalTypingProfile(json: String, promise: Promise) {
+    try {
+      learnedWordsPrefs()
+          .edit()
+          .putString(PERSONAL_TYPING_PROFILE_KEY, json)
+          .apply()
+      promise.resolve(true)
+    } catch (error: Exception) {
+      promise.reject("SET_PERSONAL_TYPING_PROFILE_FAILED", error)
+    }
+  }
+
+  @ReactMethod
+  fun syncLearnedAutocorrectCounts(
+      words: ReadableMap,
+      phrases: ReadableMap,
+      promise: Promise,
+  ) {
+    try {
+      val wordsJson = JSONObject()
+      val wordIterator = words.keySetIterator()
+      while (wordIterator.hasNextKey()) {
+        val key = wordIterator.nextKey()
+        wordsJson.put(key, words.getInt(key))
+      }
+
+      val phrasesJson = JSONObject()
+      val phraseIterator = phrases.keySetIterator()
+      while (phraseIterator.hasNextKey()) {
+        val key = phraseIterator.nextKey()
+        phrasesJson.put(key, phrases.getInt(key))
+      }
+
+      val saved =
+          learnedWordsPrefs()
+              .edit()
+              .putString(LEARNED_WORDS_KEY, wordsJson.toString())
+              .putString(LEARNED_PHRASES_KEY, phrasesJson.toString())
+              .commit()
+      promise.resolve(saved)
+    } catch (error: Exception) {
+      promise.reject("SYNC_LEARNED_AUTOCORRECT_COUNTS_FAILED", error)
     }
   }
 
@@ -1850,6 +1914,78 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     }
   }
 
+  private val suggestionExecutor = Executors.newSingleThreadExecutor()
+  private var wordFrequencyMap: Map<String, Int>? = null
+
+  private fun loadWordFrequency() {
+    if (wordFrequencyMap != null) return
+    try {
+      val map = mutableMapOf<String, Int>()
+      val assetManager = reactApplicationContext.assets
+      assetManager.open("words.json").use { input ->
+        val jsonStr = input.bufferedReader().use { it.readText() }
+        val json = JSONObject(jsonStr)
+        json.keys().forEach { word ->
+          map[word] = json.optInt(word, 0)
+        }
+      }
+      wordFrequencyMap = map
+    } catch (e: Exception) {
+      // Fallback: create minimal map
+      wordFrequencyMap = emptyMap()
+    }
+  }
+
+  private fun getWordSuggestions(prefix: String, limit: Int = 8): Array<String> {
+    if (prefix.isEmpty()) return emptyArray()
+    loadWordFrequency()
+    
+    val suggestions = mutableListOf<Pair<String, Int>>()
+    val words = wordFrequencyMap ?: return emptyArray()
+    
+    // Prefix match + frequency sort (fast trie-like lookup)
+    words.forEach { (word, freq) ->
+      if (word.startsWith(prefix, ignoreCase = true)) {
+        suggestions.add(word to freq)
+      }
+    }
+    
+    return suggestions
+      .sortedByDescending { it.second }
+      .take(limit)
+      .map { it.first }
+      .toTypedArray()
+  }
+
+  @ReactMethod
+  fun computeSuggestionsNative(
+    prefix: String,
+    context: String?,
+    previousWord: String?,
+    fast: Boolean,
+    promise: Promise
+  ) {
+    // Run on background thread to avoid blocking JS
+    suggestionExecutor.execute {
+      try {
+        val suggestions = if (prefix.length < 1) {
+          emptyArray<String>()
+        } else {
+          getWordSuggestions(prefix)
+        }
+        
+        UiThreadUtil.runOnUiThread {
+          // Convert to ReadableArray for React Native
+          val result = Arguments.createArray()
+          suggestions.forEach { result.pushString(it) }
+          promise.resolve(result)
+        }
+      } catch (error: Throwable) {
+        promise.reject("SUGGESTIONS_ERROR", error.message, error)
+      }
+    }
+  }
+
   companion object {
     private const val PREFS_NAME = "typebase_keyboard"
     private const val LEARNED_WORDS_KEY = "learned_words"
@@ -1859,6 +1995,7 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     private const val GESTURE_SETTINGS_KEY = "gesture_settings"
     private const val AUTOCORRECT_SETTINGS_KEY = "autocorrect_settings"
     private const val LEARNED_PHRASES_KEY = "learned_phrases"
+    private const val PERSONAL_TYPING_PROFILE_KEY = "personal_typing_profile_v1"
     private const val COMMA_LAUNCHER_ARMED_KEY = "comma_launcher_armed"
     private const val PERIOD_REWRITE_ARMED_KEY = "period_rewrite_armed"
     private const val API_KEYS_KEY = "api_keys"
@@ -1875,7 +2012,7 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     private const val KEYBOARD_LAYOUT_KEY = "keyboard_layout"
     private const val CUSTOM_LETTER_LAYOUTS_KEY = "custom_letter_layouts"
     private const val DEFAULT_KEYBOARD_LAYOUT =
-        """{"keyHeight":47,"keyGap":5,"keyRowMargin":12,"keyRadius":6,"enterKeyPreviewEnabled":true,"developerEyeEnabled":false,"letterSymbolAlternatesEnabled":false,"letterLayoutId":"en-us","keyHapticEnabled":true,"autoCapitalizeEnabled":true,"customTapSoundEnabled":true,"customTapSoundFile":"1.mp3","customFontEnabled":false,"customFontFile":null}"""
+        """{"keyHeight":47,"keyGap":5,"keyRowMargin":12,"keyRadius":6,"enterKeyPreviewEnabled":true,"developerEyeEnabled":false,"letterSymbolAlternatesEnabled":true,"letterLayoutId":"en-us","keyHapticEnabled":true,"autoCapitalizeEnabled":true,"customTapSoundEnabled":true,"customTapSoundFile":"1.mp3","customFontEnabled":false,"customFontFile":null}"""
     private const val DEFAULT_API_KEYS =
         """{"geminiApiKey":"","speechmaticsApiKey":""}"""
     private const val DEFAULT_GESTURE_SETTINGS =

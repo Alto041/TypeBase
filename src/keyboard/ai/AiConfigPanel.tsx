@@ -67,7 +67,7 @@ const PROVIDER_OPTIONS: ProviderOption[] = [
   {
     id: 'on_device',
     title: 'On-Device AI (Gemma)',
-    subtitle: 'Gemma 3 1B - runs locally on your device',
+    subtitle: 'Gemma 3 270M - runs locally on your device',
   },
 ];
 
@@ -366,8 +366,8 @@ function OnDeviceModelsSection({
       <Text style={styles.sectionTitle}>On-Device Models</Text>
       <View style={[styles.modelGroup, styles.modelGroupSingle]}>
         <ModelDownloadRow
-          modelTitle="Gemma 3 1B IT"
-          sizeLabel="~550 MB"
+          modelTitle="Gemma 3 270M IT"
+          sizeLabel="~290 MB"
           isDownloaded={gemmaDownloaded}
           isDownloading={gemmaDownloading}
           downloadProgress={gemmaProgress}

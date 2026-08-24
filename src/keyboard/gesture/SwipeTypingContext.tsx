@@ -34,7 +34,7 @@ import {
   dispatchMultiTouchEnd,
   dispatchMultiTouchMove,
   dispatchMultiTouchStart,
-  hitTestKey,
+  hitTestKeyGeometric,
   isPointerInAlternatePopup,
   notifySwipeStarted,
   setAlternatePopupListener,
@@ -146,7 +146,7 @@ function touchIsOnLetterKey(
   const origin = layoutContext.areaOriginRef.current;
   const localX = pageX - origin.pageX;
   const localY = pageY - origin.pageY;
-  const hit = hitTestKey(localX, localY, layoutContext.getLayouts());
+  const hit = hitTestKeyGeometric(localX, localY, layoutContext.getLayouts());
   return Boolean(hit?.letter);
 }
 

@@ -11,6 +11,12 @@ type KeyboardModuleType = {
   getLearnedWordCounts: () => Promise<Record<string, number>>;
   clearLearnedWords: () => Promise<boolean>;
   clearLearnedAutocorrectData: () => Promise<boolean>;
+  getPersonalTypingProfile: () => Promise<string>;
+  setPersonalTypingProfile: (json: string) => Promise<boolean>;
+  syncLearnedAutocorrectCounts: (
+    words: Record<string, number>,
+    phrases: Record<string, number>,
+  ) => Promise<boolean>;
   preloadSwipeWordDictionary: () => Promise<boolean>;
   getSwipeCandidates: (
     pattern: string,
@@ -67,6 +73,7 @@ type KeyboardModuleType = {
   setKeyboardHeight: (heightDp: number) => void;
   setTouchpadGestureConsuming: (active: boolean) => void;
   setNativeKeyFastPathConfig: (json: string) => void;
+  updateTouchIntelligenceContext: (json: string) => void;
   setNativeZeroLatencyMode: (enabled: boolean) => void;
   consumeNativeFastPathPointer: (pointerId: number) => boolean;
   pollNativeFastPathCommit: () => {
@@ -117,6 +124,12 @@ type KeyboardModuleType = {
   setCustomLetterLayouts: (json: string) => Promise<boolean>;
   undo: () => Promise<boolean>;
   redo: () => Promise<boolean>;
+  computeSuggestionsNative: (
+    prefix: string,
+    context: string | null,
+    previousWord: string | null,
+    fast: boolean,
+  ) => Promise<string[]>;
 };
 
 const {KeyboardModule} = NativeModules;
@@ -172,6 +185,27 @@ export const keyboardBridge: KeyboardModuleType = {
   clearLearnedAutocorrectData: () => {
     if (Platform.OS === 'android' && KeyboardModule?.clearLearnedAutocorrectData) {
       return KeyboardModule.clearLearnedAutocorrectData() as Promise<boolean>;
+    }
+    return Promise.resolve(false);
+  },
+  getPersonalTypingProfile: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.getPersonalTypingProfile) {
+      return KeyboardModule.getPersonalTypingProfile() as Promise<string>;
+    }
+    return Promise.resolve('');
+  },
+  setPersonalTypingProfile: (json: string) => {
+    if (Platform.OS === 'android' && KeyboardModule?.setPersonalTypingProfile) {
+      return KeyboardModule.setPersonalTypingProfile(json) as Promise<boolean>;
+    }
+    return Promise.resolve(false);
+  },
+  syncLearnedAutocorrectCounts: (words, phrases) => {
+    if (Platform.OS === 'android' && KeyboardModule?.syncLearnedAutocorrectCounts) {
+      return KeyboardModule.syncLearnedAutocorrectCounts(
+        words,
+        phrases,
+      ) as Promise<boolean>;
     }
     return Promise.resolve(false);
   },
@@ -465,6 +499,11 @@ export const keyboardBridge: KeyboardModuleType = {
       KeyboardModule.setNativeKeyFastPathConfig(json);
     }
   },
+  updateTouchIntelligenceContext: (json: string) => {
+    if (Platform.OS === 'android' && KeyboardModule?.updateTouchIntelligenceContext) {
+      KeyboardModule.updateTouchIntelligenceContext(json);
+    }
+  },
   setNativeZeroLatencyMode: (enabled: boolean) => {
     if (Platform.OS === 'android' && KeyboardModule?.setNativeZeroLatencyMode) {
       KeyboardModule.setNativeZeroLatencyMode(enabled);
@@ -714,7 +753,7 @@ export const keyboardBridge: KeyboardModuleType = {
       return KeyboardModule.getKeyboardLayoutSettings() as Promise<string>;
     }
     return Promise.resolve(
-      '{"keyHeight":47,"keyGap":5,"keyRowMargin":12,"keyRadius":6,"enterKeyPreviewEnabled":true,"developerEyeEnabled":false,"letterSymbolAlternatesEnabled":false,"letterLayoutId":"en-us","keyHapticEnabled":true,"autoCapitalizeEnabled":true}',
+      '{"keyHeight":47,"keyGap":5,"keyRowMargin":12,"keyRadius":6,"enterKeyPreviewEnabled":true,"developerEyeEnabled":false,"letterSymbolAlternatesEnabled":true,"letterLayoutId":"en-us","keyHapticEnabled":true,"autoCapitalizeEnabled":true}',
     );
   },
   setKeyboardLayoutSettings: (json: string) => {
@@ -746,5 +785,21 @@ export const keyboardBridge: KeyboardModuleType = {
       return KeyboardModule.redo() as Promise<boolean>;
     }
     return Promise.resolve(false);
+  },
+  computeSuggestionsNative: (
+    prefix: string,
+    context: string | null,
+    previousWord: string | null,
+    fast: boolean,
+  ) => {
+    if (Platform.OS === 'android' && KeyboardModule?.computeSuggestionsNative) {
+      return KeyboardModule.computeSuggestionsNative(
+        prefix,
+        context,
+        previousWord,
+        fast,
+      ) as Promise<string[]>;
+    }
+    return Promise.resolve([]);
   },
 };

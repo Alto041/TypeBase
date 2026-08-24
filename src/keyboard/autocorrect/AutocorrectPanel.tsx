@@ -180,6 +180,9 @@ export function AutocorrectPanel({
                   ? formatLearnedSummary(wordCount, phraseCount)
                   : 'Loading…'}
               </Text>
+              <Text style={styles.manageHint}>
+                Inspect or edit in Typebase app → Settings → Personal typing
+              </Text>
             </View>
             <Pressable
               onPress={handleReset}
@@ -276,6 +279,13 @@ function createAutocorrectStyles(theme: KeyboardTheme) {
       color: theme.spaceLabel,
       fontSize: 13,
       fontFamily: theme.fontFamily,
+    },
+    manageHint: {
+      color: theme.spaceLabel,
+      fontSize: 11,
+      fontFamily: theme.fontFamily,
+      lineHeight: 15,
+      marginTop: 2,
     },
     resetIconButton: {
       width: 36,

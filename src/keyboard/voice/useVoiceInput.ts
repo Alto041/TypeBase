@@ -15,7 +15,6 @@ import {
   preloadVoiceActivationSound,
 } from './voiceActivationSound';
 import {SpeechmaticsVoiceService} from './speechmaticsService';
-import {unloadGemmaModel} from '../ai/gemmaBridge';
 import {getRollingPreviewWords, VOICE_PILL_PREVIEW_MAX_WORDS} from './voiceTranscriptPreview';
 import {voiceRecorder} from './voiceRecorder';
 
@@ -136,7 +135,7 @@ export function useVoiceInput() {
     [markVoiceSpeaking, refreshPreview],
   );
 
-  const finishSession = useCallback(async () => {
+  const finishSession = useCallback(async (sttProvider: VoiceSttProvider | null) => {
     const raw = buildSessionRaw(
       sessionFinalsRef.current,
       lastPartialRef.current,
@@ -147,6 +146,16 @@ export function useVoiceInput() {
     if (!raw) {
       setPartialTranscript('');
       setIsVoiceProcessing(false);
+      return;
+    }
+
+    // Parakeet voice is STT-only — insert raw transcript, no Gemma/Gemini polish.
+    if (sttProvider === 'parakeet') {
+      const toInsert = formatDictationInsert(raw);
+      if (toInsert) {
+        keyboardBridge.insertText(toInsert);
+      }
+      setPartialTranscript('');
       return;
     }
 
@@ -163,7 +172,6 @@ export function useVoiceInput() {
       if (!(error instanceof VoiceCleanupError)) {
         throw error;
       }
-      // Gemini failed — still insert the Speechmatics transcript.
       textToInsert = raw;
     }
 
@@ -215,7 +223,7 @@ export function useVoiceInput() {
       }
 
       activeSttProviderRef.current = null;
-      await finishSession();
+      await finishSession(activeProvider);
     } finally {
       stoppingRef.current = false;
     }
@@ -232,11 +240,6 @@ export function useVoiceInput() {
     }
 
     unsubscribeRef.current = voiceRecorder.subscribeParakeetStt({
-      onReady: () => {
-        setIsVoiceConnecting(false);
-        setIsListening(true);
-        playVoiceActivationSound();
-      },
       onPartial: partial => {
         updateLivePreview(partial);
       },
@@ -251,8 +254,10 @@ export function useVoiceInput() {
     });
 
     try {
-      unloadGemmaModel();
       await voiceRecorder.startParakeetStt();
+      setIsVoiceConnecting(false);
+      setIsListening(true);
+      playVoiceActivationSound();
       return true;
     } catch {
       unsubscribeRef.current?.();

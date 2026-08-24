@@ -420,8 +420,8 @@ export function AiConfigScreen({
               <View style={styles.modelGroup}>
                 <View style={styles.modelCard}>
                   <View style={styles.modelInfo}>
-                    <Text style={styles.modelTitle}>Gemma 3 1B IT</Text>
-                    <Text style={styles.modelSubtitle}>~550 MB</Text>
+                    <Text style={styles.modelTitle}>Gemma 3 270M IT</Text>
+                    <Text style={styles.modelSubtitle}>~290 MB</Text>
                   </View>
 
                   {isModelDownloaded ? (

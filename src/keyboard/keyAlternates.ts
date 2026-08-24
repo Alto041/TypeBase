@@ -92,6 +92,8 @@ const Q_ROW_SYMBOL_ALTERNATES_WITH_NUMBER_ROW: Record<string, readonly string[]>
 
 const Q_ROW_LETTERS = new Set(Object.keys(Q_ROW_SYMBOL_ALTERNATES_WITH_NUMBER_ROW));
 
+const symbolHintCache = new Map<string, string | null>();
+
 function getPhoneLetterSymbolAlternates(
   lookupKey: string,
 ): readonly string[] | undefined {
@@ -175,19 +177,24 @@ function resolveLetterAlternates(
     const phone = getPhoneLetterSymbolAlternates(lookupKey);
     const symbols =
       phone && phone.length >= 2 ? phone.slice(1).filter(Boolean) : [];
-    if (accents.length > 1) {
-      const merged = [...accents];
-      for (const symbol of symbols) {
-        if (!merged.includes(symbol)) {
-          merged.push(symbol);
-        }
+
+    // Popup alternates only — base letter is already committed on key down.
+    const merged: string[] = [];
+    for (const symbol of symbols) {
+      if (!merged.includes(symbol)) {
+        merged.push(symbol);
       }
-      return merged;
     }
-    if (symbols.length > 0) {
-      return [lookupKey, ...symbols];
+    for (const accent of accents) {
+      if (accent.toLowerCase() === lookupKey) {
+        continue;
+      }
+      if (!merged.includes(accent)) {
+        merged.push(accent);
+      }
     }
-    return [];
+
+    return merged;
   }
 
   return accents;
@@ -212,8 +219,30 @@ export function getLetterSymbolHint(keyDef: KeyDefinition): string | null {
     : base
   ).toLowerCase();
 
+  const cacheKey = `${lookupKey}|${settings.numberRowEnabled ? 1 : 0}`;
+  const cached = symbolHintCache.get(cacheKey);
+  if (cached !== undefined) {
+    return cached;
+  }
+
   const phone = getPhoneLetterSymbolAlternates(lookupKey);
-  return phone && phone.length >= 2 ? phone[1] : null;
+  const hint = phone && phone.length >= 2 ? phone[1] : null;
+  symbolHintCache.set(cacheKey, hint);
+  return hint;
+}
+
+/** Whether a long-press alternate should render in Geist (symbols/ASCII) vs system (accents). */
+export function shouldUseGeistForAlternateChar(char: string): boolean {
+  if (!char) {
+    return false;
+  }
+  if (!/\p{L}/u.test(char)) {
+    return true;
+  }
+  if (/^[a-zA-Z]$/.test(char)) {
+    return true;
+  }
+  return char.normalize('NFD').length === 1;
 }
 
 /** Whether a long-press should open the alternate popup for these alternates. */
@@ -251,7 +280,12 @@ export function getKeyAlternates(
   }
 
   const resolved = applyCase(alternates, uppercase);
-  if (!shouldShowAlternatePopup(resolved)) {
+  const showPopup =
+    shouldShowAlternatePopup(resolved) ||
+    (settings.letterSymbolAlternatesEnabled &&
+      layout === 'letters' &&
+      resolved.length >= 1);
+  if (!showPopup) {
     keyAlternatesCache.set(cacheKey, []);
     return [];
   }

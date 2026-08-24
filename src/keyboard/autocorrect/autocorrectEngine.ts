@@ -12,6 +12,14 @@ import {
 import {getExactDictionaryFix, isPreserveTypedWord} from './dictionaryFixes';
 import {getAutocorrectSettings} from './autocorrectStore';
 import {getLearnedCounts} from '../suggestions/learnedDictionary';
+import {
+  getPersonalCorrectionModifier,
+  getPersonalWordConfidence,
+  getPersonalWordStrength,
+  isPersonallyProtectedWord,
+  isPersonallyRejectedCorrection,
+  shouldPersonallyOfferKeepTyped,
+} from '../personalTyping/personalTypingEngine';
 import {applyCaseToWord} from '../suggestions/wordSuggestions';
 import {
   getActiveLanguage,
@@ -173,7 +181,8 @@ const CONTEXT_FOLLOW_WORDS: Record<string, readonly string[]> = {
 };
 
 function extractPreviousWord(context: string): string {
-  const trimmed = context.replace(/[\p{L}\p{M}0-9']+$/u, '').trimEnd();
+  const lineTail = context.split(/\r?\n/).pop() ?? '';
+  const trimmed = lineTail.replace(/[\p{L}\p{M}0-9']+$/u, '').trimEnd();
   const match = trimmed.match(/[\p{L}\p{M}0-9']+$/u);
   return match ? match[0].toLowerCase() : '';
 }
@@ -738,6 +747,9 @@ function pickBestSymSpellTypoFix(
       continue;
     }
     const rank = wordRank(hit.word);
+    if (isPersonallyRejectedCorrection(lower, hit.word)) {
+      continue;
+    }
     if (
       shouldRejectFuzzyCorrection(lower, hit.word, hit.edits, learnedUses, rank) ||
       !isPlausibleTypo(lower, hit.word, hit.edits, rank)
@@ -917,6 +929,9 @@ function isProtectedWord(word: string, learnedUses: number): boolean {
   }
   // OOV / typo learned once used to permanently disable autocorrect. Only
   // protect after the user has clearly insisted (keep chip / repeated use).
+  if (isPersonallyProtectedWord(word)) {
+    return true;
+  }
   return learnedUses >= 1;
 }
 
@@ -952,7 +967,7 @@ function isProbablyProperNoun(word: string): boolean {
   const lower = word.toLowerCase();
   const rank = wordRank(lower);
   const learnedUses = getLearnedCounts().get(lower) ?? 0;
-  if (learnedUses >= 1) {
+  if (learnedUses >= 1 || isPersonallyProtectedWord(lower)) {
     return false;
   }
 
@@ -1215,6 +1230,7 @@ function scoreCandidate(
   return (
     edits * 100 -
     learnedUses * 18 -
+    getPersonalWordStrength(candidate) * 2 -
     Math.max(0, 5000 - staticRank) * 0.02 -
     prefix * 8 -
     (candidate[0] === typed[0] ? 20 : -40) -
@@ -1235,6 +1251,11 @@ function toConfidence(
   let confidence = edits === 1 ? 0.82 : edits === 2 ? 0.58 : 0.48;
   if (learnedUses >= 2) {
     confidence += Math.min(learnedUses * 0.05, 0.2);
+  }
+  confidence += getPersonalWordConfidence(candidate) * 0.1;
+  confidence += getPersonalCorrectionModifier(typed, candidate);
+  if (isPersonallyRejectedCorrection(typed, candidate)) {
+    confidence -= 0.55;
   }
   if (staticRank < 1200) {
     confidence += 0.07;
@@ -1596,7 +1617,7 @@ export function getAutocorrectCandidate(
 
   // A backspace after an unwanted correction explicitly teaches us that this
   // OOV token is intentional. Never correct it again, including exact fixes.
-  if (learnedUses >= 1) {
+  if (isPersonallyProtectedWord(lower)) {
     return null;
   }
 
@@ -1855,8 +1876,7 @@ export function getSuggestionBarAutocorrect(
   }
 
   const lower = normalized;
-  const learnedUses = getLearnedCounts().get(lower) ?? 0;
-  const offerKeepTyped = learnedUses === 0;
+  const offerKeepTyped = shouldPersonallyOfferKeepTyped(lower);
   const previousWord = options?.previousWord ?? '';
 
   if (shouldSkipAutocorrectForToken(lower)) {

@@ -39,6 +39,7 @@ import { CustomizeScreen, ThemesScreen } from './KeyboardCustomization';
 import { GeneralSettingsScreen } from './GeneralSettingsScreen';
 import { ConsoleSettingsScreen } from './ConsoleSettingsScreen';
 import { EngineStatsScreen } from './EngineStatsScreen';
+import { PersonalTypingScreen } from './PersonalTypingScreen';
 import { keyboardBridge } from './src/keyboard/keyboardBridge';
 import { AiConfigScreen } from './AiConfigScreen';
 import { OnboardingScreen } from './OnboardingScreen';
@@ -344,6 +345,7 @@ function SetupScreen() {
   const [showLanguageLayout, setShowLanguageLayout] = useState(false);
   const [showConsoleSettings, setShowConsoleSettings] = useState(false);
   const [showEngineStats, setShowEngineStats] = useState(false);
+  const [showPersonalTyping, setShowPersonalTyping] = useState(false);
   const { animatedStyle, transitionTo } = useScreenTransition();
 
   const changeTab = (next: NavTab) => {
@@ -354,6 +356,7 @@ function SetupScreen() {
       setTab(next);
       setShowConsoleSettings(false);
       setShowEngineStats(false);
+      setShowPersonalTyping(false);
     });
   };
 
@@ -389,6 +392,14 @@ function SetupScreen() {
     transitionTo(() => setShowEngineStats(false));
   };
 
+  const openPersonalTyping = () => {
+    transitionTo(() => setShowPersonalTyping(true));
+  };
+
+  const closePersonalTyping = () => {
+    transitionTo(() => setShowPersonalTyping(false));
+  };
+
   if (showAiConfig) {
     return (
       <View style={styles.setupRoot}>
@@ -421,6 +432,14 @@ function SetupScreen() {
     );
   }
 
+  if (showPersonalTyping) {
+    return (
+      <View style={styles.setupRoot}>
+        <PersonalTypingScreen onBack={closePersonalTyping} />
+      </View>
+    );
+  }
+
   const screenForTab = (): React.ReactNode => {
     if (tab === 'settings') {
       return (
@@ -428,6 +447,7 @@ function SetupScreen() {
           onBack={() => changeTab('home')}
           onOpenConsole={openConsoleSettings}
           onOpenEngineStats={openEngineStats}
+          onOpenPersonalTyping={openPersonalTyping}
         />
       );
     }

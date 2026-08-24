@@ -4,7 +4,7 @@ import type {KeyDefinition} from '../layouts/qwerty';
 import {useThemedStyles} from '../KeyboardThemeContext';
 import type {KeyboardTheme} from '../theme';
 import {BackspaceKey} from './BackspaceKey';
-import {isBackspaceKeyType, isGesturePunctuationKey} from './keyboardRowLayout';
+import {isBackspaceKeyType, isGesturePunctuationKey, keyFlexStyle} from './keyboardRowLayout';
 import {Key, type KeyGesturesConfig, type KeyVariant} from './Key';
 import {PunctuationKey} from './PunctuationKey';
 
@@ -110,7 +110,7 @@ function KeyboardRowComponent({
           <View key={keyDef.id} style={{flex: keyDef.flex ?? 1}} />
         ) : (
           renderRowKey(keyDef, shared, [
-            {flex: keyDef.flex ?? 1, minWidth: 0},
+            keyFlexStyle(keyDef.flex ?? 1),
             focusedKeyId === keyDef.id && styles.focusedKey,
           ])
         ),

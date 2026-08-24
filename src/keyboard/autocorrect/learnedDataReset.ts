@@ -1,41 +1,19 @@
-import {keyboardBridge} from '../keyboardBridge';
 import {
-  getLearnedCounts,
-  reloadLearnedDictionaryFromStorage,
-  resetLearnedDictionaryCache,
-} from '../suggestions/learnedDictionary';
-import {
-  getLearnedPhraseCounts,
-  reloadLearnedPhrasesFromStorage,
-  resetLearnedPhrasesCache,
-} from './learnedPhrases';
+  clearPersonalTypingProfile,
+  ensurePersonalTypingLoaded,
+} from '../personalTyping/personalTypingEngine';
+import {getLearnedCounts} from '../suggestions/learnedDictionary';
+import {getLearnedPhraseCounts} from './learnedPhrases';
 
 export async function resetLearnedAutocorrectData(): Promise<void> {
-  resetLearnedDictionaryCache();
-  resetLearnedPhrasesCache();
-
-  let cleared = await keyboardBridge.clearLearnedAutocorrectData();
-  if (!cleared) {
-    const [wordsCleared, phrasesCleared] = await Promise.all([
-      keyboardBridge.clearLearnedWords(),
-      keyboardBridge.clearLearnedPhrases(),
-    ]);
-    cleared = wordsCleared && phrasesCleared;
-  }
-
-  if (!cleared) {
-    throw new Error('Failed to reset learned autocorrect data');
-  }
+  await clearPersonalTypingProfile();
 }
 
 export async function loadLearnedAutocorrectCounts(): Promise<{
   wordCount: number;
   phraseCount: number;
 }> {
-  await Promise.all([
-    reloadLearnedDictionaryFromStorage(),
-    reloadLearnedPhrasesFromStorage(),
-  ]);
+  await ensurePersonalTypingLoaded();
 
   return {
     wordCount: getLearnedCounts().size,

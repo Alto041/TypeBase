@@ -58,10 +58,12 @@ export function GeneralSettingsScreen({
   onBack,
   onOpenConsole,
   onOpenEngineStats,
+  onOpenPersonalTyping,
 }: {
   onBack: () => void;
   onOpenConsole?: () => void;
   onOpenEngineStats?: () => void;
+  onOpenPersonalTyping?: () => void;
 }) {
   const [uiSoundsEnabled, setUiSoundsEnabledState] = useState(true);
   const [keyHapticEnabled, setKeyHapticEnabledState] = useState(true);
@@ -378,6 +380,18 @@ export function GeneralSettingsScreen({
               </View>
             </View>
           </View>
+
+          {/* Personal typing */}
+          <Pressable
+            style={[styles.rowCard, styles.middleSettingCard]}
+            onPress={() => {
+              if (onOpenPersonalTyping) onOpenPersonalTyping();
+            }}>
+            <View style={styles.rowInner}>
+              <AutoCapIcon width={ROW_ICON} height={ROW_ICON} color={C.text} />
+              <Text style={styles.rowTitle}>Personal typing</Text>
+            </View>
+          </Pressable>
 
           {/* Engine stats */}
           <Pressable

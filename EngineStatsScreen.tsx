@@ -13,7 +13,11 @@ import {SafeAreaView} from 'react-native-safe-area-context';
 import StatsIcon from './assets/stats.svg';
 import DeviceIcon from './assets/device.svg';
 import GraphicEqIcon from './assets/graphic_eq.svg';
+import ArrowForwardIcon from './assets/arrow_forward_ios.svg';
 import {keyboardBridge} from './src/keyboard/keyboardBridge';
+import {ensurePersonalTypingLoaded} from './src/keyboard/personalTyping/personalTypingEngine';
+import {getLearnedCounts} from './src/keyboard/suggestions/learnedDictionary';
+import {getLearnedPhraseCounts} from './src/keyboard/autocorrect/learnedPhrases';
 import {
   getActiveLanguage,
   isSymSpellLookupReady,
@@ -29,6 +33,11 @@ import {
 import {ensureGemmaModelLoaded} from './src/keyboard/ai/gemmaModelManager';
 import {loadMetricsSnapshot} from './src/keyboard/metrics/metricsStore';
 import {getAiAutocorrectTelemetry} from './src/keyboard/autocorrect/aiAutocorrectTelemetry';
+import {
+  getTouchIntelligenceTelemetrySummary,
+  subscribeTouchIntelligenceTelemetry,
+} from './src/keyboard/gesture/touchIntelligenceTelemetry';
+import {TouchIntelligenceHitsScreen} from './TouchIntelligenceHitsScreen';
 
 const DEFAULT_SNAPSHOT = {
   autocorrectLang: 'en',
@@ -174,6 +183,18 @@ function formatMs(value: number | null): string {
 export function EngineStatsScreen({onBack}: {onBack: () => void}) {
   const [snap, setSnap] = useState(DEFAULT_SNAPSHOT);
   const [diagnosticMessage, setDiagnosticMessage] = useState('');
+  const [showTouchHits, setShowTouchHits] = useState(false);
+  const [touchSummary, setTouchSummary] = useState(() =>
+    getTouchIntelligenceTelemetrySummary(),
+  );
+
+  useEffect(() => {
+    const refreshTouchSummary = () => {
+      setTouchSummary(getTouchIntelligenceTelemetrySummary());
+    };
+    refreshTouchSummary();
+    return subscribeTouchIntelligenceTelemetry(refreshTouchSummary);
+  }, []);
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -198,8 +219,6 @@ export function EngineStatsScreen({onBack}: {onBack: () => void}) {
         gestureRaw,
         aiProvider,
         voiceStt,
-        words,
-        phrases,
         metrics,
       ] =
         await Promise.all([
@@ -207,10 +226,9 @@ export function EngineStatsScreen({onBack}: {onBack: () => void}) {
           keyboardBridge.getGestureSettings().catch(() => '{}'),
           keyboardBridge.getAiProvider().catch(() => 'on_device'),
           keyboardBridge.getVoiceSttProvider().catch(() => 'android'),
-          keyboardBridge.getLearnedWordCounts().catch(() => ({})),
-          keyboardBridge.getLearnedPhraseCounts().catch(() => ({})),
           loadMetricsSnapshot(),
         ]);
+      await ensurePersonalTypingLoaded();
 
       if (cancelled) {
         return;
@@ -229,8 +247,8 @@ export function EngineStatsScreen({onBack}: {onBack: () => void}) {
         // Keep defaults when storage contains an older or invalid value.
       }
 
-      const learnedWords = Object.keys(words).length;
-      const learnedPhrases = Object.keys(phrases).length;
+      const learnedWords = getLearnedCounts().size;
+      const learnedPhrases = getLearnedPhraseCounts().size;
       const aiTelemetry = getAiAutocorrectTelemetry();
       setSnap(current => ({
         ...current,
@@ -325,6 +343,10 @@ export function EngineStatsScreen({onBack}: {onBack: () => void}) {
       );
     }
   };
+
+  if (showTouchHits) {
+    return <TouchIntelligenceHitsScreen onBack={() => setShowTouchHits(false)} />;
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -469,6 +491,22 @@ export function EngineStatsScreen({onBack}: {onBack: () => void}) {
             value={snap.swipeTyping ? 'On' : 'Off'}
           />
         </SectionCard>
+
+        <Pressable
+          style={styles.navCard}
+          onPress={() => setShowTouchHits(true)}>
+          <View style={styles.navCardInner}>
+            <View style={styles.navTextBlock}>
+              <Text style={styles.navTitle}>Touch hits</Text>
+              <Text style={styles.navHint}>
+                {touchSummary.totalHits > 0
+                  ? `${touchSummary.totalHits} recorded`
+                  : 'View key corrections'}
+              </Text>
+            </View>
+            <ArrowForwardIcon width={14} height={14} color={C.muted} />
+          </View>
+        </Pressable>
 
         <View style={styles.toolsCard}>
           <View style={styles.toolsHeader}>
@@ -653,6 +691,33 @@ const styles = StyleSheet.create({
   },
   sectionRowValueMono: {
     fontSize: 12,
+  },
+  navCard: {
+    backgroundColor: C.card,
+    borderRadius: CARD_R,
+    padding: 14,
+  },
+  navCardInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  navTextBlock: {
+    flex: 1,
+    gap: 3,
+  },
+  navTitle: {
+    fontSize: 14,
+    color: C.text,
+    fontFamily: 'FragmentMono',
+    letterSpacing: TEXT_KERNING,
+    textTransform: 'uppercase',
+  },
+  navHint: {
+    fontSize: 12,
+    color: C.sub,
+    fontFamily: 'FragmentMono',
+    letterSpacing: TEXT_KERNING,
   },
   toolsCard: {
     backgroundColor: C.card,

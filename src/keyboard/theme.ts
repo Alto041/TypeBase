@@ -75,7 +75,7 @@ export const DEFAULT_KEYBOARD_LAYOUT_SETTINGS: KeyboardLayoutSettings = {
   enterKeyPreviewEnabled: true,
   developerEyeEnabled: false,
   letterLayoutId: DEFAULT_LETTER_LAYOUT_ID,
-  letterSymbolAlternatesEnabled: false,
+  letterSymbolAlternatesEnabled: true,
   numberRowEnabled: false,
   keyboardHeightOffset: 0,
   customTapSoundEnabled: true,
@@ -605,6 +605,20 @@ export function keyboardKeyChromeStyle(
 }
 
 export type KeyboardTheme = ReturnType<typeof createKeyboardTheme>;
+
+/** Bundled Geist face (assets/Geist-VariableFont_wght.ttf) — used for symbol hints & alternates. */
+export const KEYBOARD_GEIST_FONT_FAMILY = 'Geist' as const;
+
+export function keyboardGeistTypefaceStyle(
+  fontWeight?: '400' | '500' | '600' | '700',
+): {fontFamily: typeof KEYBOARD_GEIST_FONT_FAMILY; fontWeight?: '400' | '500' | '600' | '700'} {
+  if (Platform.OS === 'android') {
+    return {fontFamily: KEYBOARD_GEIST_FONT_FAMILY};
+  }
+  return fontWeight
+    ? {fontFamily: KEYBOARD_GEIST_FONT_FAMILY, fontWeight}
+    : {fontFamily: KEYBOARD_GEIST_FONT_FAMILY};
+}
 
 /** Text face for keyboard labels — Geist when loaded. */
 export function keyboardTypefaceStyle(

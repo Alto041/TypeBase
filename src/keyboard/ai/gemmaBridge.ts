@@ -59,7 +59,7 @@ const GemmaModule: GemmaNativeModule | undefined =
   Platform.OS === 'android' ? NativeModules.GemmaModule : undefined;
 
 export const GEMMA_MODEL_URL =
-  'https://pub-8e31d16ca4f04d94b8e3e5f258fcbc2b.r2.dev/gemma3-1B-it-int4.task';
+  'https://pub-8e31d16ca4f04d94b8e3e5f258fcbc2b.r2.dev/gemma-3-270m-it-int8.task';
 
 export const GEMMA_DOWNLOAD_PROGRESS_EVENT = 'gemmaDownloadProgress';
 

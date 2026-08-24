@@ -13,7 +13,7 @@ export const DEFAULT_AUTOCORRECT_SETTINGS: AutocorrectSettings = {
 };
 
 export const AUTOCORRECT_REMEMBERS = [
-  'Names, slang, and technical terms',
-  'Company and product names',
-  'Phrases you use often',
+  'Words you type, pick, or keep on purpose',
+  'Rejected autocorrections and manual fixes',
+  'Phrases, slang, names, and punctuation habits',
 ] as const;

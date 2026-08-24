@@ -1,77 +1,48 @@
-import {keyboardBridge} from '../keyboardBridge';
+import type {LearningSource} from '../personalTyping/types';
+import {
+  ensurePersonalTypingLoaded,
+  getLearnedPhraseMap,
+  getPersonalPhraseWeight,
+  observePhraseCommitted,
+  observePhrasesCommitted,
+  reloadPersonalTypingFromStorage,
+  resetPersonalTypingCache,
+} from '../personalTyping/personalTypingEngine';
+import {
+  isLearnablePhrase,
+  normalizePhrase,
+} from '../personalTyping/learnedText';
 
-const phraseCounts = new Map<string, number>();
-let loadPromise: Promise<void> | null = null;
-let loadGeneration = 0;
-
-export function normalizePhrase(phrase: string): string {
-  return phrase.trim().toLowerCase().replace(/\s+/g, ' ');
-}
-
-export function isLearnablePhrase(phrase: string): boolean {
-  const normalized = normalizePhrase(phrase);
-  const words = normalized.split(' ');
-  if (words.length < 2 || words.length > 4) {
-    return false;
-  }
-  return words.every(word => word.length >= 2 && /^[\p{L}\p{M}]+$/u.test(word));
-}
+export {normalizePhrase, isLearnablePhrase};
 
 export function resetLearnedPhrasesCache(): void {
-  loadGeneration += 1;
-  phraseCounts.clear();
-  loadPromise = null;
+  resetPersonalTypingCache();
 }
 
 export async function ensureLearnedPhrasesLoaded(): Promise<void> {
-  if (loadPromise) {
-    return loadPromise;
-  }
-
-  const generation = loadGeneration;
-  loadPromise = (async () => {
-    const counts = await keyboardBridge.getLearnedPhraseCounts();
-    if (generation !== loadGeneration) {
-      return;
-    }
-    phraseCounts.clear();
-    for (const [phrase, count] of Object.entries(counts)) {
-      if (count > 0) {
-        phraseCounts.set(phrase, count);
-      }
-    }
-  })();
-
-  return loadPromise;
+  await ensurePersonalTypingLoaded();
 }
 
 export async function reloadLearnedPhrasesFromStorage(): Promise<void> {
-  resetLearnedPhrasesCache();
-  await ensureLearnedPhrasesLoaded();
+  await reloadPersonalTypingFromStorage();
 }
 
 export function getLearnedPhraseCounts(): ReadonlyMap<string, number> {
-  return phraseCounts;
+  return getLearnedPhraseMap();
 }
 
 export async function clearLearnedPhrasesStore(): Promise<void> {
-  resetLearnedPhrasesCache();
-  const cleared = await keyboardBridge.clearLearnedPhrases();
-  if (!cleared) {
-    throw new Error('Failed to clear learned phrases');
-  }
-  loadPromise = Promise.resolve();
+  const {clearPersonalTypingProfile} = await import(
+    '../personalTyping/personalTypingEngine'
+  );
+  await clearPersonalTypingProfile();
 }
 
-export function recordLearnedPhrase(phrase: string): void {
-  if (!isLearnablePhrase(phrase)) {
-    return;
-  }
-
-  const normalized = normalizePhrase(phrase);
-  const nextCount = (phraseCounts.get(normalized) ?? 0) + 1;
-  phraseCounts.set(normalized, nextCount);
-  keyboardBridge.recordLearnedPhrase(normalized);
+export function recordLearnedPhrase(
+  phrase: string,
+  source: LearningSource = 'typed',
+): void {
+  observePhraseCommitted(phrase, source);
 }
 
 export function extractTrailingWords(text: string, maxWords: number): string[] {
@@ -135,6 +106,8 @@ export function getPhraseCorrection(
     return null;
   }
 
+  const phraseCounts = getLearnedPhraseCounts();
+
   const priorWords = trailing.slice(0, -1);
   let best: {phrase: string; score: number; replaceLength: number} | null = null;
 
@@ -163,7 +136,7 @@ export function getPhraseCorrection(
       continue;
     }
 
-    const score = uses * 10 - edits * 25;
+    const score = getPersonalPhraseWeight(phrase) - edits * 25;
     const replaceLength = [...priorWords, typedWord].join(' ').length;
 
     if (!best || score > best.score) {
@@ -183,8 +156,12 @@ export function getPhraseCorrection(
 
 export function learnPhrasesFromContext(context: string): void {
   const trailing = extractTrailingWords(context, 4);
+  const phrases: string[] = [];
   for (let length = 2; length <= Math.min(trailing.length, 4); length++) {
-    recordLearnedPhrase(trailing.slice(-length).join(' '));
+    phrases.push(trailing.slice(-length).join(' '));
+  }
+  if (phrases.length > 0) {
+    observePhrasesCommitted(phrases, 'typed');
   }
 }
 
@@ -195,13 +172,17 @@ export function getPhraseSuggestions(context: string, limit = 2): string[] {
   }
 
   const prefix = trailing.join(' ');
+  const phraseCounts = getLearnedPhraseCounts();
   const results: Array<{phrase: string; score: number}> = [];
 
   for (const [phrase, uses] of phraseCounts.entries()) {
     if (uses <= 0 || !phrase.startsWith(prefix) || phrase === prefix) {
       continue;
     }
-    results.push({phrase, score: uses * 10 - phrase.length});
+    results.push({
+      phrase,
+      score: getPersonalPhraseWeight(phrase) - phrase.length,
+    });
   }
 
   return results
