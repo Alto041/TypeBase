@@ -41,6 +41,7 @@ type KeyboardModuleType = {
   getPrefersNumpad: () => Promise<boolean>;
   getInputSupportsNewline: () => Promise<boolean>;
   getInputInitialCapsMode: () => Promise<boolean>;
+  getAutoCapitalizeAtCursor: () => boolean;
   getClipboardText: () => Promise<string>;
   getClipboardContent: () => Promise<ClipboardContent>;
   hasMediaImagesPermission: () => Promise<boolean>;
@@ -75,6 +76,11 @@ type KeyboardModuleType = {
   setNativeKeyFastPathConfig: (json: string) => void;
   updateTouchIntelligenceContext: (json: string) => void;
   setNativeZeroLatencyMode: (enabled: boolean) => void;
+  updateNativeFastPathCaseState: (
+    shiftOn: boolean,
+    capsLocked: boolean,
+    uppercase: boolean,
+  ) => void;
   consumeNativeFastPathPointer: (pointerId: number) => boolean;
   pollNativeFastPathCommit: () => {
     keyId: string;
@@ -308,6 +314,12 @@ export const keyboardBridge: KeyboardModuleType = {
     }
     return Promise.resolve(false);
   },
+  getAutoCapitalizeAtCursor: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.getAutoCapitalizeAtCursor) {
+      return KeyboardModule.getAutoCapitalizeAtCursor() as boolean;
+    }
+    return false;
+  },
   getClipboardText: () => {
     if (Platform.OS === 'android' && KeyboardModule?.getClipboardText) {
       return KeyboardModule.getClipboardText() as Promise<string>;
@@ -507,6 +519,18 @@ export const keyboardBridge: KeyboardModuleType = {
   setNativeZeroLatencyMode: (enabled: boolean) => {
     if (Platform.OS === 'android' && KeyboardModule?.setNativeZeroLatencyMode) {
       KeyboardModule.setNativeZeroLatencyMode(enabled);
+    }
+  },
+  updateNativeFastPathCaseState: (
+    shiftOn: boolean,
+    capsLocked: boolean,
+    uppercase: boolean,
+  ) => {
+    if (
+      Platform.OS === 'android' &&
+      KeyboardModule?.updateNativeFastPathCaseState
+    ) {
+      KeyboardModule.updateNativeFastPathCaseState(shiftOn, capsLocked, uppercase);
     }
   },
   consumeNativeFastPathPointer: (pointerId: number): boolean => {

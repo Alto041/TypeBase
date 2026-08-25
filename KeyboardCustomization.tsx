@@ -635,7 +635,7 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
 }
 
 export function ThemesScreen({onBack}: {onBack: () => void}) {
-  const [design, setDesign] = useState<'typebase' | 'quivox' | 'macintosh'>('typebase');
+  const [design, setDesign] = useState<'typebase' | 'quivox' | 'macintosh' | 'apple'>('typebase');
   const [isDark, setIsDark] = useState(false);
   const [loading, setLoading] = useState(true);
   const [developerEyeEnabled, setDeveloperEyeEnabled] = useState(false);
@@ -664,7 +664,9 @@ export function ThemesScreen({onBack}: {onBack: () => void}) {
           ? 'quivox'
           : current === 'macintosh'
             ? 'macintosh'
-            : 'typebase',
+            : current === 'apple'
+              ? 'apple'
+              : 'typebase',
       );
       setIsDark(dark);
       toggleAnim.setValue(dark ? 1 : 0);
@@ -710,7 +712,7 @@ export function ThemesScreen({onBack}: {onBack: () => void}) {
     void Haptics.selectionAsync().catch(() => {});
   };
 
-  const select = (which: 'typebase' | 'quivox' | 'macintosh') => {
+  const select = (which: 'typebase' | 'quivox' | 'macintosh' | 'apple') => {
     if (loading) return;
     setDesign(which);
     void setKeyboardDesign(which);
@@ -737,6 +739,7 @@ export function ThemesScreen({onBack}: {onBack: () => void}) {
   const isNothing = design === 'typebase';
   const isQuivox = design === 'quivox';
   const isMacintosh = design === 'macintosh';
+  const isApple = design === 'apple';
 
   const handleImportKeyboardFont = async () => {
     if (loading || importingFont || importFontInFlightRef.current) return;
@@ -830,6 +833,38 @@ export function ThemesScreen({onBack}: {onBack: () => void}) {
               >
                 <Text style={styles.themeBtnText}>
                   {isNothing ? 'Selected' : 'Choose'}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+
+        {/* Apple Theme card */}
+        <View style={styles.themeCard}>
+          <View style={styles.themeImageWrap}>
+            <Image
+              source={require('./assets/apple-keybaord.jpg')}
+              style={styles.themeImage}
+              resizeMode="cover"
+            />
+          </View>
+
+          <View style={styles.themeBottomArea}>
+            <View style={styles.themeBottomRow}>
+              <View style={styles.themeTextCol}>
+                <Text style={styles.themeTitle}>Apple Theme</Text>
+                <Text style={styles.themeSubtitle}>
+                  Nothing layout with iOS-style blue Go / Enter keys
+                </Text>
+              </View>
+
+              <Pressable
+                style={[styles.themeBtn, isApple && styles.themeBtnActive]}
+                onPress={() => select('apple')}
+                disabled={loading}
+              >
+                <Text style={styles.themeBtnText}>
+                  {isApple ? 'Selected' : 'Choose'}
                 </Text>
               </Pressable>
             </View>

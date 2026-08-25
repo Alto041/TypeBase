@@ -13,6 +13,7 @@ import AddIcon from '../../../assets/add.svg';
 import InsertIcon from '../../../assets/insert.svg';
 import BackIcon from '../../../assets/back.svg';
 import CheckIcon from '../../../assets/check.svg';
+import ArtificialIcon from '../../../assets/Artificial.svg';
 import EmojiIcon from '../../../assets/emoji.svg';
 import ItemsIcon from '../../../assets/items.svg';
 import StopIcon from '../../../assets/stop.svg';
@@ -25,6 +26,7 @@ import TranslateIcon from '../../../assets/plugins/translate.svg';
 import {VoiceConnectingDots} from './VoiceConnectingDots';
 import {VoiceEqualizerIcon} from './VoiceEqualizerIcon';
 import {VoiceSpeechPill} from './VoiceSpeechPill';
+import {VoiceFlowVisualization} from './VoiceFlowVisualization';
 import {clipboardPastePreviewText} from '../clipboard/clipboardPasteSuggestion';
 import type {ClipboardPasteSuggestion} from '../clipboard/clipboardPasteSuggestion';
 import {triggerKeyHaptic} from '../haptics';
@@ -171,14 +173,17 @@ type SuggestionBarProps = {
   isVoiceSpeaking?: boolean;
   isVoiceConnecting?: boolean;
   isVoiceProcessing?: boolean;
+  voiceAudioLevel?: number;
   partialTranscript?: string;
   onItemsPress?: () => void;
   onTranslatePress?: () => void;
   onEmojiPress?: () => void;
+  onAiPress?: () => void;
   onVoicePress?: () => void;
   itemsSelected?: boolean;
   translateSelected?: boolean;
   emojiSelected?: boolean;
+  aiSelected?: boolean;
   centerTitle?: string;
   clipboardPasteSuggestion?: ClipboardPasteSuggestion | null;
   onClipboardPasteSelect?: () => void;
@@ -214,14 +219,17 @@ function SuggestionBarComponent({
   isVoiceSpeaking = false,
   isVoiceConnecting = false,
   isVoiceProcessing = false,
+  voiceAudioLevel = 0,
   partialTranscript = '',
   onItemsPress,
   onTranslatePress,
   onEmojiPress,
+  onAiPress,
   onVoicePress,
   itemsSelected = false,
   translateSelected = false,
   emojiSelected = false,
+  aiSelected = false,
   centerTitle,
   clipboardPasteSuggestion = null,
   onClipboardPasteSelect,
@@ -240,6 +248,17 @@ function SuggestionBarComponent({
   const theme = useKeyboardTheme();
   const styles = useThemedStyles(createSuggestionBarStyles);
   const panelSearch = panelSearchProp ?? gifSearch;
+  const isFormMode = Boolean(essentialsForm);
+  const showVoiceSession =
+    !isFormMode &&
+    (isVoiceConnecting || isListening || isVoiceProcessing);
+  const [voiceFlowMounted, setVoiceFlowMounted] = useState(showVoiceSession);
+
+  useEffect(() => {
+    if (showVoiceSession) {
+      setVoiceFlowMounted(true);
+    }
+  }, [showVoiceSession]);
 
   if (!visible) {
     return null;
@@ -311,10 +330,6 @@ function SuggestionBarComponent({
     );
   }
 
-  const isFormMode = Boolean(essentialsForm);
-  const showVoiceSession =
-    !isFormMode &&
-    (isVoiceConnecting || isListening || isVoiceProcessing);
   const showLeadingBack = isFormMode || leadingBack;
   const showVoiceProcessing =
     !isFormMode && isVoiceProcessing && !showVoiceSession;
@@ -375,6 +390,7 @@ function SuggestionBarComponent({
     ? toolbarIconActive
     : toolbarIconMuted;
   const emojiIconColor = emojiSelected ? toolbarIconActive : toolbarIconMuted;
+  const aiIconColor = aiSelected ? toolbarIconActive : toolbarIconMuted;
   const voiceActive = isListening || isVoiceConnecting;
   const voiceIconColor = voiceActive ? toolbarIconActive : toolbarIconMuted;
   const showUndoRedoButtons = showUndoRedo && !isFormMode && !centerTitle;
@@ -384,6 +400,24 @@ function SuggestionBarComponent({
     !centerTitle &&
     !showVoiceSession;
   const isMacintosh = theme.design === 'macintosh';
+  const isApple = theme.design === 'apple';
+
+  if (voiceFlowMounted) {
+    return (
+      <View style={styles.container}>
+        <VoiceFlowVisualization
+          visible={showVoiceSession}
+          connecting={isVoiceConnecting}
+          listening={isListening}
+          speaking={isVoiceSpeaking}
+          audioLevel={voiceAudioLevel}
+          transcript={partialTranscript}
+          onStop={onVoicePress || (() => {})}
+          onExitComplete={() => setVoiceFlowMounted(false)}
+        />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -453,16 +487,6 @@ function SuggestionBarComponent({
         ) : null}
       </View>
 
-      {showVoiceSession ? (
-        <VoiceSpeechPill
-          visible={showVoiceSession}
-          connecting={isVoiceConnecting}
-          listening={isListening}
-          speaking={isVoiceSpeaking}
-          processing={isVoiceProcessing}
-          transcript={partialTranscript}
-        />
-      ) : (
       <View style={styles.center}>
         {isFormMode && essentialsForm ? (
           <View style={styles.formCenter}>
@@ -621,7 +645,6 @@ function SuggestionBarComponent({
           </View>
         ) : null}
       </View>
-      )}
 
       {isFormMode && essentialsForm ? (
         <Pressable
@@ -681,24 +704,34 @@ function SuggestionBarComponent({
               <RedoIcon width={22} height={22} color={theme.icon} />
             </Pressable>
           ) : null}
-          {!showVoiceSession ? (
-            <Pressable
-              onPressIn={() => {
-                triggerKeyHaptic();
+          <Pressable
+            onPressIn={() => {
+              triggerKeyHaptic();
+              if (isApple) {
+                onAiPress?.();
+              } else {
                 onEmojiPress?.();
-              }}
-              style={({pressed}) => [
-                styles.toolbarButton,
-                pressed && styles.toolbarButtonPressed,
-              ]}
-              hitSlop={6}>
+              }
+            }}
+            style={({pressed}) => [
+              styles.toolbarButton,
+              pressed && styles.toolbarButtonPressed,
+            ]}
+            hitSlop={6}>
+            {isApple ? (
+              <ArtificialIcon
+                width={toolbarIconSize}
+                height={toolbarIconSize}
+                color={aiIconColor}
+              />
+            ) : (
               <EmojiIcon
                 width={toolbarIconSize}
                 height={toolbarIconSize}
                 color={emojiIconColor}
               />
-            </Pressable>
-          ) : null}
+            )}
+          </Pressable>
           <Pressable
             onPressIn={() => {
               triggerKeyHaptic();

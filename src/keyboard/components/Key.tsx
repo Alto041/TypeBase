@@ -22,6 +22,7 @@ import NextLineIcon from '../../../assets/next_line.svg';
 import NumbersIcon from '../../../assets/123.svg';
 import SymbolsIcon from '../../../assets/symbols.svg';
 import RocketLaunchIcon from '../../../assets/rocket_launch.svg';
+import EmojiIcon from '../../../assets/emoji.svg';
 import ArtificialIcon from '../../../assets/Artificial.svg';
 import AppleIcon from '../../../assets/apple.svg';
 import {useKeyLayoutContext} from '../gesture/KeyLayoutContext';
@@ -31,6 +32,7 @@ import {
   pointerIdFromTouch,
   registerMultiTouchKeyVisual,
 } from '../gesture/multiTouchKeys';
+import {shouldSkipKeyPreviewEffects, shouldSkipKeyPressEffects} from '../zeroLatencyMode';
 import {gestureSwipeActiveRef} from '../gesture/gestureState';
 import {hideKeyPreview, showKeyPreview} from '../KeyPreview';
 import {registerKeyReactTag, unregisterKeyReactTag} from '../keyReactTags';
@@ -126,6 +128,7 @@ function KeyComponent({
   const [keyPressed, setKeyPressed] = useState(false);
   const isMacintosh = theme.design === 'macintosh';
   const isQuivox = theme.design === 'quivox';
+  const isApple = theme.design === 'apple';
   const isSpaceKey = keyDef.type === 'space';
   const showZeroLatencyRipple =
     isSpaceKey && Boolean(keyGestures?.zeroLatencyMode);
@@ -185,7 +188,8 @@ function KeyComponent({
     : keyDef.label;
   const symbolHint = isTextKey ? getLetterSymbolHint(keyDef) : null;
 
-  const borderRadius = isEnterKey ? keyHeight / 2 : theme.keyRadius;
+  const borderRadius =
+    isEnterKey && !isApple ? keyHeight / 2 : theme.keyRadius;
 
   const measureKey = useCallback(() => {
     if (!usesMultiTouchDispatch) {
@@ -255,14 +259,12 @@ function KeyComponent({
         if (gestureSwipeActiveRef.current && pressed) {
           return;
         }
-        const nativeHandledPreview = pressed && options?.nativeCommitted;
-        if (!nativeHandledPreview) {
-          const tag = reactTagRef.current ?? findNodeHandle(keyRef.current);
-          if (!tag) {
-            return;
-          }
+        const tag = reactTagRef.current ?? findNodeHandle(keyRef.current);
+        if (tag) {
           reactTagRef.current = tag;
-          if (pressed) {
+          if (!pressed) {
+            hideKeyPreview(tag);
+          } else if (!shouldSkipKeyPreviewEffects()) {
             const raw = keyDef.value ?? keyDef.label ?? '';
             const label =
               /^[a-z]$/i.test(raw) && isUppercase
@@ -271,12 +273,14 @@ function KeyComponent({
                   ? raw.toLowerCase()
                   : raw;
             showKeyPreview(tag, label);
-          } else {
-            hideKeyPreview(tag);
           }
         }
       }
-      animateMultiTouchPress(pressed);
+      if (!pressed) {
+        animateMultiTouchPress(false);
+      } else if (!shouldSkipKeyPressEffects()) {
+        animateMultiTouchPress(true);
+      }
     });
   }, [
     animateMultiTouchPress,
@@ -397,31 +401,59 @@ function KeyComponent({
   const keyContent = isEnterAction ? (
     theme.design === 'quivox' && isEnterKey ? (
       <QuivoxEnterIcon width={22} height={19} color={keyIconColor} />
+    ) : isApple && isEnterKey ? (
+      <Text style={[styles.keyLabel, styles.appleEnterLabel, {color: theme.iconOnEnter}]}>
+        {enterKeyNextLineEnabled ? 'enter' : 'go'}
+      </Text>
     ) : isEnterKey && enterKeyNextLineEnabled ? (
       <NextLineIcon width={20} height={20} color={keyIconColor} />
     ) : (
       <EnterIcon width={20} height={20} color={keyIconColor} />
     )
   ) : isNumbersIcon ? (
-    <NumbersIcon width={26} height={14} color={keyIconColor} />
+    isApple ? (
+      <Text style={[styles.keyLabel, styles.specialKeyLabel, styles.appleNumbersLabel]}>
+        123
+      </Text>
+    ) : (
+      <NumbersIcon width={26} height={14} color={keyIconColor} />
+    )
   ) : isSymbolsIcon ? (
-    <SymbolsIcon width={22} height={22} color={keyIconColor} />
+    isApple ? (
+      <Text style={[styles.keyLabel, styles.specialKeyLabel, styles.appleNumbersLabel]}>
+        {displayLabel ?? '#+='}
+      </Text>
+    ) : (
+      <SymbolsIcon width={22} height={22} color={keyIconColor} />
+    )
   ) : isShift ? (
-    <View style={styles.shiftIconContainer}>
-      <ShiftStateIcon
-        width={isCapsLocked ? 18 : 17}
-        height={isCapsLocked ? 19 : 15}
-        color={keyIconColor}
-      />
-    </View>
+    isApple ? (
+      <Text style={[styles.keyLabel, styles.specialKeyLabel, styles.appleShiftLabel]}>
+        shift
+      </Text>
+    ) : (
+      <View style={styles.shiftIconContainer}>
+        <ShiftStateIcon
+          width={isCapsLocked ? 18 : 17}
+          height={isCapsLocked ? 19 : 15}
+          color={keyIconColor}
+        />
+      </View>
+    )
   ) : showLauncher ? (
     <RocketLaunchIcon width={20} height={20} color={featureIconColor} />
   ) : showRewrite ? (
     <ArtificialIcon width={18} height={17} color={featureIconColor} />
+  ) : keyDef.type === 'emoji' ? (
+    <EmojiIcon width={22} height={22} color={theme.icon} />
   ) : isSpaceKey && theme.design === 'typebase' ? (
     <Text style={[styles.keyLabel, styles.spaceLabel]}>
       {displayLabel ?? 'space'}
       <Text style={styles.spaceNothingMark}> (R)</Text>
+    </Text>
+  ) : isSpaceKey && isApple ? (
+    <Text style={[styles.keyLabel, styles.spaceLabel]}>
+      {displayLabel ?? 'space'}
     </Text>
   ) : isSpaceKey && theme.design === 'macintosh' ? (
     <View style={styles.spaceMacintoshRow}>
@@ -750,7 +782,7 @@ function KeyComponent({
           {isMacintosh ? (
             <MacintoshKeyBevels
               pressed={keyPressed}
-              shape={isEnterKey ? 'pill' : 'rect'}
+              shape={isEnterKey && !isApple ? 'pill' : 'rect'}
             />
           ) : null}
           {showZeroLatencyRipple ? (
@@ -854,7 +886,7 @@ function KeyComponent({
             {theme.design === 'macintosh' ? (
               <MacintoshKeyBevels
                 pressed={pressed}
-                shape={isEnterKey ? 'pill' : 'rect'}
+                shape={isEnterKey && !isApple ? 'pill' : 'rect'}
               />
             ) : null}
             {showZeroLatencyRipple ? (
@@ -1006,6 +1038,22 @@ function createKeyStyles(theme: KeyboardTheme) {
       fontSize: 16,
       color: theme.spaceKeyLabel,
       fontWeight: '400',
+    },
+    appleEnterLabel: {
+      fontSize: 17,
+      fontWeight: '400',
+      ...keyboardTypefaceStyle(theme, '400'),
+    },
+    appleNumbersLabel: {
+      fontSize: 16,
+      fontWeight: '400',
+      ...keyboardTypefaceStyle(theme, '400'),
+    },
+    appleShiftLabel: {
+      fontSize: 15,
+      fontWeight: '400',
+      textAlign: 'center',
+      ...keyboardTypefaceStyle(theme, '400'),
     },
     spaceMacintoshRow: {
       flexDirection: 'row',

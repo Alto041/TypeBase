@@ -37,19 +37,28 @@ type LastTapRecord = {
   timestampMs: number;
 };
 
-const WEIGHT_GEOMETRIC = 0.34;
+const WEIGHT_GEOMETRIC = 0.32;
 const WEIGHT_VELOCITY = 0.1;
-const WEIGHT_NEIGHBOR = 0.1;
-const WEIGHT_BIGRAM = 0.12;
-const WEIGHT_WORD_CONTINUATION = 0.26;
-const CONFIDENT_STRICT_CENTER_RATIO = 0.22;
-const MIN_RERANK_MARGIN = 0.018;
-const CONTEXT_OVERRIDE_MARGIN = 0.08;
+const WEIGHT_NEIGHBOR = 0.14;
+const WEIGHT_BIGRAM = 0.14;
+const WEIGHT_WORD_CONTINUATION = 0.38;
+const CONFIDENT_STRICT_CENTER_RATIO = 0.12;
+const MIN_RERANK_MARGIN = 0.006;
+const CONTEXT_OVERRIDE_MARGIN = 0.035;
+const STRONG_LANGUAGE_WIN_MARGIN = 0.05;
 
 let typingContextProvider: (() => TouchIntelligenceTypingContext) | null = null;
 let lastTap: LastTapRecord | null = null;
 let neighborCacheKey = '';
 let neighborCache = new Map<string, Set<string>>();
+let likelyNextLettersCacheKey = '';
+let likelyNextLettersCache: string[] = [];
+let continuationCachePrefix = '';
+let continuationCache: {hits: Map<string, number>; completionCount: number} = {
+  hits: new Map(),
+  completionCount: 0,
+};
+let lastNativeContextPayload = '';
 
 export function setTouchIntelligenceTypingContextProvider(
   provider: (() => TouchIntelligenceTypingContext) | null,
@@ -86,8 +95,15 @@ export function recordTouchIntelligenceTap(
 
 export function getLikelyNextLetters(prefix: string, limit = 8): string[] {
   const lower = prefix.trim().toLowerCase();
+  const cacheKey = `${lower}:${limit}`;
+  if (cacheKey === likelyNextLettersCacheKey) {
+    return likelyNextLettersCache;
+  }
+
   if (lower.length < 2 || !/^[a-z]+$/.test(lower)) {
-    return [];
+    likelyNextLettersCacheKey = cacheKey;
+    likelyNextLettersCache = [];
+    return likelyNextLettersCache;
   }
 
   const completions = getPrefixCompletions(lower, 16);
@@ -102,10 +118,12 @@ export function getLikelyNextLetters(prefix: string, limit = 8): string[] {
     }
   }
 
-  return [...counts.entries()]
+  likelyNextLettersCacheKey = cacheKey;
+  likelyNextLettersCache = [...counts.entries()]
     .sort((left, right) => right[1] - left[1])
     .slice(0, limit)
     .map(([letter]) => letter);
+  return likelyNextLettersCache;
 }
 
 export function getTouchIntelligenceNativeConfig(): TouchIntelligenceNativeConfig {
@@ -122,9 +140,21 @@ export function getTouchIntelligenceNativeConfig(): TouchIntelligenceNativeConfi
 }
 
 export function syncTouchIntelligenceToNative(): void {
-  keyboardBridge.updateTouchIntelligenceContext(
-    JSON.stringify(getTouchIntelligenceNativeConfig()),
-  );
+  const typing = getTouchIntelligenceTypingContext();
+  const payload = JSON.stringify({
+    enabled: true,
+    previousKeyLetter: typing.previousKeyLetter,
+    wordPrefix: typing.wordPrefix,
+    likelyNextLetters: getLikelyNextLetters(typing.wordPrefix),
+    lastTapX: lastTap?.localX ?? 0,
+    lastTapY: lastTap?.localY ?? 0,
+    lastTapAtMs: lastTap?.timestampMs ?? 0,
+  });
+  if (payload === lastNativeContextPayload) {
+    return;
+  }
+  lastNativeContextPayload = payload;
+  keyboardBridge.updateTouchIntelligenceContext(payload);
 }
 
 function keyLetter(layout: KeyBounds): string | null {
@@ -349,6 +379,8 @@ function wordContinuationScore(
   candidateLetter: string | null,
   wordPrefix: string,
   likelyNextLetters: readonly string[],
+  continuationHits?: ReadonlyMap<string, number>,
+  completionCount?: number,
 ): number {
   const likely = likelyNextLetterScore(candidateLetter, likelyNextLetters);
   const lower = wordPrefix.trim().toLowerCase();
@@ -356,24 +388,55 @@ function wordContinuationScore(
     return likely;
   }
 
-  const completions = getPrefixCompletions(lower, 12);
-  if (completions.length === 0) {
-    return likely;
-  }
-
-  let hits = 0;
-  for (const word of completions) {
-    if (word.length > lower.length && word[lower.length] === candidateLetter) {
-      hits += 1;
-    }
-  }
+  const hits =
+    continuationHits?.get(candidateLetter) ??
+    (() => {
+      const completions = getPrefixCompletions(lower, 12);
+      let count = 0;
+      for (const word of completions) {
+        if (word.length > lower.length && word[lower.length] === candidateLetter) {
+          count += 1;
+        }
+      }
+      return count;
+    })();
 
   if (hits === 0) {
     return likely;
   }
 
-  const completionScore = Math.min(1, 0.5 + hits / completions.length * 0.5);
+  const totalCompletions = completionCount ?? 12;
+  const completionScore = Math.min(1, 0.5 + hits / totalCompletions * 0.5);
   return Math.max(likely, completionScore);
+}
+
+function buildWordContinuationHits(
+  wordPrefix: string,
+): {hits: Map<string, number>; completionCount: number} {
+  const lower = wordPrefix.trim().toLowerCase();
+  if (lower === continuationCachePrefix) {
+    return continuationCache;
+  }
+  if (lower.length < 2 || !/^[a-z]+$/.test(lower)) {
+    continuationCachePrefix = lower;
+    continuationCache = {hits: new Map(), completionCount: 0};
+    return continuationCache;
+  }
+
+  const completions = getPrefixCompletions(lower, 12);
+  const hits = new Map<string, number>();
+  for (const word of completions) {
+    if (word.length <= lower.length) {
+      continue;
+    }
+    const letter = word[lower.length]?.toLowerCase();
+    if (letter && /[a-z]/.test(letter)) {
+      hits.set(letter, (hits.get(letter) ?? 0) + 1);
+    }
+  }
+  continuationCachePrefix = lower;
+  continuationCache = {hits, completionCount: completions.length};
+  return continuationCache;
 }
 
 function timingFactor(msSinceLastTap: number): number {
@@ -408,6 +471,12 @@ function deriveVelocity(
     vx: ((sample.localX - lastTap.localX) / dt) * 1000,
     vy: ((sample.localY - lastTap.localY) / dt) * 1000,
   };
+}
+
+function isStrictInsideKey(layout: KeyBounds, x: number, y: number): boolean {
+  const right = layout.x + layout.width;
+  const bottom = layout.y + layout.height;
+  return pointInsideRect(x, y, layout.x, layout.y, right, bottom);
 }
 
 function isConfidentStrictHit(
@@ -453,7 +522,7 @@ function collectCandidates(
 ): KeyBounds[] {
   const candidates = new Map<string, KeyBounds>();
   const maxSnap = Math.max(slop.horizontal, slop.vertical) + 4;
-  const letterLayouts = layoutByLetter(layouts);
+  let letterLayouts: Map<string, KeyBounds> | null = null;
 
   const addCandidate = (layout: KeyBounds | null | undefined) => {
     if (layout) {
@@ -479,7 +548,8 @@ function collectCandidates(
   }
 
   const geometricLetter = geometricHit ? keyLetter(geometricHit) : null;
-  if (geometricLetter) {
+  if (geometricLetter && neighborMap.size > 0) {
+    letterLayouts = layoutByLetter(layouts);
     for (const neighbor of neighborMap.get(geometricLetter) ?? []) {
       addCandidate(letterLayouts.get(neighbor));
     }
@@ -492,6 +562,8 @@ function languageScore(
   candidateLetter: string | null,
   typing: TouchIntelligenceTypingContext,
   likelyNextLetters: readonly string[],
+  continuationHits?: ReadonlyMap<string, number>,
+  completionCount?: number,
 ): number {
   return (
     bigramScore(
@@ -503,6 +575,8 @@ function languageScore(
       candidateLetter,
       typing.wordPrefix,
       likelyNextLetters,
+      continuationHits,
+      completionCount,
     ) * 0.65
   );
 }
@@ -518,6 +592,8 @@ function scoreCandidate(
   rawHitLetter: string | null,
   timingScale: number,
   likelyNextLetters: readonly string[],
+  continuationHits?: ReadonlyMap<string, number>,
+  completionCount?: number,
 ): number {
   const candidateLetter = keyLetter(layout);
   const geo = geometricScore(layout, x, y, slop);
@@ -545,6 +621,8 @@ function scoreCandidate(
       candidateLetter,
       typing.wordPrefix,
       likelyNextLetters,
+      continuationHits,
+      completionCount,
     ) *
       WEIGHT_WORD_CONTINUATION;
 
@@ -688,37 +766,34 @@ export function intelligentHitTestKey(
     timestampMs: Date.now(),
   };
 
-  const neighborMap = buildSpatialNeighborMap(layouts);
   const geometricHit = geometricOnlyHit(
     localX,
     localY,
-    collectCandidates(localX, localY, layouts, slop, null, neighborMap),
+    collectCandidates(localX, localY, layouts, slop, null, new Map()),
     slop,
   );
-  const candidates = collectCandidates(
-    localX,
-    localY,
-    layouts,
-    slop,
-    geometricHit,
-    neighborMap,
-  );
-  if (candidates.length === 0) {
-    return null;
-  }
 
   const velocity = deriveVelocity(sample);
   const speed = velocity ? Math.hypot(velocity.vx, velocity.vy) : 0;
   const typing = getTouchIntelligenceTypingContext();
-  const likelyNextLetters = getLikelyNextLetters(typing.wordPrefix);
   const msSinceLastTap = lastTap
     ? sample.timestampMs - lastTap.timestampMs
     : -1;
   const hasWordContext = typing.wordPrefix.trim().length >= 2;
+  const hasTypingContext =
+    hasWordContext || typing.previousKeyLetter != null;
+  const strictInsideHit =
+    geometricHit != null && isStrictInsideKey(geometricHit, localX, localY);
+  const nearKeyEdge =
+    geometricHit != null &&
+    strictInsideHit &&
+    !isConfidentStrictHit(geometricHit, localX, localY);
 
   if (
-    !hasWordContext &&
+    !hasTypingContext &&
+    !nearKeyEdge &&
     geometricHit &&
+    strictInsideHit &&
     isConfidentStrictHit(geometricHit, localX, localY) &&
     speed < 900
   ) {
@@ -741,6 +816,23 @@ export function intelligentHitTestKey(
     return geometricHit;
   }
 
+  const neighborMap = buildSpatialNeighborMap(layouts);
+  const candidates = collectCandidates(
+    localX,
+    localY,
+    layouts,
+    slop,
+    geometricHit,
+    neighborMap,
+  );
+  if (candidates.length === 0) {
+    return null;
+  }
+
+  const likelyNextLetters = getLikelyNextLetters(typing.wordPrefix);
+  const {hits: continuationHits, completionCount} = hasWordContext
+    ? buildWordContinuationHits(typing.wordPrefix)
+    : {hits: new Map<string, number>(), completionCount: 0};
   const rawHitLetter = geometricHit ? keyLetter(geometricHit) : null;
   const timingScale = timingFactor(msSinceLastTap);
 
@@ -752,7 +844,13 @@ export function intelligentHitTestKey(
 
   for (const layout of candidates) {
     const candidateLetter = keyLetter(layout);
-    const language = languageScore(candidateLetter, typing, likelyNextLetters);
+    const language = languageScore(
+      candidateLetter,
+      typing,
+      likelyNextLetters,
+      continuationHits,
+      completionCount,
+    );
     const score = scoreCandidate(
       layout,
       localX,
@@ -764,6 +862,8 @@ export function intelligentHitTestKey(
       rawHitLetter,
       timingScale,
       likelyNextLetters,
+      continuationHits,
+      completionCount,
     );
     if (layout === geometricHit) {
       geometricScoreValue = score;
@@ -802,11 +902,15 @@ export function intelligentHitTestKey(
     geometricHit != null &&
     bestLayout.id !== geometricHit.id;
   const contextOverride =
-    hasWordContext &&
     reranked &&
-    bestLanguageScore - geometricLanguageScore >= CONTEXT_OVERRIDE_MARGIN;
+    bestLanguageScore - geometricLanguageScore >= CONTEXT_OVERRIDE_MARGIN &&
+    hasTypingContext;
+  const strongLanguageWin =
+    reranked &&
+    bestLanguageScore - geometricLanguageScore >= STRONG_LANGUAGE_WIN_MARGIN;
   const marginRejected =
     !contextOverride &&
+    !strongLanguageWin &&
     geometricHit != null &&
     bestLayout.id !== geometricHit.id &&
     bestScore - geometricScoreValue < MIN_RERANK_MARGIN;

@@ -62,8 +62,8 @@ const SWIPE_MAX_POINTS = 320;
 const SWIPE_COMPACT_TARGET = 180;
 const SWIPE_TIMED_MAX_POINTS = 600;
 const SWIPE_PREVIEW_TIMED_POINTS = 180;
-const SWIPE_PREVIEW_INTERVAL_MS = 120;
-const TRAIL_MIN_STEP_DP = 1.15;
+const SWIPE_PREVIEW_INTERVAL_MS = 220;
+const TRAIL_MIN_STEP_DP = 1.65;
 
 function appendBoundedPoint(points: Point[], next: Point): Point[] {
   const appended = [...points, next];
@@ -192,7 +192,7 @@ export function SwipeTypingProvider({
   const lastPreviewUpdateRef = useRef(0);
   const previewGenerationRef = useRef(0);
   const layoutsJsonRef = useRef('');
-  const previewRafRef = useRef<number | null>(null);
+  const previewTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const trailOriginRef = useRef({pageX: 0, pageY: 0});
   const trailSizeRef = useRef({width: 0, height: 0});
   const [trailFading, setTrailFading] = useState(false);
@@ -226,9 +226,9 @@ export function SwipeTypingProvider({
   const clearSwipePreview = useCallback(() => {
     previewGenerationRef.current += 1;
     lastPreviewUpdateRef.current = 0;
-    if (previewRafRef.current != null) {
-      cancelAnimationFrame(previewRafRef.current);
-      previewRafRef.current = null;
+    if (previewTimeoutRef.current != null) {
+      clearTimeout(previewTimeoutRef.current);
+      previewTimeoutRef.current = null;
     }
     keyboardBridge.cancelSwipePreview();
     onSwipePreviewChange?.(null);
@@ -248,39 +248,37 @@ export function SwipeTypingProvider({
       return;
     }
 
-    const layoutsJson = layoutsJsonRef.current;
-    if (!layoutsJson) {
+    const layouts = layoutContext?.getLayouts() ?? [];
+    if (layouts.length === 0) {
       return;
     }
 
     const generation = previewGenerationRef.current + 1;
     previewGenerationRef.current = generation;
-    const pointsJson = JSON.stringify(points);
-    const timedJson = JSON.stringify(
-      sampleTimedPointsForPreview(timedPointsRef.current),
+    const snapshotPoints = points.map(point => ({...point}));
+    const snapshotTimed = sampleTimedPointsForPreview(timedPointsRef.current).map(
+      point => ({...point}),
     );
 
-    if (Platform.OS === 'android') {
-      void keyboardBridge
-        .previewSwipeGesture(pointsJson, layoutsJson, isUppercase, timedJson)
-        .then(word => {
-          if (generation !== previewGenerationRef.current) {
-            return;
-          }
-          onSwipePreviewChange(word || null);
-        })
-        .catch(() => {});
-      return;
+    if (previewTimeoutRef.current != null) {
+      clearTimeout(previewTimeoutRef.current);
     }
-
-    const layouts = layoutContext?.getLayouts() ?? [];
-    const word = previewSwipeGesture(
-      points,
-      layouts,
-      isUppercase,
-      [...timedPointsRef.current],
-    );
-    onSwipePreviewChange(word);
+    previewTimeoutRef.current = setTimeout(() => {
+      previewTimeoutRef.current = null;
+      if (generation !== previewGenerationRef.current) {
+        return;
+      }
+      const word = previewSwipeGesture(
+        snapshotPoints,
+        layouts,
+        isUppercase,
+        snapshotTimed,
+      );
+      if (generation !== previewGenerationRef.current) {
+        return;
+      }
+      onSwipePreviewChange(word);
+    }, 0);
   }, [isUppercase, layoutContext, onSwipePreviewChange]);
 
   const scheduleSwipePreview = useCallback(() => {
@@ -293,14 +291,7 @@ export function SwipeTypingProvider({
       return;
     }
     lastPreviewUpdateRef.current = now;
-
-    if (previewRafRef.current != null) {
-      cancelAnimationFrame(previewRafRef.current);
-    }
-    previewRafRef.current = requestAnimationFrame(() => {
-      previewRafRef.current = null;
-      updateSwipePreview();
-    });
+    updateSwipePreview();
   }, [onSwipePreviewChange, updateSwipePreview]);
 
   useEffect(() => {
@@ -434,7 +425,7 @@ export function SwipeTypingProvider({
   }, [enabled]);
 
   const decodeAndCommit = useCallback(
-    async (
+    (
       localPoints: Point[],
       timedPoints: Array<Point & {t: number}>,
       tapCommitted: boolean,
@@ -453,59 +444,60 @@ export function SwipeTypingProvider({
         return;
       }
 
-      let word: string | null = null;
-      let nativeDecodeSucceeded = false;
+      clearSwipePreview();
+      onSwipeActiveChange?.(false);
 
-      try {
-        if (Platform.OS === 'android') {
-          try {
-            const pointsJson = JSON.stringify(localPoints);
-            const layoutsJson =
-              layoutsJsonRef.current ||
-              (layouts.length > 0 ? keyLayoutsToJson(layouts) : '');
-            if (!layoutsJson) {
-              throw new Error('missing swipe layouts');
-            }
-            const timedJson = JSON.stringify(timedPoints);
-            const nativeWord = await keyboardBridge.decodeSwipeGesture(
-              pointsJson,
-              layoutsJson,
-              isUppercase,
-              timedJson,
-            );
-            nativeDecodeSucceeded = true;
-            if (nativeWord) {
-              word = nativeWord;
-            }
-          } catch {
-            // Fall through to JS decoder.
-          }
+      const commitDecodedWord = (word: string | null) => {
+        if (!word?.trim()) {
+          return false;
         }
-
-        // A successful native rejection is final. Running the full JS decoder
-        // afterward doubles the work and freezes the keyboard on noisy trails.
-        if (!word && (Platform.OS !== 'android' || !nativeDecodeSucceeded)) {
-          word = decodeSwipeGesture(
-            localPoints,
-            layouts,
-            isUppercase,
-            timedPoints,
-          );
-        }
-      } catch {
-        word = null;
-      } finally {
-        clearSwipePreview();
-        onSwipeActiveChange?.(false);
-      }
-
-      if (word) {
         if (tapCommitted) {
           keyboardBridge.deleteBackward();
         }
         triggerKeyHaptic();
         onWordCommitted(word);
+        return true;
+      };
+
+      const runJsDecode = () => {
+        try {
+          return commitDecodedWord(
+            decodeSwipeGesture(
+              localPoints,
+              layouts,
+              isUppercase,
+              timedPoints,
+            ),
+          );
+        } catch {
+          return false;
+        }
+      };
+
+      if (Platform.OS === 'android' && layouts.length > 0) {
+        const layoutsJson = keyLayoutsToJson(layouts);
+        void keyboardBridge
+          .decodeSwipeGesture(
+            JSON.stringify(localPoints),
+            layoutsJson,
+            isUppercase,
+            JSON.stringify(timedPoints),
+          )
+          .then(nativeWord => {
+            const trimmed = nativeWord?.trim();
+            if (!trimmed) {
+              runJsDecode();
+              return;
+            }
+            commitDecodedWord(trimmed);
+          })
+          .catch(() => {
+            runJsDecode();
+          });
+        return;
       }
+
+      runJsDecode();
     },
     [clearSwipePreview, isUppercase, layoutContext, onSwipeActiveChange, onWordCommitted],
   );

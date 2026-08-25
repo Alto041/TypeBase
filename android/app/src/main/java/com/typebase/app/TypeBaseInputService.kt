@@ -367,6 +367,14 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
     nativeKeyFastPath.setZeroLatencyMode(enabled)
   }
 
+  fun updateNativeFastPathCaseState(
+      shiftOn: Boolean,
+      capsLocked: Boolean,
+      uppercase: Boolean,
+  ) {
+    nativeKeyFastPath.updateCaseState(shiftOn, capsLocked, uppercase)
+  }
+
   fun consumeNativeFastPathPointer(pointerId: Int): Boolean =
       nativeKeyFastPath.consumePointer(pointerId)
 

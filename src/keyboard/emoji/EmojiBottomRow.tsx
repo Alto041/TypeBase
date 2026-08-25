@@ -5,8 +5,8 @@ import {Key} from '../components/Key';
 import type {KeyDefinition} from '../layouts/qwerty';
 import {useThemedStyles} from '../KeyboardThemeContext';
 import type {KeyboardTheme} from '../theme';
-import {EmojiCategoryBar} from './EmojiCategoryBar';
-import type {EmojiCategoryId} from './emojis';
+import {EmojiPanelTabBar} from './EmojiPanelTabBar';
+import type {EmojiPanelTab} from './emojis';
 
 const ABC_KEY: KeyDefinition = {
   id: 'abc',
@@ -21,14 +21,14 @@ const BACKSPACE_KEY: KeyDefinition = {
 };
 
 type EmojiBottomRowProps = {
-  category: EmojiCategoryId;
-  onCategorySelect: (category: EmojiCategoryId) => void;
+  panelTab: EmojiPanelTab;
+  onPanelTabSelect: (tab: EmojiPanelTab) => void;
   onKeyPress: (keyDef: KeyDefinition) => void;
 };
 
 export function EmojiBottomRow({
-  category,
-  onCategorySelect,
+  panelTab,
+  onPanelTabSelect,
   onKeyPress,
 }: EmojiBottomRowProps) {
   const styles = useThemedStyles(createEmojiBottomRowStyles);
@@ -45,13 +45,10 @@ export function EmojiBottomRow({
         />
       </View>
       <View style={styles.categories}>
-        <EmojiCategoryBar selected={category} onSelect={onCategorySelect} />
+        <EmojiPanelTabBar selected={panelTab} onSelect={onPanelTabSelect} />
       </View>
       <View style={styles.sideKey}>
-        <BackspaceKey
-          keyDef={BACKSPACE_KEY}
-          onPress={onKeyPress}
-        />
+        <BackspaceKey keyDef={BACKSPACE_KEY} onPress={onKeyPress} />
       </View>
     </View>
   );
@@ -70,7 +67,7 @@ function createEmojiBottomRowStyles(theme: KeyboardTheme) {
       flex: 1.2,
     },
     categories: {
-      flex: 6,
+      flex: 5.2,
     },
   });
 }

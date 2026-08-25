@@ -20,7 +20,7 @@ type SwipeTrailProps = {
 const FADE_OUT_MS = 120;
 const STROKE_DP = 4;
 /** Cap path complexity — more points = frame drops on Android SVG. */
-const MAX_RENDER_POINTS = 48;
+const MAX_RENDER_POINTS = 32;
 
 function dp(value: number): number {
   return value * PixelRatio.get();
@@ -132,7 +132,7 @@ export function SwipeTrail({
         (!prevHead ||
           (head.x - prevHead.x) * (head.x - prevHead.x) +
             (head.y - prevHead.y) * (head.y - prevHead.y) >=
-            2.25);
+            6.25);
 
       if (revisionChanged || headMoved) {
         lastRevisionRef.current = revision;

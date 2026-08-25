@@ -1,27 +1,29 @@
-import React, {useCallback, useEffect, useMemo, useState} from 'react';
+import React, {useMemo, useState} from 'react';
 import {Dimensions, View} from 'react-native';
 import {useThemedStyles} from '../KeyboardThemeContext';
 import {EmojiCategoryGrid} from './EmojiCategoryGrid';
 import {EmojiSearchGrid} from './EmojiSearchGrid';
+import {EmojiSubcategoryBar} from './EmojiSubcategoryBar';
 import {createEmojiPanelShellStyles} from './emojiPanelLayout';
 import {GifCategoryGrid} from './GifCategoryGrid';
 import {SfxCategoryGrid} from './SfxCategoryGrid';
-import type {EmojiCategoryId} from './emojis';
+import {StickerCategoryGrid} from './StickerCategoryGrid';
+import type {EmojiPanelTab, EmojiSubcategoryId} from './emojis';
+import type {KeyboardSticker} from './stickers';
 import type {GiphyGif} from './giphyService';
 import type {MyInstantsSound} from './myinstantsService';
-import {
-  ensureRecentEmojisLoaded,
-  getRecentEmojis,
-  getRecentEmojisVersion,
-  touchRecentEmoji,
-} from './recentEmojisStore';
+
+const SUBCATEGORY_BAR_HEIGHT = 38;
 
 type EmojiPanelProps = {
-  category: EmojiCategoryId;
+  panelTab: EmojiPanelTab;
+  emojiSubcategory: EmojiSubcategoryId;
+  onEmojiSubcategorySelect: (subcategory: EmojiSubcategoryId) => void;
   emojiSearchQuery: string;
   panelHeight: number;
   onSelect: (emoji: string) => void;
   onGifSelect: (gif: GiphyGif) => void;
+  onStickerSelect: (sticker: KeyboardSticker) => void;
   gifSearchQuery: string;
   sfxSearchQuery: string;
   onSfxSelect: (sound: MyInstantsSound) => void;
@@ -30,64 +32,55 @@ type EmojiPanelProps = {
 };
 
 export function EmojiPanel({
-  category,
+  panelTab,
+  emojiSubcategory,
+  onEmojiSubcategorySelect,
   emojiSearchQuery,
   panelHeight,
   onSelect,
   onGifSelect,
+  onStickerSelect,
   gifSearchQuery,
   sfxSearchQuery,
   onSfxSelect,
   onSfxPreview,
   installingSfxId = null,
 }: EmojiPanelProps) {
-  const emojiScrollHeight = Math.max(120, Math.round(panelHeight));
+  const showEmojiSubcategories =
+    panelTab === 'emojis' && emojiSearchQuery.trim().length === 0;
+  const emojiScrollHeight = Math.max(
+    120,
+    Math.round(
+      panelHeight - (showEmojiSubcategories ? SUBCATEGORY_BAR_HEIGHT : 0),
+    ),
+  );
   const shellStyles = useThemedStyles(themeValue =>
-    createEmojiPanelShellStyles(themeValue, emojiScrollHeight),
+    createEmojiPanelShellStyles(themeValue, panelHeight),
   );
   const [panelWidth, setPanelWidth] = useState(() =>
     Math.max(280, Math.round(Dimensions.get('window').width)),
   );
-  const [recentEmojis, setRecentEmojis] = useState<readonly string[]>([]);
-  const [recentEmojisVersion, setRecentEmojisVersion] = useState(0);
 
   const contentWidth = useMemo(
     () => Math.max(200, panelWidth - 16),
     [panelWidth],
   );
 
-  const reloadRecents = useCallback(() => {
-    void ensureRecentEmojisLoaded().then(() => {
-      setRecentEmojis(getRecentEmojis());
-      setRecentEmojisVersion(getRecentEmojisVersion());
-    });
-  }, []);
-
-  useEffect(() => {
-    reloadRecents();
-  }, [reloadRecents, category]);
-
-  const handleEmojiSelect = useCallback(
-    (emoji: string) => {
-      onSelect(emoji);
-      const next = touchRecentEmoji(emoji);
-      if (next) {
-        setRecentEmojis(next);
-        setRecentEmojisVersion(getRecentEmojisVersion());
-      }
-    },
-    [onSelect],
-  );
-
   const content =
-    category === 'gif' ? (
+    panelTab === 'gif' ? (
       <GifCategoryGrid
         width={contentWidth}
         height={emojiScrollHeight}
         query={gifSearchQuery}
         onSelect={onGifSelect}
       />
-    ) : category === 'sfx' ? (
+    ) : panelTab === 'stickers' ? (
+      <StickerCategoryGrid
+        width={contentWidth}
+        height={emojiScrollHeight}
+        onSelect={onStickerSelect}
+      />
+    ) : panelTab === 'sfx' ? (
       <SfxCategoryGrid
         width={contentWidth}
         height={emojiScrollHeight}
@@ -101,16 +94,14 @@ export function EmojiPanel({
         width={contentWidth}
         height={emojiScrollHeight}
         query={emojiSearchQuery}
-        onSelect={handleEmojiSelect}
+        onSelect={onSelect}
       />
     ) : (
       <EmojiCategoryGrid
-        category={category}
+        category={emojiSubcategory}
         width={contentWidth}
         height={emojiScrollHeight}
-        recentEmojis={recentEmojis}
-        recentEmojisVersion={recentEmojisVersion}
-        onSelect={handleEmojiSelect}
+        onSelect={onSelect}
       />
     );
 
@@ -123,7 +114,15 @@ export function EmojiPanel({
           setPanelWidth(width);
         }
       }}>
-      <View style={shellStyles.card}>{content}</View>
+      <View style={shellStyles.card}>
+        {showEmojiSubcategories ? (
+          <EmojiSubcategoryBar
+            selected={emojiSubcategory}
+            onSelect={onEmojiSubcategorySelect}
+          />
+        ) : null}
+        {content}
+      </View>
     </View>
   );
 }

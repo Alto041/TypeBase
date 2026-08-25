@@ -13,11 +13,8 @@ import {getExactDictionaryFix, isPreserveTypedWord} from './dictionaryFixes';
 import {getAutocorrectSettings} from './autocorrectStore';
 import {getLearnedCounts} from '../suggestions/learnedDictionary';
 import {
-  getPersonalCorrectionModifier,
-  getPersonalWordConfidence,
-  getPersonalWordStrength,
-  isPersonallyProtectedWord,
-  isPersonallyRejectedCorrection,
+  isHardRejectedCorrection,
+  isLearnedWordInsisted,
   shouldPersonallyOfferKeepTyped,
 } from '../personalTyping/personalTypingEngine';
 import {applyCaseToWord} from '../suggestions/wordSuggestions';
@@ -67,12 +64,23 @@ const MIN_AUTO_CONFIDENCE = 0.55;
 const MIN_SUGGESTION_BAR_CONFIDENCE = 0.51;
 /** Only consider the top N SymSpell hits — quality over quantity. */
 const HIGH_ACCURACY_SYMSPELL_LIMIT = 5;
+const LIGHTWEIGHT_SYMSPELL_LIMIT = 6; // Enough hits for long-word typo fixes while typing
 const COMMON_WORD_RANK = 4000;
 /** Skip fuzzy autocorrect for long random key-mash tokens (perf + no useful fix). */
-export const MAX_LIVE_AUTOCORRECT_LENGTH = 18;
+export const MAX_LIVE_AUTOCORRECT_LENGTH = 28;
 
 const symTypoFixCache = new Map<string, string | null>();
 const SYM_TYPO_CACHE_MAX = 72;
+
+/** Cache for getSuggestionBarAutocorrect results with 150ms TTL to avoid redundant calculations. */
+const suggestionBarAutocorrectCache = new Map<
+  string,
+  {
+    result: {keepTyped: string | null; correction: string | null};
+    time: number;
+  }
+>();
+const SUGGESTION_BAR_AUTOCORRECT_CACHE_TTL = 150;
 
 function symTypoCacheKey(lower: string, previousWord: string): string {
   return `${lower}\0${previousWord}`;
@@ -601,11 +609,18 @@ function maxEditDistance(length: number): number {
   if (length <= 8) {
     return 2;
   }
-  // Long words accumulate more typos; allow a third edit via first-letter scan.
-  if (length <= 12) {
+  if (length <= 16) {
     return 2;
   }
-  return 3;
+  // Long words accumulate more typos; allow a third edit.
+  if (length <= MAX_LIVE_AUTOCORRECT_LENGTH) {
+    return 3;
+  }
+  return 2;
+}
+
+function allowedFuzzyEdits(wordLength: number): number {
+  return maxEditDistance(wordLength);
 }
 
 /** Single adjacent-key substitution that yields a common dictionary word. */
@@ -717,7 +732,7 @@ function pickBestSymSpellTypoFix(
   lower: string,
   previousWord: string,
   learnedUses: number,
-  maxLength = 14,
+  maxLength = MAX_LIVE_AUTOCORRECT_LENGTH,
 ): string | null {
   if (
     lower.length < 3 ||
@@ -732,8 +747,10 @@ function pickBestSymSpellTypoFix(
     return symTypoFixCache.get(cacheKey) ?? null;
   }
 
-  const maxEd = lower.length <= 4 ? 1 : 2;
-  const hits = lookupCandidatesSync(lower, maxEd, HIGH_ACCURACY_SYMSPELL_LIMIT);
+  const maxEd = allowedFuzzyEdits(lower.length);
+  const symLimit =
+    lower.length >= 12 ? HIGH_ACCURACY_SYMSPELL_LIMIT : LIGHTWEIGHT_SYMSPELL_LIMIT;
+  const hits = lookupCandidatesSync(lower, maxEd, symLimit);
   let best: {word: string; score: number} | null = null;
 
   for (const hit of hits) {
@@ -747,7 +764,7 @@ function pickBestSymSpellTypoFix(
       continue;
     }
     const rank = wordRank(hit.word);
-    if (isPersonallyRejectedCorrection(lower, hit.word)) {
+    if (isHardRejectedCorrection(lower, hit.word)) {
       continue;
     }
     if (
@@ -806,10 +823,20 @@ export function getFastAutocorrectPreview(
 
   if (isEnglishLikeLang()) {
     const quickFix = findQuickTypoFixes(lower, previousWord, {
-      includeNeighbors: false,
+      includeNeighbors: true,
     });
     if (quickFix && quickFix !== lower) {
       return applyCaseToWord(quickFix, typed);
+    }
+
+    const symFix = pickBestSymSpellTypoFix(lower, previousWord, learnedUses);
+    if (symFix && symFix !== lower) {
+      return applyCaseToWord(symFix, typed);
+    }
+
+    const closeCommon = findCloseCommonWord(lower);
+    if (closeCommon && closeCommon !== lower) {
+      return applyCaseToWord(closeCommon, typed);
     }
   }
 
@@ -851,9 +878,9 @@ function findCloseCommonWord(lower: string): string | null {
     return null;
   }
 
-  const maxEdits = lower.length <= 4 ? 1 : 2;
+  const maxEdits = allowedFuzzyEdits(lower.length);
   if (isEnglishSymSpellReady()) {
-    const hits = lookupCandidatesSync(lower, maxEdits, 8);
+    const hits = lookupCandidatesSync(lower, maxEdits, 12);
     for (const hit of hits) {
       if (hit.edits > maxEdits || hit.word === lower) {
         continue;
@@ -929,7 +956,7 @@ function isProtectedWord(word: string, learnedUses: number): boolean {
   }
   // OOV / typo learned once used to permanently disable autocorrect. Only
   // protect after the user has clearly insisted (keep chip / repeated use).
-  if (isPersonallyProtectedWord(word)) {
+  if (isLearnedWordInsisted(word)) {
     return true;
   }
   return learnedUses >= 1;
@@ -967,7 +994,7 @@ function isProbablyProperNoun(word: string): boolean {
   const lower = word.toLowerCase();
   const rank = wordRank(lower);
   const learnedUses = getLearnedCounts().get(lower) ?? 0;
-  if (learnedUses >= 1 || isPersonallyProtectedWord(lower)) {
+  if (learnedUses >= 1 || isLearnedWordInsisted(lower)) {
     return false;
   }
 
@@ -1005,6 +1032,10 @@ function isAdjacentTransposition(a: string, b: string): boolean {
   );
 }
 
+function isCommonAutocorrectTarget(staticRank: number): boolean {
+  return staticRank < COMMON_WORD_RANK;
+}
+
 /** Missing/extra letters at the end, swap, or a close 2-edit match on longer words. */
 function isPlausibleTypo(
   typed: string,
@@ -1013,21 +1044,22 @@ function isPlausibleTypo(
   staticRank: number,
 ): boolean {
   if (edits <= 1) {
-    // Reject first-letter mutations unless adjacent transposition / very common word.
-    if (
-      typed[0] !== candidate[0] &&
-      staticRank >= 1500 &&
-      !isAdjacentTransposition(typed, candidate) &&
-      !(
-        typed.length >= 2 &&
-        candidate.length >= 2 &&
-        typed[0] === candidate[1] &&
-        typed[1] === candidate[0]
-      )
-    ) {
-      return false;
+    if (typed[0] === candidate[0]) {
+      return true;
     }
-    return true;
+    if (isAdjacentTransposition(typed, candidate)) {
+      return true;
+    }
+    if (
+      typed.length >= 2 &&
+      candidate.length >= 2 &&
+      typed[0] === candidate[1] &&
+      typed[1] === candidate[0]
+    ) {
+      return true;
+    }
+    // First-letter slips on very common words (hte → the, ypu → you).
+    return isCommonAutocorrectTarget(staticRank);
   }
 
   if (candidate.startsWith(typed) || typed.startsWith(candidate)) {
@@ -1039,11 +1071,18 @@ function isPlausibleTypo(
   }
 
   const prefix = sharedPrefixLength(typed, candidate);
-  // 2/3-edit mid-word typos on longer inputs (aneyays → anyways, etc.).
   const maxLenDelta = typed.length >= 10 ? 2 : 1;
   const minPrefix =
     typed.length >= 10 ? Math.min(3, typed.length - 2) : Math.min(2, typed.length - 2);
   if (edits === 2) {
+    if (
+      isCommonAutocorrectTarget(staticRank) &&
+      typed.length >= 4 &&
+      Math.abs(typed.length - candidate.length) <= maxLenDelta &&
+      prefix >= Math.min(1, typed.length - 2)
+    ) {
+      return true;
+    }
     return (
       typed.length >= 5 &&
       staticRank < 12_000 &&
@@ -1053,10 +1092,17 @@ function isPlausibleTypo(
     );
   }
   if (edits === 3) {
+    if (
+      isCommonAutocorrectTarget(staticRank) &&
+      typed.length >= 8 &&
+      Math.abs(typed.length - candidate.length) <= maxLenDelta &&
+      prefix >= Math.min(2, typed.length - 3)
+    ) {
+      return true;
+    }
     return (
       typed.length >= 10 &&
       staticRank < 8_000 &&
-      typed[0] === candidate[0] &&
       Math.abs(typed.length - candidate.length) <= maxLenDelta &&
       prefix >= Math.min(3, typed.length - 3)
     );
@@ -1130,7 +1176,8 @@ function shouldRejectFuzzyCorrection(
   if (
     typedRank < 12_000 &&
     edits >= 2 &&
-    learnedUses === 0
+    learnedUses === 0 &&
+    !isCommonAutocorrectTarget(staticRank)
   ) {
     return true;
   }
@@ -1151,7 +1198,7 @@ function shouldRejectFuzzyCorrection(
   if (
     learnedUses === 0 &&
     typed[0] !== correction[0] &&
-    staticRank >= 1500 &&
+    !isCommonAutocorrectTarget(staticRank) &&
     !isAdjacentTransposition(typed, correction)
   ) {
     return true;
@@ -1230,7 +1277,6 @@ function scoreCandidate(
   return (
     edits * 100 -
     learnedUses * 18 -
-    getPersonalWordStrength(candidate) * 2 -
     Math.max(0, 5000 - staticRank) * 0.02 -
     prefix * 8 -
     (candidate[0] === typed[0] ? 20 : -40) -
@@ -1251,11 +1297,6 @@ function toConfidence(
   let confidence = edits === 1 ? 0.82 : edits === 2 ? 0.58 : 0.48;
   if (learnedUses >= 2) {
     confidence += Math.min(learnedUses * 0.05, 0.2);
-  }
-  confidence += getPersonalWordConfidence(candidate) * 0.1;
-  confidence += getPersonalCorrectionModifier(typed, candidate);
-  if (isPersonallyRejectedCorrection(typed, candidate)) {
-    confidence -= 0.55;
   }
   if (staticRank < 1200) {
     confidence += 0.07;
@@ -1299,7 +1340,11 @@ function toConfidence(
   if (edits === 3 && typed[0] === candidate[0] && prefix >= 3) {
     confidence += 0.1;
   }
-  if (typed[0] !== candidate[0] && !isAdjacentTransposition(typed, candidate)) {
+  if (
+    typed[0] !== candidate[0] &&
+    !isAdjacentTransposition(typed, candidate) &&
+    !isCommonAutocorrectTarget(staticRank)
+  ) {
     confidence -= 0.35;
   }
   if (typed.length <= 3 && edits > 1) {
@@ -1307,6 +1352,14 @@ function toConfidence(
   }
   if (edits === 2 && learnedUses === 0 && staticRank > 8000) {
     confidence -= 0.12;
+  }
+  if (edits === 3) {
+    if (staticRank < COMMON_WORD_RANK) {
+      confidence += 0.06;
+    }
+    if (prefix >= Math.min(4, typed.length - 2)) {
+      confidence += 0.05;
+    }
   }
   if (edits === 3 && learnedUses === 0 && staticRank > 5000) {
     confidence -= 0.1;
@@ -1334,6 +1387,13 @@ function isLikelyTypoMatch(typed: string, candidate: string, edits: number): boo
     return true;
   }
   if (edits === 2) {
+    if (
+      isCommonAutocorrectTarget(wordRank(candidate)) &&
+      typed.length >= 4 &&
+      sharedPrefixLength(typed, candidate) >= Math.min(1, typed.length - 2)
+    ) {
+      return true;
+    }
     return (
       typed.length >= 3 &&
       sharedPrefixLength(typed, candidate) >= Math.min(2, typed.length - 1)
@@ -1341,9 +1401,10 @@ function isLikelyTypoMatch(typed: string, candidate: string, edits: number): boo
   }
   return (
     edits === 3 &&
-    typed.length >= 10 &&
-    typed[0] === candidate[0] &&
-    sharedPrefixLength(typed, candidate) >= 3
+    typed.length >= 8 &&
+    (typed[0] === candidate[0] ||
+      isCommonAutocorrectTarget(wordRank(candidate))) &&
+    sharedPrefixLength(typed, candidate) >= Math.min(2, typed.length - 2)
   );
 }
 
@@ -1369,19 +1430,31 @@ function collectCandidates(
   }> = [];
   const seen = new Set<string>();
 
-  const consider = (word: string, learnedUses: number, staticRank: number) => {
+  // Cache wordRank lookups to avoid redundant computations
+  const rankCache = new Map<string, number>();
+  const getRank = (word: string): number => {
+    let rank = rankCache.get(word);
+    if (rank === undefined) {
+      rank = wordRank(word);
+      rankCache.set(word, rank);
+    }
+    return rank;
+  };
+
+  const consider = (word: string, learnedUses: number, edits?: number) => {
     if (seen.has(word) || word === typed) {
       return;
     }
     if (word.length < lengthMin || word.length > lengthMax) {
       return;
     }
-    const edits = levenshtein(typed, word);
-    if (edits > maxEdits) {
+    // Only calculate Levenshtein if edits not provided (for SymSpell candidates, it's already known)
+    const calculatedEdits = edits ?? levenshtein(typed, word);
+    if (calculatedEdits > maxEdits) {
       return;
     }
     seen.add(word);
-    results.push({word, edits, learnedUses, staticRank});
+    results.push({word, edits: calculatedEdits, learnedUses, staticRank: getRank(word)});
   };
 
   let learnedScanned = 0;
@@ -1396,15 +1469,17 @@ function collectCandidates(
       continue;
     }
     learnedScanned += 1;
-    consider(word, uses, wordRank(word));
+    consider(word, uses);
   }
 
-  const symLimit = options?.lightweight ? HIGH_ACCURACY_SYMSPELL_LIMIT : 12;
+  // In lightweight mode (suggestion bar), limit SymSpell calls further
+  const symLimit = options?.lightweight ? LIGHTWEIGHT_SYMSPELL_LIMIT : HIGH_ACCURACY_SYMSPELL_LIMIT;
   const symCands = lookupCandidatesSync(typed, maxEdits, symLimit);
   for (const sc of symCands) {
     const lu = learned.get(sc.word) ?? 0;
     const sr = rankFromSymSpellFrequency(sc.word, sc.count, 0);
-    consider(sc.word, lu, sr);
+    seen.add(sc.word);
+    results.push({word: sc.word, edits: sc.edits, learnedUses: lu, staticRank: sr});
   }
 
   for (const swapped of collectTranspositionNeighbors(typed)) {
@@ -1414,7 +1489,7 @@ function collectCandidates(
         word: swapped,
         edits: 1,
         learnedUses: learned.get(swapped) ?? 0,
-        staticRank: wordRank(swapped),
+        staticRank: getRank(swapped),
       });
     }
   }
@@ -1462,6 +1537,15 @@ export function getSimilarWordSuggestions(
     }
     return isLikelyTypoMatch(typed, candidate.word, candidate.edits);
   });
+
+  // Early bailout: if we have enough high-confidence candidates and it's lightweight mode,
+  // skip expensive scoring and just return by edits
+  if (options?.lightweight && candidates.length <= limit * 2) {
+    return candidates
+      .sort((a, b) => a.edits - b.edits)
+      .slice(0, limit)
+      .map(c => ({word: c.word, edits: c.edits}));
+  }
 
   candidates.sort((left, right) => {
     const leftScore = scoreCandidate(
@@ -1617,7 +1701,7 @@ export function getAutocorrectCandidate(
 
   // A backspace after an unwanted correction explicitly teaches us that this
   // OOV token is intentional. Never correct it again, including exact fixes.
-  if (isPersonallyProtectedWord(lower)) {
+  if (isLearnedWordInsisted(lower)) {
     return null;
   }
 
@@ -1639,10 +1723,11 @@ export function getAutocorrectCandidate(
     const quickFix = findQuickTypoFixes(lower, options?.previousWord ?? '', {
       includeNeighbors: true,
     });
+    const quickFixRankLimit = lower.length >= 10 ? 15_000 : COMMON_WORD_RANK;
     if (
       quickFix &&
       quickFix !== lower &&
-      wordRank(quickFix) < COMMON_WORD_RANK
+      wordRank(quickFix) < quickFixRankLimit
     ) {
       return {
         correction: applyCaseToWord(quickFix, typed),
@@ -1677,7 +1762,7 @@ export function getAutocorrectCandidate(
     previousWord,
   );
   if (symFix) {
-    const maxEdits = lower.length <= 4 ? 1 : 2;
+    const maxEdits = allowedFuzzyEdits(lower.length);
     if (
       symFix.edits <= maxEdits &&
       !shouldRejectFuzzyCorrection(
@@ -1709,7 +1794,9 @@ export function getAutocorrectCandidate(
   // auto-caps turn "haveyou" into "Haveyou", which used to look like a name
   // and skipped splits entirely.
   const allowMissingSpaceSplit =
-    options?.boundary === true || options?.lightweight !== true;
+    options?.boundary === true ||
+    options?.lightweight !== true ||
+    lower.length >= 10;
   const missingSpace =
     allowMissingSpaceSplit
       ? findMissingSpaceCorrection(lower, learnedUses)
@@ -1755,10 +1842,6 @@ export function getAutocorrectCandidate(
   // Hinglish / Franglais are English-like — allow OOV fuzzy against the combined dictionary.
   const langGate = getActiveLanguage();
   if (!isEnglishLikeLang(langGate) && !getBaseWords(langGate).includes(lower) && learnedUses === 0) {
-    return null;
-  }
-
-  if (options?.lightweight) {
     return null;
   }
 
@@ -1870,6 +1953,15 @@ export function getSuggestionBarAutocorrect(
   if (!normalized) {
     return {keepTyped: null, correction: null};
   }
+
+  // Quick cache check before expensive computations
+  const cacheKey = `${normalized}|${options?.fast ?? false}|${options?.previousWord ?? ''}`;
+  const now = Date.now();
+  const cached = suggestionBarAutocorrectCache.get(cacheKey);
+  if (cached && now - cached.time < SUGGESTION_BAR_AUTOCORRECT_CACHE_TTL) {
+    return cached.result;
+  }
+
   getActiveLanguage(); // SymSpell language is active
   if (hasIntentionalCasing(typed)) {
     return {keepTyped: null, correction: null};
@@ -1889,10 +1981,16 @@ export function getSuggestionBarAutocorrect(
     if (correction.toLowerCase() === typed.toLowerCase()) {
       return {keepTyped: null, correction: null};
     }
-    return {
+    const result = {
       keepTyped: offerKeepTyped ? typed : null,
       correction,
     };
+    // Cache and return
+    if (suggestionBarAutocorrectCache.size > 512) {
+      suggestionBarAutocorrectCache.clear();
+    }
+    suggestionBarAutocorrectCache.set(cacheKey, {result, time: now});
+    return result;
   }
 
   if (isKnownEnglishWord(lower)) {
@@ -1904,35 +2002,50 @@ export function getSuggestionBarAutocorrect(
   if (fast) {
     const preview = getFastAutocorrectPreview(typed, {previousWord});
     if (preview && preview.toLowerCase() !== typed.toLowerCase()) {
-      return {
+      const result = {
         keepTyped: offerKeepTyped ? typed : null,
         correction: preview,
       };
+      if (suggestionBarAutocorrectCache.size > 512) {
+        suggestionBarAutocorrectCache.clear();
+      }
+      suggestionBarAutocorrectCache.set(cacheKey, {result, time: now});
+      return result;
     }
-    return {keepTyped: null, correction: null};
   }
 
   if (!fast && isEnglishLikeLang()) {
     const quickFix = findQuickTypoFixes(lower, previousWord);
+    const quickFixRankLimit = lower.length >= 10 ? 15_000 : COMMON_WORD_RANK;
     if (
       quickFix &&
       quickFix !== lower &&
-      wordRank(quickFix) < COMMON_WORD_RANK
+      wordRank(quickFix) < quickFixRankLimit
     ) {
-      return {
+      const result = {
         keepTyped: offerKeepTyped ? typed : null,
         correction: applyCaseToWord(quickFix, typed),
       };
+      if (suggestionBarAutocorrectCache.size > 512) {
+        suggestionBarAutocorrectCache.clear();
+      }
+      suggestionBarAutocorrectCache.set(cacheKey, {result, time: now});
+      return result;
     }
   }
 
   if (getActiveLanguage() === 'hi-en') {
     const phraseFix = getHinglishPhraseCorrection(lower);
     if (phraseFix && phraseFix !== lower) {
-      return {
+      const result = {
         keepTyped: offerKeepTyped ? typed : null,
         correction: applyCaseToWord(phraseFix, typed),
       };
+      if (suggestionBarAutocorrectCache.size > 512) {
+        suggestionBarAutocorrectCache.clear();
+      }
+      suggestionBarAutocorrectCache.set(cacheKey, {result, time: now});
+      return result;
     }
   }
 

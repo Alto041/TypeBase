@@ -60,15 +60,32 @@ export function useVoiceInput() {
   const [isVoiceConnecting, setIsVoiceConnecting] = useState(false);
   const [isVoiceProcessing, setIsVoiceProcessing] = useState(false);
   const [partialTranscript, setPartialTranscript] = useState('');
+  const [audioLevel, setAudioLevel] = useState(0); // New: audio level 0-1
   const serviceRef = useRef<SpeechmaticsVoiceService | null>(null);
   const unsubscribeRef = useRef<(() => void) | null>(null);
   const activeSttProviderRef = useRef<VoiceSttProvider | null>(null);
   const sessionFinalsRef = useRef<string[]>([]);
   const lastPartialRef = useRef('');
   const stoppingRef = useRef(false);
+  const voiceSessionRef = useRef(0);
   const isVoiceProcessingRef = useRef(false);
   const speakingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stopListeningRef = useRef<() => Promise<void>>(async () => {});
+  const audioLevelDecayRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const beginVoiceSession = useCallback(() => {
+    voiceSessionRef.current += 1;
+    return voiceSessionRef.current;
+  }, []);
+
+  const cancelVoiceSession = useCallback(() => {
+    voiceSessionRef.current += 1;
+  }, []);
+
+  const isVoiceSessionActive = useCallback(
+    (sessionId: number) => sessionId === voiceSessionRef.current,
+    [],
+  );
 
   const markVoiceSpeaking = useCallback(() => {
     if (speakingTimerRef.current) {
@@ -81,10 +98,19 @@ export function useVoiceInput() {
     }, 700);
   }, []);
 
+  // Update audio level based on partial transcript or speaking state
+  const updateAudioLevel = useCallback((level: number) => {
+    setAudioLevel(Math.max(0, Math.min(1, level)));
+  }, []);
+
   const resetSession = useCallback(() => {
     if (speakingTimerRef.current) {
       clearTimeout(speakingTimerRef.current);
       speakingTimerRef.current = null;
+    }
+    if (audioLevelDecayRef.current) {
+      clearInterval(audioLevelDecayRef.current);
+      audioLevelDecayRef.current = null;
     }
     sessionFinalsRef.current = [];
     lastPartialRef.current = '';
@@ -93,6 +119,7 @@ export function useVoiceInput() {
     setIsVoiceSpeaking(false);
     setIsVoiceProcessing(false);
     setIsVoiceConnecting(false);
+    setAudioLevel(0);
   }, []);
 
   const refreshPreview = useCallback(() => {
@@ -113,11 +140,13 @@ export function useVoiceInput() {
 
       if (partial.trim() && partial.trim() !== lastPartialRef.current.trim()) {
         markVoiceSpeaking();
+        // Boost audio level when new partial is detected
+        updateAudioLevel(0.7 + Math.random() * 0.3); // 0.7-1.0
       }
       lastPartialRef.current = partial;
       refreshPreview();
     },
-    [markVoiceSpeaking, refreshPreview],
+    [markVoiceSpeaking, refreshPreview, updateAudioLevel],
   );
 
   const appendFinalSegment = useCallback(
@@ -149,16 +178,6 @@ export function useVoiceInput() {
       return;
     }
 
-    // Parakeet voice is STT-only — insert raw transcript, no Gemma/Gemini polish.
-    if (sttProvider === 'parakeet') {
-      const toInsert = formatDictationInsert(raw);
-      if (toInsert) {
-        keyboardBridge.insertText(toInsert);
-      }
-      setPartialTranscript('');
-      return;
-    }
-
     setIsVoiceProcessing(true);
     isVoiceProcessingRef.current = true;
     setPartialTranscript('');
@@ -166,7 +185,10 @@ export function useVoiceInput() {
     let textToInsert = raw;
 
     try {
-      const {text} = await cleanupVoiceTranscript(raw);
+      const {text} = await cleanupVoiceTranscript(raw, {
+        preferOnDevice: sttProvider === 'parakeet',
+        allowFillerRemoval: true,
+      });
       textToInsert = text.trim() || raw;
     } catch (error) {
       if (!(error instanceof VoiceCleanupError)) {
@@ -185,135 +207,204 @@ export function useVoiceInput() {
     isVoiceProcessingRef.current = false;
   }, []);
 
+  const teardownVoiceResources = useCallback(async () => {
+    if (speakingTimerRef.current) {
+      clearTimeout(speakingTimerRef.current);
+      speakingTimerRef.current = null;
+    }
+
+    const activeProvider = activeSttProviderRef.current;
+
+    if (activeProvider === 'parakeet') {
+      await voiceRecorder.stopParakeetStt().catch(() => {});
+    } else if (activeProvider === 'android') {
+      await voiceRecorder.stopAndroidStt().catch(() => {});
+    } else {
+      await voiceRecorder.stop().catch(() => {});
+    }
+
+    unsubscribeRef.current?.();
+    unsubscribeRef.current = null;
+
+    const service = serviceRef.current;
+    serviceRef.current = null;
+    if (service) {
+      await service.stop().catch(() => {});
+    }
+
+    activeSttProviderRef.current = null;
+  }, []);
+
+  const abortInFlightVoice = useCallback(async () => {
+    if (stoppingRef.current) {
+      return;
+    }
+    stoppingRef.current = true;
+    cancelVoiceSession();
+
+    try {
+      setIsListening(false);
+      setIsVoiceSpeaking(false);
+      setIsVoiceConnecting(false);
+      await teardownVoiceResources();
+      resetSession();
+    } finally {
+      stoppingRef.current = false;
+    }
+  }, [cancelVoiceSession, resetSession, teardownVoiceResources]);
+
   const stopListening = useCallback(async () => {
     if (stoppingRef.current) {
       return;
     }
     stoppingRef.current = true;
+    cancelVoiceSession();
 
     try {
-      if (speakingTimerRef.current) {
-        clearTimeout(speakingTimerRef.current);
-        speakingTimerRef.current = null;
-      }
       setIsListening(false);
       setIsVoiceSpeaking(false);
       setIsVoiceConnecting(false);
 
       const activeProvider = activeSttProviderRef.current;
-
-      if (activeProvider === 'parakeet') {
-        await voiceRecorder.stopParakeetStt().catch(() => {});
-        unsubscribeRef.current?.();
-        unsubscribeRef.current = null;
-      } else if (activeProvider === 'android') {
-        await voiceRecorder.stopAndroidStt().catch(() => {});
-        unsubscribeRef.current?.();
-        unsubscribeRef.current = null;
-      } else {
-        unsubscribeRef.current?.();
-        unsubscribeRef.current = null;
-        await voiceRecorder.stop().catch(() => {});
-      }
-
-      const service = serviceRef.current;
-      serviceRef.current = null;
-      if (service) {
-        await service.stop().catch(() => {});
-      }
-
-      activeSttProviderRef.current = null;
+      await teardownVoiceResources();
       await finishSession(activeProvider);
     } finally {
       stoppingRef.current = false;
     }
-  }, [finishSession]);
+  }, [cancelVoiceSession, finishSession, teardownVoiceResources]);
 
   stopListeningRef.current = stopListening;
 
-  const startParakeetListening = useCallback(async (): Promise<boolean> => {
-    activeSttProviderRef.current = 'parakeet';
-    const isAvailable = await voiceRecorder.isParakeetSttAvailable();
-    if (!isAvailable) {
-      activeSttProviderRef.current = null;
-      return false;
-    }
+  const startParakeetListening = useCallback(
+    async (sessionId: number): Promise<boolean> => {
+      activeSttProviderRef.current = 'parakeet';
+      const isAvailable = await voiceRecorder.isParakeetSttAvailable();
+      if (!isVoiceSessionActive(sessionId)) {
+        activeSttProviderRef.current = null;
+        return false;
+      }
+      if (!isAvailable) {
+        activeSttProviderRef.current = null;
+        return false;
+      }
 
-    unsubscribeRef.current = voiceRecorder.subscribeParakeetStt({
-      onPartial: partial => {
-        updateLivePreview(partial);
-      },
-      onFinal: text => {
-        appendFinalSegment(text);
-      },
-      onError: () => {
-        if (!stoppingRef.current) {
-          void stopListeningRef.current();
+      unsubscribeRef.current = voiceRecorder.subscribeParakeetStt({
+        onPartial: partial => {
+          if (!isVoiceSessionActive(sessionId)) {
+            return;
+          }
+          updateLivePreview(partial);
+        },
+        onFinal: text => {
+          if (!isVoiceSessionActive(sessionId)) {
+            return;
+          }
+          appendFinalSegment(text);
+        },
+        onError: () => {
+          if (!stoppingRef.current && isVoiceSessionActive(sessionId)) {
+            void stopListeningRef.current();
+          }
+        },
+      });
+
+      try {
+        await voiceRecorder.startParakeetStt();
+        if (!isVoiceSessionActive(sessionId)) {
+          await voiceRecorder.stopParakeetStt().catch(() => {});
+          unsubscribeRef.current?.();
+          unsubscribeRef.current = null;
+          activeSttProviderRef.current = null;
+          return false;
         }
-      },
-    });
-
-    try {
-      await voiceRecorder.startParakeetStt();
-      setIsVoiceConnecting(false);
-      setIsListening(true);
-      playVoiceActivationSound();
-      return true;
-    } catch {
-      unsubscribeRef.current?.();
-      unsubscribeRef.current = null;
-      activeSttProviderRef.current = null;
-      setIsListening(false);
-      return false;
-    }
-  }, [appendFinalSegment, updateLivePreview]);
-
-  const startAndroidListening = useCallback(async (): Promise<boolean> => {
-    activeSttProviderRef.current = 'android';
-    const isAvailable = await voiceRecorder.isAndroidSttAvailable();
-    if (!isAvailable) {
-      activeSttProviderRef.current = null;
-      return false;
-    }
-
-    unsubscribeRef.current = voiceRecorder.subscribeAndroidStt({
-      onReady: () => {
         setIsVoiceConnecting(false);
         setIsListening(true);
         playVoiceActivationSound();
-      },
-      onPartial: partial => {
-        updateLivePreview(partial);
-      },
-      onFinal: text => {
-        appendFinalSegment(text);
-        void stopListeningRef.current();
-      },
-      onError: () => {
-        if (!stoppingRef.current) {
-          void stopListeningRef.current();
-        }
-      },
-    });
+        return true;
+      } catch {
+        unsubscribeRef.current?.();
+        unsubscribeRef.current = null;
+        activeSttProviderRef.current = null;
+        setIsListening(false);
+        return false;
+      }
+    },
+    [appendFinalSegment, isVoiceSessionActive, updateLivePreview],
+  );
 
-    try {
-      await voiceRecorder.startAndroidStt();
-      return true;
-    } catch {
-      unsubscribeRef.current?.();
-      unsubscribeRef.current = null;
-      activeSttProviderRef.current = null;
-      setIsListening(false);
-      return false;
-    }
-  }, [appendFinalSegment, updateLivePreview]);
+  const startAndroidListening = useCallback(
+    async (sessionId: number): Promise<boolean> => {
+      activeSttProviderRef.current = 'android';
+      const isAvailable = await voiceRecorder.isAndroidSttAvailable();
+      if (!isVoiceSessionActive(sessionId)) {
+        activeSttProviderRef.current = null;
+        return false;
+      }
+      if (!isAvailable) {
+        activeSttProviderRef.current = null;
+        return false;
+      }
+
+      unsubscribeRef.current = voiceRecorder.subscribeAndroidStt({
+        onReady: () => {
+          if (!isVoiceSessionActive(sessionId)) {
+            return;
+          }
+          setIsVoiceConnecting(false);
+          setIsListening(true);
+          playVoiceActivationSound();
+        },
+        onPartial: partial => {
+          if (!isVoiceSessionActive(sessionId)) {
+            return;
+          }
+          updateLivePreview(partial);
+        },
+        onFinal: text => {
+          if (!isVoiceSessionActive(sessionId)) {
+            return;
+          }
+          appendFinalSegment(text);
+        },
+        onError: () => {
+          if (!stoppingRef.current && isVoiceSessionActive(sessionId)) {
+            void stopListeningRef.current();
+          }
+        },
+      });
+
+      try {
+        await voiceRecorder.startAndroidStt();
+        if (!isVoiceSessionActive(sessionId)) {
+          await voiceRecorder.stopAndroidStt().catch(() => {});
+          unsubscribeRef.current?.();
+          unsubscribeRef.current = null;
+          activeSttProviderRef.current = null;
+          return false;
+        }
+        return true;
+      } catch {
+        unsubscribeRef.current?.();
+        unsubscribeRef.current = null;
+        activeSttProviderRef.current = null;
+        setIsListening(false);
+        return false;
+      }
+    },
+    [appendFinalSegment, isVoiceSessionActive, updateLivePreview],
+  );
 
   const startListening = useCallback(async () => {
     if (isVoiceProcessing || stoppingRef.current) {
       return;
     }
 
+    const sessionId = beginVoiceSession();
+
     const hasPermission = await voiceRecorder.hasMicPermission();
+    if (!isVoiceSessionActive(sessionId)) {
+      return;
+    }
     if (!hasPermission) {
       await voiceRecorder.openAppForMicPermission();
       return;
@@ -323,12 +414,21 @@ export function useVoiceInput() {
     setIsVoiceConnecting(true);
 
     await ensureVoiceSttProviderLoaded();
+    if (!isVoiceSessionActive(sessionId)) {
+      return;
+    }
     const sttProvider = getVoiceSttProvider();
 
     if (sttProvider === 'parakeet') {
-      const started = await startParakeetListening();
+      const started = await startParakeetListening(sessionId);
+      if (!isVoiceSessionActive(sessionId)) {
+        return;
+      }
       if (!started) {
-        const androidStarted = await startAndroidListening();
+        const androidStarted = await startAndroidListening(sessionId);
+        if (!isVoiceSessionActive(sessionId)) {
+          return;
+        }
         if (!androidStarted) {
           setIsVoiceConnecting(false);
           activeSttProviderRef.current = null;
@@ -341,7 +441,10 @@ export function useVoiceInput() {
     activeSttProviderRef.current = sttProvider;
 
     if (sttProvider === 'android') {
-      const started = await startAndroidListening();
+      const started = await startAndroidListening(sessionId);
+      if (!isVoiceSessionActive(sessionId)) {
+        return;
+      }
       if (!started) {
         setIsVoiceConnecting(false);
         resetSession();
@@ -354,13 +457,19 @@ export function useVoiceInput() {
 
     service.setHandlers({
       onPartial: partial => {
+        if (!isVoiceSessionActive(sessionId)) {
+          return;
+        }
         updateLivePreview(partial);
       },
       onFinal: text => {
+        if (!isVoiceSessionActive(sessionId)) {
+          return;
+        }
         appendFinalSegment(text);
       },
       onError: () => {
-        if (!stoppingRef.current) {
+        if (!stoppingRef.current && isVoiceSessionActive(sessionId)) {
           void stopListeningRef.current();
         }
       },
@@ -371,10 +480,16 @@ export function useVoiceInput() {
       try {
         apiKey = await requireSpeechmaticsApiKey();
       } catch (error) {
+        if (!isVoiceSessionActive(sessionId)) {
+          return;
+        }
         if (isMissingSpeechmaticsKey(error)) {
           await service.stop().catch(() => {});
           serviceRef.current = null;
-          const started = await startAndroidListening();
+          const started = await startAndroidListening(sessionId);
+          if (!isVoiceSessionActive(sessionId)) {
+            return;
+          }
           if (!started) {
             setIsVoiceConnecting(false);
             resetSession();
@@ -383,16 +498,47 @@ export function useVoiceInput() {
         }
         throw error;
       }
+
+      if (!isVoiceSessionActive(sessionId)) {
+        await service.stop().catch(() => {});
+        serviceRef.current = null;
+        return;
+      }
+
       await service.start(apiKey);
+      if (!isVoiceSessionActive(sessionId)) {
+        await service.stop().catch(() => {});
+        serviceRef.current = null;
+        return;
+      }
+
       setIsVoiceConnecting(false);
       playVoiceActivationSound();
       unsubscribeRef.current = voiceRecorder.subscribe(base64 => {
+        if (!isVoiceSessionActive(sessionId)) {
+          return;
+        }
         service.sendAudioBase64(base64);
       });
       await voiceRecorder.start();
+      if (!isVoiceSessionActive(sessionId)) {
+        unsubscribeRef.current?.();
+        unsubscribeRef.current = null;
+        await voiceRecorder.stop().catch(() => {});
+        await service.stop().catch(() => {});
+        serviceRef.current = null;
+        activeSttProviderRef.current = null;
+        return;
+      }
       setIsListening(true);
     } catch {
-      const startedFallback = await startAndroidListening();
+      if (!isVoiceSessionActive(sessionId)) {
+        return;
+      }
+      const startedFallback = await startAndroidListening(sessionId);
+      if (!isVoiceSessionActive(sessionId)) {
+        return;
+      }
       if (startedFallback) {
         return;
       }
@@ -404,7 +550,9 @@ export function useVoiceInput() {
     }
   }, [
     appendFinalSegment,
+    beginVoiceSession,
     isVoiceProcessing,
+    isVoiceSessionActive,
     resetSession,
     startAndroidListening,
     startParakeetListening,
@@ -417,19 +565,7 @@ export function useVoiceInput() {
     }
 
     if (isVoiceConnecting) {
-      setIsVoiceConnecting(false);
-      if (activeSttProviderRef.current === 'parakeet') {
-        await voiceRecorder.stopParakeetStt().catch(() => {});
-      } else if (activeSttProviderRef.current === 'android') {
-        await voiceRecorder.stopAndroidStt().catch(() => {});
-      }
-      const service = serviceRef.current;
-      serviceRef.current = null;
-      await service?.stop().catch(() => {});
-      activeSttProviderRef.current = null;
-      unsubscribeRef.current?.();
-      unsubscribeRef.current = null;
-      resetSession();
+      await abortInFlightVoice();
       return;
     }
 
@@ -439,10 +575,10 @@ export function useVoiceInput() {
       await startListening();
     }
   }, [
+    abortInFlightVoice,
     isListening,
     isVoiceConnecting,
     isVoiceProcessing,
-    resetSession,
     startListening,
     stopListening,
   ]);
@@ -450,12 +586,31 @@ export function useVoiceInput() {
   useEffect(() => {
     preloadVoiceActivationSound();
     return () => {
-      if (speakingTimerRef.current) {
-        clearTimeout(speakingTimerRef.current);
-      }
       void stopListeningRef.current();
     };
   }, []);
+
+  useEffect(() => {
+    if (!isListening) {
+      if (audioLevelDecayRef.current) {
+        clearInterval(audioLevelDecayRef.current);
+        audioLevelDecayRef.current = null;
+      }
+      setAudioLevel(0);
+      return;
+    }
+
+    audioLevelDecayRef.current = setInterval(() => {
+      setAudioLevel(prev => Math.max(0, prev - 0.04));
+    }, 80);
+
+    return () => {
+      if (audioLevelDecayRef.current) {
+        clearInterval(audioLevelDecayRef.current);
+        audioLevelDecayRef.current = null;
+      }
+    };
+  }, [isListening]);
 
   return {
     isListening,
@@ -463,6 +618,7 @@ export function useVoiceInput() {
     isVoiceConnecting,
     isVoiceProcessing,
     partialTranscript,
+    audioLevel,
     toggleListening,
   };
 }

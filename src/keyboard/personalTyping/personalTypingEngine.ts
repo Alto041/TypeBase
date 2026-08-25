@@ -1,3 +1,4 @@
+import {InteractionManager} from 'react-native';
 import {keyboardBridge} from '../keyboardBridge';
 import {
   isLearnablePhrase,
@@ -15,11 +16,11 @@ import type {
 } from './types';
 
 const PROFILE_VERSION = 1 as const;
-const MAX_WORDS = 4000;
-const MAX_PHRASES = 1200;
-const MAX_CORRECTIONS = 800;
-const MAX_PUNCTUATION = 120;
-const PERSIST_DEBOUNCE_MS = 5000;
+const MAX_WORDS = 2500;
+const MAX_PHRASES = 600;
+const MAX_CORRECTIONS = 400;
+const MAX_PUNCTUATION = 80;
+const PERSIST_DEBOUNCE_MS = 30_000;
 
 const INITIAL_CONFIDENCE: Record<LearningSource, number> = {
   typed: 0.22,
@@ -37,13 +38,23 @@ const CONFIRM_GAIN: Record<LearningSource, number> = {
   manual: 0,
 };
 
+type PhraseIndexEntry = {
+  phrase: string;
+  weight: number;
+  lastWord: string;
+};
+
 let profile: PersonalTypingProfile = emptyProfile();
 const wordUsesCache = new Map<string, number>();
 const phraseUsesCache = new Map<string, number>();
+const phrasesByLead = new Map<string, PhraseIndexEntry[]>();
+const phrasesByStarter = new Map<string, PhraseIndexEntry[]>();
+const hardRejectedCorrections = new Set<string>();
 let loadPromise: Promise<void> | null = null;
 let loadGeneration = 0;
 let persistTimer: ReturnType<typeof setTimeout> | null = null;
 let dirty = false;
+let profileHydrated = false;
 
 function emptyProfile(): PersonalTypingProfile {
   return {
@@ -76,19 +87,20 @@ function decayConfidence(current: number, amount = 0.24): number {
   return clampConfidence(current - amount);
 }
 
-function rebuildUsesCaches(): void {
-  wordUsesCache.clear();
-  phraseUsesCache.clear();
-  for (const [word, entry] of Object.entries(profile.words)) {
-    if (entry.uses > 0) {
-      wordUsesCache.set(word, entry.uses);
-    }
-  }
-  for (const [phrase, entry] of Object.entries(profile.phrases)) {
-    if (entry.uses > 0) {
-      phraseUsesCache.set(phrase, entry.uses);
-    }
-  }
+function phraseWeight(entry: LearnedPhraseEntry): number {
+  return entry.uses * 10 * (0.4 + entry.confidence * 0.6);
+}
+
+function wordScore(entry: LearnedWordEntry): number {
+  return entry.confidence * 100 + entry.uses * 4 - entry.rejections * 8;
+}
+
+function phraseScore(entry: LearnedPhraseEntry): number {
+  return entry.confidence * 100 + entry.uses * 5 - entry.rejections * 10;
+}
+
+function correctionScore(entry: CorrectionPairEntry): number {
+  return entry.confidence * 80 + entry.accepts * 6 - entry.rejections * 12;
 }
 
 function trimMap<T>(
@@ -108,16 +120,91 @@ function trimMap<T>(
     });
 }
 
-function wordScore(entry: LearnedWordEntry): number {
-  return entry.confidence * 100 + entry.uses * 4 - entry.rejections * 8;
+function syncRejectedCorrection(entry: CorrectionPairEntry): void {
+  const key = correctionKey(entry.from, entry.to);
+  if (entry.rejections >= 2 && entry.rejections > entry.accepts) {
+    hardRejectedCorrections.add(key);
+  } else {
+    hardRejectedCorrections.delete(key);
+  }
 }
 
-function phraseScore(entry: LearnedPhraseEntry): number {
-  return entry.confidence * 100 + entry.uses * 5 - entry.rejections * 10;
+function upsertPhraseIndex(phrase: string, entry: LearnedPhraseEntry): void {
+  const words = phrase.split(' ');
+  if (words.length < 2) {
+    return;
+  }
+  const item: PhraseIndexEntry = {
+    phrase,
+    weight: phraseWeight(entry),
+    lastWord: words[words.length - 1]!,
+  };
+  const lead = words.slice(0, -1).join(' ');
+  const starter = words[0]!;
+
+  const leadList = phrasesByLead.get(lead) ?? [];
+  const leadIdx = leadList.findIndex(row => row.phrase === phrase);
+  if (leadIdx >= 0) {
+    leadList[leadIdx] = item;
+  } else {
+    leadList.push(item);
+  }
+  phrasesByLead.set(lead, leadList);
+
+  const starterList = phrasesByStarter.get(starter) ?? [];
+  const starterIdx = starterList.findIndex(row => row.phrase === phrase);
+  if (starterIdx >= 0) {
+    starterList[starterIdx] = item;
+  } else {
+    starterList.push(item);
+  }
+  phrasesByStarter.set(starter, starterList);
 }
 
-function correctionScore(entry: CorrectionPairEntry): number {
-  return entry.confidence * 80 + entry.accepts * 6 - entry.rejections * 12;
+function removePhraseIndex(phrase: string): void {
+  const words = phrase.split(' ');
+  if (words.length < 2) {
+    return;
+  }
+  const lead = words.slice(0, -1).join(' ');
+  const starter = words[0]!;
+  const leadList = phrasesByLead.get(lead);
+  if (leadList) {
+    phrasesByLead.set(
+      lead,
+      leadList.filter(row => row.phrase !== phrase),
+    );
+  }
+  const starterList = phrasesByStarter.get(starter);
+  if (starterList) {
+    phrasesByStarter.set(
+      starter,
+      starterList.filter(row => row.phrase !== phrase),
+    );
+  }
+}
+
+function rebuildIndexes(): void {
+  wordUsesCache.clear();
+  phraseUsesCache.clear();
+  phrasesByLead.clear();
+  phrasesByStarter.clear();
+  hardRejectedCorrections.clear();
+
+  for (const [word, entry] of Object.entries(profile.words)) {
+    if (entry.uses > 0) {
+      wordUsesCache.set(word, entry.uses);
+    }
+  }
+  for (const [phrase, entry] of Object.entries(profile.phrases)) {
+    if (entry.uses > 0) {
+      phraseUsesCache.set(phrase, entry.uses);
+      upsertPhraseIndex(phrase, entry);
+    }
+  }
+  for (const entry of Object.values(profile.corrections)) {
+    syncRejectedCorrection(entry);
+  }
 }
 
 function schedulePersist(): void {
@@ -127,7 +214,9 @@ function schedulePersist(): void {
   }
   persistTimer = setTimeout(() => {
     persistTimer = null;
-    void flushPersist();
+    InteractionManager.runAfterInteractions(() => {
+      void flushPersist();
+    });
   }, PERSIST_DEBOUNCE_MS);
 }
 
@@ -139,7 +228,7 @@ async function flushPersist(): Promise<void> {
   trimMap(profile.words, MAX_WORDS, wordScore);
   trimMap(profile.phrases, MAX_PHRASES, phraseScore);
   trimMap(profile.corrections, MAX_CORRECTIONS, correctionScore);
-  rebuildUsesCaches();
+  rebuildIndexes();
   profile.updatedAt = Date.now();
   const json = JSON.stringify(profile);
   void keyboardBridge.setPersonalTypingProfile(json);
@@ -178,11 +267,44 @@ function migrateFromLegacyCounts(
   return next;
 }
 
+function mergeLoadedProfile(loaded: PersonalTypingProfile): void {
+  if (!profileHydrated) {
+    profile = loaded;
+    profileHydrated = true;
+    rebuildIndexes();
+    return;
+  }
+
+  for (const [word, entry] of Object.entries(loaded.words)) {
+    const current = profile.words[word];
+    if (!current || entry.lastUsed > current.lastUsed) {
+      profile.words[word] = entry;
+      if (entry.uses > 0) {
+        wordUsesCache.set(word, entry.uses);
+      }
+    }
+  }
+  for (const [phrase, entry] of Object.entries(loaded.phrases)) {
+    const current = profile.phrases[phrase];
+    if (!current || entry.lastUsed > current.lastUsed) {
+      profile.phrases[phrase] = entry;
+      if (entry.uses > 0) {
+        phraseUsesCache.set(phrase, entry.uses);
+        upsertPhraseIndex(phrase, entry);
+      }
+    }
+  }
+}
+
 export function resetPersonalTypingCache(): void {
   loadGeneration += 1;
   profile = emptyProfile();
+  profileHydrated = false;
   wordUsesCache.clear();
   phraseUsesCache.clear();
+  phrasesByLead.clear();
+  phrasesByStarter.clear();
+  hardRejectedCorrections.clear();
   loadPromise = null;
   dirty = false;
   if (persistTimer) {
@@ -191,7 +313,7 @@ export function resetPersonalTypingCache(): void {
   }
 }
 
-export async function ensurePersonalTypingLoaded(): Promise<void> {
+export function ensurePersonalTypingLoaded(): Promise<void> {
   if (loadPromise) {
     return loadPromise;
   }
@@ -207,8 +329,7 @@ export async function ensurePersonalTypingLoaded(): Promise<void> {
       try {
         const parsed = JSON.parse(raw) as PersonalTypingProfile;
         if (parsed?.version === PROFILE_VERSION) {
-          profile = parsed;
-          rebuildUsesCaches();
+          mergeLoadedProfile(parsed);
           return;
         }
       } catch {
@@ -223,10 +344,9 @@ export async function ensurePersonalTypingLoaded(): Promise<void> {
     if (generation !== loadGeneration) {
       return;
     }
-    profile = migrateFromLegacyCounts(words, phrases);
-    rebuildUsesCaches();
+    mergeLoadedProfile(migrateFromLegacyCounts(words, phrases));
     dirty = true;
-    await flushPersist();
+    schedulePersist();
   })();
 
   return loadPromise;
@@ -238,23 +358,7 @@ export async function reloadPersonalTypingFromStorage(): Promise<void> {
 }
 
 export function getPersonalWordUses(word: string): number {
-  const normalized = normalizeLearnedWord(word);
-  return wordUsesCache.get(normalized) ?? 0;
-}
-
-export function getPersonalWordConfidence(word: string): number {
-  const normalized = normalizeLearnedWord(word);
-  return profile.words[normalized]?.confidence ?? 0;
-}
-
-export function getPersonalPhraseUses(phrase: string): number {
-  const normalized = normalizePhrase(phrase);
-  return phraseUsesCache.get(normalized) ?? 0;
-}
-
-export function getPersonalPhraseConfidence(phrase: string): number {
-  const normalized = normalizePhrase(phrase);
-  return profile.phrases[normalized]?.confidence ?? 0;
+  return wordUsesCache.get(normalizeLearnedWord(word)) ?? 0;
 }
 
 export function getLearnedWordMap(): ReadonlyMap<string, number> {
@@ -265,84 +369,70 @@ export function getLearnedPhraseMap(): ReadonlyMap<string, number> {
   return phraseUsesCache;
 }
 
-export function getPersonalWordStrength(word: string): number {
-  const uses = getPersonalWordUses(word);
-  const confidence = getPersonalWordConfidence(word);
-  if (uses <= 0 && confidence <= 0) {
-    return 0;
-  }
-  return uses * (0.45 + confidence * 0.55);
-}
-
-export function getPersonalPhraseWeight(phrase: string): number {
-  const uses = getPersonalPhraseUses(phrase);
-  const confidence = getPersonalPhraseConfidence(phrase);
-  if (uses <= 0) {
-    return 0;
-  }
-  return uses * 10 * (0.4 + confidence * 0.6);
-}
-
-export function isPersonallyProtectedWord(word: string): boolean {
+/** Fast O(1) check used on the typing hot path. */
+export function isLearnedWordInsisted(word: string): boolean {
   const normalized = normalizeLearnedWord(word);
-  const entry = profile.words[normalized];
-  if (!entry || entry.uses <= 0) {
+  const uses = wordUsesCache.get(normalized) ?? 0;
+  if (uses >= 2) {
+    return true;
+  }
+  if (uses === 0) {
     return false;
   }
-  if (entry.confidence >= 0.38) {
-    return true;
-  }
-  if (entry.uses >= 2 && entry.confidence >= 0.22) {
-    return true;
-  }
-  if (entry.source === 'kept' && entry.confidence >= 0.3) {
-    return true;
-  }
-  return entry.uses >= 3;
+  const entry = profile.words[normalized];
+  return entry?.source === 'kept' || (entry?.confidence ?? 0) >= 0.38;
 }
 
 export function shouldPersonallyOfferKeepTyped(word: string): boolean {
   const normalized = normalizeLearnedWord(word);
-  const entry = profile.words[normalized];
-  if (!entry) {
+  const uses = wordUsesCache.get(normalized) ?? 0;
+  if (uses === 0) {
     return true;
   }
-  return entry.confidence < 0.32 && entry.uses <= 1;
+  const entry = profile.words[normalized];
+  return (entry?.confidence ?? 0) < 0.32 && uses <= 1;
 }
 
-export function getPersonalCorrectionModifier(
-  typed: string,
-  candidate: string,
-): number {
+export function isHardRejectedCorrection(typed: string, candidate: string): boolean {
   const from = normalizeLearnedWord(typed);
   const to = normalizeLearnedWord(candidate);
   if (!from || !to || from === to) {
-    return 0;
-  }
-  const entry = profile.corrections[correctionKey(from, to)];
-  if (!entry) {
-    return 0;
-  }
-  if (entry.rejections > entry.accepts && entry.confidence < 0.35) {
-    return -0.55 - entry.rejections * 0.08;
-  }
-  if (entry.accepts > 0) {
-    return Math.min(0.35, entry.confidence * 0.4 + entry.accepts * 0.04);
-  }
-  return 0;
-}
-
-export function isPersonallyRejectedCorrection(
-  typed: string,
-  candidate: string,
-): boolean {
-  const from = normalizeLearnedWord(typed);
-  const to = normalizeLearnedWord(candidate);
-  const entry = profile.corrections[correctionKey(from, to)];
-  if (!entry) {
     return false;
   }
-  return entry.rejections >= 2 && entry.rejections > entry.accepts;
+  return hardRejectedCorrections.has(correctionKey(from, to));
+}
+
+export function queryPhrasesByPrefix(prefix: string, limit = 2): string[] {
+  const normalized = prefix.trim().toLowerCase();
+  if (!normalized) {
+    return [];
+  }
+  const starter = normalized.split(' ')[0]!;
+  const candidates = phrasesByStarter.get(starter) ?? [];
+  if (candidates.length === 0) {
+    return [];
+  }
+  const results: PhraseIndexEntry[] = [];
+  for (const item of candidates) {
+    if (item.phrase.startsWith(normalized) && item.phrase !== normalized) {
+      results.push(item);
+    }
+  }
+  return results
+    .sort((a, b) => b.weight - a.weight - (b.phrase.length - a.phrase.length))
+    .slice(0, limit)
+    .map(item => item.phrase);
+}
+
+export function queryPhraseCorrectionCandidates(
+  lead: string,
+  typedWord: string,
+): Array<{phrase: string; weight: number; lastWord: string}> {
+  const normalizedLead = lead.trim().toLowerCase();
+  if (!normalizedLead || typedWord.length < 2) {
+    return [];
+  }
+  return phrasesByLead.get(normalizedLead) ?? [];
 }
 
 function upsertWord(
@@ -402,6 +492,7 @@ function upsertPhrase(
       };
   profile.phrases[normalized] = next;
   phraseUsesCache.set(normalized, next.uses);
+  upsertPhraseIndex(normalized, next);
   if (schedule) {
     schedulePersist();
   }
@@ -440,6 +531,7 @@ function upsertCorrectionPair(
   }
   next.lastUsed = now;
   profile.corrections[key] = next;
+  syncRejectedCorrection(next);
   schedulePersist();
 }
 
@@ -494,10 +586,6 @@ export function observeKeepTyped(word: string, rejectedCorrection?: string): voi
   if (rejectedCorrection) {
     upsertCorrectionPair(word, rejectedCorrection, 'reject');
   }
-}
-
-export function observeSuggestionPicked(word: string): void {
-  observeWordCommitted(word, 'picked');
 }
 
 export function observePunctuationPattern(pattern: string): void {
@@ -605,6 +693,7 @@ export function setPersonalPhraseEntry(
   if (uses <= 0) {
     delete profile.phrases[normalized];
     phraseUsesCache.delete(normalized);
+    removePhraseIndex(normalized);
     schedulePersist();
     return true;
   }
@@ -615,6 +704,7 @@ export function setPersonalPhraseEntry(
     lastUsed: Date.now(),
   };
   phraseUsesCache.set(normalized, profile.phrases[normalized].uses);
+  upsertPhraseIndex(normalized, profile.phrases[normalized]);
   schedulePersist();
   return true;
 }
@@ -623,6 +713,7 @@ export function removePersonalPhraseEntry(phrase: string): void {
   const normalized = normalizePhrase(phrase);
   delete profile.phrases[normalized];
   phraseUsesCache.delete(normalized);
+  removePhraseIndex(normalized);
   schedulePersist();
 }
 
@@ -640,17 +731,17 @@ export async function clearPersonalTypingProfile(): Promise<void> {
 }
 
 export function learnedRankBoostFromPersonal(word: string): number {
-  const strength = getPersonalWordStrength(word);
-  if (strength <= 0) {
+  const uses = wordUsesCache.get(normalizeLearnedWord(word)) ?? 0;
+  if (uses <= 0) {
     return 0;
   }
-  return Math.min(strength * 70, 4500);
+  return Math.min(uses * 80, 4000);
 }
 
 export function learnedSwipeBonusFromPersonal(word: string): number {
-  const strength = getPersonalWordStrength(word);
-  if (strength <= 0) {
+  const uses = wordUsesCache.get(normalizeLearnedWord(word)) ?? 0;
+  if (uses <= 0) {
     return 0;
   }
-  return Math.min(strength * 0.07 + Math.log10(strength + 1) * 0.06, 0.48);
+  return Math.min(uses * 0.08 + Math.log10(uses + 1) * 0.08, 0.45);
 }

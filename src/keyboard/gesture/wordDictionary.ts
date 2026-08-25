@@ -78,11 +78,11 @@ export function wordAlignsWithTrace(word: string, trace: string): boolean {
       : (getLearnedCounts().get(word.toLowerCase()) ?? 0) > 0;
   }
 
-  // Shortcuts can skip mid keys — allow a small length surplus for long words.
+  // Shortcuts can skip mid keys — allow a larger surplus for medium/long words.
   if (wordKeys.length > collapsed.length) {
     const skipBudget = Math.min(
-      3,
-      Math.max(1, Math.floor(wordKeys.length / 5)),
+      5,
+      Math.max(2, Math.floor(wordKeys.length / 3)),
     );
     if (wordKeys.length - collapsed.length > skipBudget) {
       return false;
@@ -102,8 +102,8 @@ export function wordAlignsWithTrace(word: string, trace: string): boolean {
   }
 
   const fuzzyBudget = Math.min(
-    3,
-    Math.max(1, Math.floor(collapsed.length / 4)),
+    4,
+    Math.max(2, Math.floor(collapsed.length / 3)),
   );
   return fuzzyMatchesPattern(wordKeys, collapsed, fuzzyBudget);
 }
@@ -177,7 +177,17 @@ function quickTraceReject(word: string, collapsed: string): boolean {
   ) {
     return false;
   }
-  return wordKeys.length > collapsed.length + 3;
+  return wordKeys.length > collapsed.length + 5;
+}
+
+function swipeLengthNearBand(
+  patternLength: number,
+): {min: number; max: number; anchorMin: number; anchorMax: number} {
+  const min = Math.max(2, patternLength - 3);
+  const max = patternLength + 4;
+  const anchorMin = Math.max(2, patternLength);
+  const anchorMax = patternLength + 2;
+  return {min, max, anchorMin, anchorMax};
 }
 
 /**
@@ -226,6 +236,8 @@ function getSwipeCandidatesJs(
 
   const preferMinLen =
     collapsed.length >= 12 ? 7 : collapsed.length >= 8 ? 5 : 2;
+  const {min: nearMinLen, max: nearMaxLen, anchorMin, anchorMax} =
+    swipeLengthNearBand(collapsed.length);
 
   if (isEnglishSymSpellReady()) {
     const lookupPatterns =
@@ -235,7 +247,7 @@ function getSwipeCandidatesJs(
       if (seen.size >= maxCandidates) {
         break;
       }
-      const maxEd = Math.min(2, traceEditBudget(lookupPattern));
+      const maxEd = Math.min(4, traceEditBudget(lookupPattern));
       const symMatches = lookupSwipeCandidatesSync(
         lookupPattern,
         maxEd,
@@ -257,22 +269,29 @@ function getSwipeCandidatesJs(
   // Bilingual layouts only — English uses SymSpell + learned words.
   const baseWords = getBaseWords();
   if (baseWords.length > 0 && seen.size < maxCandidates) {
-    let scanned = 0;
-    for (let rank = 0; rank < baseWords.length; rank += 1) {
-      if (seen.size >= maxCandidates || scanned >= maxCandidates * 3) {
-        break;
+    const addLengthBand = (minLen: number, maxLen: number, scanLimit: number) => {
+      let scanned = 0;
+      for (let rank = 0; rank < baseWords.length; rank += 1) {
+        if (seen.size >= maxCandidates || scanned >= scanLimit) {
+          break;
+        }
+        const word = baseWords[rank]!.toLowerCase();
+        scanned += 1;
+        if (
+          word[0] !== first ||
+          word.length < minLen ||
+          word.length > maxLen
+        ) {
+          continue;
+        }
+        tryAdd(word, rank);
       }
-      const word = baseWords[rank]!.toLowerCase();
-      scanned += 1;
-      if (
-        word[0] !== first ||
-        word.length < preferMinLen ||
-        word.length > MAX_SWIPE_WORD_LENGTH
-      ) {
-        continue;
-      }
-      tryAdd(word, rank);
-    }
+    };
+
+    // Long swipe targets first, then the wider length band.
+    addLengthBand(anchorMin, anchorMax, maxCandidates * 3);
+    addLengthBand(nearMinLen, nearMaxLen, maxCandidates * 4);
+    addLengthBand(preferMinLen, MAX_SWIPE_WORD_LENGTH, maxCandidates * 3);
   }
 
   const learned = getLearnedCounts();

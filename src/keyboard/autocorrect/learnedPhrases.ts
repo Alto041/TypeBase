@@ -2,9 +2,10 @@ import type {LearningSource} from '../personalTyping/types';
 import {
   ensurePersonalTypingLoaded,
   getLearnedPhraseMap,
-  getPersonalPhraseWeight,
   observePhraseCommitted,
   observePhrasesCommitted,
+  queryPhraseCorrectionCandidates,
+  queryPhrasesByPrefix,
   reloadPersonalTypingFromStorage,
   resetPersonalTypingCache,
 } from '../personalTyping/personalTypingEngine';
@@ -106,26 +107,12 @@ export function getPhraseCorrection(
     return null;
   }
 
-  const phraseCounts = getLearnedPhraseCounts();
-
   const priorWords = trailing.slice(0, -1);
+  const lead = priorWords.join(' ');
   let best: {phrase: string; score: number; replaceLength: number} | null = null;
 
-  for (const [phrase, uses] of phraseCounts.entries()) {
-    if (uses <= 0) {
-      continue;
-    }
-
-    const phraseWords = phrase.split(' ');
-    if (phraseWords.length < 2 || phraseWords.length !== priorWords.length + 1) {
-      continue;
-    }
-
-    if (phraseWords.slice(0, -1).join(' ') !== priorWords.join(' ')) {
-      continue;
-    }
-
-    const targetWord = phraseWords[phraseWords.length - 1];
+  for (const item of queryPhraseCorrectionCandidates(lead, typedWord)) {
+    const targetWord = item.lastWord;
     if (targetWord === typedLower) {
       continue;
     }
@@ -136,11 +123,11 @@ export function getPhraseCorrection(
       continue;
     }
 
-    const score = getPersonalPhraseWeight(phrase) - edits * 25;
+    const score = item.weight - edits * 25;
     const replaceLength = [...priorWords, typedWord].join(' ').length;
 
     if (!best || score > best.score) {
-      best = {phrase, score, replaceLength};
+      best = {phrase: item.phrase, score, replaceLength};
     }
   }
 
@@ -172,21 +159,5 @@ export function getPhraseSuggestions(context: string, limit = 2): string[] {
   }
 
   const prefix = trailing.join(' ');
-  const phraseCounts = getLearnedPhraseCounts();
-  const results: Array<{phrase: string; score: number}> = [];
-
-  for (const [phrase, uses] of phraseCounts.entries()) {
-    if (uses <= 0 || !phrase.startsWith(prefix) || phrase === prefix) {
-      continue;
-    }
-    results.push({
-      phrase,
-      score: getPersonalPhraseWeight(phrase) - phrase.length,
-    });
-  }
-
-  return results
-    .sort((a, b) => b.score - a.score)
-    .slice(0, limit)
-    .map(item => item.phrase);
+  return queryPhrasesByPrefix(prefix, limit);
 }

@@ -1,8 +1,8 @@
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {
   BackHandler,
+  FlatList,
   Pressable,
-  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
@@ -11,16 +11,10 @@ import {
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 
-import BackIcon from './assets/back.svg';
-import ResetIcon from './assets/reset.svg';
 import {
   clearPersonalTypingProfile,
   ensurePersonalTypingLoaded,
   getPersonalTypingSnapshot,
-  removePersonalPhraseEntry,
-  removePersonalWordEntry,
-  setPersonalPhraseEntry,
-  setPersonalWordEntry,
 } from './src/keyboard/personalTyping/personalTypingEngine';
 import type {PersonalTypingSnapshot} from './src/keyboard/personalTyping/types';
 
@@ -29,15 +23,23 @@ const C = {
   card: '#ffffff',
   text: '#111111',
   sub: '#6b6b6b',
-  border: '#e8e8ea',
-  accent: '#2CC642',
-  danger: '#E5484D',
+  green: '#2CC642',
+  muted: '#b0b0b5',
 } as const;
 
-const CARD_R = 14;
-const TEXT_KERNING = -0.7;
-
 type Tab = 'words' | 'phrases' | 'corrections';
+
+type ListRow = {
+  id: string;
+  label: string;
+  detail: string;
+};
+
+const TAB_LABELS: Record<Tab, string> = {
+  words: 'Words',
+  phrases: 'Phrases',
+  corrections: 'Corrections',
+};
 
 function emptySnapshot(): PersonalTypingSnapshot {
   return {
@@ -51,29 +53,64 @@ function emptySnapshot(): PersonalTypingSnapshot {
   };
 }
 
-function confidenceLabel(confidence: number): string {
-  return `${Math.round(confidence * 100)}%`;
+function confidencePct(value: number): string {
+  return `${Math.round(value * 100)}%`;
 }
 
-function ConfidenceBar({value}: {value: number}) {
-  const filled = Math.max(4, Math.round(value * 100));
+function buildRows(
+  tab: Tab,
+  snapshot: PersonalTypingSnapshot,
+  query: string,
+): ListRow[] {
+  const q = query.trim().toLowerCase();
+
+  if (tab === 'words') {
+    return snapshot.words
+      .filter(item => !q || item.word.includes(q))
+      .map(item => ({
+        id: item.word,
+        label: item.word,
+        detail: `${item.uses} uses · ${confidencePct(item.confidence)}`,
+      }));
+  }
+
+  if (tab === 'phrases') {
+    return snapshot.phrases
+      .filter(item => !q || item.phrase.includes(q))
+      .map(item => ({
+        id: item.phrase,
+        label: item.phrase,
+        detail: `${item.uses} uses · ${confidencePct(item.confidence)}`,
+      }));
+  }
+
+  return snapshot.corrections
+    .filter(item => !q || item.from.includes(q) || item.to.includes(q))
+    .map(item => ({
+      id: `${item.from}->${item.to}`,
+      label: `${item.from} → ${item.to}`,
+      detail: `${item.accepts} accepted · ${confidencePct(item.confidence)}`,
+    }));
+}
+
+const Row = React.memo(function Row({item}: {item: ListRow}) {
   return (
-    <View style={styles.confidenceTrack}>
-      <View style={[styles.confidenceFill, {flex: filled}]} />
-      <View style={{flex: 100 - filled}} />
+    <View style={styles.row}>
+      <Text style={styles.rowText} numberOfLines={2}>
+        {item.label}
+      </Text>
+      <Text style={styles.rowDetail}>{item.detail}</Text>
     </View>
   );
-}
+});
 
 export function PersonalTypingScreen({onBack}: {onBack: () => void}) {
   const [tab, setTab] = useState<Tab>('words');
   const [query, setQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
   const [snapshot, setSnapshot] = useState<PersonalTypingSnapshot>(emptySnapshot);
   const [ready, setReady] = useState(false);
-  const [resetting, setResetting] = useState(false);
-  const [editingKey, setEditingKey] = useState<string | null>(null);
-  const [editUses, setEditUses] = useState('1');
-  const [editConfidence, setEditConfidence] = useState('50');
+  const [clearing, setClearing] = useState(false);
 
   const reload = useCallback(async () => {
     await ensurePersonalTypingLoaded();
@@ -86,6 +123,11 @@ export function PersonalTypingScreen({onBack}: {onBack: () => void}) {
   }, [reload]);
 
   useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQuery(query), 250);
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
       onBack();
       return true;
@@ -93,373 +135,188 @@ export function PersonalTypingScreen({onBack}: {onBack: () => void}) {
     return () => subscription.remove();
   }, [onBack]);
 
-  const filteredWords = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return snapshot.words;
-    return snapshot.words.filter(item => item.word.includes(q));
-  }, [query, snapshot.words]);
+  const rows = useMemo(
+    () => buildRows(tab, snapshot, debouncedQuery),
+    [debouncedQuery, snapshot, tab],
+  );
 
-  const filteredPhrases = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return snapshot.phrases;
-    return snapshot.phrases.filter(item => item.phrase.includes(q));
-  }, [query, snapshot.phrases]);
-
-  const filteredCorrections = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return snapshot.corrections;
-    return snapshot.corrections.filter(
-      item => item.from.includes(q) || item.to.includes(q),
-    );
-  }, [query, snapshot.corrections]);
-
-  const beginEdit = (key: string, uses: number, confidence: number) => {
-    setEditingKey(key);
-    setEditUses(String(uses));
-    setEditConfidence(String(Math.round(confidence * 100)));
-  };
-
-  const saveEdit = () => {
-    if (!editingKey) return;
-    const uses = Number.parseInt(editUses, 10);
-    const confidencePct = Number.parseInt(editConfidence, 10);
-    if (!Number.isFinite(uses) || !Number.isFinite(confidencePct)) return;
-    const confidence = Math.max(0, Math.min(100, confidencePct)) / 100;
-    if (tab === 'words') {
-      setPersonalWordEntry(editingKey, uses, confidence);
-    } else if (tab === 'phrases') {
-      setPersonalPhraseEntry(editingKey, uses, confidence);
+  const summary = useMemo(() => {
+    if (!ready) {
+      return 'Loading…';
     }
-    setEditingKey(null);
-    void reload();
-  };
+    const shown = rows.length;
+    const total =
+      tab === 'words'
+        ? snapshot.wordCount
+        : tab === 'phrases'
+          ? snapshot.phraseCount
+          : snapshot.correctionCount;
+    const suffix =
+      debouncedQuery.trim().length > 0 && shown !== total
+        ? `${shown} shown · ${total} total`
+        : `${total} total`;
+    return suffix;
+  }, [debouncedQuery, ready, rows.length, snapshot, tab]);
 
-  const removeCurrent = (key: string) => {
-    if (tab === 'words') removePersonalWordEntry(key);
-    else if (tab === 'phrases') removePersonalPhraseEntry(key);
-    void reload();
-  };
-
-  const handleClearAll = () => {
-    if (resetting) return;
+  const handleClearAll = useCallback(() => {
+    if (clearing) {
+      return;
+    }
     void (async () => {
-      setResetting(true);
+      setClearing(true);
       try {
         await clearPersonalTypingProfile();
-        setEditingKey(null);
         await reload();
       } finally {
-        setResetting(false);
+        setClearing(false);
       }
     })();
-  };
+  }, [clearing, reload]);
 
-  const summary =
-    tab === 'words'
-      ? `${snapshot.wordCount} words`
-      : tab === 'phrases'
-        ? `${snapshot.phraseCount} phrases`
-        : `${snapshot.correctionCount} patterns`;
+  const renderItem = useCallback(
+    ({item}: {item: ListRow}) => <Row item={item} />,
+    [],
+  );
+
+  const keyExtractor = useCallback((item: ListRow) => item.id, []);
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={C.bg} />
       <View style={styles.header}>
-        <Pressable onPress={onBack} hitSlop={10} style={styles.backBtn}>
-          <BackIcon width={22} height={14} color={C.text} />
-        </Pressable>
-        <Text style={styles.headerTitle}>Personal typing</Text>
-        <Pressable
-          onPress={handleClearAll}
-          disabled={resetting || !ready}
-          hitSlop={8}
-          style={resetting ? styles.resetDisabled : undefined}>
-          <ResetIcon width={22} height={22} />
-        </Pressable>
-      </View>
-
-      <Text style={styles.subtitle}>
-        Words, phrases, and corrections Typebase learns from your typing.
-      </Text>
-
-      <View style={styles.tabRow}>
-        {(['words', 'phrases', 'corrections'] as Tab[]).map(item => (
-          <Pressable
-            key={item}
-            onPress={() => {
-              setTab(item);
-              setEditingKey(null);
-            }}
-            style={[styles.tab, tab === item && styles.tabActive]}>
-            <Text style={[styles.tabText, tab === item && styles.tabTextActive]}>
-              {item[0].toUpperCase() + item.slice(1)}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-
-      <View style={styles.searchCard}>
+        <Text style={styles.title}>Personal typing</Text>
+        <Text style={styles.summary}>{summary}</Text>
+        <View style={styles.tabs}>
+          {(['words', 'phrases', 'corrections'] as const).map(item => (
+            <Pressable key={item} onPress={() => setTab(item)} hitSlop={6}>
+              <Text style={[styles.tab, tab === item && styles.tabActive]}>
+                {TAB_LABELS[item]}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
         <TextInput
           value={query}
           onChangeText={setQuery}
           placeholder="Search"
-          placeholderTextColor={C.sub}
-          style={styles.searchInput}
+          placeholderTextColor={C.muted}
+          style={styles.search}
+          autoCorrect={false}
+          autoCapitalize="none"
         />
-        <Text style={styles.summary}>{ready ? summary : 'Loading…'}</Text>
+        <Pressable onPress={handleClearAll} disabled={clearing || !ready}>
+          <Text style={[styles.clear, (clearing || !ready) && styles.clearDisabled]}>
+            Clear all
+          </Text>
+        </Pressable>
       </View>
 
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled">
-        {tab === 'words'
-          ? filteredWords.map(item => (
-              <View key={item.word} style={styles.rowCard}>
-                {editingKey === item.word ? (
-                  <View style={styles.editBlock}>
-                    <Text style={styles.rowTitle}>{item.word}</Text>
-                    <View style={styles.editFields}>
-                      <TextInput
-                        value={editUses}
-                        onChangeText={setEditUses}
-                        keyboardType="number-pad"
-                        style={styles.editInput}
-                        placeholder="Uses"
-                        placeholderTextColor={C.sub}
-                      />
-                      <TextInput
-                        value={editConfidence}
-                        onChangeText={setEditConfidence}
-                        keyboardType="number-pad"
-                        style={styles.editInput}
-                        placeholder="Confidence %"
-                        placeholderTextColor={C.sub}
-                      />
-                    </View>
-                    <View style={styles.editActions}>
-                      <Pressable onPress={saveEdit} style={styles.saveButton}>
-                        <Text style={styles.saveButtonText}>Save</Text>
-                      </Pressable>
-                      <Pressable onPress={() => setEditingKey(null)}>
-                        <Text style={styles.cancelText}>Cancel</Text>
-                      </Pressable>
-                    </View>
-                  </View>
-                ) : (
-                  <>
-                    <View style={styles.rowMain}>
-                      <Text style={styles.rowTitle}>{item.word}</Text>
-                      <Text style={styles.rowMeta}>
-                        {item.uses} uses · {confidenceLabel(item.confidence)}
-                      </Text>
-                      <ConfidenceBar value={item.confidence} />
-                    </View>
-                    <View style={styles.rowActions}>
-                      <Pressable onPress={() => beginEdit(item.word, item.uses, item.confidence)}>
-                        <Text style={styles.actionText}>Edit</Text>
-                      </Pressable>
-                      <Pressable onPress={() => removeCurrent(item.word)}>
-                        <Text style={[styles.actionText, styles.deleteText]}>Delete</Text>
-                      </Pressable>
-                    </View>
-                  </>
-                )}
-              </View>
-            ))
-          : null}
-
-        {tab === 'phrases'
-          ? filteredPhrases.map(item => (
-              <View key={item.phrase} style={styles.rowCard}>
-                {editingKey === item.phrase ? (
-                  <View style={styles.editBlock}>
-                    <Text style={styles.rowTitle}>{item.phrase}</Text>
-                    <View style={styles.editFields}>
-                      <TextInput
-                        value={editUses}
-                        onChangeText={setEditUses}
-                        keyboardType="number-pad"
-                        style={styles.editInput}
-                        placeholder="Uses"
-                        placeholderTextColor={C.sub}
-                      />
-                      <TextInput
-                        value={editConfidence}
-                        onChangeText={setEditConfidence}
-                        keyboardType="number-pad"
-                        style={styles.editInput}
-                        placeholder="Confidence %"
-                        placeholderTextColor={C.sub}
-                      />
-                    </View>
-                    <View style={styles.editActions}>
-                      <Pressable onPress={saveEdit} style={styles.saveButton}>
-                        <Text style={styles.saveButtonText}>Save</Text>
-                      </Pressable>
-                      <Pressable onPress={() => setEditingKey(null)}>
-                        <Text style={styles.cancelText}>Cancel</Text>
-                      </Pressable>
-                    </View>
-                  </View>
-                ) : (
-                  <>
-                    <View style={styles.rowMain}>
-                      <Text style={styles.rowTitle}>{item.phrase}</Text>
-                      <Text style={styles.rowMeta}>
-                        {item.uses} uses · {confidenceLabel(item.confidence)}
-                      </Text>
-                      <ConfidenceBar value={item.confidence} />
-                    </View>
-                    <View style={styles.rowActions}>
-                      <Pressable
-                        onPress={() =>
-                          beginEdit(item.phrase, item.uses, item.confidence)
-                        }>
-                        <Text style={styles.actionText}>Edit</Text>
-                      </Pressable>
-                      <Pressable onPress={() => removeCurrent(item.phrase)}>
-                        <Text style={[styles.actionText, styles.deleteText]}>Delete</Text>
-                      </Pressable>
-                    </View>
-                  </>
-                )}
-              </View>
-            ))
-          : null}
-
-        {tab === 'corrections'
-          ? filteredCorrections.map(item => (
-              <View key={`${item.from}->${item.to}`} style={styles.rowCard}>
-                <View style={styles.rowMain}>
-                  <Text style={styles.rowTitle}>
-                    {item.from} → {item.to}
-                  </Text>
-                  <Text style={styles.rowMeta}>
-                    {item.accepts} accepted · {item.rejections} rejected
-                  </Text>
-                  <ConfidenceBar value={item.confidence} />
-                </View>
-              </View>
-            ))
-          : null}
-
-        {ready &&
-        ((tab === 'words' && filteredWords.length === 0) ||
-          (tab === 'phrases' && filteredPhrases.length === 0) ||
-          (tab === 'corrections' && filteredCorrections.length === 0)) ? (
-          <Text style={styles.emptyText}>Nothing learned in this category yet.</Text>
-        ) : null}
-
-        {snapshot.punctuation.length > 0 ? (
-          <View style={styles.rowCard}>
-            <Text style={styles.rowTitle}>Punctuation habits</Text>
-            <Text style={styles.rowMeta}>
-              {snapshot.punctuation
-                .slice(0, 8)
-                .map(item => `${item.pattern} (${item.uses})`)
-                .join(' · ')}
-            </Text>
-          </View>
-        ) : null}
-      </ScrollView>
+      {!ready ? (
+        <Text style={styles.empty}>Loading learned words and phrases…</Text>
+      ) : rows.length === 0 ? (
+        <Text style={styles.empty}>
+          {debouncedQuery.trim().length > 0
+            ? 'No matches for that search.'
+            : 'Type with the keyboard. Words, phrases, and corrections you use will show up here.'}
+        </Text>
+      ) : (
+        <FlatList
+          data={rows}
+          key={tab}
+          keyExtractor={keyExtractor}
+          renderItem={renderItem}
+          contentContainerStyle={styles.list}
+          initialNumToRender={18}
+          maxToRenderPerBatch={12}
+          windowSize={7}
+          removeClippedSubviews
+          keyboardShouldPersistTaps="handled"
+        />
+      )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: {flex: 1, backgroundColor: C.bg},
+  safeArea: {
+    flex: 1,
+    backgroundColor: C.bg,
+  },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 4,
-    gap: 10,
+    paddingHorizontal: 18,
+    paddingTop: 72,
+    paddingBottom: 12,
+    gap: 6,
   },
-  backBtn: {padding: 4},
-  headerTitle: {
-    flex: 1,
+  title: {
+    fontSize: 32,
     color: C.text,
-    fontSize: 22,
-    fontWeight: '700',
-    letterSpacing: TEXT_KERNING,
+    fontFamily: 'FragmentMono',
+    letterSpacing: -1.5,
   },
-  subtitle: {
+  summary: {
+    fontSize: 13,
     color: C.sub,
-    fontSize: 14,
-    lineHeight: 20,
-    paddingHorizontal: 16,
-    paddingBottom: 10,
-    letterSpacing: TEXT_KERNING,
+    fontFamily: 'FragmentMono',
   },
-  tabRow: {flexDirection: 'row', gap: 8, paddingHorizontal: 16, marginBottom: 8},
+  tabs: {
+    flexDirection: 'row',
+    gap: 14,
+    marginTop: 4,
+  },
   tab: {
-    flex: 1,
-    backgroundColor: C.card,
-    borderRadius: CARD_R,
-    paddingVertical: 10,
-    alignItems: 'center',
+    fontSize: 13,
+    color: C.muted,
+    fontFamily: 'FragmentMono',
   },
-  tabActive: {backgroundColor: '#e6e6e8'},
-  tabText: {color: C.sub, fontSize: 13, fontWeight: '600'},
-  tabTextActive: {color: C.text},
-  searchCard: {
+  tabActive: {
+    color: C.text,
+  },
+  search: {
+    marginTop: 4,
+    fontSize: 13,
+    color: C.text,
+    fontFamily: 'FragmentMono',
+    paddingVertical: 6,
+  },
+  clear: {
+    fontSize: 13,
+    color: C.muted,
+    fontFamily: 'FragmentMono',
+    marginTop: 2,
+  },
+  clearDisabled: {
+    opacity: 0.45,
+  },
+  empty: {
+    paddingHorizontal: 18,
+    fontSize: 13,
+    color: C.sub,
+    fontFamily: 'FragmentMono',
+    lineHeight: 20,
+  },
+  list: {
+    paddingHorizontal: 18,
+    paddingBottom: 40,
+    gap: 6,
+  },
+  row: {
     backgroundColor: C.card,
-    borderRadius: CARD_R,
-    marginHorizontal: 16,
-    marginBottom: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     gap: 4,
   },
-  searchInput: {color: C.text, fontSize: 15, paddingVertical: 2},
-  summary: {color: C.sub, fontSize: 12},
-  scroll: {flex: 1},
-  scrollContent: {paddingHorizontal: 16, paddingBottom: 24, gap: 8},
-  rowCard: {
-    backgroundColor: C.card,
-    borderRadius: CARD_R,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  rowMain: {flex: 1, gap: 4},
-  rowTitle: {color: C.text, fontSize: 15, fontWeight: '600'},
-  rowMeta: {color: C.sub, fontSize: 12},
-  confidenceTrack: {
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#e6e6e8',
-    overflow: 'hidden',
-    flexDirection: 'row',
-  },
-  confidenceFill: {height: 4, borderRadius: 2, backgroundColor: C.accent},
-  rowActions: {gap: 6, alignItems: 'flex-end'},
-  actionText: {color: C.text, fontSize: 12, fontWeight: '600'},
-  deleteText: {color: C.danger},
-  editBlock: {flex: 1, gap: 8},
-  editFields: {flexDirection: 'row', gap: 8},
-  editInput: {
-    flex: 1,
+  rowText: {
+    fontSize: 16,
     color: C.text,
-    fontSize: 14,
-    backgroundColor: '#f2f2f4',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    fontFamily: 'FragmentMono',
+    lineHeight: 22,
   },
-  editActions: {flexDirection: 'row', alignItems: 'center', gap: 12},
-  saveButton: {
-    backgroundColor: C.accent,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+  rowDetail: {
+    fontSize: 12,
+    color: C.sub,
+    fontFamily: 'FragmentMono',
+    lineHeight: 18,
   },
-  saveButtonText: {color: '#111', fontSize: 13, fontWeight: '700'},
-  cancelText: {color: C.sub, fontSize: 13},
-  emptyText: {color: C.sub, fontSize: 14, lineHeight: 20, paddingVertical: 8},
-  resetDisabled: {opacity: 0.35},
 });

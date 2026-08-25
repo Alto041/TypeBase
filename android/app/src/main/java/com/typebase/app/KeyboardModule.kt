@@ -48,6 +48,7 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   private var removeSupportsNewlineListener: (() -> Unit)? = null
   private var removeInitialCapsModeListener: (() -> Unit)? = null
   private var removeNativeFastPathKeyListener: (() -> Unit)? = null
+  private var removeTouchIntelligenceHitListener: (() -> Unit)? = null
   private var removeControllerInputListener: (() -> Unit)? = null
   private var removeControllerConnectionListener: (() -> Unit)? = null
   private var clipboardListener: ClipboardManager.OnPrimaryClipChangedListener? = null
@@ -144,6 +145,29 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
                 .emit("keyboardNativeFastPathKey", event)
           }
         }
+    removeTouchIntelligenceHitListener =
+        KeyboardInputBridge.addTouchIntelligenceHitListener { analysis ->
+          if (reactApplicationContext.hasActiveReactInstance()) {
+            val event = Arguments.createMap()
+            event.putDouble("localX", analysis.localX.toDouble())
+            event.putDouble("localY", analysis.localY.toDouble())
+            event.putString("geometricKeyId", analysis.geometricKeyId)
+            event.putString("geometricLetter", analysis.geometricLetter)
+            event.putString("predictedKeyId", analysis.predictedKeyId)
+            event.putString("predictedLetter", analysis.predictedLetter)
+            event.putBoolean("reranked", analysis.reranked)
+            event.putBoolean("appliedRerank", analysis.appliedRerank)
+            event.putBoolean("confidentFastPath", analysis.confidentFastPath)
+            event.putDouble("scoreMargin", analysis.scoreMargin.toDouble())
+            event.putDouble("msSinceLastTap", analysis.msSinceLastTap.toDouble())
+            event.putDouble("velocityPxPerSec", analysis.velocityPxPerSec.toDouble())
+            event.putString("wordPrefix", analysis.wordPrefix)
+            event.putString("previousKeyLetter", analysis.previousKeyLetter)
+            reactApplicationContext
+                .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                .emit("touchIntelligenceHit", event)
+          }
+        }
     removeControllerInputListener =
         KeyboardInputBridge.addControllerInputListener { json ->
           if (reactApplicationContext.hasActiveReactInstance()) {
@@ -211,6 +235,8 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     removeInitialCapsModeListener = null
     removeNativeFastPathKeyListener?.invoke()
     removeNativeFastPathKeyListener = null
+    removeTouchIntelligenceHitListener?.invoke()
+    removeTouchIntelligenceHitListener = null
     removeControllerInputListener?.invoke()
     removeControllerInputListener = null
     removeControllerConnectionListener?.invoke()
@@ -242,6 +268,11 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   @ReactMethod
   fun getInputInitialCapsMode(promise: Promise) {
     promise.resolve(KeyboardInputBridge.getInitialCapsMode())
+  }
+
+  @ReactMethod(isBlockingSynchronousMethod = true)
+  fun getAutoCapitalizeAtCursor(): Boolean {
+    return KeyboardInputBridge.shouldAutoCapitalizeAtCursor()
   }
 
   private fun learnedWordsPrefs() =
@@ -722,6 +753,15 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     KeyboardInputBridge.setNativeZeroLatencyMode(enabled)
   }
 
+  @ReactMethod
+  fun updateNativeFastPathCaseState(
+      shiftOn: Boolean,
+      capsLocked: Boolean,
+      uppercase: Boolean,
+  ) {
+    KeyboardInputBridge.updateNativeFastPathCaseState(shiftOn, capsLocked, uppercase)
+  }
+
   @ReactMethod(isBlockingSynchronousMethod = true)
   fun consumeNativeFastPathPointer(pointerId: Int): Boolean {
     return KeyboardInputBridge.consumeNativeFastPathPointer(pointerId)
@@ -985,6 +1025,7 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
           when (design) {
             "quivox" -> "quivox"
             "macintosh" -> "macintosh"
+            "apple" -> "apple"
             "custom" -> "custom"
             else -> "typebase"
           }

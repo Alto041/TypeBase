@@ -77,6 +77,7 @@ export function buildGemmaVoiceCleanupPrompt(transcript: string): string {
 
 Rules:
 - Keep the same words and meaning. Do NOT rephrase or add new ideas.
+- Remove speech fillers that add no meaning (um, uh, hmm, er, ah, mhm, and similar).
 - Only fix capitalization, ending punctuation, and obvious STT duplicates.
 - Keep slang, names, numbers, and mixed-language text unchanged.
 - Never translate.
@@ -84,6 +85,12 @@ Rules:
 Return only the cleaned text and nothing else.
 
 Text:
+"${transcript}"`);
+}
+
+export function buildGemmaParakeetCleanupPrompt(transcript: string): string {
+  return wrapGemmaPrompt(`Fix this dictation. Remove any remaining um/uh/hmm fillers and repeated words. Keep the same meaning. Output only the cleaned sentence.
+
 "${transcript}"`);
 }
 

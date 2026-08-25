@@ -1,4 +1,5 @@
 import {Buffer} from 'buffer';
+import 'react-native-reanimated';
 import {AppRegistry} from 'react-native';
 
 global.Buffer = global.Buffer || Buffer;

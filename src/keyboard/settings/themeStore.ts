@@ -26,6 +26,9 @@ function normalizeDesign(value: string | null | undefined): KeyboardDesign {
   if (value === 'macintosh') {
     return 'macintosh';
   }
+  if (value === 'apple') {
+    return 'apple';
+  }
   if (value === 'custom') {
     return 'custom';
   }

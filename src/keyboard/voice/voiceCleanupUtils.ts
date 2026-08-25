@@ -1,3 +1,35 @@
+const FILLER_PATTERN =
+  /\b(?:um+m?|uh+h?|hmm+|hm+|mm+|er+r?|ah+h?|mhm+|eh+h?)\b/gi;
+
+/** Strip common speech fillers before comparing or as a light pre-clean pass. */
+export function stripSpeechFillers(text: string): string {
+  return text
+    .replace(FILLER_PATTERN, '')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\s+([,.!?;:])/g, '$1')
+    .replace(/^\s+|[\s,]+$/g, '')
+    .trim();
+}
+
+/** Fast local cleanup for noisy STT before optional Gemma polish. */
+export function applyVoiceHeuristicCleanup(text: string): string {
+  let result = stripSpeechFillers(text);
+
+  // Collapse immediate repeated words: "that that" -> "that"
+  result = result.replace(/\b(\w+)(?:\s+\1\b)+/gi, '$1');
+
+  // Collapse stuttered clauses: "because that because" -> "because"
+  result = result.replace(/\b(\w+)\s+that\s+\1\b/gi, '$1');
+
+  result = result
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\s+([,.!?;:])/g, '$1')
+    .replace(/([.!?]\s+)([a-z])/g, (_, prefix, letter) => `${prefix}${letter.toUpperCase()}`)
+    .trim();
+
+  return result;
+}
+
 function normalizeForComparison(text: string): string {
   return text
     .toLowerCase()
@@ -73,12 +105,23 @@ export function isFaithfulVoiceCleanup(original: string, cleaned: string): boole
   return 1 - distance / maxLen >= 0.72;
 }
 
-export function resolveVoiceCleanupText(original: string, cleaned: string): string {
+export function resolveVoiceCleanupText(
+  original: string,
+  cleaned: string,
+  options?: {allowFillerRemoval?: boolean},
+): string {
   const trimmedCleaned = cleaned.trim();
   if (!trimmedCleaned) {
     return original.trim();
   }
-  return isFaithfulVoiceCleanup(original, trimmedCleaned)
-    ? trimmedCleaned
-    : original.trim();
+  if (isFaithfulVoiceCleanup(original, trimmedCleaned)) {
+    return trimmedCleaned;
+  }
+  if (
+    options?.allowFillerRemoval &&
+    isFaithfulVoiceCleanup(stripSpeechFillers(original), trimmedCleaned)
+  ) {
+    return trimmedCleaned;
+  }
+  return original.trim();
 }

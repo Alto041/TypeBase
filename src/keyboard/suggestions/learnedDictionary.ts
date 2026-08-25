@@ -16,6 +16,24 @@ import {
 
 export {isLearnableWord, normalizeLearnedWord};
 
+const pendingSymSpellWords = new Set<string>();
+let symSpellFlushTimer: ReturnType<typeof setTimeout> | null = null;
+
+function queueSymSpellLearn(word: string): void {
+  pendingSymSpellWords.add(word);
+  if (symSpellFlushTimer) {
+    return;
+  }
+  symSpellFlushTimer = setTimeout(() => {
+    symSpellFlushTimer = null;
+    const batch = [...pendingSymSpellWords];
+    pendingSymSpellWords.clear();
+    for (const entry of batch) {
+      addLearnedWord(entry);
+    }
+  }, 1200);
+}
+
 export function resetLearnedDictionaryCache(): void {
   resetPersonalTypingCache();
 }
@@ -49,7 +67,7 @@ export function recordLearnedWord(
 
   const normalized = normalizeLearnedWord(word);
   observeWordCommitted(normalized, source);
-  addLearnedWord(normalized);
+  queueSymSpellLearn(normalized);
 }
 
 /** Lower swipe score is better; small nudge for words the user has typed before. */

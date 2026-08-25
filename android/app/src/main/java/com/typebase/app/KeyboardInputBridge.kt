@@ -13,6 +13,7 @@ import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.text.InputType
+import android.text.TextUtils
 import java.util.concurrent.CopyOnWriteArrayList
 import org.json.JSONObject
 
@@ -55,6 +56,8 @@ object KeyboardInputBridge {
   private val initialCapsModeListeners = CopyOnWriteArrayList<(Boolean) -> Unit>()
   private val nativeFastPathKeyListeners =
       CopyOnWriteArrayList<(String, String, String, String, Boolean) -> Unit>()
+  private val touchIntelligenceHitListeners =
+      CopyOnWriteArrayList<(TouchIntelligence.HitAnalysis) -> Unit>()
   private var showKeyPreviewFn: ((Int, String) -> Unit)? = null
   private var hideKeyPreviewFn: ((Int) -> Unit)? = null
   private val previewContainerChangedListeners = CopyOnWriteArrayList<() -> Unit>()
@@ -138,6 +141,33 @@ object KeyboardInputBridge {
     }
   }
 
+  /** Whether the next typed letter should be capitalized at the current cursor. */
+  fun shouldAutoCapitalizeAtCursor(): Boolean {
+    val info = currentEditorInfo ?: return false
+    if (!shouldCapitalizeInitial(info)) {
+      return false
+    }
+    val connection = getInputConnection() ?: return false
+
+    val textFlags = info.inputType and InputType.TYPE_MASK_FLAGS
+    var mode = 0
+    if ((textFlags and InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS) != 0) {
+      mode = mode or TextUtils.CAP_MODE_CHARACTERS
+    }
+    if ((textFlags and InputType.TYPE_TEXT_FLAG_CAP_WORDS) != 0) {
+      mode = mode or TextUtils.CAP_MODE_WORDS
+    }
+    if ((textFlags and InputType.TYPE_TEXT_FLAG_CAP_SENTENCES) != 0) {
+      mode = mode or TextUtils.CAP_MODE_SENTENCES
+    }
+    if (mode == 0) {
+      mode = TextUtils.CAP_MODE_SENTENCES
+    }
+
+    val before = connection.getTextBeforeCursor(200, 0)?.toString().orEmpty()
+    return TextUtils.getCapsMode(before, before.length, mode) != 0
+  }
+
   private fun notifyInitialCapsModeListeners(mode: Boolean) {
     initialCapsModeListeners.forEach { listener -> listener(mode) }
   }
@@ -190,6 +220,14 @@ object KeyboardInputBridge {
     inputService?.setNativeZeroLatencyMode(enabled)
   }
 
+  fun updateNativeFastPathCaseState(
+      shiftOn: Boolean,
+      capsLocked: Boolean,
+      uppercase: Boolean,
+  ) {
+    inputService?.updateNativeFastPathCaseState(shiftOn, capsLocked, uppercase)
+  }
+
   fun isKeyHapticEnabled(): Boolean = keyHapticEnabled
 
   fun syncLayoutSettings(json: String) {
@@ -214,26 +252,40 @@ object KeyboardInputBridge {
   @Volatile
   private var lastHapticMs = 0L
 
-  /** Minimum gap between JS-only haptics (frame already fired for keyboard touches). */
-  private const val JS_HAPTIC_DEBOUNCE_MS = 20L
+  @Volatile
+  private var lastPointerHapticMs = 0L
+
+  /** Gaps below this use the snappier KEYBOARD_TAP primitive (Gboard-style bursts). */
+  private const val FAST_TYPING_GAP_MS = 95L
+
+  /** Collapse duplicate JS haptics in the same frame only — never throttle touch-down pulses. */
+  private const val JS_HAPTIC_DEBOUNCE_MS = 8L
 
   /**
-   * IME touch-down haptic — fires before React on every keyboard touch so feedback
-   * is never blocked by JS/main-thread lag during fast typing.
+   * IME touch-down haptic — synchronous on ACTION_DOWN before React. Never debounced.
    */
   fun performKeyHapticForPointer(pointerId: Int) {
+    val now = SystemClock.uptimeMillis()
     if (keyHapticEnabled) {
-      fireHapticPulse()
-      lastHapticMs = SystemClock.uptimeMillis()
+      val gap = if (lastPointerHapticMs > 0L) now - lastPointerHapticMs else Long.MAX_VALUE
+      if (gap in 1..FAST_TYPING_GAP_MS) {
+        fireFastTypingHapticPulse()
+      } else {
+        fireHapticPulse()
+      }
+      lastHapticMs = now
+      lastPointerHapticMs = now
     }
     synchronized(hapticHandledPointers) { hapticHandledPointers.add(pointerId) }
   }
 
-  /** Softer touch-down haptic for zero-latency fast typing. */
+  /** Softer touch-down haptic for zero-latency mode. Never debounced. */
   fun performLightKeyHapticForPointer(pointerId: Int) {
     if (keyHapticEnabled) {
       fireLightHapticPulse()
-      lastHapticMs = SystemClock.uptimeMillis()
+      val now = SystemClock.uptimeMillis()
+      lastHapticMs = now
+      lastPointerHapticMs = now
     }
     synchronized(hapticHandledPointers) { hapticHandledPointers.add(pointerId) }
   }
@@ -263,13 +315,19 @@ object KeyboardInputBridge {
     if (now - lastHapticMs < JS_HAPTIC_DEBOUNCE_MS) {
       return
     }
+    val gap = if (lastPointerHapticMs > 0L) now - lastPointerHapticMs else Long.MAX_VALUE
     lastHapticMs = now
+    lastPointerHapticMs = now
 
     if (!keyHapticEnabled) {
       scheduleTapSound()
       return
     }
-    fireHapticPulse()
+    if (gap in 1..FAST_TYPING_GAP_MS) {
+      fireFastTypingHapticPulse()
+    } else {
+      fireHapticPulse()
+    }
     scheduleTapSound()
   }
 
@@ -318,6 +376,20 @@ object KeyboardInputBridge {
     lightHapticEngineFallback()
   }
 
+  /** Snappier per-key pulse for fast bursts — still fires on every key, never skipped. */
+  private fun fireFastTypingHapticPulse() {
+    val view = inputService?.keyboardViewForFeedback
+    if (view != null) {
+      if (Looper.myLooper() == Looper.getMainLooper()) {
+        performViewFastKeyHaptic(view)
+      } else {
+        mainHandler.post { performViewFastKeyHaptic(view) }
+      }
+      return
+    }
+    fastTypingHapticEngineFallback()
+  }
+
   private fun performViewKeyPressHaptic(view: View) {
     val flags =
         HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING or
@@ -348,6 +420,24 @@ object KeyboardInputBridge {
     }
   }
 
+  private fun performViewFastKeyHaptic(view: View) {
+    val flags =
+        HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING or
+            HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING
+    val ok =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+          view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, flags)
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+          view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_PRESS, flags)
+        } else {
+          @Suppress("DEPRECATION")
+          view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY, flags)
+        }
+    if (!ok) {
+      fastTypingHapticEngineFallback()
+    }
+  }
+
   private fun lightHapticEngineFallback() {
     val ctx = inputService?.applicationContext ?: return
     val vib =
@@ -364,6 +454,25 @@ object KeyboardInputBridge {
     } else {
       @Suppress("DEPRECATION")
       vib.vibrate(8L)
+    }
+  }
+
+  private fun fastTypingHapticEngineFallback() {
+    val ctx = inputService?.applicationContext ?: return
+    val vib =
+        vibrator
+            ?: (ctx.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator)?.also { vibrator = it }
+            ?: return
+    if (!vib.hasVibrator()) {
+      return
+    }
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+      vib.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK))
+    } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+      vib.vibrate(VibrationEffect.createOneShot(12L, 72))
+    } else {
+      @Suppress("DEPRECATION")
+      vib.vibrate(12L)
     }
   }
 
@@ -456,6 +565,17 @@ object KeyboardInputBridge {
   ): () -> Unit {
     nativeFastPathKeyListeners.add(listener)
     return { nativeFastPathKeyListeners.remove(listener) }
+  }
+
+  fun notifyTouchIntelligenceHit(analysis: TouchIntelligence.HitAnalysis) {
+    touchIntelligenceHitListeners.forEach { listener -> listener(analysis) }
+  }
+
+  fun addTouchIntelligenceHitListener(
+      listener: (TouchIntelligence.HitAnalysis) -> Unit,
+  ): () -> Unit {
+    touchIntelligenceHitListeners.add(listener)
+    return { touchIntelligenceHitListeners.remove(listener) }
   }
 
   fun registerKeyPreviewCallbacks(

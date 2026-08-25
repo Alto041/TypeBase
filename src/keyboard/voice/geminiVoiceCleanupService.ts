@@ -1,10 +1,12 @@
+import {isGemmaModelDownloaded, isGemmaNativeAvailable} from '../ai/gemmaBridge';
 import {getGeminiApiKeyOptional} from '../settings/apiKeysStore';
 import {ensureAiProviderLoaded, getAiProvider} from '../settings/aiProviderStore';
-import {buildGemmaVoiceCleanupPrompt} from '../ai/gemmaPrompts';
+import {buildGemmaParakeetCleanupPrompt, buildGemmaVoiceCleanupPrompt} from '../ai/gemmaPrompts';
 import {generateOnDeviceText} from '../ai/onDeviceTextAi';
 import {GEMINI_GENERATION_CONFIG} from '../ai/generationConfig';
 import {GEMINI_VOICE_API_URL} from '../translate/geminiConfig';
 import {
+  applyVoiceHeuristicCleanup,
   isFaithfulVoiceCleanup,
   resolveVoiceCleanupText,
 } from './voiceCleanupUtils';
@@ -25,6 +27,13 @@ export type VoiceCleanupResult = {
   usedOnDeviceAi: boolean;
 };
 
+export type VoiceCleanupOptions = {
+  /** Prefer on-device Gemma when the model is available (e.g. Parakeet STT). */
+  preferOnDevice?: boolean;
+  /** Allow shorter cleaned text when fillers were removed (Parakeet STT). */
+  allowFillerRemoval?: boolean;
+};
+
 type GeminiResponse = {
   candidates?: Array<{
     content?: {
@@ -41,6 +50,7 @@ function buildCleanupPrompt(transcript: string): string {
 
 STRICT RULES:
 - Preserve meaning and wording. Do NOT rephrase, summarize, expand, or "improve" the message.
+- Remove speech fillers that add no meaning (um, uh, hmm, er, ah, mhm, and similar).
 - Only fix capitalization, ending punctuation, and obvious STT stutter/duplicates (e.g. "I I think" -> "I think").
 - Keep slang, names, numbers, emoji, and mixed-language text exactly as spoken.
 - Never translate or switch languages.
@@ -80,16 +90,63 @@ function parseCleanupResult(
 function parseOnDeviceCleanupResult(
   raw: string,
 ): Pick<VoiceCleanupResult, 'text' | 'detectedLanguageCode'> {
-  const trimmed = raw.trim();
+  let trimmed = raw
+    .trim()
+    .replace(/<end_of_turn>/gi, '')
+    .replace(/<start_of_turn>\w*/gi, '')
+    .trim();
   const unquoted =
     trimmed.startsWith('"') && trimmed.endsWith('"') && trimmed.length >= 2
       ? trimmed.slice(1, -1)
       : trimmed;
+
+  const quotedMatch = unquoted.match(/"([^"]{3,})"/);
+  if (quotedMatch) {
+    return {text: quotedMatch[1].trim(), detectedLanguageCode: null};
+  }
+
   return {text: unquoted.trim(), detectedLanguageCode: null};
+}
+
+function shouldApplyVoiceHeuristics(
+  options: VoiceCleanupOptions | undefined,
+  aiProvider: ReturnType<typeof getAiProvider>,
+): boolean {
+  return Boolean(
+    options?.allowFillerRemoval ||
+      options?.preferOnDevice ||
+      aiProvider === 'on_device',
+  );
+}
+
+function shouldTryOnDeviceGemma(
+  options: VoiceCleanupOptions | undefined,
+  aiProvider: ReturnType<typeof getAiProvider>,
+): boolean {
+  return Boolean(options?.preferOnDevice || aiProvider === 'on_device');
+}
+
+async function canUseOnDeviceGemma(): Promise<boolean> {
+  return isGemmaNativeAvailable() && (await isGemmaModelDownloaded());
+}
+
+async function polishWithOnDeviceGemma(
+  input: string,
+  options?: VoiceCleanupOptions,
+): Promise<string> {
+  const prompt = options?.allowFillerRemoval
+    ? buildGemmaParakeetCleanupPrompt(input)
+    : buildGemmaVoiceCleanupPrompt(input);
+  const raw = await generateOnDeviceText(prompt);
+  const parsed = parseOnDeviceCleanupResult(raw);
+  return resolveVoiceCleanupText(input, parsed.text, {
+    allowFillerRemoval: options?.allowFillerRemoval,
+  });
 }
 
 export async function cleanupVoiceTranscript(
   transcript: string,
+  options?: VoiceCleanupOptions,
 ): Promise<VoiceCleanupResult> {
   const input = transcript.trim();
   if (!input) {
@@ -102,40 +159,106 @@ export async function cleanupVoiceTranscript(
   }
 
   await ensureAiProviderLoaded();
-  if (getAiProvider() === 'on_device') {
-    console.log('[VoiceCleanup/OnDevice] Input transcript:', input);
-    try {
-      const raw = await generateOnDeviceText(buildGemmaVoiceCleanupPrompt(input));
-      const parsed = parseOnDeviceCleanupResult(raw);
-      const text = resolveVoiceCleanupText(input, parsed.text);
-      const result: VoiceCleanupResult = {
-        text,
-        detectedLanguageCode: parsed.detectedLanguageCode,
-        usedGemini: false,
-        usedOnDeviceAi: text !== input.trim(),
-      };
-      console.log('[VoiceCleanup/OnDevice] Parsed result:', result);
-      return result;
-    } catch (error) {
-      console.warn('[VoiceCleanup/OnDevice] Cleanup failed:', error);
-      throw new VoiceCleanupError(
-        error instanceof Error ? error.message : undefined,
-      );
-    }
-  }
+  const aiProvider = getAiProvider();
+  const fillerOptions = {
+    ...options,
+    allowFillerRemoval: options?.allowFillerRemoval ?? true,
+  };
+  const useHeuristics = shouldApplyVoiceHeuristics(fillerOptions, aiProvider);
+  const workingText = useHeuristics
+    ? applyVoiceHeuristicCleanup(input)
+    : input;
+  const heuristicChanged = workingText !== input;
+  const isParakeet = Boolean(fillerOptions.preferOnDevice);
 
-  const apiKey = await getGeminiApiKeyOptional();
-  if (!apiKey) {
-    console.log('[VoiceCleanup/Gemini] No API key — using raw transcript:', input);
+  if (isParakeet) {
+    if (await canUseOnDeviceGemma()) {
+      try {
+        const gemmaText = await polishWithOnDeviceGemma(workingText, fillerOptions);
+        console.log('[VoiceCleanup]', {
+          stage: 'parakeet+gemma',
+          input,
+          heuristic: heuristicChanged ? workingText : undefined,
+          output: gemmaText,
+        });
+        return {
+          text: gemmaText,
+          detectedLanguageCode: null,
+          usedGemini: false,
+          usedOnDeviceAi: true,
+        };
+      } catch (error) {
+        console.warn('[VoiceCleanup] Parakeet Gemma pass failed:', error);
+        if (!(error instanceof VoiceCleanupError)) {
+          throw error;
+        }
+      }
+    }
+
+    console.log('[VoiceCleanup]', {
+      stage: 'parakeet-heuristic',
+      input,
+      output: workingText,
+    });
     return {
-      text: input,
+      text: workingText,
       detectedLanguageCode: null,
       usedGemini: false,
       usedOnDeviceAi: false,
     };
   }
 
-  console.log('[VoiceCleanup/Gemini] Input transcript:', input);
+  // Non-parakeet: heuristics alone are enough when they already fixed fillers.
+  if (heuristicChanged) {
+    console.log('[VoiceCleanup]', {
+      stage: 'heuristic',
+      input,
+      output: workingText,
+    });
+    return {
+      text: workingText,
+      detectedLanguageCode: null,
+      usedGemini: false,
+      usedOnDeviceAi: false,
+    };
+  }
+
+  if (
+    shouldTryOnDeviceGemma(fillerOptions, aiProvider) &&
+    (await canUseOnDeviceGemma())
+  ) {
+    try {
+      const gemmaText = await polishWithOnDeviceGemma(workingText, fillerOptions);
+      const usedOnDeviceAi = gemmaText !== workingText;
+      console.log('[VoiceCleanup]', {
+        stage: 'gemma',
+        input: workingText,
+        output: gemmaText,
+        usedOnDeviceAi,
+      });
+      return {
+        text: gemmaText,
+        detectedLanguageCode: null,
+        usedGemini: false,
+        usedOnDeviceAi,
+      };
+    } catch (error) {
+      console.warn('[VoiceCleanup] On-device Gemma failed:', error);
+      if (!(error instanceof VoiceCleanupError)) {
+        throw error;
+      }
+    }
+  }
+
+  const apiKey = await getGeminiApiKeyOptional();
+  if (!apiKey) {
+    return {
+      text: workingText,
+      detectedLanguageCode: null,
+      usedGemini: false,
+      usedOnDeviceAi: false,
+    };
+  }
 
   try {
     const response = await fetch(`${GEMINI_VOICE_API_URL}?key=${apiKey}`, {
@@ -147,7 +270,7 @@ export async function cleanupVoiceTranscript(
         contents: [
           {
             role: 'user',
-            parts: [{text: buildCleanupPrompt(input)}],
+            parts: [{text: buildCleanupPrompt(workingText)}],
           },
         ],
         generationConfig: {
@@ -160,46 +283,41 @@ export async function cleanupVoiceTranscript(
 
     const data = (await response.json()) as GeminiResponse;
 
-    console.log('[VoiceCleanup/Gemini] Raw API response:', JSON.stringify(data));
-
     if (!response.ok) {
-      console.warn(
-        '[VoiceCleanup/Gemini] API error:',
-        data.error?.message ?? response.status,
-      );
       throw new VoiceCleanupError(
         data.error?.message ?? `Voice cleanup failed (${response.status})`,
       );
     }
 
     const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    console.log('[VoiceCleanup/Gemini] Raw model text:', rawText ?? '(empty)');
-
     if (!rawText) {
       throw new VoiceCleanupError('Empty voice cleanup response');
     }
 
     const parsed = parseCleanupResult(rawText);
-    const text = resolveVoiceCleanupText(input, parsed.text);
-    if (!isFaithfulVoiceCleanup(input, parsed.text)) {
-      console.warn(
-        '[VoiceCleanup/Gemini] Rejected over-edited result, using raw transcript',
-      );
+    const text = resolveVoiceCleanupText(workingText, parsed.text, {
+      allowFillerRemoval: fillerOptions.allowFillerRemoval,
+    });
+    if (!isFaithfulVoiceCleanup(workingText, parsed.text)) {
+      console.warn('[VoiceCleanup] Cloud Gemini over-edited, keeping working text');
     }
-    const result: VoiceCleanupResult = {
+    const usedGemini = text !== workingText;
+    console.log('[VoiceCleanup]', {
+      stage: 'cloud',
+      input: workingText,
+      output: text,
+      usedGemini,
+    });
+    return {
       text,
       detectedLanguageCode: parsed.detectedLanguageCode,
-      usedGemini: text !== input.trim(),
+      usedGemini,
       usedOnDeviceAi: false,
     };
-    console.log('[VoiceCleanup/Gemini] Parsed result:', result);
-    return result;
   } catch (error) {
     if (error instanceof VoiceCleanupError) {
-      console.warn('[VoiceCleanup/Gemini] Cleanup failed:', error.message);
       throw error;
     }
-    console.warn('[VoiceCleanup/Gemini] Cleanup failed:', error);
     throw new VoiceCleanupError();
   }
 }

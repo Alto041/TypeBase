@@ -35,6 +35,8 @@ type AutoCapitalizeShiftOptions = {
   recentLetterCommit?: boolean;
   /** User explicitly cleared the field (e.g. backspaced to empty). */
   fieldWasCleared?: boolean;
+  /** Live word prefix while typing — never auto-cap mid-word. */
+  midWordPrefix?: string;
 };
 
 /** Whether shift should be on for the next letter key. */
@@ -48,9 +50,14 @@ export function shouldAutoCapitalizeShift(
     emptyContextTrustworthy = true,
     recentLetterCommit = false,
     fieldWasCleared = false,
+    midWordPrefix = '',
   } = options;
 
   if (!inputRequestsInitialCaps) {
+    return false;
+  }
+
+  if (midWordPrefix.length > 0) {
     return false;
   }
 

@@ -13,21 +13,17 @@ import {
   chunkEmojis,
   EMOJI_COLUMNS,
   EMOJIS_BY_CATEGORY,
-  type EmojiCategoryId,
+  type EmojiSubcategoryId,
 } from './emojis';
 import {
   createEmojiPanelSharedStyles,
   EMOJI_CELL_GAP,
-  RECENTS_CONTAINER_GAP,
-  RECENTS_STRIP_V_PADDING,
 } from './emojiPanelLayout';
 
 type EmojiCategoryGridProps = {
-  category: Exclude<EmojiCategoryId, 'gif' | 'sfx'>;
+  category: EmojiSubcategoryId;
   width: number;
   height: number;
-  recentEmojis: readonly string[];
-  recentEmojisVersion: number;
   selectionLockedRef?: RefObject<boolean>;
   onSelect: (emoji: string) => void;
 };
@@ -54,37 +50,19 @@ export function EmojiCategoryGrid({
   category,
   width,
   height,
-  recentEmojis,
-  recentEmojisVersion,
   selectionLockedRef,
   onSelect,
 }: EmojiCategoryGridProps) {
   const sharedStyles = useThemedStyles(createEmojiPanelSharedStyles);
-  const hasRecents = recentEmojis.length > 0;
-  const recentsStripHeight = hasRecents
-    ? RECENTS_STRIP_V_PADDING * 2
-    : 0;
-  const rowHeight = useMemo(() => {
-    if (hasRecents) {
-      return Math.floor(
-        (height - recentsStripHeight - RECENTS_CONTAINER_GAP) / 5,
-      );
-    }
-    return Math.floor(height / 4);
-  }, [hasRecents, height, recentsStripHeight]);
+  const rowHeight = useMemo(() => Math.floor(height / 4), [height]);
   const styles = useThemedStyles(() =>
-    createEmojiCategoryGridStyles(height, hasRecents, rowHeight, recentsStripHeight),
+    createEmojiCategoryGridStyles(height, rowHeight),
   );
   const gridScrollGuard = useScrollGuard();
 
   const gridRows = useMemo(
     () => chunkEmojis(EMOJIS_BY_CATEGORY[category], EMOJI_COLUMNS),
     [category],
-  );
-
-  const recentSlots = useMemo(
-    () => recentEmojis.slice(0, EMOJI_COLUMNS),
-    [recentEmojis, recentEmojisVersion],
   );
 
   const handleEmojiPress = (emoji: string) => {
@@ -141,27 +119,8 @@ export function EmojiCategoryGrid({
     </View>
   );
 
-  const recentsStrip = hasRecents ? (
-    <View style={[sharedStyles.recentsStrip, styles.recentsStrip]}>
-      <View style={[sharedStyles.recentsRow, styles.row]}>
-        {Array.from({length: EMOJI_COLUMNS}).map((_, index) =>
-          renderEmojiCell(
-            recentSlots[index],
-            `recent-${recentSlots[index] ?? 'empty'}-${index}`,
-            recentSlots[index]
-              ? () => {
-                  handleEmojiPress(recentSlots[index]!);
-                }
-              : undefined,
-          ),
-        )}
-      </View>
-    </View>
-  ) : null;
-
   return (
     <View style={[styles.panel, {width}]}>
-      {recentsStrip}
       <FlatList
         style={styles.gridScroll}
         contentContainerStyle={sharedStyles.scrollContent}
@@ -192,27 +151,14 @@ export function EmojiCategoryGrid({
   );
 }
 
-function createEmojiCategoryGridStyles(
-  panelHeight: number,
-  hasRecents: boolean,
-  rowHeight: number,
-  recentsStripHeight: number,
-) {
-  const recentsBlockHeight = hasRecents ? rowHeight + recentsStripHeight : 0;
-  const recentsGap = hasRecents ? RECENTS_CONTAINER_GAP : 0;
-  const gridHeight = panelHeight - recentsBlockHeight - recentsGap;
-
+function createEmojiCategoryGridStyles(panelHeight: number, rowHeight: number) {
   return StyleSheet.create({
     panel: {
       height: panelHeight,
     },
-    recentsStrip: {
-      height: recentsBlockHeight,
-      marginBottom: recentsGap,
-    },
     gridScroll: {
       flex: 1,
-      height: gridHeight,
+      height: panelHeight,
     },
     row: {
       flexDirection: 'row',

@@ -16,7 +16,8 @@ export type KeyType =
   | 'enter-backspace'
   | 'numpad-back'
   | 'letters'
-  | 'spacer';
+  | 'spacer'
+  | 'emoji';
 
 export type KeyDefinition = {
   id: string;

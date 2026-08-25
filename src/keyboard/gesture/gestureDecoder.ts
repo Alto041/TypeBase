@@ -19,7 +19,10 @@ export type TimedPoint = Point & { t: number };
 const MIN_RESAMPLE_COUNT = 28;
 const MAX_RESAMPLE_COUNT = 48;
 const SWIPE_CANDIDATE_LIMIT = 120;
-const SWIPE_SCORE_LIMIT = 80;
+const SWIPE_SCORE_LIMIT = 200;
+const SWIPE_PREVIEW_SCORE_LIMIT = 32;
+const SWIPE_PREVIEW_CANDIDATE_LIMIT = 48;
+const SWIPE_LENGTH_BAND_SEED_LIMIT = 80;
 
 function resampleCountForPath(pointCount: number): number {
   return Math.min(
@@ -547,12 +550,12 @@ function proximityMissBudget(wordLength: number): number {
     return 1;
   }
   if (wordLength <= 10) {
-    return 2;
-  }
-  if (wordLength <= 14) {
     return 3;
   }
-  return 4;
+  if (wordLength <= 14) {
+    return 4;
+  }
+  return 5;
 }
 
 /** Most distinct keys should be visited; start/end stay anchored. */
@@ -877,14 +880,22 @@ function scoreCandidate(
   verticalSpan: number,
   keyboardHeight: number,
   pauseAnchors: string[] = [],
+  fastPreview = false,
 ): number | null {
   if (!isCommitableSwipeWord(word)) {
     return null;
   }
-  // When the user made explicit pauses, those positions are high-confidence intent.
-  // Don't let a "missed cross" in the noisy trace pattern kill a word that matches the pauses.
   const hasPauseAnchors = pauseAnchors.length >= 2;
-  if (!hasPauseAnchors && !wordAlignsWithTrace(word, pattern)) {
+  const relaxedTraceMatch =
+    pattern.length >= 6 &&
+    word.length >= pattern.length - 2 &&
+    word.length <= pattern.length + 3;
+  if (
+    !fastPreview &&
+    !hasPauseAnchors &&
+    !relaxedTraceMatch &&
+    !wordAlignsWithTrace(word, pattern)
+  ) {
     return null;
   }
 
@@ -905,6 +916,7 @@ function scoreCandidate(
   }
 
   if (
+    !fastPreview &&
     !passesLetterProximityGate(
       word,
       rawSwipePath,
@@ -922,25 +934,24 @@ function scoreCandidate(
     return null;
   }
   const anchors = anchorScore(word, rawSwipePath, letterMap, scale);
-  const turns = turningScore(word, gestureTurns, letterMap, scale);
+  const turns = fastPreview ? 0 : turningScore(word, gestureTurns, letterMap, scale);
 
   let shapeScore = proximity;
-  if (idealPath.length >= 2) {
+  if (!fastPreview && idealPath.length >= 2) {
     const idealResampled = resamplePath(idealPath, swipePath.length);
     const dtw = dtwAverageDistance(swipePath, idealResampled) / scale;
-    // Give the global path shape more say than the noisy crossed-key trace.
     shapeScore = proximity * 0.52 + dtw * 0.48;
   }
 
   let score =
-    shapeScore * 0.78 +
+    shapeScore * (fastPreview ? 0.9 : 0.78) +
     anchors * 0.42 +
-    turns * 0.34 +
+    turns * (fastPreview ? 0 : 0.34) +
     lengthPenalty +
-    shortWordPenalty(word, pattern) +
-    consumptionPenalty(word, pattern) +
-    traceTailPenalty(word, pattern) +
-    keySequencePenalty(word, pattern) +
+    (fastPreview ? 0 : shortWordPenalty(word, pattern)) +
+    (fastPreview ? 0 : consumptionPenalty(word, pattern)) +
+    (fastPreview ? 0 : traceTailPenalty(word, pattern)) +
+    (fastPreview ? 0 : keySequencePenalty(word, pattern)) +
     Math.abs(word.length - pattern.length) *
       (word.length >= 10 ? 0.022 : 0.035) +
     rankBonus(rank, word.length, pattern.length) -
@@ -991,14 +1002,86 @@ function shouldPreferCandidate(
   );
 }
 
+function prioritizeSwipeCandidates(
+  candidates: Array<{word: string; rank: number}>,
+  patternLength: number,
+): Array<{word: string; rank: number}> {
+  const anchorMin = Math.max(2, patternLength);
+  const anchorMax = patternLength + 2;
+
+  return [...candidates].sort((a, b) => {
+    const aAnchor =
+      a.word.length >= anchorMin && a.word.length <= anchorMax ? 0 : 1;
+    const bAnchor =
+      b.word.length >= anchorMin && b.word.length <= anchorMax ? 0 : 1;
+    if (aAnchor !== bAnchor) {
+      return aAnchor - bAnchor;
+    }
+
+    const aLenGap = Math.abs(a.word.length - patternLength);
+    const bLenGap = Math.abs(b.word.length - patternLength);
+    if (aLenGap !== bLenGap) {
+      return aLenGap - bLenGap;
+    }
+
+    return a.rank - b.rank;
+  });
+}
+
+function seedLengthBandCandidates(
+  pattern: string,
+  rawPoints: Point[],
+  layouts: KeyBounds[],
+  results: Array<{word: string; rank: number}>,
+  seen: Set<string>,
+  maxSeed = SWIPE_LENGTH_BAND_SEED_LIMIT,
+): void {
+  const startLetter =
+    nearestTraceLetter(rawPoints[0], layouts) ?? pattern[0]?.toLowerCase();
+  if (!startLetter) {
+    return;
+  }
+
+  const targetLen = Math.max(2, pattern.length);
+  const anchorMin = Math.max(2, targetLen);
+  const anchorMax = targetLen + 2;
+  const words = getWordsByFirstLetter(startLetter, 1200);
+
+  for (const {word, rank} of words) {
+    if (results.length >= maxSeed) {
+      break;
+    }
+    if (word.length < anchorMin || word.length > anchorMax || seen.has(word)) {
+      continue;
+    }
+    seen.add(word);
+    results.push({word, rank});
+  }
+}
+
+type BroadSwipeCandidateOptions = {
+  fast?: boolean;
+};
+
 function getBroadSwipeCandidates(
   pattern: string,
   rawPoints: Point[],
   layouts: KeyBounds[],
   pauseAnchors: string[] = [],
+  options: BroadSwipeCandidateOptions = {},
 ): Array<{word: string; rank: number}> {
+  const fast = options.fast === true;
   const seen = new Set<string>();
   const results: Array<{word: string; rank: number}> = [];
+
+  seedLengthBandCandidates(
+    pattern,
+    rawPoints,
+    layouts,
+    results,
+    seen,
+    fast ? 36 : SWIPE_LENGTH_BAND_SEED_LIMIT,
+  );
 
   const addCandidates = (candidatePattern: string) => {
     if (!candidatePattern || !/^[a-z]/.test(candidatePattern)) {
@@ -1006,7 +1089,7 @@ function getBroadSwipeCandidates(
     }
     const candidates = getSwipeCandidatesSync(
       candidatePattern,
-      SWIPE_CANDIDATE_LIMIT,
+      fast ? SWIPE_PREVIEW_CANDIDATE_LIMIT : SWIPE_CANDIDATE_LIMIT,
     );
     for (const candidate of candidates) {
       if (seen.has(candidate.word)) {
@@ -1014,34 +1097,193 @@ function getBroadSwipeCandidates(
       }
       seen.add(candidate.word);
       results.push(candidate);
+      if (fast && results.length >= SWIPE_PREVIEW_CANDIDATE_LIMIT * 2) {
+        break;
+      }
     }
   };
 
   addCandidates(pattern);
 
-  const startLetter = nearestTraceLetter(rawPoints[0], layouts);
-  if (startLetter && startLetter !== pattern[0]) {
-    addCandidates(`${startLetter}${pattern.slice(1)}`);
+  if (!fast) {
+    const startLetter = nearestTraceLetter(rawPoints[0], layouts);
+    if (startLetter && startLetter !== pattern[0]) {
+      addCandidates(`${startLetter}${pattern.slice(1)}`);
+    }
+
+    if (pauseAnchors.length >= 2) {
+      const anchorPattern = pauseAnchors.join('');
+      if (anchorPattern && anchorPattern !== pattern) {
+        addCandidates(anchorPattern);
+      }
+      const aFirst = pauseAnchors[0];
+      const aLast = pauseAnchors[pauseAnchors.length - 1];
+      if (aFirst && aLast && pattern.length >= 1) {
+        addCandidates(
+          `${aFirst}${pattern.slice(1)}${aLast !== pattern[pattern.length - 1] ? aLast : ''}`.replace(
+            /(.)\1+$/,
+            '$1',
+          ),
+        );
+      }
+    }
   }
 
-  // Gboard-style: when the user made deliberate pauses, seed the candidate pool
-  // directly from the pause anchors. This ensures words that match the pauses
-  // are considered even if the continuous trace (pattern) didn't "directly hit"
-  // every paused key (common on straight single-row swipes with dwells).
-  if (pauseAnchors.length >= 2) {
-    const anchorPattern = pauseAnchors.join('');
-    if (anchorPattern && anchorPattern !== pattern) {
-      addCandidates(anchorPattern);
+  return fast ? results : prioritizeSwipeCandidates(results, pattern.length);
+}
+
+type SwipeDecodeMode = 'preview' | 'commit';
+
+function decodeSwipeGestureCore(
+  rawPoints: Point[],
+  layouts: KeyBounds[],
+  isUppercase: boolean,
+  timedPoints: TimedPoint[] = [],
+  mode: SwipeDecodeMode = 'commit',
+): string | null {
+  const isPreview = mode === 'preview';
+  const points = sanitizeGesturePoints(rawPoints);
+  if (points.length < 2 || layouts.length === 0) {
+    return null;
+  }
+
+  const scale = keyboardScale(layouts);
+  const resampleCount = isPreview
+    ? Math.min(24, resampleCountForPath(points.length))
+    : resampleCountForPath(points.length);
+  const swipePath = resamplePath(points, resampleCount);
+  const letterMap = buildLetterMap(layouts);
+  const keyboardHeight = layouts.reduce(
+    (maxY, layout) => Math.max(maxY, layout.y + layout.height),
+    0,
+  );
+  const verticalSpan = pathVerticalSpan(points);
+  const pattern = buildTracePattern(points, swipePath, layouts);
+  const gestureTurns = isPreview
+    ? []
+    : extractGestureTurningPoints(swipePath, letterMap);
+  const gesturePathLength = pathLength(points);
+  const pauseAnchors = isPreview
+    ? []
+    : extractPauseAnchors(
+        timedPoints.length >= 3
+          ? timedPoints
+          : points.map((p, i) => ({...p, t: i})),
+        layouts,
+      );
+  const learned = getLearnedCounts();
+
+  const pathShapeFallback = () =>
+    decodeByPathShape(
+      points,
+      swipePath,
+      gestureTurns,
+      letterMap,
+      scale,
+      gesturePathLength,
+      keyboardHeight,
+      verticalSpan,
+      isUppercase,
+      pauseAnchors,
+      pattern.length >= 2 ? pattern : undefined,
+    );
+
+  if (pattern.length < 2) {
+    return finalizeSwipeWord(isPreview ? null : pathShapeFallback());
+  }
+
+  const candidates = (
+    isPreview
+      ? getBroadSwipeCandidates(pattern, points, layouts, pauseAnchors, {
+          fast: true,
+        })
+      : prioritizeSwipeCandidates(
+          getBroadSwipeCandidates(pattern, points, layouts, pauseAnchors),
+          pattern.length,
+        )
+  ).slice(0, isPreview ? SWIPE_PREVIEW_SCORE_LIMIT : SWIPE_SCORE_LIMIT);
+
+  let bestWord: string | null = null;
+  let bestScore = Infinity;
+  let bestLearnedUses = 0;
+
+  for (const {word, rank} of candidates) {
+    const learnedUses = learned.get(word) ?? 0;
+    const score = scoreCandidate(
+      word,
+      pattern,
+      swipePath,
+      points,
+      gestureTurns,
+      letterMap,
+      scale,
+      gesturePathLength,
+      rank,
+      learnedUses,
+      verticalSpan,
+      keyboardHeight,
+      pauseAnchors,
+      isPreview,
+    );
+    if (score == null) {
+      continue;
     }
-    // Also try combining first+last from anchors with main pattern hints
-    const aFirst = pauseAnchors[0];
-    const aLast = pauseAnchors[pauseAnchors.length - 1];
-    if (aFirst && aLast && pattern.length >= 1) {
-      addCandidates(`${aFirst}${pattern.slice(1)}${aLast !== pattern[pattern.length-1] ? aLast : ''}`.replace(/(.)\1+$/, '$1'));
+
+    if (shouldPreferCandidate(score, learnedUses, bestScore, bestLearnedUses)) {
+      bestScore = score;
+      bestWord = word;
+      bestLearnedUses = learnedUses;
     }
   }
 
-  return results;
+  if (!isPreview) {
+    const pathShapeWord = pathShapeFallback();
+    if (pathShapeWord) {
+      const pathScore = scoreCandidate(
+        pathShapeWord.toLowerCase(),
+        pattern,
+        swipePath,
+        points,
+        gestureTurns,
+        letterMap,
+        scale,
+        gesturePathLength,
+        500,
+        learned.get(pathShapeWord.toLowerCase()) ?? 0,
+        verticalSpan,
+        keyboardHeight,
+        pauseAnchors,
+        false,
+      );
+      if (
+        pathScore != null &&
+        (bestWord == null || pathScore < bestScore - 0.05)
+      ) {
+        bestWord = pathShapeWord.toLowerCase();
+        bestScore = pathScore;
+      }
+    }
+  }
+
+  if (!bestWord) {
+    return finalizeSwipeWord(
+      pickByProximityOnly(
+        pattern,
+        swipePath,
+        points,
+        gestureTurns,
+        letterMap,
+        scale,
+        gesturePathLength,
+        keyboardHeight,
+        verticalSpan,
+        isUppercase,
+        pauseAnchors,
+      ) ?? pathShapeWord,
+    );
+  }
+
+  return finalizeSwipeWord(formatWord(bestWord, isUppercase));
 }
 
 function sanitizeGesturePoints(points: Point[]): Point[] {
@@ -1060,101 +1302,12 @@ export function previewSwipeGesture(
   isUppercase: boolean,
   timedPoints: TimedPoint[] = [],
 ): string | null {
-  const points = sanitizeGesturePoints(rawPoints);
-  if (points.length < 2 || layouts.length === 0) {
-    return null;
-  }
-
-  const scale = keyboardScale(layouts);
-  const resampleCount = Math.min(32, resampleCountForPath(points.length));
-  const swipePath = resamplePath(points, resampleCount);
-  const letterMap = buildLetterMap(layouts);
-  const keyboardHeight = layouts.reduce(
-    (maxY, layout) => Math.max(maxY, layout.y + layout.height),
-    0,
-  );
-  const verticalSpan = pathVerticalSpan(points);
-  const pattern = buildTracePattern(points, swipePath, layouts);
-  const gestureTurns = extractGestureTurningPoints(swipePath, letterMap);
-  const gesturePathLength = pathLength(points);
-  const pauseAnchors = extractPauseAnchors(
-    timedPoints.length >= 3 ? timedPoints : points.map((p, i) => ({...p, t: i})),
+  return decodeSwipeGestureCore(
+    rawPoints,
     layouts,
-  );
-
-  const previewScoreLimit = 45;
-  const previewRejectThreshold = 2.55;
-
-  if (pattern.length < 2) {
-    return finalizeSwipeWord(
-      decodeByPathShape(
-        points,
-        swipePath,
-        gestureTurns,
-        letterMap,
-        scale,
-        gesturePathLength,
-        keyboardHeight,
-        verticalSpan,
-        isUppercase,
-        pauseAnchors,
-      ),
-    );
-  }
-
-  const candidates = getBroadSwipeCandidates(
-    pattern,
-    points,
-    layouts,
-    pauseAnchors,
-  ).slice(0, previewScoreLimit);
-
-  let bestWord: string | null = null;
-  let bestScore = Infinity;
-
-  for (const {word, rank} of candidates) {
-    const score = scoreCandidate(
-      word,
-      pattern,
-      swipePath,
-      points,
-      gestureTurns,
-      letterMap,
-      scale,
-      gesturePathLength,
-      rank,
-      0,
-      verticalSpan,
-      keyboardHeight,
-      pauseAnchors,
-    );
-    if (score == null || score >= previewRejectThreshold) {
-      continue;
-    }
-    if (score < bestScore) {
-      bestScore = score;
-      bestWord = word;
-    }
-  }
-
-  if (bestWord) {
-    return finalizeSwipeWord(formatWord(bestWord, isUppercase));
-  }
-
-  return finalizeSwipeWord(
-    pickByProximityOnly(
-      pattern,
-      swipePath,
-      points,
-      gestureTurns,
-      letterMap,
-      scale,
-      gesturePathLength,
-      keyboardHeight,
-      verticalSpan,
-      isUppercase,
-      pauseAnchors,
-    ),
+    isUppercase,
+    timedPoints,
+    'preview',
   );
 }
 
@@ -1164,159 +1317,13 @@ export function decodeSwipeGesture(
   isUppercase: boolean,
   timedPoints: TimedPoint[] = [],
 ): string | null {
-  const points = sanitizeGesturePoints(rawPoints);
-  if (points.length < 2 || layouts.length === 0) {
-    return null;
-  }
-
-  const scale = keyboardScale(layouts);
-  const resampleCount = resampleCountForPath(points.length);
-  const swipePath = resamplePath(points, resampleCount);
-  const letterMap = buildLetterMap(layouts);
-  const keyboardHeight = layouts.reduce(
-    (maxY, layout) => Math.max(maxY, layout.y + layout.height),
-    0,
-  );
-  const verticalSpan = pathVerticalSpan(points);
-  const pattern = buildTracePattern(points, swipePath, layouts);
-  const gestureTurns = extractGestureTurningPoints(swipePath, letterMap);
-  const gesturePathLength = pathLength(points);
-
-  // Gboard-style: detect intentional pauses (slow segments) during the gesture.
-  // These become high-confidence "anchor" letters that the word must explain.
-  const pauseAnchors = extractPauseAnchors(
-    timedPoints.length >= 3 ? timedPoints : points.map((p, i) => ({...p, t: i})),
+  return decodeSwipeGestureCore(
+    rawPoints,
     layouts,
+    isUppercase,
+    timedPoints,
+    'commit',
   );
-
-  if (pattern.length < 2) {
-    return finalizeSwipeWord(
-      decodeByPathShape(
-        points,
-        swipePath,
-        gestureTurns,
-        letterMap,
-        scale,
-        gesturePathLength,
-        keyboardHeight,
-        verticalSpan,
-        isUppercase,
-        pauseAnchors,
-      ),
-    );
-  }
-
-  const candidates = getBroadSwipeCandidates(pattern, points, layouts, pauseAnchors).slice(
-    0,
-    SWIPE_SCORE_LIMIT,
-  );
-  const learned = getLearnedCounts();
-
-  let bestWord: string | null = null;
-  let bestScore = Infinity;
-  let bestLearnedUses = 0;
-  let secondScore = Infinity;
-
-  for (const {word, rank} of candidates) {
-    const learnedUses = learned.get(word) ?? 0;
-    const score = scoreCandidate(
-      word,
-      pattern,
-      swipePath,
-      points,
-      gestureTurns,
-      letterMap,
-      scale,
-      gesturePathLength,
-      rank,
-      learnedUses,
-      verticalSpan,
-      keyboardHeight,
-      pauseAnchors,
-    );
-    if (score == null) {
-      continue;
-    }
-
-    if (shouldPreferCandidate(score, learnedUses, bestScore, bestLearnedUses)) {
-      secondScore = bestScore;
-      bestScore = score;
-      bestWord = word;
-      bestLearnedUses = learnedUses;
-    } else if (score < secondScore) {
-      secondScore = score;
-    }
-  }
-
-  if (!bestWord) {
-    return finalizeSwipeWord(
-      pickByProximityOnly(
-        pattern,
-        swipePath,
-        points,
-        gestureTurns,
-        letterMap,
-        scale,
-        gesturePathLength,
-        keyboardHeight,
-        verticalSpan,
-        isUppercase,
-        pauseAnchors,
-      ) ??
-        decodeByPathShape(
-          points,
-          swipePath,
-          gestureTurns,
-          letterMap,
-          scale,
-          gesturePathLength,
-          keyboardHeight,
-          verticalSpan,
-          isUppercase,
-          pauseAnchors,
-        ),
-      pattern,
-    );
-  }
-
-  const margin =
-    secondScore === Infinity ? 1 : Math.max(0, secondScore - bestScore);
-  const rejectThreshold = pattern.length >= 7 ? 2.25 : 1.85;
-  if (
-    bestScore > rejectThreshold ||
-    (bestScore > 1.12 && margin < 0.008 && pattern.length < 7)
-  ) {
-    return finalizeSwipeWord(
-      pickByProximityOnly(
-        pattern,
-        swipePath,
-        points,
-        gestureTurns,
-        letterMap,
-        scale,
-        gesturePathLength,
-        keyboardHeight,
-        verticalSpan,
-        isUppercase,
-        pauseAnchors,
-      ) ??
-        decodeByPathShape(
-          points,
-          swipePath,
-          gestureTurns,
-          letterMap,
-          scale,
-          gesturePathLength,
-          keyboardHeight,
-          verticalSpan,
-          isUppercase,
-          pauseAnchors,
-        ) ??
-        formatWord(bestWord, isUppercase),
-    );
-  }
-
-  return finalizeSwipeWord(formatWord(bestWord, isUppercase));
 }
 
 function decodeByPathShape(
@@ -1330,6 +1337,7 @@ function decodeByPathShape(
   verticalSpan: number,
   isUppercase: boolean,
   pauseAnchors: string[] = [],
+  patternHint?: string,
 ): string | null {
   const startLetter = nearestTraceLetter(rawPoints[0], [...letterMap.values()]);
   if (!startLetter) {
@@ -1338,7 +1346,14 @@ function decodeByPathShape(
 
   const layouts = [...letterMap.values()];
   const fallbackPattern = buildTracePattern(rawPoints, swipePath, layouts);
-  const candidates = getWordsByFirstLetter(startLetter, 1200);
+  const patternLength =
+    patternHint?.length ??
+    (fallbackPattern.length >= 2 ? fallbackPattern.length : 6);
+  const candidates = prioritizeSwipeCandidates(
+    getWordsByFirstLetter(startLetter, 2500),
+    patternLength,
+  );
+  const scoreCutoff = patternLength >= 7 ? 2.65 : 2.05;
   let bestWord: string | null = null;
   let bestScore = Infinity;
 
@@ -1358,7 +1373,7 @@ function decodeByPathShape(
       keyboardHeight,
       pauseAnchors,
     );
-    if (score == null || score > 1.9) {
+    if (score == null || score > scoreCutoff) {
       continue;
     }
     if (score < bestScore) {
@@ -1387,10 +1402,10 @@ function pickByProximityOnly(
     return null;
   }
 
-  const candidates = getSwipeCandidatesSync(pattern, SWIPE_CANDIDATE_LIMIT).slice(
-    0,
-    SWIPE_SCORE_LIMIT,
-  );
+  const candidates = prioritizeSwipeCandidates(
+    getSwipeCandidatesSync(pattern, SWIPE_CANDIDATE_LIMIT),
+    pattern.length,
+  ).slice(0, SWIPE_SCORE_LIMIT);
   let bestWord: string | null = null;
   let bestScore = Infinity;
 
@@ -1455,7 +1470,10 @@ function pickByFirstLetterProximity(
     return null;
   }
 
-  const candidates = getWordsByFirstLetter(first, SWIPE_CANDIDATE_LIMIT);
+  const candidates = prioritizeSwipeCandidates(
+    getWordsByFirstLetter(first, SWIPE_CANDIDATE_LIMIT),
+    pattern.length,
+  );
   let bestWord: string | null = null;
   let bestScore = Infinity;
 

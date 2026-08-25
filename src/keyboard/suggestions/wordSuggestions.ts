@@ -2,7 +2,6 @@ import {getEnglishStaticRank} from '../autocorrect/englishFrequencyDictionary';
 import {getPrefixCompletions} from '../autocorrect/englishPrefixIndex';
 import {getSimilarWordSuggestions} from '../autocorrect/autocorrectEngine';
 import {getLearnedCounts} from './learnedDictionary';
-import {getPersonalWordStrength} from '../personalTyping/personalTypingEngine';
 import {getBaseWords, getActiveLanguage} from '../autocorrect/dictionaryManager';
 import {getHinglishSuggestions} from '../autocorrect/hinglishDictionary';
 
@@ -14,6 +13,15 @@ const LEARNED_PREFIX_SCAN_CAP = 96;
 const LEARNED_PREFIX_MAX = 6;
 const BILINGUAL_BASE_SCAN_MAX = 12;
 const HINGLISH_PREFIX_MAX = 10;
+
+/** Simple LRU cache for word suggestions with 200ms TTL. */
+type CacheEntry = {
+  result: string[];
+  time: number;
+  options: string;
+};
+const suggestionCache = new Map<string, CacheEntry>();
+const SUGGESTION_CACHE_TTL_MS = 200;
 
 /** Frequent French words for empty-prefix suggestion chips. */
 function getFranglaisStarters(limit: number): string[] {
@@ -64,30 +72,17 @@ function scorePrefixCandidate(
   lang: string,
 ): number {
   const learnedUses = learned.get(word) ?? learned.get(word.replace(/\s+/g, '')) ?? 0;
-  const personalBoost = getPersonalWordStrength(word) * LEARNED_SCORE_BOOST;
   const extraLengthPenalty = Math.max(0, word.length - prefix.length) * 4;
   if (lang === 'hi-en') {
     const isPhrase = word.includes(' ');
     const hinglishBias = isPhrase ? -800 : -400;
-    return (
-      extraLengthPenalty -
-      learnedUses * LEARNED_SCORE_BOOST -
-      personalBoost +
-      hinglishBias
-    );
+    return extraLengthPenalty - learnedUses * LEARNED_SCORE_BOOST + hinglishBias;
   }
   if (lang === 'fr-en') {
-    return (
-      baseRank(word, lang) +
-      extraLengthPenalty -
-      learnedUses * LEARNED_SCORE_BOOST -
-      personalBoost
-    );
+    return baseRank(word, lang) + extraLengthPenalty - learnedUses * LEARNED_SCORE_BOOST;
   }
   const staticRank = getEnglishStaticRank(word) ?? 50_000;
-  return (
-    staticRank + extraLengthPenalty - learnedUses * LEARNED_SCORE_BOOST - personalBoost
-  );
+  return staticRank + extraLengthPenalty - learnedUses * LEARNED_SCORE_BOOST;
 }
 
 function scoreFuzzyCandidate(
@@ -98,7 +93,6 @@ function scoreFuzzyCandidate(
   lang: string,
 ): number {
   const learnedUses = learned.get(word) ?? 0;
-  const personalBoost = getPersonalWordStrength(word) * LEARNED_SCORE_BOOST;
   const sharedStemBonus =
     word.slice(0, 2) === prefix.slice(0, 2) ? 500 : 0;
   const staticRank =
@@ -111,7 +105,6 @@ function scoreFuzzyCandidate(
     edits * FUZZY_EDIT_WEIGHT +
     staticRank -
     learnedUses * LEARNED_SCORE_BOOST -
-    personalBoost -
     sharedStemBonus
   );
 }
@@ -219,6 +212,15 @@ export function getWordSuggestions(
     return [];
   }
 
+  // Check cache before heavy computation
+  const optionsKey = `${options?.skipFuzzy ?? false}:${options?.lightweight ?? true}`;
+  const cacheKey = `${lower}|${lang}|${optionsKey}`;
+  const now = Date.now();
+  const cached = suggestionCache.get(cacheKey);
+  if (cached && now - cached.time < SUGGESTION_CACHE_TTL_MS && cached.options === optionsKey) {
+    return cached.result;
+  }
+
   const learned = getLearnedCounts();
   const pool = Math.min(PREFIX_CANDIDATE_POOL, cap + 4);
   const prefixMatches = collectPrefixCandidates(lower, learned, lang, pool);
@@ -264,6 +266,12 @@ export function getWordSuggestions(
       seen.add(key);
       merged.push(entry.word);
     });
+
+  // Store in cache
+  if (suggestionCache.size > 256) {
+    suggestionCache.clear();
+  }
+  suggestionCache.set(cacheKey, {result: merged, time: now, options: optionsKey});
 
   return merged;
 }

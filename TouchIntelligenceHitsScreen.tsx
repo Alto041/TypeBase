@@ -12,8 +12,7 @@ import {SafeAreaView} from 'react-native-safe-area-context';
 
 import {
   clearTouchIntelligenceHits,
-  getTouchIntelligenceHits,
-  getTouchIntelligenceTelemetrySummary,
+  loadTouchIntelligenceHitsSnapshot,
   subscribeTouchIntelligenceTelemetry,
   type TouchIntelligenceHitRecord,
 } from './src/keyboard/gesture/touchIntelligenceTelemetry';
@@ -59,7 +58,11 @@ function CorrectionText({word, from, to}: Pick<CorrectionRow, 'word' | 'from' | 
 
 export function TouchIntelligenceHitsScreen({onBack}: {onBack: () => void}) {
   const [hits, setHits] = useState<TouchIntelligenceHitRecord[]>([]);
-  const [rerankCount, setRerankCount] = useState(0);
+  const [summary, setSummary] = useState({
+    totalHits: 0,
+    nativeCommits: 0,
+    appliedReranks: 0,
+  });
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -70,12 +73,34 @@ export function TouchIntelligenceHitsScreen({onBack}: {onBack: () => void}) {
   }, [onBack]);
 
   useEffect(() => {
-    const refresh = () => {
-      setHits(getTouchIntelligenceHits());
-      setRerankCount(getTouchIntelligenceTelemetrySummary().appliedReranks);
+    let cancelled = false;
+
+    const refresh = async () => {
+      const snapshot = await loadTouchIntelligenceHitsSnapshot();
+      if (cancelled) {
+        return;
+      }
+      setHits(snapshot.hits);
+      setSummary({
+        totalHits: snapshot.summary.totalHits,
+        nativeCommits: snapshot.summary.nativeCommits,
+        appliedReranks: snapshot.summary.appliedReranks,
+      });
     };
-    refresh();
-    return subscribeTouchIntelligenceTelemetry(refresh);
+
+    void refresh();
+    const interval = setInterval(() => {
+      void refresh();
+    }, 1500);
+    const unsubscribe = subscribeTouchIntelligenceTelemetry(() => {
+      void refresh();
+    });
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      unsubscribe();
+    };
   }, []);
 
   const corrections = useMemo(
@@ -92,7 +117,8 @@ export function TouchIntelligenceHitsScreen({onBack}: {onBack: () => void}) {
       <View style={styles.header}>
         <Text style={styles.title}>Touch hits</Text>
         <Text style={styles.summary}>
-          {corrections.length} fixes · {rerankCount} total
+          {corrections.length} fixes · {summary.totalHits} analyzed ·{' '}
+          {summary.nativeCommits} native
         </Text>
         <Pressable onPress={clearTouchIntelligenceHits}>
           <Text style={styles.clear}>Clear</Text>
@@ -101,8 +127,9 @@ export function TouchIntelligenceHitsScreen({onBack}: {onBack: () => void}) {
 
       {corrections.length === 0 ? (
         <Text style={styles.empty}>
-          Type with the keyboard. When a near-miss gets corrected you'll see the
-          word and what changed, like hey (u -&gt; y).
+          Type with the keyboard. Every letter tap is analyzed on-device; when a
+          near-miss gets corrected you'll see the word and what changed, like
+          hope (r → e).
         </Text>
       ) : (
         <FlatList

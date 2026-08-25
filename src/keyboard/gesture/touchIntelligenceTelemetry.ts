@@ -1,3 +1,5 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 export type TouchIntelligenceHitRecord = {
   id: string;
   at: number;
@@ -30,6 +32,7 @@ export type TouchIntelligenceTelemetrySummary = {
   mismatchCommits: number;
 };
 
+const STORAGE_KEY = '@typebase/touch_intelligence_hits_v1';
 const MAX_RECORDS = 250;
 let recordingEnabled = true;
 let nextId = 1;
@@ -62,6 +65,70 @@ export function subscribeTouchIntelligenceTelemetry(
 
 export function clearTouchIntelligenceHits(): void {
   records.length = 0;
+  nextId = 1;
+  void AsyncStorage.removeItem(STORAGE_KEY).catch(() => {});
+  notify();
+}
+
+async function persistTouchIntelligenceRecord(
+  record: TouchIntelligenceHitRecord,
+): Promise<void> {
+  try {
+    const raw = await AsyncStorage.getItem(STORAGE_KEY);
+    const payload = raw
+      ? (JSON.parse(raw) as {
+          records?: TouchIntelligenceHitRecord[];
+          nextId?: number;
+        })
+      : {records: [], nextId: 1};
+    const merged = [record, ...(payload.records ?? [])].slice(0, MAX_RECORDS);
+    const next = Math.max(payload.nextId ?? 1, Number(record.id) + 1);
+    await AsyncStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({records: merged, nextId: next}),
+    );
+  } catch {
+    // Telemetry must never block typing.
+  }
+}
+
+export async function loadTouchIntelligenceHitsSnapshot(): Promise<{
+  hits: TouchIntelligenceHitRecord[];
+  summary: TouchIntelligenceTelemetrySummary;
+}> {
+  try {
+    const raw = await AsyncStorage.getItem(STORAGE_KEY);
+    if (!raw) {
+      return {
+        hits: [],
+        summary: summarizeTouchIntelligenceHits([]),
+      };
+    }
+    const payload = JSON.parse(raw) as {
+      records?: TouchIntelligenceHitRecord[];
+    };
+    const hits = Array.isArray(payload.records) ? payload.records : [];
+    return {
+      hits,
+      summary: summarizeTouchIntelligenceHits(hits),
+    };
+  } catch {
+    return {
+      hits: [],
+      summary: summarizeTouchIntelligenceHits([]),
+    };
+  }
+}
+
+export async function hydrateTouchIntelligenceHitsFromStorage(): Promise<void> {
+  const snapshot = await loadTouchIntelligenceHitsSnapshot();
+  records.length = 0;
+  records.push(...snapshot.hits);
+  const maxId = snapshot.hits.reduce(
+    (max, hit) => Math.max(max, Number(hit.id) || 0),
+    0,
+  );
+  nextId = Math.max(nextId, maxId + 1);
   notify();
 }
 
@@ -69,7 +136,10 @@ export function recordTouchIntelligenceAnalysis(
   analysis: Omit<
     TouchIntelligenceHitRecord,
     'id' | 'at' | 'committedLetter' | 'source'
-  >,
+  > & {
+    committedLetter?: string | null;
+    source?: 'js' | 'native' | null;
+  },
 ): void {
   if (!recordingEnabled) {
     return;
@@ -89,15 +159,74 @@ export function recordTouchIntelligenceAnalysis(
     ...analysis,
     id: String(nextId++),
     at: Date.now(),
-    committedLetter: analysis.predictedLetter,
-    source: null,
+    committedLetter:
+      analysis.committedLetter ?? analysis.predictedLetter ?? null,
+    source: analysis.source ?? null,
   });
 
   if (records.length > MAX_RECORDS) {
     records.length = MAX_RECORDS;
   }
 
+  void persistTouchIntelligenceRecord(records[0]);
   notify();
+}
+
+type NativeTouchIntelligenceHitPayload = {
+  localX?: number;
+  localY?: number;
+  geometricKeyId?: string | null;
+  geometricLetter?: string | null;
+  predictedKeyId?: string | null;
+  predictedLetter?: string | null;
+  reranked?: boolean;
+  appliedRerank?: boolean;
+  confidentFastPath?: boolean;
+  scoreMargin?: number;
+  msSinceLastTap?: number;
+  velocityPxPerSec?: number;
+  wordPrefix?: string;
+  previousKeyLetter?: string | null;
+};
+
+export function recordNativeTouchIntelligenceHit(
+  payload: NativeTouchIntelligenceHitPayload,
+): void {
+  const predictedLetter =
+    typeof payload.predictedLetter === 'string'
+      ? payload.predictedLetter.trim().toLowerCase()
+      : null;
+  if (!predictedLetter || predictedLetter.length !== 1) {
+    return;
+  }
+
+  recordTouchIntelligenceAnalysis({
+    localX: Number(payload.localX ?? 0),
+    localY: Number(payload.localY ?? 0),
+    geometricKeyId:
+      typeof payload.geometricKeyId === 'string' ? payload.geometricKeyId : null,
+    geometricLetter:
+      typeof payload.geometricLetter === 'string'
+        ? payload.geometricLetter
+        : null,
+    predictedKeyId:
+      typeof payload.predictedKeyId === 'string' ? payload.predictedKeyId : null,
+    predictedLetter,
+    reranked: Boolean(payload.reranked),
+    appliedRerank: Boolean(payload.appliedRerank),
+    confidentFastPath: Boolean(payload.confidentFastPath),
+    scoreMargin: Number(payload.scoreMargin ?? 0),
+    msSinceLastTap: Number(payload.msSinceLastTap ?? -1),
+    velocityPxPerSec: Number(payload.velocityPxPerSec ?? 0),
+    wordPrefix:
+      typeof payload.wordPrefix === 'string' ? payload.wordPrefix : '',
+    previousKeyLetter:
+      typeof payload.previousKeyLetter === 'string'
+        ? payload.previousKeyLetter
+        : null,
+    committedLetter: predictedLetter,
+    source: 'native',
+  });
 }
 
 export function annotateLastTouchIntelligenceCommit(
@@ -127,6 +256,7 @@ export function annotateLastTouchIntelligenceCommit(
     normalized.length === 1 ? normalized : committedLetter;
   record.source = source;
 
+  void persistTouchIntelligenceRecord(record);
   notify();
 }
 
@@ -134,7 +264,9 @@ export function getTouchIntelligenceHits(): TouchIntelligenceHitRecord[] {
   return [...records];
 }
 
-export function getTouchIntelligenceTelemetrySummary(): TouchIntelligenceTelemetrySummary {
+export function summarizeTouchIntelligenceHits(
+  hitRecords: readonly TouchIntelligenceHitRecord[],
+): TouchIntelligenceTelemetrySummary {
   let rerankCandidates = 0;
   let appliedReranks = 0;
   let confidentFastPathHits = 0;
@@ -142,7 +274,7 @@ export function getTouchIntelligenceTelemetrySummary(): TouchIntelligenceTelemet
   let jsCommits = 0;
   let mismatchCommits = 0;
 
-  for (const record of records) {
+  for (const record of hitRecords) {
     if (record.reranked) {
       rerankCandidates += 1;
     }
@@ -172,7 +304,7 @@ export function getTouchIntelligenceTelemetrySummary(): TouchIntelligenceTelemet
 
   return {
     recordingEnabled,
-    totalHits: records.length,
+    totalHits: hitRecords.length,
     rerankCandidates,
     appliedReranks,
     confidentFastPathHits,
@@ -180,4 +312,8 @@ export function getTouchIntelligenceTelemetrySummary(): TouchIntelligenceTelemet
     jsCommits,
     mismatchCommits,
   };
+}
+
+export function getTouchIntelligenceTelemetrySummary(): TouchIntelligenceTelemetrySummary {
+  return summarizeTouchIntelligenceHits(records);
 }

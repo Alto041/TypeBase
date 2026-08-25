@@ -8,7 +8,8 @@ type TriggerKeyHapticOptions = {
 
 /**
  * Fire haptic + tap sound for a key press.
- * IME fires haptic on touch-down before React; this fills in tap sound / JS-only keys.
+ * Letter keys: native IME fires KEYBOARD_PRESS on touch-down before React.
+ * This covers space, modifiers, and other Pressable keys.
  */
 export function triggerKeyHaptic(
   pointerId?: number,
@@ -18,7 +19,11 @@ export function triggerKeyHaptic(
     pointerId != null && keyboardBridge.consumeNativeHapticPointer(pointerId);
 
   if (!frameHapticHandled) {
-    keyboardBridge.performLightKeyHaptic();
+    if (isZeroLatencyModeActive()) {
+      keyboardBridge.performLightKeyHaptic();
+    } else {
+      keyboardBridge.performKeyHaptic();
+    }
   }
 
   if (

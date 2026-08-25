@@ -62,12 +62,17 @@ class NativeKeyFastPath {
   private var keys = emptyList<NativeKey>()
   private var keyById = emptyMap<String, NativeKey>()
   private val touchIntelligence = TouchIntelligence()
+  @Volatile private var lastConfigJson = ""
+  @Volatile private var lastTouchContextJson = ""
   private val sessions = mutableMapOf<Int, TouchSession>()
   private val pendingJsCommits = ArrayDeque<PendingJsCommit>()
   private val pendingJsCommitsLock = Any()
   private val previewHandler = Handler(Looper.getMainLooper())
 
   fun updateConfig(json: String) {
+    if (json == lastConfigJson) {
+      return
+    }
     try {
       val obj = JSONObject(json)
       enabled = obj.optBoolean("enabled", false)
@@ -94,10 +99,13 @@ class NativeKeyFastPath {
         sessions.clear()
         synchronized(pendingJsCommitsLock) { pendingJsCommits.clear() }
       }
+      lastConfigJson = json
     } catch (_: Exception) {
       enabled = false
       zeroLatency = false
       keys = emptyList()
+      keyById = emptyMap()
+      lastConfigJson = ""
       sessions.clear()
       synchronized(pendingJsCommitsLock) { pendingJsCommits.clear() }
     }
@@ -108,11 +116,16 @@ class NativeKeyFastPath {
     zeroLatency = false
     keys = emptyList()
     keyById = emptyMap()
+    lastConfigJson = ""
+    lastTouchContextJson = ""
     sessions.clear()
     synchronized(pendingJsCommitsLock) { pendingJsCommits.clear() }
   }
 
   fun updateTouchIntelligenceContext(json: String) {
+    if (json == lastTouchContextJson) {
+      return
+    }
     try {
       val obj = JSONObject(json)
       val likelyNextLetters = mutableListOf<String>()
@@ -130,6 +143,7 @@ class NativeKeyFastPath {
           obj.optString("wordPrefix", ""),
           likelyNextLetters,
       )
+      lastTouchContextJson = json
     } catch (_: Exception) {
       // Ignore malformed context payloads.
     }
@@ -166,6 +180,12 @@ class NativeKeyFastPath {
     zeroLatency = enabled
   }
 
+  fun updateCaseState(shiftOn: Boolean, capsLocked: Boolean, uppercase: Boolean) {
+    this.shiftOn = shiftOn
+    this.capsLocked = capsLocked
+    this.uppercase = shiftOn || capsLocked
+  }
+
   /** Undo a native letter commit when a touch becomes a swipe gesture. */
   fun rollbackPointerCommit(pointerId: Int): Boolean {
     val session =
@@ -200,7 +220,8 @@ class NativeKeyFastPath {
         val rawY = event.rawYForIndex(index)
         val localX = rawX - areaPageX
         val localY = rawY - areaPageY
-        val key = hitTest(localX, localY, event.eventTime) ?: return false
+        val hitResult = touchIntelligence.hitTestWithAnalysis(localX, localY, event.eventTime)
+        val key = hitResult.key?.let { keyById[it.id] } ?: return false
 
         if (!commitOnDown) {
           return false
@@ -219,13 +240,22 @@ class NativeKeyFastPath {
 
         sessions[pointerId] = TouchSession(pointerId, key, text)
         touchIntelligence.recordTap(text, localX, localY, event.eventTime)
+        hitResult.analysis?.let { analysis ->
+          previewHandler.post { KeyboardInputBridge.notifyTouchIntelligenceHit(analysis) }
+        }
         synchronized(pendingJsCommitsLock) {
           pendingJsCommits.addLast(PendingJsCommit(pointerId, key.id, text))
         }
 
-        // Never block touch return on haptic, preview, or sound.
-        previewHandler.post {
+        // Haptic on touch-down immediately — never queue behind preview/sound.
+        if (zeroLatency) {
           KeyboardInputBridge.performLightKeyHapticForPointer(pointerId)
+        } else {
+          KeyboardInputBridge.performKeyHapticForPointer(pointerId)
+        }
+
+        // Preview and tap sound can post async; haptic must not wait on the handler.
+        previewHandler.post {
           if (!zeroLatency) {
             if (key.reactTag > 0) {
               KeyboardInputBridge.showKeyPreview(key.reactTag, text)
@@ -359,7 +389,7 @@ class NativeKeyFastPath {
     if (keyboardLayout != "letters" || value.length != 1) {
       return value
     }
-    return if (uppercase) {
+    return if (shiftOn || capsLocked) {
       value.uppercase()
     } else {
       value.lowercase()

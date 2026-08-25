@@ -11,7 +11,7 @@ import type {KeyDefinition} from '../layouts/qwerty';
 import {triggerKeyHaptic} from '../haptics';
 import {keyboardBridge} from '../keyboardBridge';
 import {KEY_HIT_SLOP} from '../theme';
-import {isZeroLatencyModeActive} from '../zeroLatencyMode';
+import {isZeroLatencyModeActive, shouldSkipKeyPressEffects} from '../zeroLatencyMode';
 import type {KeyBounds} from './types';
 import {markSwipeTypingTapCommitted} from './gestureState';
 import {
@@ -335,10 +335,10 @@ export function setMultiTouchKeyPressed(
   } else if (wasPressed) {
     pressedMultiTouchKeyIds.delete(id);
   }
-  if (pressed && isZeroLatencyModeActive()) {
-    return;
+  // Always deliver release so keys never stay visually stuck.
+  if (!pressed || !shouldSkipKeyPressEffects()) {
+    pressVisualHandlers.get(id)?.(pressed, options);
   }
-  pressVisualHandlers.get(id)?.(pressed, options);
 }
 
 export function hasActiveAlternatePopup(): boolean {
@@ -503,13 +503,15 @@ export function dispatchMultiTouchStart(
       continue;
     }
 
-    const hit = hitTestKey(
-      localX,
-      localY,
-      layouts,
-      hitSlop,
-      touch.timestamp ?? Date.now(),
-    );
+    const hit = nativeTypingActive
+      ? hitTestKeyGeometric(localX, localY, layouts, hitSlop)
+      : hitTestKey(
+          localX,
+          localY,
+          layouts,
+          hitSlop,
+          touch.timestamp ?? Date.now(),
+        );
     if (!hit || !isMultiTouchDispatchKey(hit.keyDef)) {
       continue;
     }
@@ -591,9 +593,7 @@ export function dispatchMultiTouchStart(
     };
 
     if (nativeCommitted) {
-      queueMicrotask(() => {
-        setMultiTouchKeyPressed(hit.id, true, {nativeCommitted: true});
-      });
+      setMultiTouchKeyPressed(hit.id, true, {nativeCommitted: true});
     } else {
       setMultiTouchKeyPressed(hit.id, true);
       triggerKeyHaptic(pid, {nativeCommitted: false});

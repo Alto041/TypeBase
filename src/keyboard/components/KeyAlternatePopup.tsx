@@ -6,6 +6,7 @@ import type {KeyboardTheme} from '../theme';
 import {
   keyboardAlternatePopupRadii,
   keyboardGeistTypefaceStyle,
+  keyboardOpaqueKeyFill,
 } from '../theme';
 import {shouldUseGeistForAlternateChar} from '../keyAlternates';
 
@@ -41,7 +42,11 @@ function KeyAlternatePopupComponent({popup}: KeyAlternatePopupProps) {
   const selectorLeft = padding + selectedCol * (cellWidth + gap);
   const selectorTop = padding + selectedRow * (cellHeight + gap);
   const selectorColor =
-    theme.design === 'quivox' ? theme.letterKeyPressed : theme.modifierKeyPressed;
+    theme.design === 'quivox'
+      ? theme.letterKeyPressed
+      : theme.design === 'typebase'
+        ? keyboardOpaqueKeyFill(theme, 'modifierPressed')
+        : theme.modifierKeyPressed;
 
   const rowData: string[][] = [];
   for (let row = 0; row < rows; row += 1) {
@@ -65,7 +70,7 @@ function KeyAlternatePopupComponent({popup}: KeyAlternatePopupProps) {
         style={[
           styles.container,
           {
-            backgroundColor: theme.letterKey,
+            backgroundColor: keyboardOpaqueKeyFill(theme, 'letter'),
             borderRadius: containerRadius,
           },
         ]}>

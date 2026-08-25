@@ -87,15 +87,27 @@ export const DEFAULT_KEYBOARD_LAYOUT_SETTINGS: KeyboardLayoutSettings = {
   controller: DEFAULT_CONTROLLER_SETTINGS,
 };
 
-/** Touch slop into gaps — full visual gap so taps between keys snap to the nearest key. */
+/** Touch slop into gaps — horizontal fills keyGap; vertical reaches row gaps without full overlap. */
 export const KEY_HIT_SLOP = {
   horizontal: DEFAULT_KEYBOARD_LAYOUT_SETTINGS.keyGap,
-  vertical: DEFAULT_KEYBOARD_LAYOUT_SETTINGS.keyRowMargin,
+  vertical:
+    Math.ceil(DEFAULT_KEYBOARD_LAYOUT_SETTINGS.keyRowMargin / 2) +
+    DEFAULT_KEYBOARD_LAYOUT_SETTINGS.keyGap,
 };
 const NUMPAD_KEYS_PADDING_TOP = 2;
 
 export type KeyboardColorScheme = 'light' | 'dark';
-export type KeyboardDesign = 'typebase' | 'quivox' | 'macintosh' | 'custom';
+export type KeyboardDesign = 'typebase' | 'quivox' | 'macintosh' | 'apple' | 'custom';
+
+/** Nothing-style key grid (rect caps, standard row layout) — includes Apple variant. */
+export function usesNothingKeyboardLayout(design: KeyboardDesign): boolean {
+  return design === 'typebase' || design === 'apple';
+}
+
+/** Nothing theme — translucent keys and frosted tray chrome. */
+export function usesFrostedGlassTheme(design: KeyboardDesign): boolean {
+  return design === 'typebase';
+}
 
 type KeyboardPalette = {
   container: string;
@@ -344,6 +356,56 @@ const DARK_PALETTE: KeyboardPalette = {
   keyRipple: 'rgba(255, 255, 255, 0.14)',
 };
 
+/** Nothing (typebase) — frosted translucent keys over a solid tray. */
+const TYPEBASE_LIGHT_PALETTE: KeyboardPalette = {
+  ...LIGHT_PALETTE,
+  letterKey: 'rgba(255, 255, 255, 0.34)',
+  modifierKey: 'rgba(255, 255, 255, 0.28)',
+  spaceKey: 'rgba(255, 255, 255, 0.28)',
+  letterKeyPressed: 'rgba(255, 255, 255, 0.5)',
+  modifierKeyPressed: 'rgba(228, 228, 230, 0.42)',
+  spaceKeyPressed: 'rgba(228, 228, 230, 0.42)',
+  enter: 'rgba(215, 25, 33, 0.88)',
+  enterPressed: 'rgba(184, 20, 28, 0.92)',
+  launcherKey: 'rgba(255, 255, 255, 0.28)',
+  borderSubtle: 'rgba(255, 255, 255, 0.58)',
+  keyRipple: 'rgba(0, 0, 0, 0.08)',
+};
+
+const TYPEBASE_DARK_PALETTE: KeyboardPalette = {
+  ...DARK_PALETTE,
+  letterKey: 'rgba(72, 72, 74, 0.34)',
+  modifierKey: 'rgba(84, 84, 88, 0.3)',
+  spaceKey: 'rgba(84, 84, 88, 0.3)',
+  letterKeyPressed: 'rgba(96, 96, 100, 0.52)',
+  modifierKeyPressed: 'rgba(58, 58, 60, 0.48)',
+  spaceKeyPressed: 'rgba(58, 58, 60, 0.48)',
+  enter: 'rgba(215, 25, 33, 0.88)',
+  enterPressed: 'rgba(184, 20, 28, 0.92)',
+  launcherKey: 'rgba(84, 84, 88, 0.3)',
+  borderSubtle: 'rgba(255, 255, 255, 0.16)',
+  keyRipple: 'rgba(255, 255, 255, 0.1)',
+};
+
+/** Apple — Nothing layout with iOS-style blue action key. */
+const APPLE_LIGHT_PALETTE: KeyboardPalette = {
+  ...LIGHT_PALETTE,
+  enter: '#007AFF',
+  enterPressed: '#0056B3',
+  iconOnEnter: '#FFFFFF',
+  essentialsAccent: '#007AFF',
+  swipeTrail: '#64B5F6',
+};
+
+const APPLE_DARK_PALETTE: KeyboardPalette = {
+  ...DARK_PALETTE,
+  enter: '#0A84FF',
+  enterPressed: '#0066CC',
+  iconOnEnter: '#FFFFFF',
+  essentialsAccent: '#0A84FF',
+  swipeTrail: '#5AC8FA',
+};
+
 /**
  * Quivox dark — charcoal tray, soft dark caps, light space bar.
  */
@@ -514,6 +576,12 @@ function paletteFor(
   if (design === 'macintosh') {
     return scheme === 'light' ? MACINTOSH_LIGHT_PALETTE : MACINTOSH_DARK_PALETTE;
   }
+  if (design === 'apple') {
+    return scheme === 'light' ? APPLE_LIGHT_PALETTE : APPLE_DARK_PALETTE;
+  }
+  if (design === 'typebase') {
+    return scheme === 'light' ? TYPEBASE_LIGHT_PALETTE : TYPEBASE_DARK_PALETTE;
+  }
   return scheme === 'light' ? LIGHT_PALETTE : DARK_PALETTE;
 }
 
@@ -556,6 +624,34 @@ export function keyboardKeyPressMotionStyle(
 }
 
 /**
+ * Opaque key cap fill for previews/popups. Frosted typebase keys use translucent
+ * rgba caps on the tray, but popups must stay solid.
+ */
+export function keyboardOpaqueKeyFill(
+  theme: KeyboardTheme,
+  variant: 'letter' | 'letterPressed' | 'modifierPressed' = 'letter',
+): string {
+  if (theme.design !== 'typebase') {
+    if (variant === 'letterPressed') {
+      return theme.letterKeyPressed;
+    }
+    if (variant === 'modifierPressed') {
+      return theme.modifierKeyPressed;
+    }
+    return theme.letterKey;
+  }
+
+  const light = theme.scheme === 'light';
+  if (variant === 'letterPressed') {
+    return light ? '#E8E8E8' : '#454545';
+  }
+  if (variant === 'modifierPressed') {
+    return light ? '#BFBFBF' : '#353535';
+  }
+  return light ? '#FFFFFF' : '#353535';
+}
+
+/**
  * Macintosh key outline — full 1px ring around the whole key so it
  * frames the inner corner/bottom bevels from MacintoshKeyBevels.
  */
@@ -563,6 +659,10 @@ export function keyboardKeyChromeStyle(
   theme: KeyboardTheme,
   pressed = false,
 ): ViewStyle {
+  if (theme.design === 'typebase') {
+    return {};
+  }
+
   if (theme.design !== 'macintosh') {
     return {};
   }
@@ -659,7 +759,11 @@ export function createKeyboardTheme(
       : paletteFor(scheme, design);
 
   // When disabled, Enter uses the same cap colors as other action keys.
-  if (layout.enterKeyPreviewEnabled === false || design === 'macintosh') {
+  // Apple always keeps the blue action key.
+  if (
+    design === 'macintosh' ||
+    (layout.enterKeyPreviewEnabled === false && design !== 'apple')
+  ) {
     palette = {
       ...palette,
       enter: palette.modifierKey,
@@ -727,6 +831,7 @@ export function createKeyboardTheme(
     design,
     scheme,
     isLandscape,
+    frostedGlass: usesFrostedGlassTheme(design),
     /**
      * Label color for the space key face. Quivox keeps a light space bar in both
      * schemes, so this stays dark even when `spaceLabel` is used as muted panel text.
@@ -734,7 +839,7 @@ export function createKeyboardTheme(
     spaceKeyLabel: design === 'quivox' ? '#111111' : palette.spaceLabel,
     /** Soft glow behind the voice dictation pill — white on Nothing + Quivox. */
     voiceSpeechGlow:
-      design === 'quivox' || design === 'typebase'
+      design === 'quivox' || usesNothingKeyboardLayout(design)
         ? '#FFFFFF'
         : palette.essentialsAccent,
     /** @deprecated Use letterKey */
@@ -765,7 +870,7 @@ export function createKeyboardTheme(
     keyboardHeightOffset: layout.keyboardHeightOffset ?? 0,
     keyHitSlop: {
       horizontal: layout.keyGap,
-      vertical: layout.keyRowMargin,
+      vertical: Math.ceil(layout.keyRowMargin / 2) + layout.keyGap,
     },
     numpadKeyHeight,
     numpadKeysPaddingTop: NUMPAD_KEYS_PADDING_TOP,
