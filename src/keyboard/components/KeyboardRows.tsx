@@ -20,6 +20,7 @@ type SharedRowProps = {
   enterKeyNextLineEnabled?: boolean;
   multiTouchDispatchEnabled?: boolean;
   focusedKeyId?: string | null;
+  typeLiftProcessing?: boolean;
 };
 
 type KeyboardRowProps = SharedRowProps & {
@@ -70,6 +71,9 @@ function renderRowKey(
       variant={props.variant}
       enterKeyNextLineEnabled={props.enterKeyNextLineEnabled}
       multiTouchDispatchEnabled={props.multiTouchDispatchEnabled}
+      typeLiftProcessing={
+        keyDef.type === 'space' ? props.typeLiftProcessing : false
+      }
       style={style}
     />
   );
@@ -88,6 +92,7 @@ function KeyboardRowComponent({
   enterKeyNextLineEnabled,
   multiTouchDispatchEnabled,
   focusedKeyId,
+  typeLiftProcessing,
 }: KeyboardRowProps) {
   const styles = useThemedStyles(createRowStyles);
   const shared: SharedRowProps = {
@@ -101,6 +106,7 @@ function KeyboardRowComponent({
     rowStyle,
     enterKeyNextLineEnabled,
     multiTouchDispatchEnabled,
+    typeLiftProcessing,
   };
 
   return (

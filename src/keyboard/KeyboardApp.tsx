@@ -42,10 +42,10 @@ import {
   type EmojiSubcategoryId,
 } from './emoji/emojis';
 import {downloadAndInsertGif} from './emoji/gifInsert';
-import {insertBundledSticker} from './emoji/stickerInsert';
+import {insertStickerLySticker} from './emoji/stickerInsert';
 import {downloadAndSendSfx, previewSfx, stopSfxPreview} from './emoji/sfxInsert';
 import type {GiphyGif} from './emoji/giphyService';
-import type {KeyboardSticker} from './emoji/stickers';
+import type {StickerLySticker} from './emoji/stickers';
 import type {MyInstantsSound} from './emoji/myinstantsService';
 import {
   captureSystemClipboard,
@@ -128,6 +128,7 @@ import type {AutocorrectSettings} from './autocorrect/types';
 import {
   proofreadActiveToken,
   proofreadRecentTypingContext,
+  finalizeTypeLiftCorrection,
   type AiAutocorrectResult,
 } from './autocorrect/aiAutocorrectService';
 import {
@@ -180,8 +181,13 @@ import {deferKeyboardSideEffect, triggerKeyHaptic} from './haptics';
 import {keyboardBridge} from './keyboardBridge';
 import {getKeyReactTag, subscribeKeyReactTags} from './keyReactTags';
 import {
+  isBurstTypingActive,
   setBurstTypingActive,
+  setGamePerformanceModeActive,
   setZeroLatencyModeActive as setZeroLatencyRuntimeActive,
+  shouldDeferHeavyTypingSideEffects,
+  shouldDeferLiveSuggestionBar,
+  shouldSkipFrostedKeyboardEffects,
 } from './zeroLatencyMode';
 import {
   CUSTOM_LAYOUTS_CHANGED_EVENT,
@@ -239,23 +245,44 @@ import {
   layoutSettingsForOrientation,
 } from './orientation';
 import {useVoiceInput} from './voice/useVoiceInput';
+import {
+  derivePreviousWordFromEditor,
+  pickTypedWordForBoundary,
+  reconcileLivePrefixFromContext,
+} from './typingCompositor';
 
 const DOUBLE_TAP_MS = 350;
 /** Debounced async refresh (phrases, essentials, native cursor sync). */
 const SUGGESTION_FULL_REFRESH_DEBOUNCE_MS = 280;
-const INSTANT_SUGGESTION_MIN_INTERVAL_MS = 140;
+const INSTANT_SUGGESTION_MIN_INTERVAL_MS = 32;
 const LETTER_SIDE_EFFECTS_DEBOUNCE_MS = 250;
-const BURST_TYPING_INTERVAL_MS = 130;
+const BURST_TYPING_INTERVAL_MS = 90;
+/** Skip duplicate async native fast-path side effects after inline touch handling. */
+const NATIVE_SIDE_EFFECT_DEDUP_MS = 100;
+
+function suggestionListsEqual(left: string[], right: string[]): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] !== right[index]) {
+      return false;
+    }
+  }
+  return true;
+}
 
 function isBurstTyping(lastCommitAtMs: number, now = Date.now()): boolean {
   return lastCommitAtMs > 0 && now - lastCommitAtMs < BURST_TYPING_INTERVAL_MS;
 }
+
 const INSTANT_SUGGESTION_DISABLED = false;
-const USE_NATIVE_SUGGESTIONS = true; // Use native Kotlin for speed
 const BACKSPACE_SUGGESTION_DEBOUNCE_MS = 900;
 /** Coalesce suggestion-bar work while backspacing — one update per burst. */
 const BACKSPACE_BAR_FLUSH_MS = 32;
-const AI_PREFLIGHT_DEBOUNCE_MS = 360;
+const AI_PREFLIGHT_DEBOUNCE_MS = 1_100;
+const AI_PROOFREAD_DELAY_MS = 2_200;
+const AI_PROOFREAD_MIN_IDLE_MS = 600;
 const AI_PREFLIGHT_MIN_TOKEN_LENGTH = 4;
 const AI_PREFLIGHT_CACHE_LIMIT = 12;
 const NATIVE_FAST_PATH_MIN_KEYS = 20;
@@ -407,6 +434,8 @@ type LetterKeyboardRowsProps = {
   onMultiTouchKeyCommit: (keyDef: KeyDefinition, text: string) => void;
   isNativeTypingCommitActive?: () => boolean;
   onNativeFastPathLetterCommit?: (text: string) => void;
+  onNativeFastPathShiftConsumed?: () => void;
+  shouldConsumeShiftForCommit?: (text: string) => boolean;
   onSpaceLongPress?: () => void;
   keyGestures?: KeyGesturesConfig;
   keyHeight?: number;
@@ -414,6 +443,7 @@ type LetterKeyboardRowsProps = {
   enterKeyNextLineEnabled: boolean;
   multiTouchEnabled?: boolean;
   focusedKeyId?: string | null;
+  typeLiftProcessing?: boolean;
 };
 
 const LetterKeyboardRows = React.memo(function LetterKeyboardRows({
@@ -429,6 +459,8 @@ const LetterKeyboardRows = React.memo(function LetterKeyboardRows({
   onMultiTouchKeyCommit,
   isNativeTypingCommitActive,
   onNativeFastPathLetterCommit,
+  onNativeFastPathShiftConsumed,
+  shouldConsumeShiftForCommit,
   onSpaceLongPress,
   keyGestures,
   keyHeight,
@@ -436,6 +468,7 @@ const LetterKeyboardRows = React.memo(function LetterKeyboardRows({
   enterKeyNextLineEnabled,
   multiTouchEnabled,
   focusedKeyId,
+  typeLiftProcessing,
 }: LetterKeyboardRowsProps) {
   const theme = useKeyboardTheme();
   const styles = useThemedStyles(createKeyboardAppStyles);
@@ -453,6 +486,8 @@ const LetterKeyboardRows = React.memo(function LetterKeyboardRows({
       onMultiTouchKeyCommit={onMultiTouchKeyCommit}
       isNativeTypingCommitActive={isNativeTypingCommitActive}
       onNativeFastPathLetterCommit={onNativeFastPathLetterCommit}
+      onNativeFastPathShiftConsumed={onNativeFastPathShiftConsumed}
+      shouldConsumeShiftForCommit={shouldConsumeShiftForCommit}
       onSpaceLongPress={onSpaceLongPress}>
       {rows.map((row, index) => (
         <KeyboardRow
@@ -474,58 +509,12 @@ const LetterKeyboardRows = React.memo(function LetterKeyboardRows({
           enterKeyNextLineEnabled={enterKeyNextLineEnabled}
           multiTouchDispatchEnabled={multiTouchActive}
           focusedKeyId={focusedKeyId}
+          typeLiftProcessing={typeLiftProcessing}
         />
       ))}
     </SwipeTypingKeysHost>
   );
 });
-
-function pickTypedWordForBoundary(fromContext: string, tracked: string): string {
-  const contextWord = fromContext.trim();
-  const trackedWord = tracked.trim();
-  if (!trackedWord) {
-    return contextWord;
-  }
-  if (!contextWord) {
-    return trackedWord;
-  }
-  const ctxLower = contextWord.toLowerCase();
-  const trkLower = trackedWord.toLowerCase();
-  if (trkLower === ctxLower) {
-    return trackedWord;
-  }
-  if (trkLower.endsWith(ctxLower) || ctxLower.endsWith(trkLower)) {
-    return trackedWord.length >= contextWord.length ? trackedWord : contextWord;
-  }
-  return trackedWord.length >= contextWord.length ? trackedWord : contextWord;
-}
-
-function reconcileLivePrefixFromContext(
-  context: string,
-  tracked: string,
-  recentlyCommitted: boolean,
-): string {
-  const contextPrefix = extractCurrentWord(context);
-  if (!tracked) {
-    return contextPrefix;
-  }
-  if (!contextPrefix) {
-    if (recentlyCommitted) {
-      return '';
-    }
-    if (tracked.length > 0) {
-      return tracked;
-    }
-    return '';
-  }
-  if (
-    contextPrefix.length < tracked.length &&
-    tracked.toLowerCase().startsWith(contextPrefix.toLowerCase())
-  ) {
-    return tracked;
-  }
-  return contextPrefix.length > tracked.length ? contextPrefix : tracked;
-}
 
 function sanitizeSuggestionText(value: string | null | undefined): string | null {
   if (value == null) {
@@ -546,16 +535,20 @@ function computeTypingSuggestionBar(
     previousWord?: string;
     /** Skip SymSpell/autocorrect — prefix chips only (used while deleting). */
     suggestionsOnly?: boolean;
+    /** Trie completions only — skip autocorrect while burst typing. */
+    prefixOnly?: boolean;
   },
 ) {
   const fast = options.fast;
   const suggestionsOnly = options.suggestionsOnly ?? false;
+  const prefixOnly = options.prefixOnly ?? false;
   const previousWord =
     options.previousWord ??
     (options.context
       ? extractPreviousWordFromContext(options.context, prefix)
       : '');
   const barAutocorrect =
+    prefixOnly ||
     !getAutocorrectSettings().enabled ||
     prefix.length < 2 ||
     shouldSkipAutocorrectForToken(prefix)
@@ -649,6 +642,11 @@ function KeyboardBody({
   const nativeFastPathActiveRef = useRef(false);
   const instantSuggestionRafRef = useRef<number | null>(null);
   const instantSuggestionLastFlushAtRef = useRef(0);
+  const nativeSideEffectDedupRef = useRef<{text: string; at: number} | null>(null);
+  const lastFlushedSuggestionsRef = useRef<string[]>([]);
+  const lastFlushedAutocorrectRef = useRef<string | null>(null);
+  const lastFlushedTypedKeepRef = useRef<string | null>(null);
+  const lastFlushedBarPrefixRef = useRef('');
   const backspaceBarTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const backspaceSyncSeqRef = useRef(0);
   const autocorrectUndoStackRef = useRef<AutocorrectHistoryEdit[]>([]);
@@ -659,6 +657,8 @@ function KeyboardBody({
   const stoppedTypingRef = useRef(true);
   const [zeroLatencyMode, setZeroLatencyMode] = useState(false);
   const zeroLatencyModeRef = useRef(false);
+  const gamePerformanceModeRef = useRef(false);
+  const autoGamePerformanceRef = useRef(false);
   const shiftOnRef = useRef(false);
   const capsLockedRef = useRef(false);
   const hasTypedInFieldRef = useRef(false);
@@ -774,6 +774,35 @@ function KeyboardBody({
       shiftOnRef.current,
       capsLockedRef.current,
       uppercase,
+    );
+  }, []);
+
+  /** Clear JS + native shift immediately when native fast path consumes shift. */
+  const syncNativeShiftConsumed = useCallback(() => {
+    if (capsLockedRef.current || !shiftOnRef.current) {
+      return;
+    }
+    shiftOnRef.current = false;
+    isUppercaseRef.current = false;
+    lastLetterCommitAtRef.current = Date.now();
+    syncNativeFastPathCaseState();
+    if (!zeroLatencyModeRef.current) {
+      startTransition(() => {
+        setShiftOn(false);
+      });
+    }
+  }, [syncNativeFastPathCaseState]);
+
+  const shouldConsumeShiftForCommit = useCallback((text: string): boolean => {
+    if (layoutRef.current !== 'letters' || text.length !== 1) {
+      return false;
+    }
+    const char = text[0]!;
+    return (
+      char === char.toUpperCase() &&
+      char !== char.toLowerCase() &&
+      shiftOnRef.current &&
+      !capsLockedRef.current
     );
   }, []);
 
@@ -1110,6 +1139,56 @@ function KeyboardBody({
     [inputInitialCapsMode, syncNativeFastPathCaseState, theme.autoCapitalizeEnabled],
   );
 
+  const resetTypingCompositorState = useCallback(() => {
+    livePrefixRef.current = '';
+    previousWordRef.current = '';
+    lastInstantPrefixRef.current = '';
+    touchIntelligencePreviousKeyRef.current = null;
+    autocorrectPreviewRef.current = null;
+    lastAiProofreadOriginalRef.current = null;
+    aiPreflightCacheRef.current.clear();
+    if (aiPreflightTimerRef.current) {
+      clearTimeout(aiPreflightTimerRef.current);
+      aiPreflightTimerRef.current = null;
+    }
+    aiPreflightRunIdRef.current += 1;
+    if (aiProofreadTimerRef.current) {
+      clearTimeout(aiProofreadTimerRef.current);
+      aiProofreadTimerRef.current = null;
+    }
+    aiProofreadRunIdRef.current += 1;
+    setAutocorrectPreview(null);
+    setTypedKeepSuggestion(null);
+    setAiAutocorrectSuggestion(null);
+    setIsAiAutocorrectProcessing(false);
+    setCurrentPrefix('');
+    setSuggestions([]);
+  }, []);
+
+  const syncTypingCompositorFromEditor = useCallback(
+    (context: string, options: {recentLetterCommit?: boolean} = {}) => {
+      const recentLetterCommit =
+        options.recentLetterCommit ??
+        Date.now() - lastLetterCommitAtRef.current < 350;
+      const prefix = reconcileLivePrefixFromContext(
+        context,
+        livePrefixRef.current,
+        recentLetterCommit,
+      );
+      livePrefixRef.current = prefix;
+      previousWordRef.current = derivePreviousWordFromEditor(context, prefix);
+
+      if (!context.trim() && !recentLetterCommit) {
+        hasTypedInFieldRef.current = false;
+        emptyContextTrustworthyRef.current = true;
+        if (prefix.length === 0) {
+          resetTypingCompositorState();
+        }
+      }
+    },
+    [resetTypingCompositorState],
+  );
+
   const resetToMainAlphabetView = useCallback(() => {
     // Update refs immediately so guards and the next paint see the main alphabet view.
     layoutRef.current = 'letters';
@@ -1193,12 +1272,14 @@ function KeyboardBody({
     });
   }, [syncAutoCapitalizeShift]);
 
-  const activateZeroLatencyMode = useCallback(() => {
+  const activateZeroLatencyMode = useCallback((options?: {silent?: boolean}) => {
     if (zeroLatencyModeRef.current || modeRef.current.type !== 'typing') {
       return;
     }
 
-    keyboardBridge.performLightKeyHaptic();
+    if (!options?.silent) {
+      keyboardBridge.performLightKeyHaptic();
+    }
     zeroLatencyModeRef.current = true;
     setZeroLatencyRuntimeActive(true);
     keyboardBridge.setNativeZeroLatencyMode(true);
@@ -1238,18 +1319,41 @@ function KeyboardBody({
     setZeroLatencyMode(true);
   }, []);
 
+  const deactivatePerformanceModes = useCallback(() => {
+    zeroLatencyModeRef.current = false;
+    gamePerformanceModeRef.current = false;
+    autoGamePerformanceRef.current = false;
+    setZeroLatencyRuntimeActive(false);
+    setGamePerformanceModeActive(false);
+    keyboardBridge.setNativeZeroLatencyMode(false);
+    setZeroLatencyMode(false);
+  }, []);
+
+  const activateGamePerformanceMode = useCallback(() => {
+    if (zeroLatencyModeRef.current && gamePerformanceModeRef.current) {
+      return;
+    }
+    gamePerformanceModeRef.current = true;
+    autoGamePerformanceRef.current = true;
+    setGamePerformanceModeActive(true);
+    activateZeroLatencyMode({silent: true});
+  }, [activateZeroLatencyMode]);
+
   useEffect(() => {
     const hiddenSubscription = DeviceEventEmitter.addListener(
       'keyboardHidden',
       () => {
         stopSfxPreview();
         resetToMainAlphabetView();
+        if (autoGamePerformanceRef.current) {
+          deactivatePerformanceModes();
+        }
       },
     );
     return () => {
       hiddenSubscription.remove();
     };
-  }, [resetToMainAlphabetView]);
+  }, [resetToMainAlphabetView, deactivatePerformanceModes]);
 
   const reloadGestures = useCallback(async () => {
     await reloadGesturesFromStorage();
@@ -1278,17 +1382,58 @@ function KeyboardBody({
     const shownSubscription = DeviceEventEmitter.addListener('keyboardShown', () => {
       void reloadGestures();
       void keyboardBridge.getTextBeforeCursor(96).then(context => {
+        syncTypingCompositorFromEditor(context);
         hasTypedInFieldRef.current = context.length > 0;
         emptyContextTrustworthyRef.current = context.length > 0;
         lastLetterCommitAtRef.current = 0;
         syncAutoCapitalizeShift(context, {fieldWasCleared: context.length === 0});
+      });
+      void keyboardBridge.isCurrentEditorGame().then(isGame => {
+        if (isGame && modeRef.current.type === 'typing') {
+          activateGamePerformanceMode();
+        }
       });
     });
     return () => {
       capsSubscription.remove();
       shownSubscription.remove();
     };
-  }, [reloadGestures, syncAutoCapitalizeShift]);
+  }, [
+    reloadGestures,
+    syncAutoCapitalizeShift,
+    syncTypingCompositorFromEditor,
+    activateGamePerformanceMode,
+  ]);
+
+  useEffect(() => {
+    const editorContextSubscription = DeviceEventEmitter.addListener(
+      'keyboardEditorContextChanged',
+      (payload: {textBeforeCursor?: string} | null) => {
+        const context =
+          payload && typeof payload.textBeforeCursor === 'string'
+            ? payload.textBeforeCursor
+            : '';
+        syncTypingCompositorFromEditor(context);
+        if (!context.trim()) {
+          syncAutoCapitalizeShift(context, {fieldWasCleared: true});
+        }
+      },
+    );
+    const sessionStartSubscription = DeviceEventEmitter.addListener(
+      'keyboardSessionStart',
+      () => {
+        resetTypingCompositorState();
+      },
+    );
+    return () => {
+      editorContextSubscription.remove();
+      sessionStartSubscription.remove();
+    };
+  }, [
+    resetTypingCompositorState,
+    syncAutoCapitalizeShift,
+    syncTypingCompositorFromEditor,
+  ]);
 
   const closeItemsFlow = useCallback(() => {
     setMode({type: 'typing'});
@@ -1766,7 +1911,7 @@ function KeyboardBody({
       recentlyCommitted,
     );
     livePrefixRef.current = prefix;
-    previousWordRef.current = extractPreviousWordFromContext(context, prefix);
+    previousWordRef.current = derivePreviousWordFromEditor(context, prefix);
 
     const barState = computeTypingSuggestionBar(prefix, {
       fast,
@@ -1813,6 +1958,9 @@ function KeyboardBody({
     if (INSTANT_SUGGESTION_DISABLED) {
       return;
     }
+    if (shouldDeferLiveSuggestionBar()) {
+      return;
+    }
     if (layoutRef.current !== 'letters' || modeRef.current.type !== 'typing') {
       return;
     }
@@ -1843,6 +1991,33 @@ function KeyboardBody({
       instantSuggestionLastFlushAtRef.current = Date.now();
       lastInstantPrefixRef.current = nextPrefix;
 
+      const commitSuggestionBarState = (
+        barState: ReturnType<typeof computeTypingSuggestionBar>,
+        suggestions: string[],
+      ) => {
+        if (
+          nextPrefix === lastFlushedBarPrefixRef.current &&
+          suggestionListsEqual(suggestions, lastFlushedSuggestionsRef.current) &&
+          barState.autocorrectPreview === lastFlushedAutocorrectRef.current &&
+          barState.typedKeepSuggestion === lastFlushedTypedKeepRef.current
+        ) {
+          return;
+        }
+        lastFlushedBarPrefixRef.current = nextPrefix;
+        lastFlushedSuggestionsRef.current = suggestions;
+        lastFlushedAutocorrectRef.current = barState.autocorrectPreview;
+        lastFlushedTypedKeepRef.current = barState.typedKeepSuggestion;
+        startTransition(() => {
+          setCurrentPrefix(nextPrefix);
+          setTypedKeepSuggestion(barState.typedKeepSuggestion);
+          setAutocorrectPreview(barState.autocorrectPreview);
+          autocorrectPreviewRef.current = barState.autocorrectPreview;
+          setSuggestions(suggestions);
+          setEssentialSuggestions([]);
+          setEssentialTriggerLength(0);
+        });
+      };
+
       if (!nextPrefix) {
         startTransition(() => {
           setCurrentPrefix('');
@@ -1851,10 +2026,14 @@ function KeyboardBody({
           autocorrectPreviewRef.current = null;
           setEssentialSuggestions([]);
           setEssentialTriggerLength(0);
+          lastFlushedBarPrefixRef.current = '';
+          lastFlushedSuggestionsRef.current = [];
+          lastFlushedAutocorrectRef.current = null;
           // Hinglish / Franglais: keep preferred-language starters visible between words.
           if (getActiveLanguage() === 'hi-en' || getActiveLanguage() === 'fr-en') {
             const barState = computeTypingSuggestionBar('', {fast: true});
             setSuggestions(barState.suggestions);
+            lastFlushedSuggestionsRef.current = barState.suggestions;
           } else {
             setSuggestions([]);
           }
@@ -1862,71 +2041,19 @@ function KeyboardBody({
         return;
       }
 
-      // Use native suggestions for speed
-      if (USE_NATIVE_SUGGESTIONS) {
-        const barState = computeTypingSuggestionBar(nextPrefix, {
-          fast: true,
-          previousWord: previousWordRef.current,
-          suggestionsOnly: true,
-        });
-        void keyboardBridge
-          .computeSuggestionsNative(
-            nextPrefix,
-            null,
-            previousWordRef.current,
-            true,
-          )
-          .then(nativeSuggestions => {
-            const resolved = nativeSuggestions ?? [];
-            const suggestions =
-              resolved.length > 0 ? resolved : barState.suggestions;
-            startTransition(() => {
-              setCurrentPrefix(nextPrefix);
-              setTypedKeepSuggestion(barState.typedKeepSuggestion);
-              setAutocorrectPreview(barState.autocorrectPreview);
-              autocorrectPreviewRef.current = barState.autocorrectPreview;
-              setSuggestions(suggestions);
-              setEssentialSuggestions([]);
-              setEssentialTriggerLength(0);
-            });
-          })
-          .catch(() => {
-            // Fallback to JS if native fails
-            startTransition(() => {
-              setCurrentPrefix(nextPrefix);
-              setTypedKeepSuggestion(barState.typedKeepSuggestion);
-              setAutocorrectPreview(barState.autocorrectPreview);
-              autocorrectPreviewRef.current = barState.autocorrectPreview;
-              setSuggestions(barState.suggestions);
-              setEssentialSuggestions([]);
-              setEssentialTriggerLength(0);
-            });
-          });
-        return;
-      }
-
-      // Fallback: JS computation
-      startTransition(() => {
-        const barState = computeTypingSuggestionBar(nextPrefix, {
-          fast: true,
-          previousWord: previousWordRef.current,
-          suggestionsOnly: true,
-        });
-        setCurrentPrefix(nextPrefix);
-        setTypedKeepSuggestion(barState.typedKeepSuggestion);
-        setAutocorrectPreview(barState.autocorrectPreview);
-        autocorrectPreviewRef.current = barState.autocorrectPreview;
-        
-        // Use JS suggestions, or fallback to test words if empty
-        let suggestions = barState.suggestions.length > 0 
-          ? barState.suggestions 
-          : ['the', 'be', 'to', 'of', 'and', 'a', 'in', 'that', 'have', 'i'].filter(w => 
-              w.startsWith(nextPrefix.toLowerCase())
-            );
-        setSuggestions(suggestions);
-        setEssentialSuggestions([]);
-        setEssentialTriggerLength(0);
+      const barState = computeTypingSuggestionBar(nextPrefix, {
+        fast: true,
+        previousWord: previousWordRef.current,
+        suggestionsOnly: true,
+        prefixOnly: isBurstTypingActive(),
       });
+      const suggestions =
+        barState.suggestions.length > 0
+          ? barState.suggestions
+          : ['the', 'be', 'to', 'of', 'and', 'a', 'in', 'that', 'have', 'i'].filter(
+              word => word.startsWith(nextPrefix.toLowerCase()),
+            );
+      commitSuggestionBarState(barState, suggestions);
     };
 
     if (instantSuggestionRafRef.current !== null) {
@@ -1934,6 +2061,14 @@ function KeyboardBody({
     }
     instantSuggestionRafRef.current = requestAnimationFrame(flush);
   }, [clearSuggestionBarForPrefix]);
+
+  const flushTypingIdleSideEffects = useCallback(() => {
+    if (shouldDeferHeavyTypingSideEffects()) {
+      return;
+    }
+    syncTouchIntelligenceToNative();
+    applyInstantSuggestionBar(livePrefixRef.current);
+  }, [applyInstantSuggestionBar]);
 
   const recordAutocorrectHistory = useCallback(
     (edit: AutocorrectHistoryEdit) => {
@@ -1971,23 +2106,49 @@ function KeyboardBody({
         correction: edit.correction,
         replaceLength: match.replaceLength,
       });
+      const contextBefore = context.slice(0, context.length - match.replaceLength);
+      const correction = finalizeTypeLiftCorrection(
+        contextBefore,
+        edit.original,
+        edit.correction,
+      );
       keyboardBridge.replaceWordPrefix(
         match.replaceLength,
-        edit.correction + match.replacementSuffix,
+        correction + match.replacementSuffix,
       );
       recordAutocorrectHistory({
         original: edit.original,
-        correction: edit.correction,
+        correction,
         boundary: match.replacementSuffix,
       });
-      lastAiProofreadOriginalRef.current = edit.correction;
+      lastAiProofreadOriginalRef.current = correction;
       setAiAutocorrectSuggestion(null);
+      if (shiftOnRef.current && !capsLockedRef.current) {
+        shiftOnRef.current = false;
+        setShiftOn(false);
+        syncNativeFastPathCaseState();
+      }
+      livePrefixRef.current = '';
+      touchIntelligencePreviousKeyRef.current =
+        correction.length > 0
+          ? correction[correction.length - 1]!.toLowerCase()
+          : null;
+      syncTouchIntelligenceToNative();
       requestAnimationFrame(() => {
+        void keyboardBridge.getTextBeforeCursor(96).then(nextContext => {
+          syncAutoCapitalizeShift(nextContext);
+        });
         void refreshSuggestions();
       });
       return true;
     },
-    [recordAutocorrectHistory, refreshSuggestions],
+    [
+      recordAutocorrectHistory,
+      refreshSuggestions,
+      syncAutoCapitalizeShift,
+      syncNativeFastPathCaseState,
+      syncTouchIntelligenceToNative,
+    ],
   );
 
   const scheduleAiPreflight = useCallback(() => {
@@ -2033,7 +2194,6 @@ function KeyboardBody({
       }
       const startedAt = Date.now();
       recordAiPreflightRequest();
-      setIsAiAutocorrectProcessing(true);
       void proofreadActiveToken(requestedToken)
         .then(result => {
           const accepted =
@@ -2062,17 +2222,12 @@ function KeyboardBody({
           if (result.kind === 'suggest') {
             setAiAutocorrectSuggestion(result);
           }
-        })
-        .finally(() => {
-          if (aiPreflightRunIdRef.current === runId) {
-            setIsAiAutocorrectProcessing(false);
-          }
         });
     }, AI_PREFLIGHT_DEBOUNCE_MS);
   }, []);
 
   const scheduleAiProofread = useCallback(
-    (delayMs = 1_600) => {
+    (delayMs = AI_PROOFREAD_DELAY_MS) => {
       if (
         zeroLatencyModeRef.current ||
         layoutRef.current !== 'letters' ||
@@ -2102,6 +2257,14 @@ function KeyboardBody({
       aiProofreadTimerRef.current = setTimeout(() => {
         aiProofreadTimerRef.current = null;
         void (async () => {
+          const idleMs = Date.now() - lastTypingAtRef.current;
+          if (idleMs < AI_PROOFREAD_MIN_IDLE_MS) {
+            console.log(AI_AUTOCORRECT_LOG_PREFIX, 'run skipped: still typing', {
+              idleMs,
+              runId,
+            });
+            return;
+          }
           if (
             zeroLatencyModeRef.current ||
             layoutRef.current !== 'letters' ||
@@ -2323,6 +2486,7 @@ function KeyboardBody({
       };
       const context = await (options?.contextPromise ??
         keyboardBridge.getTextBeforeCursor(96));
+      syncTypingCompositorFromEditor(context);
       if (endsWithRewriteCommand(context)) {
         keyboardBridge.replaceWordPrefix(REWRITE_COMMAND.length, '');
         await openRewritePanel();
@@ -2354,7 +2518,7 @@ function KeyboardBody({
       }
 
       let typedWord = extractCurrentWord(context);
-      typedWord = pickTypedWordForBoundary(typedWord, typedWordFallback);
+      typedWord = pickTypedWordForBoundary(context, livePrefixRef.current);
       const autocorrectOn = getAutocorrectSettings().enabled;
 
       if (autocorrectOn && typedWord.length >= 2) {
@@ -2489,12 +2653,20 @@ function KeyboardBody({
       recordAutocorrectHistory,
       refreshSuggestions,
       scheduleAiProofread,
+      syncTypingCompositorFromEditor,
     ],
   );
 
   useEffect(() => {
     syncNativeFastPathCaseState();
   }, [shiftOn, capsLocked, syncNativeFastPathCaseState]);
+
+  useEffect(() => {
+    keyboardBridge.setNativeShiftConsumedHandler(syncNativeShiftConsumed);
+    return () => {
+      keyboardBridge.setNativeShiftConsumedHandler(null);
+    };
+  }, [syncNativeShiftConsumed]);
 
   useEffect(() => {
     if (layout !== 'letters' || mode.type !== 'typing') {
@@ -3084,6 +3256,14 @@ function KeyboardBody({
             aiPreflightTimerRef.current = null;
           }
           aiPreflightCacheRef.current.clear();
+          if (aiProofreadTimerRef.current) {
+            clearTimeout(aiProofreadTimerRef.current);
+            aiProofreadTimerRef.current = null;
+          }
+          aiProofreadRunIdRef.current += 1;
+          lastAiProofreadOriginalRef.current = null;
+          setAiAutocorrectSuggestion(null);
+          setIsAiAutocorrectProcessing(false);
           if (zeroLatencyModeRef.current) {
             keyboardBridge.submitEnterKey();
             void commitTypedWordBoundary(
@@ -3299,7 +3479,7 @@ function KeyboardBody({
         livePrefixRef.current += text;
         touchIntelligencePreviousKeyRef.current = text.toLowerCase();
         syncTouchIntelligenceToNative();
-        if (!burstTyping) {
+        if (!burstTyping && !shouldDeferHeavyTypingSideEffects()) {
           scheduleAiPreflight();
         }
       } else if (text === ' ' || text.trim().length === 0) {
@@ -3307,9 +3487,13 @@ function KeyboardBody({
           livePrefixRef.current = '';
         }
         touchIntelligencePreviousKeyRef.current = null;
-        syncTouchIntelligenceToNative();
+        if (!shouldDeferHeavyTypingSideEffects()) {
+          syncTouchIntelligenceToNative();
+        }
         if (text === ' ' && Platform.OS === 'android') {
-          syncAutoCapitalizeShift('');
+          void keyboardBridge.getTextBeforeCursor(96).then(nextContext => {
+            syncAutoCapitalizeShift(nextContext);
+          });
         }
       }
       lastTypingAtRef.current = now;
@@ -3322,17 +3506,19 @@ function KeyboardBody({
         burstTypingEndTimerRef.current = setTimeout(() => {
           burstTypingEndTimerRef.current = null;
           setBurstTypingActive(false);
-          applyInstantSuggestionBar(livePrefixRef.current);
+          flushTypingIdleSideEffects();
         }, BURST_TYPING_INTERVAL_MS * 2);
       }
 
-      if (/[a-z]/i.test(text)) {
-        applyInstantSuggestionBar(livePrefixRef.current);
-      } else if (text === ' ' || text.trim().length === 0) {
-        applyInstantSuggestionBar('');
+      if (!shouldDeferLiveSuggestionBar()) {
+        if (/[a-z]/i.test(text)) {
+          applyInstantSuggestionBar(livePrefixRef.current);
+        } else if (text === ' ' || text.trim().length === 0) {
+          applyInstantSuggestionBar('');
+        }
       }
 
-      if (zeroLatencyModeRef.current) {
+      if (zeroLatencyModeRef.current || gamePerformanceModeRef.current) {
         return;
       }
 
@@ -3350,7 +3536,7 @@ function KeyboardBody({
         if (modeRef.current.type !== 'typing') {
           return;
         }
-        applyInstantSuggestionBar(livePrefixRef.current);
+        flushTypingIdleSideEffects();
         if (stoppedTypingRef.current) {
           stoppedTypingRef.current = false;
           setStoppedTyping(false);
@@ -3365,7 +3551,7 @@ function KeyboardBody({
         }, 450);
       }, LETTER_SIDE_EFFECTS_DEBOUNCE_MS);
     },
-    [applyInstantSuggestionBar, scheduleAiPreflight, syncAutoCapitalizeShift],
+    [applyInstantSuggestionBar, flushTypingIdleSideEffects, scheduleAiPreflight, syncAutoCapitalizeShift, syncTouchIntelligenceToNative],
   );
 
   const handleMultiTouchKeyCommit = useCallback(
@@ -3432,18 +3618,32 @@ function KeyboardBody({
     ],
   );
 
-  const handleNativeFastPathLetterCommit = useCallback((text: string) => {
-    if (
-      layoutRef.current === 'letters' &&
-      modeRef.current.type === 'typing' &&
-      /[a-z]/i.test(text)
-    ) {
-      hasTypedInFieldRef.current = true;
-      lastLetterCommitAtRef.current = Date.now();
-      livePrefixRef.current += text;
-      touchIntelligencePreviousKeyRef.current = text.toLowerCase();
+  const handleNativeFastPathLetterCommit = useCallback(
+    (text: string) => {
+      if (!text || modeRef.current.type !== 'typing') {
+        return;
+      }
+      nativeSideEffectDedupRef.current = {text, at: Date.now()};
+      if (clipboardPasteSuggestionRef.current) {
+        clearClipboardPasteSuggestion();
+      }
+      applyCommittedKeyTextSideEffects(text);
+      // Keep native touch-intel context fresh so reranks can apply on the next tap.
       syncTouchIntelligenceToNative();
+    },
+    [
+      applyCommittedKeyTextSideEffects,
+      clearClipboardPasteSuggestion,
+      syncTouchIntelligenceToNative,
+    ],
+  );
+
+  const shouldSkipAsyncNativeSideEffect = useCallback((text: string): boolean => {
+    const dedup = nativeSideEffectDedupRef.current;
+    if (!dedup || dedup.text !== text) {
+      return false;
     }
+    return Date.now() - dedup.at < NATIVE_SIDE_EFFECT_DEDUP_MS;
   }, []);
 
   useEffect(() => {
@@ -3464,14 +3664,11 @@ function KeyboardBody({
         if (!text || modeRef.current.type !== 'typing') {
           return;
         }
+        if (shouldSkipAsyncNativeSideEffect(text)) {
+          return;
+        }
         if (payload?.shiftConsumed) {
-          shiftOnRef.current = false;
-          syncNativeFastPathCaseState();
-          if (!zeroLatencyModeRef.current) {
-            startTransition(() => {
-              setShiftOn(false);
-            });
-          }
+          syncNativeShiftConsumed();
         }
         if (clipboardPasteSuggestionRef.current) {
           clearClipboardPasteSuggestion();
@@ -3481,7 +3678,12 @@ function KeyboardBody({
     );
 
     return () => subscription.remove();
-  }, [applyCommittedKeyTextSideEffects, clearClipboardPasteSuggestion, syncNativeFastPathCaseState]);
+  }, [
+    applyCommittedKeyTextSideEffects,
+    clearClipboardPasteSuggestion,
+    shouldSkipAsyncNativeSideEffect,
+    syncNativeShiftConsumed,
+  ]);
 
   const handleWordCommitted = useCallback(
     (word: string) => {
@@ -3603,9 +3805,9 @@ function KeyboardBody({
     }
   }, []);
 
-  const handleStickerSelect = useCallback(async (sticker: KeyboardSticker) => {
+  const handleStickerSelect = useCallback(async (sticker: StickerLySticker) => {
     try {
-      await insertBundledSticker(sticker);
+      await insertStickerLySticker(sticker);
     } catch (error) {
       console.warn('Failed to insert sticker', error);
     }
@@ -3692,9 +3894,6 @@ function KeyboardBody({
           hitSlopHorizontal: theme.keyHitSlop.horizontal,
           hitSlopVertical: theme.keyHitSlop.vertical,
           layout,
-          isUppercase: shiftOnRef.current || capsLockedRef.current,
-          shiftOn: shiftOnRef.current,
-          capsLocked: capsLockedRef.current,
           touchIntelligence,
           keys: keyLayouts.map(({id, keyDef, x, y, width, height, centerX, centerY}) => ({
             id,
@@ -3710,6 +3909,7 @@ function KeyboardBody({
           })),
         }),
       );
+      syncNativeFastPathCaseState();
       nativeFastPathActiveRef.current = true;
     };
 
@@ -3735,6 +3935,7 @@ function KeyboardBody({
     theme.keyHitSlop.horizontal,
     theme.keyHitSlop.vertical,
     zeroLatencyMode,
+    syncNativeFastPathCaseState,
   ]);
 
   useEffect(() => {
@@ -3931,6 +4132,7 @@ function KeyboardBody({
   const frostedKeyboardVisible =
     theme.frostedGlass &&
     showKeys &&
+    !shouldSkipFrostedKeyboardEffects() &&
     (!isEmojiMode || isGifSearchMode || isEmojiSearchMode || isSfxSearchMode);
   const frostedKeyboardLayout = frostedKeyboardBackdropLayout(
     effectiveLetterKeyHeight ?? theme.keyHeight,
@@ -4380,6 +4582,8 @@ function KeyboardBody({
                       nativeFastPathActiveRef.current
                     }
                     onNativeFastPathLetterCommit={handleNativeFastPathLetterCommit}
+                    onNativeFastPathShiftConsumed={syncNativeShiftConsumed}
+                    shouldConsumeShiftForCommit={shouldConsumeShiftForCommit}
                     onSpaceLongPress={
                       mode.type === 'typing' ? activateZeroLatencyMode : undefined
                     }
@@ -4407,6 +4611,7 @@ function KeyboardBody({
                         ? focusedControllerKey?.id
                         : null
                     }
+                    typeLiftProcessing={isAiAutocorrectProcessing}
                   />
             </View>
           ) : null}

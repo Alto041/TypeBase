@@ -78,6 +78,11 @@ function normalizeLayout(raw: unknown): KeyboardLayoutSettings {
       typeof obj['keyHapticEnabled'] === 'boolean'
         ? obj['keyHapticEnabled']
         : defaults.keyHapticEnabled,
+    keyHapticPulseMs:
+      typeof obj['keyHapticPulseMs'] === 'number' &&
+      Number.isFinite(obj['keyHapticPulseMs'])
+        ? clamp(Math.round(obj['keyHapticPulseMs']), 6, 24)
+        : defaults.keyHapticPulseMs,
     autoCapitalizeEnabled:
       typeof obj['autoCapitalizeEnabled'] === 'boolean'
         ? obj['autoCapitalizeEnabled']

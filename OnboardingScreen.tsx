@@ -1,12 +1,11 @@
 import React, {useState} from 'react';
 import {
   Animated,
-  Image,
+  ImageBackground,
   Pressable,
   StatusBar,
   StyleSheet,
   Text,
-  useWindowDimensions,
   View,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
@@ -24,10 +23,12 @@ const C = {
 } as const;
 
 const TEXT_KERNING = -0.7;
-const BLUR_SHIFT_RIGHT = 28;
-const BLUR_BLOB = Image.resolveAssetSource(require('./assets/Group 8.png'));
-const BLUR_ASPECT_RATIO =
-  BLUR_BLOB.width && BLUR_BLOB.height ? BLUR_BLOB.width / BLUR_BLOB.height : 0.72;
+
+const ONBOARDING_BACKGROUNDS = [
+  require('./assets/bg.png'),
+  require('./assets/bg2.png'),
+  require('./assets/bg.png'),
+] as const;
 
 type OnboardingPage = {
   eyebrow: string;
@@ -41,59 +42,19 @@ type OnboardingScreenProps = {
   fontsLoaded?: boolean;
 };
 
-type BlurBlobVariant = 'center' | 'top' | 'bottomRight';
-
-function BlurBlobImage({variant = 'center'}: {variant?: BlurBlobVariant}) {
-  const {width} = useWindowDimensions();
-  const isBottomRight = variant === 'bottomRight';
-  const blobScale = isBottomRight ? 1.0 : 1.22;
-  const blobWidth = width * blobScale;
-  const blobHeight = blobWidth / BLUR_ASPECT_RATIO;
-  const isTop = variant === 'top';
+function OnboardingBackground({pageIndex}: {pageIndex: number}) {
+  const source =
+    ONBOARDING_BACKGROUNDS[pageIndex] ?? ONBOARDING_BACKGROUNDS[0];
 
   return (
-    <View
-      pointerEvents="none"
-      style={isBottomRight ? styles.blurBlobWrapEdge : styles.blurBlobWrap}>
-      <Image
-        source={BLUR_BLOB}
-        style={[
-          styles.blurBlob,
-          isTop
-            ? styles.blurBlobTop
-            : isBottomRight
-              ? styles.blurBlobBottomRight
-              : styles.blurBlobCenter,
-          {
-            width: blobWidth,
-            height: blobHeight,
-            transform: isTop
-              ? [
-                  {translateX: -blobWidth / 2},
-                  {translateY: -blobHeight * 0.38},
-                ]
-              : isBottomRight
-                ? []
-                : [
-                    {translateX: -blobWidth / 2 + BLUR_SHIFT_RIGHT},
-                    {translateY: -blobHeight / 2},
-                  ],
-          },
-        ]}
-        resizeMode="contain"
-      />
-    </View>
+    <ImageBackground
+      source={source}
+      style={styles.background}
+      resizeMode="cover"
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+    />
   );
-}
-
-function blurVariantForPage(pageIndex: number): BlurBlobVariant {
-  if (pageIndex === 1) {
-    return 'top';
-  }
-  if (pageIndex === 2) {
-    return 'bottomRight';
-  }
-  return 'center';
 }
 
 export function OnboardingScreen({
@@ -138,11 +99,15 @@ export function OnboardingScreen({
 
   return (
     <View style={styles.root}>
-      <StatusBar barStyle="dark-content" backgroundColor={C.bg} />
-      <BlurBlobImage variant={blurVariantForPage(pageIndex)} />
+      <StatusBar
+        barStyle="dark-content"
+        translucent
+        backgroundColor="transparent"
+      />
+      <OnboardingBackground pageIndex={pageIndex} />
 
       <SafeAreaView style={styles.safeArea}>
-        <Animated.View style={animatedStyle}>
+        <Animated.View style={[styles.page, animatedStyle]}>
           {pageIndex === 1 ? (
             <AiConfigScreen
               variant="wizard"
@@ -194,49 +159,19 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: C.bg,
-    overflow: 'visible',
+  },
+  background: {
+    ...StyleSheet.absoluteFill,
   },
   safeArea: {
     flex: 1,
     backgroundColor: 'transparent',
-    overflow: 'visible',
   },
-  blurBlobWrap: {
-    position: 'absolute',
-    top: -220,
-    right: -220,
-    bottom: -220,
-    left: -220,
-    zIndex: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  blurBlobWrapEdge: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
-    zIndex: 0,
-  },
-  blurBlob: {
-    position: 'absolute',
-  },
-  blurBlobCenter: {
-    top: '50%',
-    left: '50%',
-  },
-  blurBlobTop: {
-    top: 0,
-    left: '50%',
-  },
-  blurBlobBottomRight: {
-    bottom: -80,
-    right: 0,
+  page: {
+    flex: 1,
   },
   content: {
     flex: 1,
-    zIndex: 1,
   },
   header: {
     paddingHorizontal: 24,

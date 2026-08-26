@@ -23,7 +23,7 @@ import RedoIcon from '../../../assets/redo.svg';
 import ClipboardIcon from '../../../assets/plugins/clipboard.svg';
 import SearchIcon from '../../../assets/enter.svg';
 import TranslateIcon from '../../../assets/plugins/translate.svg';
-import {VoiceConnectingDots} from './VoiceConnectingDots';
+import {TYPELIFT_BRAND_NAME} from '../autocorrect/typeLiftBranding';
 import {VoiceEqualizerIcon} from './VoiceEqualizerIcon';
 import {VoiceSpeechPill} from './VoiceSpeechPill';
 import {VoiceFlowVisualization} from './VoiceFlowVisualization';
@@ -375,13 +375,6 @@ function SuggestionBarComponent({
     !showVoiceProcessing &&
     !isAiAutocorrectProcessing;
 
-  const showAiProcessing =
-    !isFormMode &&
-    !centerTitle &&
-    isAiAutocorrectProcessing &&
-    !showVoiceProcessing &&
-    !showPartial &&
-    !hasAiAutocorrectSuggestion;
   const toolbarIconMuted = theme.icon;
   const toolbarIconActive = theme.icon;
   const toolbarIconSize = 20;
@@ -518,10 +511,6 @@ function SuggestionBarComponent({
               Polishing…
             </Text>
           </View>
-        ) : showAiProcessing ? (
-          <View style={styles.aiProcessingContainer}>
-            <VoiceConnectingDots size={22} color={theme.spaceLabel} />
-          </View>
         ) : showPartial ? null : showSwipePreview ? (
           <View style={styles.swipePreviewContainer}>
             <Text style={styles.swipePreviewText} numberOfLines={1}>
@@ -540,6 +529,9 @@ function SuggestionBarComponent({
                 pressed && styles.clipboardPastePillPressed,
               ]}>
               <CheckIcon width={15} height={15} color={theme.icon} />
+              <Text style={styles.aiAutocorrectBrand} numberOfLines={1}>
+                {TYPELIFT_BRAND_NAME}
+              </Text>
               <Text style={styles.aiAutocorrectText} numberOfLines={1}>
                 {middleTruncateSuggestion(
                   aiAutocorrectSuggestion.correction,
@@ -1140,17 +1132,17 @@ function createSuggestionBarStyles(theme: KeyboardTheme) {
     backgroundColor: theme.pluginCard,
     maxWidth: '92%',
   },
+  aiAutocorrectBrand: {
+    color: theme.spaceLabel,
+    fontSize: 11,
+    ...keyboardTypefaceStyle(theme, '600'),
+    letterSpacing: 0.3,
+  },
   aiAutocorrectText: {
     flexShrink: 1,
     color: theme.label,
     fontSize: 15,
     ...keyboardTypefaceStyle(theme, '600'),
-  },
-  aiProcessingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 4,
   },
   clipboardPasteImage: {
     width: 22,

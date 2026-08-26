@@ -14,6 +14,10 @@ import {
   resetLearnedAutocorrectData,
 } from './learnedDataReset';
 import type {KeyboardTheme} from '../theme';
+import {
+  TYPELIFT_BRAND_NAME,
+  TYPELIFT_SETTING_HINT,
+} from './typeLiftBranding';
 import {AUTOCORRECT_REMEMBERS, type AutocorrectSettings} from './types';
 
 type AutocorrectPanelProps = {
@@ -152,8 +156,8 @@ export function AutocorrectPanel({
 
         <View style={[styles.card, styles.cardMiddle]}>
           <SettingRow
-            title="AI auto correct"
-            hint="Proofread recent typing after pauses. Bigger fixes show as a chip."
+            title={TYPELIFT_BRAND_NAME}
+            hint={TYPELIFT_SETTING_HINT}
             enabled={settings.aiAutoCorrectEnabled}
             onToggle={() =>
               onToggleAiAutoCorrect(!settings.aiAutoCorrectEnabled)

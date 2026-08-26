@@ -126,6 +126,7 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
     KeyboardInputBridge.setPrefersNumpad(KeyboardInputBridge.shouldPreferNumpad(attribute))
     KeyboardInputBridge.setSupportsNewline(KeyboardInputBridge.shouldAllowNewline(attribute))
     KeyboardInputBridge.refreshInitialCapsMode(attribute)
+    publishEditorContextBeforeCursor()
   }
 
   override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
@@ -168,7 +169,37 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
     super.onWindowHidden()
     // Notify JS while React is still resumed so the reset runs before the next show.
     KeyboardInputBridge.notifyKeyboardHidden()
+    publishEditorContextBeforeCursor("")
     pauseReactForKeyboardIfNeeded()
+  }
+
+  override fun onUpdateSelection(
+      oldSelStart: Int,
+      oldSelEnd: Int,
+      newSelStart: Int,
+      newSelEnd: Int,
+      candidatesStart: Int,
+      candidatesEnd: Int,
+  ) {
+    super.onUpdateSelection(
+        oldSelStart,
+        oldSelEnd,
+        newSelStart,
+        newSelEnd,
+        candidatesStart,
+        candidatesEnd,
+    )
+    publishEditorContextBeforeCursor()
+  }
+
+  private fun publishEditorContextBeforeCursor(forced: String? = null) {
+    if (forced != null) {
+      KeyboardInputBridge.notifyEditorContextBeforeCursor(forced)
+      return
+    }
+    val before =
+        currentInputConnection?.getTextBeforeCursor(200, 0)?.toString().orEmpty()
+    KeyboardInputBridge.notifyEditorContextBeforeCursor(before)
   }
 
   override fun onConfigurationChanged(newConfig: Configuration) {

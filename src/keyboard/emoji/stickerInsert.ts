@@ -1,7 +1,6 @@
-import {Image} from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import {keyboardBridge} from '../keyboardBridge';
-import type {KeyboardSticker} from './stickers';
+import type {StickerLySticker} from './stickers';
 
 const CLIPBOARD_IMAGES_DIR = `${FileSystem.documentDirectory ?? ''}clipboard_images`;
 
@@ -20,55 +19,35 @@ async function ensureClipboardImagesDir(): Promise<string | null> {
   return CLIPBOARD_IMAGES_DIR;
 }
 
-function stickerExtension(filename: string): string {
-  const extension = filename.split('.').pop()?.toLowerCase();
-  if (!extension) {
-    return 'jpg';
+function stickerFileExtension(url: string): string {
+  const withoutQuery = url.split('?')[0] ?? url;
+  const extension = withoutQuery.split('.').pop()?.toLowerCase();
+  if (!extension || extension.length > 5) {
+    return 'png';
   }
   return extension === 'jfif' ? 'jpg' : extension;
 }
 
-function encodeBundledAssetUri(uri: string): string {
-  return uri.replace(/ /g, '%20');
-}
-
-async function materializeBundledSticker(
-  sticker: KeyboardSticker,
-  destination: string,
+export async function insertStickerLySticker(
+  sticker: StickerLySticker,
 ): Promise<boolean> {
-  const resolved = Image.resolveAssetSource(sticker.source);
-  const sourceUri = resolved?.uri;
-  if (!sourceUri) {
+  const remoteUrl = sticker.insertUrl;
+  if (!remoteUrl) {
     return false;
   }
 
-  if (sourceUri.startsWith('file://')) {
-    await FileSystem.copyAsync({from: sourceUri, to: destination});
-    return true;
-  }
-
-  const download = await FileSystem.downloadAsync(
-    encodeBundledAssetUri(sourceUri),
-    destination,
-  );
-  return download.status === 200;
-}
-
-export async function insertBundledSticker(
-  sticker: KeyboardSticker,
-): Promise<boolean> {
   const dir = await ensureClipboardImagesDir();
   if (!dir) {
     return false;
   }
 
-  const extension = stickerExtension(sticker.filename);
-  const destination = `${dir}/sticker-${sticker.id}.${extension}`;
-  const materialized = await materializeBundledSticker(sticker, destination);
-  if (!materialized) {
+  const extension = stickerFileExtension(remoteUrl);
+  const destination = `${dir}/stickerly-${sticker.id.replace(/[^\w-]+/g, '_')}.${extension}`;
+  const downloaded = await FileSystem.downloadAsync(remoteUrl, destination);
+  if (downloaded.status !== 200) {
     return false;
   }
 
-  const localPath = destination.replace(/^file:\/\//, '');
+  const localPath = downloaded.uri.replace(/^file:\/\//, '');
   return keyboardBridge.insertClipboardImage(localPath);
 }

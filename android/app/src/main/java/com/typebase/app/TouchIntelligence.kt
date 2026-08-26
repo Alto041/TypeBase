@@ -6,8 +6,8 @@ import kotlin.math.min
 import org.json.JSONObject
 
 /**
- * Native mirror of the JS touch intelligence engine. Scores nearby keys using
- * touch position, inter-tap velocity, spatial neighbors, and typing context.
+ * Native mirror of the JS touch intelligence engine. Spatial mistouch correction:
+ * geometry, velocity, keyboard neighbors, and letter bigrams — no dictionary commits.
  */
 class TouchIntelligence {
   data class KeyGeometry(
@@ -47,7 +47,6 @@ class TouchIntelligence {
       val enabled: Boolean = true,
       val previousKeyLetter: String? = null,
       val wordPrefix: String = "",
-      val likelyNextLetters: List<String> = emptyList(),
       val lastTapX: Float = 0f,
       val lastTapY: Float = 0f,
       val lastTapAtMs: Long = 0L,
@@ -60,8 +59,7 @@ class TouchIntelligence {
   private var keys = emptyList<KeyGeometry>()
   private var keyByLetter = emptyMap<String, KeyGeometry>()
   private var neighborMap: Map<String, Set<String>> = emptyMap()
-  private var cachedLikelyContextKey = ""
-  private var cachedLikelyNextLetters: List<String> = emptyList()
+  private var neighborRadius = 0f
 
   fun updateConfig(
       touchIntelligence: JSONObject?,
@@ -79,12 +77,11 @@ class TouchIntelligence {
               if (letter.length == 1 && letter[0].isLetter()) letter to key else null
             }
             .toMap()
-    this.neighborMap = buildNeighborMap(keys)
+    this.neighborRadius = computeNeighborRadius(keys)
+    this.neighborMap = buildNeighborMap(keys, neighborRadius)
 
     if (touchIntelligence == null) {
       context = Context(enabled = false)
-      cachedLikelyContextKey = ""
-      cachedLikelyNextLetters = emptyList()
       return
     }
 
@@ -96,29 +93,23 @@ class TouchIntelligence {
                 touchIntelligence.optString("previousKeyLetter", "")
                     .takeIf { it.isNotEmpty() },
             wordPrefix = mergeWordPrefix(incomingPrefix, context.wordPrefix),
-            likelyNextLetters = parseLikelyNextLetters(touchIntelligence),
             lastTapX = touchIntelligence.optDouble("lastTapX", 0.0).toFloat(),
             lastTapY = touchIntelligence.optDouble("lastTapY", 0.0).toFloat(),
             lastTapAtMs = touchIntelligence.optLong("lastTapAtMs", 0L),
             lastTapLetter = context.lastTapLetter,
         )
-    cachedLikelyContextKey = ""
-    cachedLikelyNextLetters = emptyList()
   }
 
   fun updateTypingContext(
       previousKeyLetter: String?,
       wordPrefix: String,
-      likelyNextLetters: List<String> = emptyList(),
   ) {
+    val mergedPrefix = mergeWordPrefix(wordPrefix, context.wordPrefix)
     context =
         context.copy(
             previousKeyLetter = previousKeyLetter,
-            wordPrefix = mergeWordPrefix(wordPrefix, context.wordPrefix),
-            likelyNextLetters = likelyNextLetters,
+            wordPrefix = mergedPrefix,
         )
-    cachedLikelyContextKey = ""
-    cachedLikelyNextLetters = emptyList()
   }
 
   fun recordTap(letter: String, localX: Float, localY: Float, timestampMs: Long) {
@@ -136,11 +127,10 @@ class TouchIntelligence {
               lastTapY = localY,
               lastTapAtMs = timestampMs,
           )
-      cachedLikelyContextKey = ""
-      cachedLikelyNextLetters = emptyList()
       return
     }
     val appended = context.wordPrefix + normalized
+    val mergedPrefix = mergeWordPrefix(appended, context.wordPrefix)
     context =
         context.copy(
             lastTapX = localX,
@@ -148,17 +138,15 @@ class TouchIntelligence {
             lastTapAtMs = timestampMs,
             lastTapLetter = normalized,
             previousKeyLetter = normalized,
-            wordPrefix = mergeWordPrefix(appended, context.wordPrefix),
+            wordPrefix = mergedPrefix,
         )
-    cachedLikelyContextKey = ""
-    cachedLikelyNextLetters = emptyList()
   }
 
   private fun mergeWordPrefix(incoming: String, current: String): String {
     val next = incoming.trim().lowercase()
     val existing = current.trim().lowercase()
     return when {
-      next.isEmpty() -> ""
+      next.isEmpty() -> existing
       next.length >= existing.length -> next
       else -> existing
     }
@@ -166,6 +154,10 @@ class TouchIntelligence {
 
   fun hitTest(localX: Float, localY: Float, timestampMs: Long): KeyGeometry? =
       hitTestWithAnalysis(localX, localY, timestampMs).key
+
+  /** Geometric-only hit test — matches JS fast-path hit testing during burst typing. */
+  fun geometricHitTest(localX: Float, localY: Float): KeyGeometry? =
+      geometricHit(localX, localY)
 
   fun hitTestWithAnalysis(localX: Float, localY: Float, timestampMs: Long): HitResult {
     if (keys.isEmpty()) {
@@ -203,19 +195,11 @@ class TouchIntelligence {
 
     val geometric = geometricHit(localX, localY, initialCandidates)
     val speed = velocityPxPerSec
-    val hasWordContext = context.wordPrefix.trim().length >= 2
-    val hasTypingContext =
-        hasWordContext || context.previousKeyLetter != null
     val strictInsideHit = geometric != null && pointInside(geometric, localX, localY)
-    val nearKeyEdge =
-        geometric != null &&
-            strictInsideHit &&
-            !isConfidentStrictHit(geometric, localX, localY)
+    val touchAmbiguity = computeTouchAmbiguity(geometric, localX, localY)
 
     if (
-        !hasTypingContext &&
-            !nearKeyEdge &&
-            geometric != null &&
+        geometric != null &&
             strictInsideHit &&
             isConfidentStrictHit(geometric, localX, localY) &&
             speed < 900f
@@ -262,12 +246,8 @@ class TouchIntelligence {
     var bestKey: KeyGeometry? = null
     var bestScore = Float.NEGATIVE_INFINITY
     var geometricScoreValue = Float.NEGATIVE_INFINITY
-    var bestLanguageScore = Float.NEGATIVE_INFINITY
-    var geometricLanguageScore = Float.NEGATIVE_INFINITY
 
     for (key in candidates) {
-      val candidateLetter = key.value.lowercase().takeIf { it.length == 1 && it[0].isLetter() }
-      val language = languageScore(candidateLetter)
       val score =
           scoreCandidate(
               key,
@@ -276,13 +256,10 @@ class TouchIntelligence {
               velocity,
               rawHitLetter,
               timingScale,
+              touchAmbiguity,
           )
       if (key.id == geometric?.id) {
         geometricScoreValue = score
-        geometricLanguageScore = language
-      }
-      if (language > bestLanguageScore) {
-        bestLanguageScore = language
       }
       if (score > bestScore) {
         bestScore = score
@@ -308,22 +285,22 @@ class TouchIntelligence {
       )
     }
 
-    val reranked = geometric != null && bestKey.id != geometric.id
-    val contextOverride =
-        reranked &&
-            bestLanguageScore - geometricLanguageScore >= CONTEXT_OVERRIDE_MARGIN &&
-            hasTypingContext
-    val strongLanguageWin =
-        reranked &&
-            bestLanguageScore - geometricLanguageScore >= STRONG_LANGUAGE_WIN_MARGIN
-    val marginRejected =
-        !contextOverride &&
-            !strongLanguageWin &&
-            geometric != null &&
+    var chosen: KeyGeometry? = geometric ?: bestKey
+    var appliedRerank = false
+
+    val requiredMargin = MIN_RERANK_MARGIN * (1f - touchAmbiguity * 0.95f)
+
+    if (
+        geometric != null &&
             bestKey.id != geometric.id &&
-            bestScore - geometricScoreValue < MIN_RERANK_MARGIN
-    val chosen = if (marginRejected) geometric else bestKey
-    val appliedRerank = reranked && !marginRejected
+            isNeighborKey(geometric, bestKey) &&
+            bestScore - geometricScoreValue >= requiredMargin
+    ) {
+      chosen = bestKey
+      appliedRerank = true
+    }
+
+    val finalReranked = geometric != null && chosen?.id != geometric.id
 
     return HitResult(
         chosen,
@@ -332,7 +309,7 @@ class TouchIntelligence {
             localY = localY,
             geometric = geometric,
             chosen = chosen,
-            reranked = reranked,
+            reranked = finalReranked,
             appliedRerank = appliedRerank,
             confidentFastPath = false,
             scoreMargin = bestScore - geometricScoreValue,
@@ -340,6 +317,12 @@ class TouchIntelligence {
             velocityPxPerSec = velocityPxPerSec,
         ),
     )
+  }
+
+  private fun isNeighborKey(geometric: KeyGeometry, candidate: KeyGeometry): Boolean {
+    val geoLetter = letterForKey(geometric) ?: return false
+    val candidateLetter = letterForKey(candidate) ?: return false
+    return neighborMap[geoLetter]?.contains(candidateLetter) == true
   }
 
   private fun letterForKey(key: KeyGeometry?): String? {
@@ -376,18 +359,6 @@ class TouchIntelligence {
         wordPrefix = context.wordPrefix,
         previousKeyLetter = context.previousKeyLetter,
     )
-  }
-
-  private fun parseLikelyNextLetters(touchIntelligence: JSONObject): List<String> {
-    val array = touchIntelligence.optJSONArray("likelyNextLetters") ?: return emptyList()
-    val letters = mutableListOf<String>()
-    for (index in 0 until array.length()) {
-      val letter = array.optString(index, "").trim().lowercase()
-      if (letter.length == 1 && letter[0].isLetter()) {
-        letters.add(letter)
-      }
-    }
-    return letters
   }
 
   private fun geometricHit(
@@ -484,6 +455,7 @@ class TouchIntelligence {
       velocity: Pair<Float, Float>?,
       rawHitLetter: String?,
       timingScale: Float,
+      ambiguity: Float,
   ): Float {
     val geo = geometricScore(key, localX, localY)
     if (!geo.isFinite()) {
@@ -491,81 +463,47 @@ class TouchIntelligence {
     }
 
     val candidateLetter = key.value.lowercase().takeIf { it.length == 1 && it[0].isLetter() }
+    val geoWeight = WEIGHT_GEOMETRIC * (1f - ambiguity * 0.65f)
+    val velocityWeight = WEIGHT_VELOCITY * (1f + ambiguity * 0.4f)
+    val neighborWeight = WEIGHT_NEIGHBOR * (1f + ambiguity * 0.55f)
+    val bigramWeight = WEIGHT_BIGRAM * (1f + ambiguity * 0.55f)
+    val includeRawHit = ambiguity < 0.08f
     val references =
         listOfNotNull(
             context.previousKeyLetter,
-            rawHitLetter,
+            if (includeRawHit) rawHitLetter else null,
             context.lastTapLetter,
         )
 
     val score =
-        geo * WEIGHT_GEOMETRIC +
-            velocityScore(key, localX, localY, velocity) * WEIGHT_VELOCITY +
-            neighborScore(candidateLetter, references) * WEIGHT_NEIGHBOR +
-            bigramScore(candidateLetter) * WEIGHT_BIGRAM +
-            likelyNextLetterScore(candidateLetter) * WEIGHT_WORD_CONTINUATION
+        geo * geoWeight +
+            velocityScore(key, localX, localY, velocity) * velocityWeight +
+            neighborScore(candidateLetter, references) * neighborWeight +
+            bigramScore(candidateLetter) * bigramWeight
 
     return score * timingScale
   }
 
-  private fun languageScore(candidateLetter: String?): Float {
-    return bigramScore(candidateLetter) * 0.35f +
-        likelyNextLetterScore(candidateLetter) * 0.65f
-  }
-
-  private fun effectiveLikelyNextLetters(): List<String> {
-    val prefix = context.wordPrefix.trim().lowercase()
-    val likelyFromContext = context.likelyNextLetters
-    val contextKey =
-        if (likelyFromContext.isNotEmpty()) {
-          "$prefix|${likelyFromContext.joinToString(",")}"
-        } else {
-          prefix
-        }
-    if (contextKey == cachedLikelyContextKey) {
-      return cachedLikelyNextLetters
+  /** 0 = confident center; 1 = gap / key-edge / between-neighbor touch. */
+  private fun computeTouchAmbiguity(
+      geometric: KeyGeometry?,
+      localX: Float,
+      localY: Float,
+  ): Float {
+    if (geometric == null) {
+      return 1f
     }
-    if (prefix.length < 2) {
-      cachedLikelyContextKey = contextKey
-      cachedLikelyNextLetters = emptyList()
-      return cachedLikelyNextLetters
+    if (!pointInside(geometric, localX, localY)) {
+      return 1f
     }
-    if (likelyFromContext.isNotEmpty()) {
-      cachedLikelyContextKey = contextKey
-      cachedLikelyNextLetters = likelyFromContext
-      return cachedLikelyNextLetters
+    val halfW = max((geometric.right - geometric.left) / 2f, 1f)
+    val halfH = max((geometric.bottom - geometric.top) / 2f, 1f)
+    val normDist = hypot((localX - geometric.centerX) / halfW, (localY - geometric.centerY) / halfH)
+    if (normDist <= CONFIDENT_STRICT_CENTER_RATIO) {
+      return 0f
     }
-    cachedLikelyContextKey = contextKey
-    cachedLikelyNextLetters = fallbackLikelyNextLetters(prefix)
-    return cachedLikelyNextLetters
-  }
-
-  private fun fallbackLikelyNextLetters(prefix: String): List<String> {
-    return when (prefix) {
-      "he" -> listOf("y", "l", "r", "a", "d")
-      "th" -> listOf("e", "a", "i", "o")
-      "ha" -> listOf("v", "s", "t", "p")
-      "ho" -> listOf("w", "u", "l", "p")
-      "hi" -> listOf("s", "m", "t", "g")
-      "yo" -> listOf("u", "o", "a")
-      "wh" -> listOf("a", "o", "e", "i")
-      "in" -> listOf("g", "t", "s", "c")
-      "re" -> listOf("a", "e", "s", "c")
-      "ou" -> listOf("r", "l", "t", "n")
-      else -> emptyList()
-    }
-  }
-
-  private fun likelyNextLetterScore(candidateLetter: String?): Float {
-    val likelyNextLetters = effectiveLikelyNextLetters()
-    if (candidateLetter == null || likelyNextLetters.isEmpty()) {
-      return 0.4f
-    }
-    val index = likelyNextLetters.indexOf(candidateLetter.lowercase())
-    if (index < 0) {
-      return 0.32f
-    }
-    return max(0.55f, 1f - index * 0.12f)
+    val span = 0.5f - CONFIDENT_STRICT_CENTER_RATIO
+    return min(1f, (normDist - CONFIDENT_STRICT_CENTER_RATIO) / span)
   }
 
   private fun geometricScore(key: KeyGeometry, x: Float, y: Float): Float {
@@ -703,7 +641,22 @@ class TouchIntelligence {
     return hypot(dx, dy)
   }
 
-  private fun buildNeighborMap(keys: List<KeyGeometry>): Map<String, Set<String>> {
+  private fun computeNeighborRadius(keys: List<KeyGeometry>): Float {
+    if (keys.isEmpty()) {
+      return 0f
+    }
+    val avgKeySize =
+        keys
+            .map { key -> max(key.right - key.left, key.bottom - key.top) }
+            .average()
+            .toFloat()
+    return avgKeySize * 1.35f
+  }
+
+  private fun buildNeighborMap(
+      keys: List<KeyGeometry>,
+      radius: Float,
+  ): Map<String, Set<String>> {
     val letters =
         keys.mapNotNull { key ->
           val letter = key.value.lowercase()
@@ -712,10 +665,6 @@ class TouchIntelligence {
     if (letters.isEmpty()) {
       return emptyMap()
     }
-    val avgKeySize =
-        letters.map { (key, _) -> max(key.right - key.left, key.bottom - key.top) }.average()
-            .toFloat()
-    val neighborRadius = avgKeySize * 1.35f
     val map = mutableMapOf<String, MutableSet<String>>()
     for ((leftKey, leftLetter) in letters) {
       val neighbors = map.getOrPut(leftLetter) { mutableSetOf() }
@@ -725,7 +674,7 @@ class TouchIntelligence {
         }
         val dist =
             hypot(leftKey.centerX - rightKey.centerX, leftKey.centerY - rightKey.centerY)
-        if (dist <= neighborRadius) {
+        if (dist <= radius) {
           neighbors.add(rightLetter)
         }
       }
@@ -738,15 +687,12 @@ class TouchIntelligence {
   }
 
   companion object {
-    private const val WEIGHT_GEOMETRIC = 0.32f
-    private const val WEIGHT_VELOCITY = 0.1f
-    private const val WEIGHT_NEIGHBOR = 0.14f
-    private const val WEIGHT_BIGRAM = 0.14f
-    private const val WEIGHT_WORD_CONTINUATION = 0.38f
+    private const val WEIGHT_GEOMETRIC = 0.42f
+    private const val WEIGHT_VELOCITY = 0.12f
+    private const val WEIGHT_NEIGHBOR = 0.18f
+    private const val WEIGHT_BIGRAM = 0.18f
     private const val CONFIDENT_STRICT_CENTER_RATIO = 0.12f
-    private const val MIN_RERANK_MARGIN = 0.006f
-    private const val CONTEXT_OVERRIDE_MARGIN = 0.035f
-    private const val STRONG_LANGUAGE_WIN_MARGIN = 0.05f
+    private const val MIN_RERANK_MARGIN = 0.002f
 
     private val LETTER_BIGRAM_WEIGHTS =
         mapOf(
@@ -798,6 +744,10 @@ class TouchIntelligence {
             "li" to 0.12f,
             "ch" to 0.1f,
             "ll" to 0.08f,
+            "lo" to 0.62f,
+            "lp" to 0.2f,
+            "lk" to 0.18f,
+            "kl" to 0.16f,
             "be" to 0.06f,
             "ma" to 0.04f,
             "si" to 0.02f,

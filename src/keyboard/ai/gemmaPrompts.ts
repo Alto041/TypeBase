@@ -95,7 +95,28 @@ export function buildGemmaParakeetCleanupPrompt(transcript: string): string {
 }
 
 export function buildGemmaAutocorrectPrompt(text: string): string {
-  return wrapGemmaPrompt(`Hey, fix all spelling mistakes, grammar errors, missing apostrophes, and punctuation in the message below. Keep slang (like bro), the same words, and the same meaning — do not rephrase or add new ideas.
+  return wrapGemmaPrompt(`Fix spelling, grammar, and awkward mobile-typing mistakes in the message below.
+
+Rules:
+- Keep slang and casual tone (bro, lol, gonna, etc.).
+- You MAY insert small missing words (are, is, am, a, the, to) when grammar clearly needs them.
+- Fix redundant wording (example: "today night this day" → "tonight").
+- Light punctuation and capitalization fixes are OK.
+- Do not change the meaning or add new information.
+- Never invent new phrases or answer the message — only fix what was typed.
+- Single line only — no line breaks.
+
+Return only the corrected text and nothing else.
+
+Text:
+"${text}"`);
+}
+
+export function buildGemmaAutocorrectStrongPrompt(text: string): string {
+  return wrapGemmaPrompt(`This mobile message has grammar mistakes from fast typing. Fix missing helper verbs, awkward phrasing, and redundant words.
+
+Keep the same casual vibe and slang. You may insert short words like "are" or "is" when clearly missing.
+Single line only — no line breaks.
 
 Return only the corrected text and nothing else.
 

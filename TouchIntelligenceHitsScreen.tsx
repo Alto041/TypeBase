@@ -24,6 +24,7 @@ const C = {
   sub: '#6b6b6b',
   green: '#2CC642',
   muted: '#b0b0b5',
+  red: '#D71921',
 } as const;
 
 type CorrectionRow = {
@@ -115,7 +116,12 @@ export function TouchIntelligenceHitsScreen({onBack}: {onBack: () => void}) {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={C.bg} />
       <View style={styles.header}>
-        <Text style={styles.title}>Touch hits</Text>
+        <View style={styles.titleRow}>
+          <Text style={styles.title}>Touch hits</Text>
+          <View style={styles.betaTag}>
+            <Text style={styles.betaTagText}>BETA</Text>
+          </View>
+        </View>
         <Text style={styles.summary}>
           {corrections.length} fixes · {summary.totalHits} analyzed ·{' '}
           {summary.nativeCommits} native
@@ -158,11 +164,30 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     gap: 6,
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
   title: {
     fontSize: 32,
     color: C.text,
     fontFamily: 'FragmentMono',
     letterSpacing: -1.5,
+  },
+  betaTag: {
+    backgroundColor: C.red,
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    marginTop: 6,
+  },
+  betaTagText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontFamily: 'FragmentMono',
+    fontWeight: '600',
+    letterSpacing: 0.6,
   },
   summary: {
     fontSize: 13,

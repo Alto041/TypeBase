@@ -47,6 +47,7 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   private var removeOrientationChangeListener: (() -> Unit)? = null
   private var removeSupportsNewlineListener: (() -> Unit)? = null
   private var removeInitialCapsModeListener: (() -> Unit)? = null
+  private var removeEditorContextListener: (() -> Unit)? = null
   private var removeNativeFastPathKeyListener: (() -> Unit)? = null
   private var removeTouchIntelligenceHitListener: (() -> Unit)? = null
   private var removeControllerInputListener: (() -> Unit)? = null
@@ -129,6 +130,16 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
             reactApplicationContext
                 .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
                 .emit("keyboardInputInitialCapsMode", mode)
+          }
+        }
+    removeEditorContextListener =
+        KeyboardInputBridge.addEditorContextListener { beforeCursor ->
+          if (reactApplicationContext.hasActiveReactInstance()) {
+            val event = Arguments.createMap()
+            event.putString("textBeforeCursor", beforeCursor)
+            reactApplicationContext
+                .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                .emit("keyboardEditorContextChanged", event)
           }
         }
     removeNativeFastPathKeyListener =
@@ -233,6 +244,8 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     removeSupportsNewlineListener = null
     removeInitialCapsModeListener?.invoke()
     removeInitialCapsModeListener = null
+    removeEditorContextListener?.invoke()
+    removeEditorContextListener = null
     removeNativeFastPathKeyListener?.invoke()
     removeNativeFastPathKeyListener = null
     removeTouchIntelligenceHitListener?.invoke()
@@ -268,6 +281,15 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   @ReactMethod
   fun getInputInitialCapsMode(promise: Promise) {
     promise.resolve(KeyboardInputBridge.getInitialCapsMode())
+  }
+
+  @ReactMethod
+  fun isCurrentEditorGame(promise: Promise) {
+    try {
+      promise.resolve(KeyboardInputBridge.isCurrentEditorGame(reactApplicationContext))
+    } catch (error: Exception) {
+      promise.resolve(false)
+    }
   }
 
   @ReactMethod(isBlockingSynchronousMethod = true)
@@ -774,6 +796,7 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
       putString("keyId", pending.keyId)
       putString("text", pending.commitText)
       putInt("pointerId", pending.pointerId)
+      putBoolean("shiftConsumed", pending.shiftConsumed)
     }
   }
 

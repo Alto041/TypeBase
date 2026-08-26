@@ -28,6 +28,7 @@ import FontIcon from './assets/font.svg';
 
 import {playSwitchOffSound, playSwitchOnSound} from './src/app/switchSound';
 import {formatDocumentPickerError} from './lib/pickDocumentAsync';
+import {StandaloneInsetSlider} from './components/InsetSlider';
 
 import {
   ensureLayoutLoaded,
@@ -37,6 +38,7 @@ import {
   setKeyboardLayoutSettings,
   updateKeyboardLayoutSetting,
 } from './src/keyboard/settings/layoutStore';
+import {keyboardBridge} from './src/keyboard/keyboardBridge';
 import {
   importCustomTapSound,
   installDefaultTapSoundSettings,
@@ -81,11 +83,15 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
   const [loading, setLoading] = useState(true);
   const [importingTapSound, setImportingTapSound] = useState(false);
   const importTapSoundInFlightRef = useRef(false);
+  const lastHapticPulseRef = useRef(
+    DEFAULT_KEYBOARD_LAYOUT_SETTINGS.keyHapticPulseMs,
+  );
   const tapSoundAnim = useRef(new Animated.Value(0)).current;
   const enterKeyAnim = useRef(new Animated.Value(0)).current;
 
   const syncTapSoundState = useCallback((nextLayout: KeyboardLayoutSettings) => {
     setLayout(current => ({...current, ...nextLayout}));
+    lastHapticPulseRef.current = nextLayout.keyHapticPulseMs;
     tapSoundAnim.setValue(nextLayout.customTapSoundEnabled ? 1 : 0);
     enterKeyAnim.setValue(nextLayout.enterKeyPreviewEnabled ? 1 : 0);
   }, [enterKeyAnim, tapSoundAnim]);
@@ -94,6 +100,7 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
     void ensureLayoutLoaded().then(() => {
       const loaded = getKeyboardLayoutSettings();
       setLayout(loaded);
+      lastHapticPulseRef.current = loaded.keyHapticPulseMs;
       tapSoundAnim.setValue(loaded.customTapSoundEnabled ? 1 : 0);
       enterKeyAnim.setValue(loaded.enterKeyPreviewEnabled ? 1 : 0);
       setLoading(false);
@@ -115,6 +122,7 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
     if (key === 'keyGap') next = Math.max(0, Math.min(12, value));
     if (key === 'keyRowMargin') next = Math.max(0, Math.min(20, value));
     if (key === 'keyRadius') next = Math.max(0, Math.min(12, value));
+    if (key === 'keyHapticPulseMs') next = Math.max(6, Math.min(24, Math.round(value)));
     setLayout(current => ({...current, [key]: next}));
     void updateKeyboardLayoutSetting(key, next);
   };
@@ -131,6 +139,7 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
     void setKeyboardLayoutSettings(DEFAULT_KEYBOARD_LAYOUT_SETTINGS);
     tapSoundAnim.setValue(DEFAULT_KEYBOARD_LAYOUT_SETTINGS.customTapSoundEnabled ? 1 : 0);
     enterKeyAnim.setValue(DEFAULT_KEYBOARD_LAYOUT_SETTINGS.enterKeyPreviewEnabled ? 1 : 0);
+    lastHapticPulseRef.current = DEFAULT_KEYBOARD_LAYOUT_SETTINGS.keyHapticPulseMs;
   };
 
   const animateEnterKeyToggle = (enabled: boolean) => {
@@ -621,6 +630,27 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
                 ]}
               />
             </Pressable>
+          </View>
+
+          <View style={styles.sliderStack}>
+            <StandaloneInsetSlider
+              label="Haptic intensity"
+              value={layout.keyHapticPulseMs}
+              minimumValue={6}
+              maximumValue={24}
+              step={1}
+              isDark={false}
+              invertTrackColors
+              disabled={loading || !layout.keyHapticEnabled}
+              formatValue={value => `${value}ms`}
+              onChange={next => {
+                if (next !== lastHapticPulseRef.current) {
+                  lastHapticPulseRef.current = next;
+                  keyboardBridge.performKeyHaptic();
+                }
+                update('keyHapticPulseMs', next);
+              }}
+            />
           </View>
 
           {/* Reset all settings row */}
@@ -1158,6 +1188,11 @@ const styles = StyleSheet.create({
   // Copied container design from Launchpad (App.tsx) for customize page
   customizeSection: {
     gap: 8,
+  },
+  sliderStack: {
+    marginBottom: 4,
+    gap: 10,
+    paddingTop: 6,
   },
   configRow: {
     flexDirection: 'row',

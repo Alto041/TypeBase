@@ -44,6 +44,7 @@ object KeyboardInputBridge {
 
   @Volatile
   private var keyHapticEnabled: Boolean = true
+  @Volatile private var keyHapticPulseMs: Int = 12
 
   @Volatile
   private var currentEditorInfo: EditorInfo? = null
@@ -51,6 +52,7 @@ object KeyboardInputBridge {
   private val prefersNumpadListeners = CopyOnWriteArrayList<(Boolean) -> Unit>()
   private val keyboardVisibilityListeners = CopyOnWriteArrayList<(Boolean) -> Unit>()
   private val keyboardSessionStartListeners = CopyOnWriteArrayList<() -> Unit>()
+  private val editorContextListeners = CopyOnWriteArrayList<(String) -> Unit>()
   private val orientationChangeListeners = CopyOnWriteArrayList<(Boolean) -> Unit>()
   private val supportsNewlineListeners = CopyOnWriteArrayList<(Boolean) -> Unit>()
   private val initialCapsModeListeners = CopyOnWriteArrayList<(Boolean) -> Unit>()
@@ -101,6 +103,54 @@ object KeyboardInputBridge {
   }
 
   fun getCurrentEditorPackage(): String? = currentEditorInfo?.packageName
+
+  fun isCurrentEditorGame(context: Context): Boolean {
+    val packageName = getCurrentEditorPackage() ?: return false
+    if (packageName == context.packageName) {
+      return false
+    }
+    return try {
+      val info = context.packageManager.getApplicationInfo(packageName, 0)
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+          info.category == android.content.pm.ApplicationInfo.CATEGORY_GAME) {
+        true
+      } else {
+        isLikelyGamePackageName(packageName)
+      }
+    } catch (_: Exception) {
+      isLikelyGamePackageName(packageName)
+    }
+  }
+
+  private fun isLikelyGamePackageName(packageName: String): Boolean {
+    val lower = packageName.lowercase()
+    val markers =
+        listOf(
+            "com.tencent.",
+            "com.activision.",
+            "com.gameloft.",
+            "com.supercell.",
+            "com.mojang.",
+            "com.epicgames.",
+            "com.riotgames.",
+            "com.pubg.",
+            "com.dts.freefire",
+            "com.king.",
+            "com.roblox.",
+            "com.mobile.legends",
+            "com.miHoYo.",
+            "com.ea.game",
+            "com.garena.",
+            "com.netease.",
+            "com.vng.",
+            "com.playrix.",
+            "com.innersloth.",
+            "com.nianticlabs.",
+        )
+    return markers.any { lower.startsWith(it) } ||
+        lower.contains(".game.") ||
+        lower.endsWith(".game")
+  }
 
   fun getInitialCapsMode(): Boolean = initialCapsMode
 
@@ -234,8 +284,10 @@ object KeyboardInputBridge {
     try {
       val layout = JSONObject(json)
       keyHapticEnabled = layout.optBoolean("keyHapticEnabled", true)
+      keyHapticPulseMs = layout.optInt("keyHapticPulseMs", 12).coerceIn(6, 24)
     } catch (_: Exception) {
       keyHapticEnabled = true
+      keyHapticPulseMs = 12
     }
     setFloatingKeyboard(false)
   }
@@ -248,6 +300,15 @@ object KeyboardInputBridge {
   private val hapticHandledPointers = mutableSetOf<Int>()
 
   private val mainHandler = Handler(Looper.getMainLooper())
+
+  @Volatile private var pendingEditorContextBeforeCursor: String? = null
+
+  private val emitEditorContextRunnable =
+      Runnable {
+        val context = pendingEditorContextBeforeCursor ?: return@Runnable
+        pendingEditorContextBeforeCursor = null
+        editorContextListeners.forEach { listener -> listener(context) }
+      }
 
   @Volatile
   private var lastHapticMs = 0L
@@ -263,16 +324,13 @@ object KeyboardInputBridge {
 
   /**
    * IME touch-down haptic — synchronous on ACTION_DOWN before React. Never debounced.
+   * Always use the light KEYBOARD_TAP pulse (Gboard-style) — heavy KEYBOARD_PRESS
+   * feels stiff at normal typing speeds (>95ms between keys).
    */
   fun performKeyHapticForPointer(pointerId: Int) {
     val now = SystemClock.uptimeMillis()
     if (keyHapticEnabled) {
-      val gap = if (lastPointerHapticMs > 0L) now - lastPointerHapticMs else Long.MAX_VALUE
-      if (gap in 1..FAST_TYPING_GAP_MS) {
-        fireFastTypingHapticPulse()
-      } else {
-        fireHapticPulse()
-      }
+      fireConfiguredKeyHapticPulse()
       lastHapticMs = now
       lastPointerHapticMs = now
     }
@@ -282,7 +340,8 @@ object KeyboardInputBridge {
   /** Softer touch-down haptic for zero-latency mode. Never debounced. */
   fun performLightKeyHapticForPointer(pointerId: Int) {
     if (keyHapticEnabled) {
-      fireLightHapticPulse()
+      val lightMs = (keyHapticPulseMs - 4).coerceAtLeast(6).toLong()
+      pulseVibrator(lightMs, hapticAmplitudeForPulseMs(keyHapticPulseMs - 4))
       val now = SystemClock.uptimeMillis()
       lastHapticMs = now
       lastPointerHapticMs = now
@@ -307,7 +366,7 @@ object KeyboardInputBridge {
   }
 
   /**
-   * Haptic from JS/UI (suggestion bar, emoji, special keys, etc.).
+   * Haptic from JS/UI (modifiers, space JS path, suggestion bar, etc.).
    * Skips when the IME already pulsed for this pointer or very recently.
    */
   fun performKeyHaptic() {
@@ -315,7 +374,6 @@ object KeyboardInputBridge {
     if (now - lastHapticMs < JS_HAPTIC_DEBOUNCE_MS) {
       return
     }
-    val gap = if (lastPointerHapticMs > 0L) now - lastPointerHapticMs else Long.MAX_VALUE
     lastHapticMs = now
     lastPointerHapticMs = now
 
@@ -323,11 +381,7 @@ object KeyboardInputBridge {
       scheduleTapSound()
       return
     }
-    if (gap in 1..FAST_TYPING_GAP_MS) {
-      fireFastTypingHapticPulse()
-    } else {
-      fireHapticPulse()
-    }
+    fireConfiguredKeyHapticPulse()
     scheduleTapSound()
   }
 
@@ -342,7 +396,8 @@ object KeyboardInputBridge {
     if (!keyHapticEnabled) {
       return
     }
-    fireLightHapticPulse()
+    val lightMs = (keyHapticPulseMs - 4).coerceAtLeast(6).toLong()
+    pulseVibrator(lightMs, hapticAmplitudeForPulseMs(keyHapticPulseMs - 4))
   }
 
   /**
@@ -377,6 +432,46 @@ object KeyboardInputBridge {
   }
 
   /** Snappier per-key pulse for fast bursts — still fires on every key, never skipped. */
+  private fun fireConfiguredKeyHapticPulse() {
+    val durationMs = keyHapticPulseMs.toLong()
+    val view = inputService?.keyboardViewForFeedback
+    if (view != null && durationMs <= 10) {
+      if (Looper.myLooper() == Looper.getMainLooper()) {
+        performViewFastKeyHaptic(view)
+      } else {
+        mainHandler.post { performViewFastKeyHaptic(view) }
+      }
+      return
+    }
+    pulseVibrator(durationMs, hapticAmplitudeForPulseMs(keyHapticPulseMs))
+  }
+
+  private fun hapticAmplitudeForPulseMs(ms: Int): Int {
+    return ((ms - 6) * 9 + 44).coerceIn(44, 200)
+  }
+
+  private fun pulseVibrator(durationMs: Long, amplitude: Int) {
+    val ctx = inputService?.applicationContext ?: return
+    val vib =
+        vibrator
+            ?: (ctx.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator)?.also { vibrator = it }
+            ?: return
+    if (!vib.hasVibrator()) {
+      return
+    }
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+      vib.vibrate(
+          VibrationEffect.createOneShot(
+              durationMs.coerceIn(6L, 24L),
+              amplitude.coerceIn(1, 255),
+          ),
+      )
+    } else {
+      @Suppress("DEPRECATION")
+      vib.vibrate(durationMs.coerceIn(6L, 24L))
+    }
+  }
+
   private fun fireFastTypingHapticPulse() {
     val view = inputService?.keyboardViewForFeedback
     if (view != null) {
@@ -537,6 +632,17 @@ object KeyboardInputBridge {
   fun addKeyboardSessionStartListener(listener: () -> Unit): () -> Unit {
     keyboardSessionStartListeners.add(listener)
     return { keyboardSessionStartListeners.remove(listener) }
+  }
+
+  fun notifyEditorContextBeforeCursor(beforeCursor: String) {
+    pendingEditorContextBeforeCursor = beforeCursor
+    mainHandler.removeCallbacks(emitEditorContextRunnable)
+    mainHandler.postDelayed(emitEditorContextRunnable, 40L)
+  }
+
+  fun addEditorContextListener(listener: (String) -> Unit): () -> Unit {
+    editorContextListeners.add(listener)
+    return { editorContextListeners.remove(listener) }
   }
 
   fun notifyOrientationChanged(landscape: Boolean) {

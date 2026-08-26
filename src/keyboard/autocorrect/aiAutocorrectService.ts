@@ -1,6 +1,16 @@
 import {generateOnDeviceText} from '../ai/onDeviceTextAi';
 import {GEMINI_GENERATION_CONFIG} from '../ai/generationConfig';
-import {buildGemmaAutocorrectPrompt} from '../ai/gemmaPrompts';
+import {buildGemmaAutocorrectPrompt, buildGemmaAutocorrectStrongPrompt} from '../ai/gemmaPrompts';
+import {shouldAutoCapitalize} from '../autoCapitalize';
+import {
+  applyTypeLiftHeuristicFix,
+  needsTypeLiftProofread,
+} from './typeLiftHeuristics';
+import {
+  cleanOnDeviceTypeLiftOutput,
+  isDegenerateTypeLiftOutput,
+  isFaithfulTypeLiftCorrection,
+} from './typeLiftFaithfulness';
 import {getGeminiApiKeyOptional} from '../settings/apiKeysStore';
 import {ensureAiProviderLoaded, getAiProvider} from '../settings/aiProviderStore';
 import {GEMINI_API_URL} from '../translate/geminiConfig';
@@ -57,8 +67,97 @@ type GeminiAutocorrectJson = {
   text?: unknown;
 };
 
+function stripWrappingQuotes(text: string): string {
+  let trimmed = text.trim();
+  while (trimmed.length >= 2) {
+    const first = trimmed[0];
+    const last = trimmed[trimmed.length - 1];
+    const wrapped =
+      (first === '"' && last === '"') ||
+      (first === "'" && last === "'") ||
+      (first === '\u201c' && last === '\u201d') ||
+      (first === '\u2018' && last === '\u2019');
+    if (!wrapped) {
+      break;
+    }
+    trimmed = trimmed.slice(1, -1).trim();
+  }
+  return trimmed
+    .replace(/^["'`\u201c\u201d\u2018\u2019]+|[\u201c\u201d\u2018\u2019"'`]+$/g, '')
+    .replace(/([.!?])["'`\u201c\u201d\u2018\u2019]+\s*$/g, '$1')
+    .trim();
+}
+
+function sanitizeTypeLiftCorrection(text: string): string {
+  return stripWrappingQuotes(
+    text
+      .replace(/\\[nr]/g, ' ')
+      .replace(/[\r\n]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim(),
+  );
+}
+
 function normalizeWhitespace(text: string): string {
-  return text.replace(/\s+/g, ' ').trim();
+  return sanitizeTypeLiftCorrection(text);
+}
+
+function hasMessyWordCasing(word: string): boolean {
+  if (word.length <= 1) {
+    return false;
+  }
+  return /[a-z]/.test(word) && /[A-Z]/.test(word.slice(1));
+}
+
+/** Strip model quotes and fix pathological mixed-case output from auto-cap + AI. */
+export function finalizeTypeLiftCorrection(
+  contextBefore: string,
+  original: string,
+  correction: string,
+): string {
+  const sanitized = sanitizeTypeLiftCorrection(correction);
+  if (!sanitized) {
+    return sanitized;
+  }
+
+  const originalWords = original.trim().split(/\s+/).filter(Boolean);
+  const correctionWords = sanitized.split(/\s+/).filter(Boolean);
+
+  if (originalWords.length === 1 && correctionWords.length === 1) {
+    const source = originalWords[0]!;
+    const target = correctionWords[0]!;
+    if (source === source.toUpperCase()) {
+      return target.toUpperCase();
+    }
+    if (source === source.toLowerCase()) {
+      return target.toLowerCase();
+    }
+    if (/^[A-Z][a-z]+$/.test(source)) {
+      return target.charAt(0).toUpperCase() + target.slice(1).toLowerCase();
+    }
+    return target;
+  }
+
+  const hasMessyCaps =
+    correctionWords.some(hasMessyWordCasing) ||
+    /["'`\u201c\u201d\u2018\u2019]/.test(sanitized);
+
+  if (!hasMessyCaps) {
+    return sanitized;
+  }
+
+  const lowerWords = correctionWords.map(word => word.toLowerCase());
+  const prefix = contextBefore.replace(/\s+$/, '');
+  const sentenceStart =
+    prefix.length > 0
+      ? shouldAutoCapitalize(prefix)
+      : /^[A-Z]/.test(original.trim());
+  if (sentenceStart && lowerWords.length > 0 && lowerWords[0]) {
+    lowerWords[0] =
+      lowerWords[0].charAt(0).toUpperCase() + lowerWords[0].slice(1);
+  }
+
+  return lowerWords.join(' ');
 }
 
 function hasWeirdInternalCaps(word: string): boolean {
@@ -73,12 +172,31 @@ function maxTokensForAutocorrect(input: string): number {
 }
 
 function buildGeminiAutocorrectPrompt(input: string): string {
-  return `You fix typing mistakes in mobile keyboard text.
+  return `You fix mobile keyboard typing mistakes in casual chat messages.
 
 TASK:
-- Fix every spelling error, missing apostrophe/contraction, and capitalization mistake.
-- Keep slang, tone, and meaning. Do not rephrase or add new ideas.
+- Fix spelling, grammar, missing helper verbs (are/is/am), and awkward phrasing.
+- Keep slang, tone, and meaning. You may insert short missing words when clearly needed.
+- Never invent new phrases or reply to the message — only fix what was typed.
+- Fix redundant wording (example: "today night this day" → "tonight").
 - If the text is already correct, return it unchanged.
+- Single line only — no line breaks or trailing newlines.
+
+OUTPUT: Return ONLY valid JSON (no markdown):
+{"text":"<corrected text>"}
+
+TEXT:
+${input}`;
+}
+
+function buildGeminiAutocorrectStrongPrompt(input: string): string {
+  return `This casual mobile message has grammar mistakes from fast typing.
+
+TASK:
+- Fix missing helper verbs, subject-verb agreement, and redundant words.
+- Keep slang (bro, lol, etc.) and the same meaning.
+- Return the best natural version of the same message.
+- Single line only — no line breaks.
 
 OUTPUT: Return ONLY valid JSON (no markdown):
 {"text":"<corrected text>"}
@@ -104,13 +222,31 @@ ${input}`;
 }
 
 /** Same plain-text parsing voice polish uses for on-device Gemma. */
-function parseOnDeviceAutocorrectResult(raw: string): string {
+function parseOnDeviceAutocorrectResult(raw: string, original = ''): string {
+  const cleaned = original
+    ? cleanOnDeviceTypeLiftOutput(raw, original)
+    : null;
+  if (cleaned) {
+    return normalizeWhitespace(cleaned);
+  }
+
   const trimmed = raw.trim();
+  const firstSegment =
+    trimmed
+      .split(/(?:\\n|\r?\n)+/)
+      .map(segment => segment.trim())
+      .find(Boolean) ?? trimmed;
   const unquoted =
-    trimmed.startsWith('"') && trimmed.endsWith('"') && trimmed.length >= 2
-      ? trimmed.slice(1, -1)
-      : trimmed;
-  return normalizeWhitespace(unquoted);
+    firstSegment.startsWith('"') &&
+    firstSegment.endsWith('"') &&
+    firstSegment.length >= 2
+      ? firstSegment.slice(1, -1)
+      : firstSegment;
+  const normalized = normalizeWhitespace(unquoted);
+  if (isDegenerateTypeLiftOutput(normalized)) {
+    return '';
+  }
+  return normalized;
 }
 
 function parseGeminiAutocorrectResult(raw: string): string {
@@ -143,6 +279,9 @@ function lastProofreadSnippet(context: string): string | null {
     trimmed.lastIndexOf('. '),
     trimmed.lastIndexOf('! '),
     trimmed.lastIndexOf('? '),
+    trimmed.lastIndexOf(', '),
+    trimmed.lastIndexOf('; '),
+    trimmed.lastIndexOf(': '),
   );
   const rawSnippet =
     boundary >= 0 ? trimmed.slice(boundary + (trimmed[boundary] === '\n' ? 1 : 2)) : trimmed;
@@ -193,6 +332,22 @@ function classifyCorrection(
     return {kind: 'none'};
   }
 
+  if (isDegenerateTypeLiftOutput(normalizedCorrection)) {
+    console.log(LOG_PREFIX, 'reject: degenerate output', {
+      original: normalizedOriginal,
+      correction: normalizedCorrection,
+    });
+    return {kind: 'none'};
+  }
+
+  if (!isFaithfulTypeLiftCorrection(normalizedOriginal, normalizedCorrection, 'suggest')) {
+    console.log(LOG_PREFIX, 'reject: unfaithful rewrite', {
+      original: normalizedOriginal,
+      correction: normalizedCorrection,
+    });
+    return {kind: 'none'};
+  }
+
   // Block wild rewrites — autocorrect should stay close to what was typed.
   if (
     normalizedCorrection.length > normalizedOriginal.length + 40 ||
@@ -227,7 +382,20 @@ function classifyCorrection(
     return {kind: 'none'};
   }
 
-  if (distance <= autoDistanceLimit && wordDelta <= 2) {
+  if (distance <= autoDistanceLimit && wordDelta <= 3) {
+    if (!isFaithfulTypeLiftCorrection(normalizedOriginal, normalizedCorrection, 'auto')) {
+      console.log(LOG_PREFIX, 'suggestion result (auto blocked)', {
+        original: normalizedOriginal,
+        correction: normalizedCorrection,
+        distance,
+        wordDelta,
+      });
+      return {
+        kind: 'suggest',
+        original,
+        correction: normalizedCorrection,
+      };
+    }
     console.log(LOG_PREFIX, 'auto result', {
       original: normalizedOriginal,
       correction: normalizedCorrection,
@@ -306,13 +474,13 @@ async function generateProofread(
   await ensureAiProviderLoaded();
   if (getAiProvider() === 'on_device') {
     console.log(LOG_PREFIX, 'on-device request', {input});
-    const prompt =
-      promptBuilder === buildTokenAutocorrectPrompt
-        ? buildTokenAutocorrectPrompt(input)
-        : buildGemmaAutocorrectPrompt(input);
+    const useTokenPrompt = promptBuilder === buildTokenAutocorrectPrompt;
+    const prompt = useTokenPrompt
+      ? buildTokenAutocorrectPrompt(input)
+      : buildGemmaAutocorrectPrompt(input);
     const raw = await generateOnDeviceText(prompt);
     console.log(LOG_PREFIX, 'on-device raw response', {raw});
-    return parseOnDeviceAutocorrectResult(raw);
+    return parseOnDeviceAutocorrectResult(raw, input);
   }
 
   const raw = await generateGeminiProofread(input, promptBuilder);
@@ -320,6 +488,74 @@ async function generateProofread(
     return null;
   }
   return parseGeminiAutocorrectResult(raw);
+}
+
+async function generateProofreadWithFallback(
+  input: string,
+  contextBefore = '',
+): Promise<string | null> {
+  const acceptCandidate = (candidate: string | null): string | null => {
+    if (!candidate) {
+      return null;
+    }
+    const normalized = finalizeTypeLiftCorrection(contextBefore, input, candidate);
+    if (
+      !normalized ||
+      normalized === finalizeTypeLiftCorrection(contextBefore, input, input)
+    ) {
+      return null;
+    }
+    if (!isFaithfulTypeLiftCorrection(input, normalized, 'suggest')) {
+      return null;
+    }
+    return normalized;
+  };
+
+  const first = acceptCandidate(await generateProofread(input));
+  if (first) {
+    return first;
+  }
+
+  if (!needsTypeLiftProofread(input)) {
+    return null;
+  }
+
+  console.log(LOG_PREFIX, 'retry: unchanged but heuristics flagged issues', {
+    input,
+  });
+
+  await ensureAiProviderLoaded();
+  if (getAiProvider() === 'on_device') {
+    const raw = await generateOnDeviceText(buildGemmaAutocorrectStrongPrompt(input));
+    console.log(LOG_PREFIX, 'on-device strong raw response', {raw});
+    const strong = acceptCandidate(parseOnDeviceAutocorrectResult(raw, input));
+    if (strong) {
+      return strong;
+    }
+  } else {
+    const raw = await generateGeminiProofread(
+      input,
+      buildGeminiAutocorrectStrongPrompt,
+    );
+    if (raw) {
+      const strong = acceptCandidate(parseGeminiAutocorrectResult(raw));
+      if (strong) {
+        return strong;
+      }
+    }
+  }
+
+  const heuristic = applyTypeLiftHeuristicFix(input);
+  const heuristicAccepted = acceptCandidate(heuristic);
+  if (heuristicAccepted) {
+    console.log(LOG_PREFIX, 'heuristic fallback', {
+      input,
+      heuristic: heuristicAccepted,
+    });
+    return heuristicAccepted;
+  }
+
+  return null;
 }
 
 export async function proofreadRecentTypingContext(
@@ -331,7 +567,8 @@ export async function proofreadRecentTypingContext(
   }
 
   try {
-    const correction = await generateProofread(original);
+    const contextBefore = context.slice(0, context.length - original.length);
+    const correction = await generateProofreadWithFallback(original, contextBefore);
 
     console.log(LOG_PREFIX, 'parsed correction', {
       original,
@@ -358,7 +595,7 @@ export async function proofreadActiveToken(
   const normalized = token.trim();
   if (
     normalized.length < MIN_TOKEN_LENGTH ||
-    !/^[A-Za-z']+$/.test(normalized)
+    !/^[A-Za-z][A-Za-z'-]*$/.test(normalized)
   ) {
     return {kind: 'none'};
   }
@@ -371,7 +608,8 @@ export async function proofreadActiveToken(
     if (!correction) {
       return {kind: 'none'};
     }
-    return classifyCorrection(normalized, correction);
+    const finalized = finalizeTypeLiftCorrection('', normalized, correction);
+    return classifyCorrection(normalized, finalized);
   } catch (error) {
     console.log(LOG_PREFIX, 'token proofread failed', {
       message: error instanceof Error ? error.message : String(error),

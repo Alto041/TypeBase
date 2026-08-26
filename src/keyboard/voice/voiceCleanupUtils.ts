@@ -11,6 +11,29 @@ export function stripSpeechFillers(text: string): string {
     .trim();
 }
 
+/** True when the transcript likely still needs an AI polish pass. */
+export function needsVoicePolish(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return false;
+  }
+
+  FILLER_PATTERN.lastIndex = 0;
+  if (FILLER_PATTERN.test(trimmed)) {
+    return true;
+  }
+
+  if (/\b(\w+)(?:\s+\1\b)+/i.test(trimmed)) {
+    return true;
+  }
+
+  if (/\b(\w+)\s+that\s+\1\b/i.test(trimmed)) {
+    return true;
+  }
+
+  return false;
+}
+
 /** Fast local cleanup for noisy STT before optional Gemma polish. */
 export function applyVoiceHeuristicCleanup(text: string): string {
   let result = stripSpeechFillers(text);
@@ -105,23 +128,43 @@ export function isFaithfulVoiceCleanup(original: string, cleaned: string): boole
   return 1 - distance / maxLen >= 0.72;
 }
 
+function isPunctuationOnlyDrift(original: string, cleaned: string): boolean {
+  if (normalizeForComparison(original) !== normalizeForComparison(cleaned)) {
+    return false;
+  }
+  return original.trim() !== cleaned.trim();
+}
+
 export function resolveVoiceCleanupText(
   original: string,
   cleaned: string,
   options?: {allowFillerRemoval?: boolean},
 ): string {
+  const trimmedOriginal = original.trim();
   const trimmedCleaned = cleaned.trim();
   if (!trimmedCleaned) {
-    return original.trim();
+    return trimmedOriginal;
   }
-  if (isFaithfulVoiceCleanup(original, trimmedCleaned)) {
+
+  const defillerized = stripSpeechFillers(trimmedOriginal);
+  const removedFillers = defillerized !== trimmedOriginal;
+
+  // Reject Gemma/Gemini adding stray quotes or punctuation when meaning is unchanged.
+  if (
+    isPunctuationOnlyDrift(trimmedOriginal, trimmedCleaned) &&
+    !removedFillers
+  ) {
+    return trimmedOriginal;
+  }
+
+  if (isFaithfulVoiceCleanup(trimmedOriginal, trimmedCleaned)) {
     return trimmedCleaned;
   }
   if (
     options?.allowFillerRemoval &&
-    isFaithfulVoiceCleanup(stripSpeechFillers(original), trimmedCleaned)
+    isFaithfulVoiceCleanup(defillerized, trimmedCleaned)
   ) {
     return trimmedCleaned;
   }
-  return original.trim();
+  return trimmedOriginal;
 }

@@ -49,6 +49,7 @@ import {
   keyboardTypefaceStyle,
 } from '../theme';
 import {MacintoshKeyBevels} from './MacintoshKeyBevels';
+import {TypeLiftSpaceAnimation} from './TypeLiftSpaceAnimation';
 
 const QUIVOX_SPACE_LOGO_WIDTH = 16;
 const QUIVOX_SPACE_LOGO_HEIGHT = 14;
@@ -96,6 +97,7 @@ type KeyProps = {
   style?: StyleProp<ViewStyle>;
   enterKeyNextLineEnabled?: boolean;
   multiTouchDispatchEnabled?: boolean;
+  typeLiftProcessing?: boolean;
 };
 
 function KeyComponent({
@@ -109,6 +111,7 @@ function KeyComponent({
   variant,
   enterKeyNextLineEnabled,
   multiTouchDispatchEnabled = false,
+  typeLiftProcessing = false,
   style,
 }: KeyProps) {
   const theme = useKeyboardTheme();
@@ -132,6 +135,8 @@ function KeyComponent({
   const isSpaceKey = keyDef.type === 'space';
   const showZeroLatencyRipple =
     isSpaceKey && Boolean(keyGestures?.zeroLatencyMode);
+  const showTypeLiftAnimation =
+    isSpaceKey && typeLiftProcessing && !showZeroLatencyRipple;
   const usesMultiTouchRouter = isMultiTouchTextKey(keyDef);
   const usesMultiTouchDispatch =
     usesMultiTouchRouter ||
@@ -492,6 +497,18 @@ function KeyComponent({
     </>
   );
 
+  const renderedKeyContent =
+    showTypeLiftAnimation ? (
+      <TypeLiftSpaceAnimation
+        color={theme.essentialsAccent}
+        labelColor={theme.spaceKeyLabel}
+        theme={theme}
+        height={keyHeight}
+      />
+    ) : (
+      keyContent
+    );
+
   const handlePressIn = useCallback((event: GestureResponderEvent) => {
     const parsedPointerId = Number(event.nativeEvent.identifier);
     const pointerId = Number.isFinite(parsedPointerId)
@@ -788,7 +805,7 @@ function KeyComponent({
           {showZeroLatencyRipple ? (
             <ZeroLatencyRipple color={theme.essentialsAccent} size={keyHeight} />
           ) : null}
-          {keyContent}
+          {renderedKeyContent}
         </View>
       </View>
     );
@@ -892,7 +909,7 @@ function KeyComponent({
             {showZeroLatencyRipple ? (
               <ZeroLatencyRipple color={theme.essentialsAccent} size={keyHeight} />
             ) : null}
-            {keyContent}
+            {renderedKeyContent}
           </>
         )}
       </Pressable>
@@ -912,6 +929,7 @@ function keyPropsAreEqual(prev: KeyProps, next: KeyProps): boolean {
     prev.variant === next.variant &&
     prev.enterKeyNextLineEnabled === next.enterKeyNextLineEnabled &&
     prev.multiTouchDispatchEnabled === next.multiTouchDispatchEnabled &&
+    prev.typeLiftProcessing === next.typeLiftProcessing &&
     prev.style === next.style
   );
 }

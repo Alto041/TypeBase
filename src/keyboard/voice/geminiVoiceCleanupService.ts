@@ -8,6 +8,7 @@ import {GEMINI_VOICE_API_URL} from '../translate/geminiConfig';
 import {
   applyVoiceHeuristicCleanup,
   isFaithfulVoiceCleanup,
+  needsVoicePolish,
   resolveVoiceCleanupText,
 } from './voiceCleanupUtils';
 
@@ -87,6 +88,15 @@ function parseCleanupResult(
   };
 }
 
+function stripMalformedModelQuotes(text: string): string {
+  return text
+    .trim()
+    .replace(/^["'`]+|["'`]+$/g, '')
+    .replace(/([.!?])["'`]+\s*$/g, '$1')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
 function parseOnDeviceCleanupResult(
   raw: string,
 ): Pick<VoiceCleanupResult, 'text' | 'detectedLanguageCode'> {
@@ -102,10 +112,13 @@ function parseOnDeviceCleanupResult(
 
   const quotedMatch = unquoted.match(/"([^"]{3,})"/);
   if (quotedMatch) {
-    return {text: quotedMatch[1].trim(), detectedLanguageCode: null};
+    return {
+      text: stripMalformedModelQuotes(quotedMatch[1]),
+      detectedLanguageCode: null,
+    };
   }
 
-  return {text: unquoted.trim(), detectedLanguageCode: null};
+  return {text: stripMalformedModelQuotes(unquoted), detectedLanguageCode: null};
 }
 
 function shouldApplyVoiceHeuristics(
@@ -172,7 +185,10 @@ export async function cleanupVoiceTranscript(
   const isParakeet = Boolean(fillerOptions.preferOnDevice);
 
   if (isParakeet) {
-    if (await canUseOnDeviceGemma()) {
+    const shouldPolishWithGemma =
+      heuristicChanged || needsVoicePolish(workingText);
+
+    if (shouldPolishWithGemma && (await canUseOnDeviceGemma())) {
       try {
         const gemmaText = await polishWithOnDeviceGemma(workingText, fillerOptions);
         console.log('[VoiceCleanup]', {
@@ -185,7 +201,7 @@ export async function cleanupVoiceTranscript(
           text: gemmaText,
           detectedLanguageCode: null,
           usedGemini: false,
-          usedOnDeviceAi: true,
+          usedOnDeviceAi: gemmaText !== workingText,
         };
       } catch (error) {
         console.warn('[VoiceCleanup] Parakeet Gemma pass failed:', error);
@@ -193,6 +209,18 @@ export async function cleanupVoiceTranscript(
           throw error;
         }
       }
+    } else if (!shouldPolishWithGemma) {
+      console.log('[VoiceCleanup]', {
+        stage: 'parakeet-skip-gemma',
+        input,
+        output: workingText,
+      });
+      return {
+        text: workingText,
+        detectedLanguageCode: null,
+        usedGemini: false,
+        usedOnDeviceAi: false,
+      };
     }
 
     console.log('[VoiceCleanup]', {

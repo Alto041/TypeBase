@@ -1,83 +1,56 @@
-import type {ImageSourcePropType} from 'react-native';
+import type {StickerLyPack} from './stickerLyService';
 
-export type KeyboardSticker = {
+export type StickerLySticker = {
   id: string;
+  packId: string;
+  packName: string;
   label: string;
-  filename: string;
-  source: ImageSourcePropType;
+  previewUrl: string;
+  insertUrl: string;
+  isAnimated: boolean;
 };
 
-/** Curated bundled stickers from assets/stickers/. */
-export const KEYBOARD_STICKERS: readonly KeyboardSticker[] = [
-  {
-    id: 'aura',
-    label: 'aura',
-    filename: 'aura.jfif',
-    source: require('../../../assets/stickers/aura.jfif'),
-  },
-  {
-    id: 'bro-what',
-    label: 'Bro What',
-    filename: 'bro-what.jpg',
-    source: require('../../../assets/stickers/bro-what.jpg'),
-  },
-  {
-    id: 'aaaaaaaa',
-    label: 'AAAAAAAA',
-    filename: 'AAAAAAAA.jpg',
-    source: require('../../../assets/stickers/AAAAAAAA.jpg'),
-  },
-  {
-    id: 'broke',
-    label: 'broke',
-    filename: 'broke.jpg',
-    source: require('../../../assets/stickers/broke.jpg'),
-  },
-  {
-    id: 'dance',
-    label: 'dance',
-    filename: 'dance.jfif',
-    source: require('../../../assets/stickers/dance.jfif'),
-  },
-  {
-    id: 'please',
-    label: 'please',
-    filename: 'please.jpg',
-    source: require('../../../assets/stickers/please.jpg'),
-  },
-  {
-    id: 'sigma',
-    label: 'sigma',
-    filename: 'sigma.jpg',
-    source: require('../../../assets/stickers/sigma.jpg'),
-  },
-  {
-    id: 'sus',
-    label: 'sus',
-    filename: 'sus.jfif',
-    source: require('../../../assets/stickers/sus.jfif'),
-  },
-  {
-    id: 'teacher-not-looking',
-    label: 'The teacher not looking',
-    filename: 'teacher-not-looking.jfif',
-    source: require('../../../assets/stickers/teacher-not-looking.jfif'),
-  },
-  {
-    id: 'w-putin',
-    label: 'w putin',
-    filename: 'w-putin.jfif',
-    source: require('../../../assets/stickers/w-putin.jfif'),
-  },
-];
+/** @deprecated Use StickerLySticker */
+export type KeyboardSticker = StickerLySticker;
 
 export const STICKER_COLUMNS = 3;
 
+export const ALL_STICKER_PACK_ID = '__all__';
+
+export function stickersFromPack(pack: StickerLyPack): StickerLySticker[] {
+  return pack.resourceFiles.map(file => ({
+    id: `${pack.packId}-${file}`,
+    packId: pack.packId,
+    packName: pack.name,
+    label: pack.name,
+    previewUrl: `${pack.resourceUrlPrefix}${file}`,
+    insertUrl: `${pack.resourceUrlPrefix}${file}`,
+    isAnimated: pack.isAnimated,
+  }));
+}
+
+export function stickersFromAllPacks(
+  packs: readonly StickerLyPack[],
+): StickerLySticker[] {
+  const seen = new Set<string>();
+  const merged: StickerLySticker[] = [];
+  for (const pack of packs) {
+    for (const sticker of stickersFromPack(pack)) {
+      if (seen.has(sticker.id)) {
+        continue;
+      }
+      seen.add(sticker.id);
+      merged.push(sticker);
+    }
+  }
+  return merged;
+}
+
 export function chunkStickers(
-  stickers: readonly KeyboardSticker[],
+  stickers: readonly StickerLySticker[],
   columns = STICKER_COLUMNS,
-): KeyboardSticker[][] {
-  const rows: KeyboardSticker[][] = [];
+): StickerLySticker[][] {
+  const rows: StickerLySticker[][] = [];
   for (let index = 0; index < stickers.length; index += columns) {
     rows.push(stickers.slice(index, index + columns));
   }

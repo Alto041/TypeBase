@@ -41,6 +41,7 @@ type KeyboardModuleType = {
   getPrefersNumpad: () => Promise<boolean>;
   getInputSupportsNewline: () => Promise<boolean>;
   getInputInitialCapsMode: () => Promise<boolean>;
+  isCurrentEditorGame: () => Promise<boolean>;
   getAutoCapitalizeAtCursor: () => boolean;
   getClipboardText: () => Promise<string>;
   getClipboardContent: () => Promise<ClipboardContent>;
@@ -86,7 +87,9 @@ type KeyboardModuleType = {
     keyId: string;
     text: string;
     pointerId: number;
+    shiftConsumed: boolean;
   } | null;
+  setNativeShiftConsumedHandler: (handler: (() => void) | null) => void;
   isNativeTypingCommitActive: () => boolean;
   rollbackNativeFastPathPointer: (pointerId: number) => boolean;
   consumeNativeHapticPointer: (pointerId: number) => boolean;
@@ -139,6 +142,8 @@ type KeyboardModuleType = {
 };
 
 const {KeyboardModule} = NativeModules;
+
+let nativeShiftConsumedHandler: (() => void) | null = null;
 
 export const keyboardBridge: KeyboardModuleType = {
   insertText: (text: string) => {
@@ -311,6 +316,12 @@ export const keyboardBridge: KeyboardModuleType = {
   getInputInitialCapsMode: () => {
     if (Platform.OS === 'android' && KeyboardModule?.getInputInitialCapsMode) {
       return KeyboardModule.getInputInitialCapsMode() as Promise<boolean>;
+    }
+    return Promise.resolve(false);
+  },
+  isCurrentEditorGame: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.isCurrentEditorGame) {
+      return KeyboardModule.isCurrentEditorGame() as Promise<boolean>;
     }
     return Promise.resolve(false);
   },
@@ -535,14 +546,25 @@ export const keyboardBridge: KeyboardModuleType = {
   },
   consumeNativeFastPathPointer: (pointerId: number): boolean => {
     if (Platform.OS === 'android' && KeyboardModule?.consumeNativeFastPathPointer) {
-      return KeyboardModule.consumeNativeFastPathPointer(pointerId);
+      const consumed = KeyboardModule.consumeNativeFastPathPointer(pointerId);
+      if (consumed && KeyboardModule?.pollNativeFastPathCommit) {
+        const pending = KeyboardModule.pollNativeFastPathCommit();
+        if (pending?.shiftConsumed) {
+          nativeShiftConsumedHandler?.();
+        }
+      }
+      return consumed;
     }
     return false;
+  },
+  setNativeShiftConsumedHandler: (handler: (() => void) | null) => {
+    nativeShiftConsumedHandler = handler;
   },
   pollNativeFastPathCommit: (): {
     keyId: string;
     text: string;
     pointerId: number;
+    shiftConsumed: boolean;
   } | null => {
     if (Platform.OS === 'android' && KeyboardModule?.pollNativeFastPathCommit) {
       const result = KeyboardModule.pollNativeFastPathCommit();
@@ -556,6 +578,7 @@ export const keyboardBridge: KeyboardModuleType = {
           text: result.text,
           pointerId:
             typeof result.pointerId === 'number' ? result.pointerId : -1,
+          shiftConsumed: Boolean(result.shiftConsumed),
         };
       }
     }

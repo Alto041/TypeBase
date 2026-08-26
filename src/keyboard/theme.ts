@@ -54,6 +54,8 @@ export type KeyboardLayoutSettings = {
   customTapSoundFile: string | null;
   /** When true, vibrate on each key press. */
   keyHapticEnabled: boolean;
+  /** Key-press haptic pulse length in ms (lower = lighter / snappier). */
+  keyHapticPulseMs: number;
   /**
    * When true, automatically enable shift for the first letter of a field /
    * sentence (and after `.?!`).
@@ -81,6 +83,7 @@ export const DEFAULT_KEYBOARD_LAYOUT_SETTINGS: KeyboardLayoutSettings = {
   customTapSoundEnabled: true,
   customTapSoundFile: '1.mp3',
   keyHapticEnabled: true,
+  keyHapticPulseMs: 12,
   autoCapitalizeEnabled: true,
   customFontEnabled: false,
   customFontFile: null,

@@ -9,7 +9,7 @@ import {GifCategoryGrid} from './GifCategoryGrid';
 import {SfxCategoryGrid} from './SfxCategoryGrid';
 import {StickerCategoryGrid} from './StickerCategoryGrid';
 import type {EmojiPanelTab, EmojiSubcategoryId} from './emojis';
-import type {KeyboardSticker} from './stickers';
+import type {StickerLySticker} from './stickers';
 import type {GiphyGif} from './giphyService';
 import type {MyInstantsSound} from './myinstantsService';
 
@@ -23,7 +23,7 @@ type EmojiPanelProps = {
   panelHeight: number;
   onSelect: (emoji: string) => void;
   onGifSelect: (gif: GiphyGif) => void;
-  onStickerSelect: (sticker: KeyboardSticker) => void;
+  onStickerSelect: (sticker: StickerLySticker) => void;
   gifSearchQuery: string;
   sfxSearchQuery: string;
   onSfxSelect: (sound: MyInstantsSound) => void;

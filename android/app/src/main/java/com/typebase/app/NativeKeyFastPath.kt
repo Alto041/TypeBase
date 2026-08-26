@@ -43,6 +43,7 @@ class NativeKeyFastPath {
       val pointerId: Int,
       val keyId: String,
       val commitText: String,
+      val shiftConsumed: Boolean,
   )
 
   @Volatile
@@ -83,9 +84,8 @@ class NativeKeyFastPath {
       hitSlopHorizontal = obj.optDouble("hitSlopHorizontal", 0.0).toFloat()
       hitSlopVertical = obj.optDouble("hitSlopVertical", 0.0).toFloat()
       keyboardLayout = obj.optString("layout", "letters")
-      uppercase = obj.optBoolean("isUppercase", false)
-      shiftOn = obj.optBoolean("shiftOn", false)
-      capsLocked = obj.optBoolean("capsLocked", false)
+      // Case state is owned by updateCaseState() only. Republishing layout config
+      // must not reset shift after a native letter commit during fast typing.
       keys = parseKeys(obj.optJSONArray("keys") ?: JSONArray())
       keyById = keys.associateBy { it.id }
       touchIntelligence.updateConfig(
@@ -128,20 +128,9 @@ class NativeKeyFastPath {
     }
     try {
       val obj = JSONObject(json)
-      val likelyNextLetters = mutableListOf<String>()
-      val array = obj.optJSONArray("likelyNextLetters")
-      if (array != null) {
-        for (index in 0 until array.length()) {
-          val letter = array.optString(index, "").trim().lowercase()
-          if (letter.length == 1 && letter[0].isLetter()) {
-            likelyNextLetters.add(letter)
-          }
-        }
-      }
       touchIntelligence.updateTypingContext(
           obj.optString("previousKeyLetter", "").takeIf { it.isNotEmpty() },
           obj.optString("wordPrefix", ""),
-          likelyNextLetters,
       )
       lastTouchContextJson = json
     } catch (_: Exception) {
@@ -244,7 +233,9 @@ class NativeKeyFastPath {
           previewHandler.post { KeyboardInputBridge.notifyTouchIntelligenceHit(analysis) }
         }
         synchronized(pendingJsCommitsLock) {
-          pendingJsCommits.addLast(PendingJsCommit(pointerId, key.id, text))
+          pendingJsCommits.addLast(
+              PendingJsCommit(pointerId, key.id, text, shiftConsumed),
+          )
         }
 
         // Haptic on touch-down immediately — never queue behind preview/sound.

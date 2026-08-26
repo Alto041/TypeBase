@@ -400,16 +400,21 @@ type DispatchMultiTouchOptions = {
   hitSlop?: KeyHitSlop;
   /** When true, Kotlin already committed letter text — never call sync RN bridge here. */
   isNativeTypingCommitActive?: () => boolean;
+  /** Shift-on single uppercase letter (not caps lock) — mirrors native shiftConsumed. */
+  shouldConsumeShiftForCommit?: (text: string) => boolean;
+  /** Drain native pending-commit queue without blocking the touch path. */
   pollNativeFastPathCommit?: () => {
     keyId: string;
     text: string;
     pointerId: number;
+    shiftConsumed: boolean;
   } | null;
   rollbackNativeFastPathPointer?: (pointerId: number) => boolean;
   consumeNativeFastPathPointer?: (pointerId: number) => boolean;
   consumeNativeHapticPointer?: (pointerId: number) => boolean;
   /** Native already committed this letter; keep live prefix in sync without a JS bridge event. */
   onNativeFastPathLetterCommit?: (text: string) => void;
+  onNativeFastPathShiftConsumed?: () => void;
   onSpaceLongPress?: () => void;
   /** When true, letter keys commit on lift so swipes do not leave a stray start letter. */
   swipeTypingEnabled?: boolean;
@@ -503,22 +508,35 @@ export function dispatchMultiTouchStart(
       continue;
     }
 
-    const hit = nativeTypingActive
-      ? hitTestKeyGeometric(localX, localY, layouts, hitSlop)
-      : hitTestKey(
-          localX,
-          localY,
-          layouts,
-          hitSlop,
-          touch.timestamp ?? Date.now(),
-        );
+    const nativeCommit =
+      nativeTypingActive && options.pollNativeFastPathCommit
+        ? options.pollNativeFastPathCommit()
+        : null;
+
+    let hit: KeyBounds | null = null;
+    if (nativeCommit?.keyId) {
+      hit =
+        layouts.find(
+          layout =>
+            layout.id === nativeCommit.keyId &&
+            isMultiTouchDispatchKey(layout.keyDef),
+        ) ?? null;
+    }
+    if (!hit) {
+      hit = hitTestKey(
+        localX,
+        localY,
+        layouts,
+        hitSlop,
+        touch.timestamp ?? Date.now(),
+      );
+    }
     if (!hit || !isMultiTouchDispatchKey(hit.keyDef)) {
       continue;
     }
 
-    pointerToKeyId.set(pid, hit.id);
-
     if (isMultiTouchSpaceKey(hit.keyDef)) {
+      pointerToKeyId.set(pid, hit.id);
       const session: MultiTouchSession = {
         keyId: hit.id,
         keyDef: hit.keyDef,
@@ -552,20 +570,18 @@ export function dispatchMultiTouchStart(
       continue;
     }
 
-    const isUppercase = options.getIsUppercase();
-    const nativeCommit =
-      nativeTypingActive &&
-      isMultiTouchTextKey(hit.keyDef) &&
-      options.pollNativeFastPathCommit
-        ? options.pollNativeFastPathCommit()
-        : null;
+    let resolvedHit = hit;
     const nativeCommitted = nativeCommit != null;
     const defaultCommit =
       nativeCommit?.text ??
-      resolveLetterCommitText(hit.keyDef.value ?? '', options);
+      resolveLetterCommitText(resolvedHit.keyDef.value ?? '', options);
+
+    pointerToKeyId.set(pid, resolvedHit.id);
+
+    const isUppercase = options.getIsUppercase();
 
     if (!nativeCommitted) {
-      options.onKeyCommit(hit.keyDef, defaultCommit);
+      options.onKeyCommit(resolvedHit.keyDef, defaultCommit);
       annotateLastTouchIntelligenceCommit(defaultCommit, 'js', localX, localY);
     } else {
       annotateLastTouchIntelligenceCommit(defaultCommit, 'native', localX, localY);
@@ -578,8 +594,8 @@ export function dispatchMultiTouchStart(
     );
 
     const session: MultiTouchSession = {
-      keyId: hit.id,
-      keyDef: hit.keyDef,
+      keyId: resolvedHit.id,
+      keyDef: resolvedHit.keyDef,
       alternates: [],
       defaultCommit,
       committedOnDown: true,
@@ -593,9 +609,15 @@ export function dispatchMultiTouchStart(
     };
 
     if (nativeCommitted) {
-      setMultiTouchKeyPressed(hit.id, true, {nativeCommitted: true});
+      if (nativeCommit?.shiftConsumed) {
+        options.onNativeFastPathShiftConsumed?.();
+      } else if (options.shouldConsumeShiftForCommit?.(defaultCommit)) {
+        options.onNativeFastPathShiftConsumed?.();
+      }
+      setMultiTouchKeyPressed(resolvedHit.id, true, {nativeCommitted: true});
+      options.onNativeFastPathLetterCommit?.(defaultCommit);
     } else {
-      setMultiTouchKeyPressed(hit.id, true);
+      setMultiTouchKeyPressed(resolvedHit.id, true);
       triggerKeyHaptic(pid, {nativeCommitted: false});
     }
     markSwipeTypingTapCommitted(pid);
@@ -603,13 +625,13 @@ export function dispatchMultiTouchStart(
     session.longPressTimer = setTimeout(() => {
       session.longPressTimer = null;
       const alternates = getKeyAlternates(
-        hit.keyDef,
+        resolvedHit.keyDef,
         options.keyboardLayout,
         isUppercase,
       );
       session.alternates = alternates;
       if (alternates.length > 0) {
-        openAlternatePopup(pid, session, hit, options.areaWidth);
+        openAlternatePopup(pid, session, resolvedHit, options.areaWidth);
       }
     }, LONG_PRESS_MS);
 

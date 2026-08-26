@@ -718,6 +718,8 @@ type SwipeTypingKeysHostProps = {
   onMultiTouchKeyCommit?: (keyDef: KeyDefinition, text: string) => void;
   isNativeTypingCommitActive?: () => boolean;
   onNativeFastPathLetterCommit?: (text: string) => void;
+  onNativeFastPathShiftConsumed?: () => void;
+  shouldConsumeShiftForCommit?: (text: string) => boolean;
   onSpaceLongPress?: () => void;
 };
 
@@ -731,6 +733,8 @@ export function SwipeTypingKeysHost({
   onMultiTouchKeyCommit,
   isNativeTypingCommitActive,
   onNativeFastPathLetterCommit,
+  onNativeFastPathShiftConsumed,
+  shouldConsumeShiftForCommit,
   onSpaceLongPress,
 }: SwipeTypingKeysHostProps) {
   const ctx = useContext(SwipeTypingContext);
@@ -801,6 +805,8 @@ export function SwipeTypingKeysHost({
           rollbackNativeFastPathPointer: keyboardBridge.rollbackNativeFastPathPointer,
           consumeNativeHapticPointer: keyboardBridge.consumeNativeHapticPointer,
           onNativeFastPathLetterCommit,
+          onNativeFastPathShiftConsumed,
+          shouldConsumeShiftForCommit,
           swipeTypingEnabled: Boolean(ctx?.enabled),
           onSpaceLongPress,
         });
@@ -818,6 +824,8 @@ export function SwipeTypingKeysHost({
       onMultiTouchKeyCommit,
       isNativeTypingCommitActive,
       onNativeFastPathLetterCommit,
+      onNativeFastPathShiftConsumed,
+      shouldConsumeShiftForCommit,
       onSpaceLongPress,
     ],
   );
