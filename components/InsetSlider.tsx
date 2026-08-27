@@ -1,4 +1,11 @@
-import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   Animated,
   LayoutChangeEvent,
@@ -9,13 +16,16 @@ import {
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 
-const TRACK_RIGHT_GUTTER = 0;
 const FILL_END_RADIUS = 12;
 const DIVIDER_WIDTH = 3;
+/** Inset from the inner track end so the divider stops before the value label / rounded edge. */
+const TRACK_RIGHT_INSET = 52;
 const LABEL_FONT = 'FragmentMono';
 const VALUE_FONT = 'NType82';
 const H_PADDING = 16;
-const LABEL_VALUE_GAP = 10;
+/** Gap between label and divider when label sits to the right of the divider. */
+const LABEL_DIVIDER_GAP = 8;
+const TAP_MOVE_THRESHOLD_PX = 4;
 
 export type InsetSliderProps = {
   label: string;
@@ -60,8 +70,14 @@ function InsetSlider({
   const [layoutWidth, setLayoutWidth] = useState(0);
   const [labelWidth, setLabelWidth] = useState(0);
   const [liveValue, setLiveValue] = useState(value);
+  const [dragValue, setDragValue] = useState<number | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const labelTranslateX = useRef(new Animated.Value(0)).current;
   const lastEmittedRef = useRef(value);
+  const dragStartXRef = useRef(0);
+  const dragStartValueRef = useRef(value);
+  const trackWidthRef = useRef(0);
+  const onChangeRef = useRef(onChange);
 
   const trackBg = isDark ? '#3F3F3F' : '#E3E3E3';
   const fillBgDefault = isDark ? '#1F1F1F' : '#ffffff';
@@ -72,59 +88,107 @@ function InsetSlider({
   const textColor = isDark ? '#ffffff' : '#111111';
 
   useEffect(() => {
-    setLiveValue(value);
-    lastEmittedRef.current = value;
-  }, [value]);
+    onChangeRef.current = onChange;
+  }, [onChange]);
 
-  const displayValue = formatValue ? formatValue(liveValue) : String(liveValue);
+  useEffect(() => {
+    if (!isDragging) {
+      setLiveValue(value);
+      lastEmittedRef.current = value;
+      setDragValue(null);
+    }
+  }, [isDragging, value]);
+
+  const visualValue =
+    isDragging && dragValue != null
+      ? clamp(dragValue, minimumValue, maximumValue)
+      : liveValue;
+  const snappedVisualValue = snapToStep(
+    visualValue,
+    minimumValue,
+    maximumValue,
+    step,
+  );
+  const displayValue = formatValue
+    ? formatValue(snappedVisualValue)
+    : String(snappedVisualValue);
+
+  const trackWidth =
+    layoutWidth > 0
+      ? Math.max(0, layoutWidth - H_PADDING * 2 - TRACK_RIGHT_INSET)
+      : 0;
+  trackWidthRef.current = trackWidth;
 
   const progress =
     maximumValue === minimumValue
       ? 0
-      : (liveValue - minimumValue) / (maximumValue - minimumValue);
-  const fillWidth =
-    layoutWidth > 0
-      ? Math.max(0, progress * (layoutWidth - TRACK_RIGHT_GUTTER))
-      : 0;
+      : (visualValue - minimumValue) / (maximumValue - minimumValue);
+  const fillWidth = trackWidth > 0 ? Math.max(0, progress * trackWidth) : 0;
   const dividerLeft = Math.max(0, fillWidth - DIVIDER_WIDTH);
+  const labelRightEdge = H_PADDING + labelWidth;
+  const dividerOverlapsLabel =
+    fillWidth > 0 && labelWidth > 0 && dividerLeft <= labelRightEdge;
+  const maxLabelTranslateX =
+    layoutWidth > 0
+      ? Math.max(0, layoutWidth - H_PADDING * 2 - TRACK_RIGHT_INSET - labelWidth)
+      : 0;
 
-  useEffect(() => {
-    const labelSafeRight = H_PADDING + labelWidth + LABEL_VALUE_GAP;
-    const overflow = fillWidth - labelSafeRight;
-    const target = overflow > 0 ? overflow : 0;
+  const labelTargetX = dividerOverlapsLabel
+    ? Math.min(
+        dividerLeft + DIVIDER_WIDTH + LABEL_DIVIDER_GAP - H_PADDING,
+        maxLabelTranslateX,
+      )
+    : 0;
+
+  useLayoutEffect(() => {
+    if (isDragging) {
+      labelTranslateX.stopAnimation();
+      labelTranslateX.setValue(labelTargetX);
+      return;
+    }
     Animated.spring(labelTranslateX, {
-      toValue: target,
+      toValue: labelTargetX,
       useNativeDriver: true,
       stiffness: 520,
       damping: 34,
       mass: 0.7,
     }).start();
-  }, [fillWidth, labelTranslateX, labelWidth]);
+  }, [isDragging, labelTargetX, labelTranslateX]);
 
-  const emitValue = useCallback(
-    (next: number, haptic: boolean) => {
-      const snapped = snapToStep(next, minimumValue, maximumValue, step);
-      setLiveValue(snapped);
-      if (snapped !== lastEmittedRef.current) {
-        lastEmittedRef.current = snapped;
-        onChange(snapped);
-        if (haptic) {
-          void Haptics.selectionAsync().catch(() => {});
-        }
+  const valueFromX = useCallback((x: number) => {
+    const width = trackWidthRef.current;
+    if (width <= 0) {
+      return dragStartValueRef.current;
+    }
+    const ratio = clamp((x - H_PADDING) / width, 0, 1);
+    return minimumValue + ratio * (maximumValue - minimumValue);
+  }, [maximumValue, minimumValue]);
+
+  const valueFromDelta = useCallback(
+    (deltaX: number, startValue: number) => {
+      const width = trackWidthRef.current;
+      if (width <= 0) {
+        return startValue;
       }
+      const deltaRatio = deltaX / width;
+      return clamp(
+        startValue + deltaRatio * (maximumValue - minimumValue),
+        minimumValue,
+        maximumValue,
+      );
     },
-    [maximumValue, minimumValue, onChange, step],
+    [maximumValue, minimumValue],
   );
 
-  const valueFromX = useCallback(
-    (x: number) => {
-      if (layoutWidth <= 0) {
-        return liveValue;
-      }
-      const ratio = clamp(x / layoutWidth, 0, 1);
-      return minimumValue + ratio * (maximumValue - minimumValue);
+  const commitValue = useCallback(
+    (next: number) => {
+      const snapped = snapToStep(next, minimumValue, maximumValue, step);
+      setLiveValue(snapped);
+      lastEmittedRef.current = snapped;
+      onChangeRef.current(snapped);
+      return snapped;
     },
-    [layoutWidth, liveValue, maximumValue, minimumValue],
+    [maximumValue, minimumValue, step],
   );
 
   const panResponder = useMemo(
@@ -133,16 +197,32 @@ function InsetSlider({
         onStartShouldSetPanResponder: () => !disabled,
         onMoveShouldSetPanResponder: () => !disabled,
         onPanResponderGrant: evt => {
-          emitValue(valueFromX(evt.nativeEvent.locationX), true);
+          dragStartXRef.current = evt.nativeEvent.locationX;
+          dragStartValueRef.current = lastEmittedRef.current;
+          setDragValue(lastEmittedRef.current);
+          setIsDragging(true);
         },
         onPanResponderMove: evt => {
-          emitValue(valueFromX(evt.nativeEvent.locationX), false);
+          const deltaX = evt.nativeEvent.locationX - dragStartXRef.current;
+          setDragValue(valueFromDelta(deltaX, dragStartValueRef.current));
         },
-        onPanResponderRelease: () => {
+        onPanResponderRelease: evt => {
+          const deltaX = evt.nativeEvent.locationX - dragStartXRef.current;
+          const raw =
+            Math.abs(deltaX) <= TAP_MOVE_THRESHOLD_PX
+              ? valueFromX(evt.nativeEvent.locationX)
+              : valueFromDelta(deltaX, dragStartValueRef.current);
+          commitValue(raw);
+          setDragValue(null);
+          setIsDragging(false);
           void Haptics.selectionAsync().catch(() => {});
         },
+        onPanResponderTerminate: () => {
+          setDragValue(null);
+          setIsDragging(false);
+        },
       }),
-    [disabled, emitValue, valueFromX],
+    [commitValue, disabled, valueFromDelta, valueFromX],
   );
 
   const onLayout = (event: LayoutChangeEvent) => {
@@ -164,7 +244,7 @@ function InsetSlider({
       accessibilityValue={{
         min: minimumValue,
         max: maximumValue,
-        now: liveValue,
+        now: snappedVisualValue,
       }}>
       <Text
         style={styles.labelMeasure}
