@@ -2,7 +2,7 @@
   "meta": {
     "description": "Android/Gboard-style emoji keyboard data, organized by category tabs.",
     "source": "Unicode Consortium emoji data (CLDR), regrouped to match Gboard's category tabs",
-    "total_emojis": 1914,
+    "total_emojis": 2069,
     "categories_order": [
       "smileys_people",
       "animals_nature",
@@ -19,7 +19,7 @@
       "id": "smileys_people",
       "label": "Smileys & People",
       "icon": "😀",
-      "count": 559,
+      "count": 714,
       "emojis": [
         {
           "emoji": "😀",
@@ -3175,6 +3175,41 @@
           "emoji": "🧑‍🩰",
           "name": "ballet dancer",
           "slug": "ballet_dancer",
+          "skin_tone_support": false,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🧑🏻‍🩰",
+          "name": "ballet dancer: light skin tone",
+          "slug": "ballet_dancer_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🧑🏼‍🩰",
+          "name": "ballet dancer: medium-light skin tone",
+          "slug": "ballet_dancer_medium_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🧑🏽‍🩰",
+          "name": "ballet dancer: medium skin tone",
+          "slug": "ballet_dancer_medium_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🧑🏾‍🩰",
+          "name": "ballet dancer: medium-dark skin tone",
+          "slug": "ballet_dancer_medium_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🧑🏿‍🩰",
+          "name": "ballet dancer: dark skin tone",
+          "slug": "ballet_dancer_dark_skin_tone",
           "skin_tone_support": true,
           "unicode_version": "17.0"
         },
@@ -3207,6 +3242,41 @@
           "unicode_version": "0.6"
         },
         {
+          "emoji": "👯🏻",
+          "name": "people with bunny ears: light skin tone",
+          "slug": "people_with_bunny_ears_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👯🏼",
+          "name": "people with bunny ears: medium-light skin tone",
+          "slug": "people_with_bunny_ears_medium_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👯🏽",
+          "name": "people with bunny ears: medium skin tone",
+          "slug": "people_with_bunny_ears_medium_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👯🏾",
+          "name": "people with bunny ears: medium-dark skin tone",
+          "slug": "people_with_bunny_ears_medium_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👯🏿",
+          "name": "people with bunny ears: dark skin tone",
+          "slug": "people_with_bunny_ears_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
           "emoji": "👯‍♂️",
           "name": "men with bunny ears",
           "slug": "men_with_bunny_ears",
@@ -3214,11 +3284,501 @@
           "unicode_version": "4.0"
         },
         {
+          "emoji": "👯🏻‍♂️",
+          "name": "men with bunny ears: light skin tone",
+          "slug": "men_with_bunny_ears_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👯🏼‍♂️",
+          "name": "men with bunny ears: medium-light skin tone",
+          "slug": "men_with_bunny_ears_medium_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👯🏽‍♂️",
+          "name": "men with bunny ears: medium skin tone",
+          "slug": "men_with_bunny_ears_medium_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👯🏾‍♂️",
+          "name": "men with bunny ears: medium-dark skin tone",
+          "slug": "men_with_bunny_ears_medium_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👯🏿‍♂️",
+          "name": "men with bunny ears: dark skin tone",
+          "slug": "men_with_bunny_ears_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
           "emoji": "👯‍♀️",
           "name": "women with bunny ears",
           "slug": "women_with_bunny_ears",
           "skin_tone_support": true,
           "unicode_version": "4.0"
+        },
+        {
+          "emoji": "👯🏻‍♀️",
+          "name": "women with bunny ears: light skin tone",
+          "slug": "women_with_bunny_ears_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👯🏼‍♀️",
+          "name": "women with bunny ears: medium-light skin tone",
+          "slug": "women_with_bunny_ears_medium_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👯🏽‍♀️",
+          "name": "women with bunny ears: medium skin tone",
+          "slug": "women_with_bunny_ears_medium_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👯🏾‍♀️",
+          "name": "women with bunny ears: medium-dark skin tone",
+          "slug": "women_with_bunny_ears_medium_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👯🏿‍♀️",
+          "name": "women with bunny ears: dark skin tone",
+          "slug": "women_with_bunny_ears_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🧑🏻‍🐰‍🧑🏼",
+          "name": "people with bunny ears: light skin tone, medium-light skin tone",
+          "slug": "people_with_bunny_ears_light_skin_tone_medium_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🧑🏻‍🐰‍🧑🏽",
+          "name": "people with bunny ears: light skin tone, medium skin tone",
+          "slug": "people_with_bunny_ears_light_skin_tone_medium_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🧑🏻‍🐰‍🧑🏾",
+          "name": "people with bunny ears: light skin tone, medium-dark skin tone",
+          "slug": "people_with_bunny_ears_light_skin_tone_medium_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🧑🏻‍🐰‍🧑🏿",
+          "name": "people with bunny ears: light skin tone, dark skin tone",
+          "slug": "people_with_bunny_ears_light_skin_tone_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🧑🏼‍🐰‍🧑🏻",
+          "name": "people with bunny ears: medium-light skin tone, light skin tone",
+          "slug": "people_with_bunny_ears_medium_light_skin_tone_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🧑🏼‍🐰‍🧑🏽",
+          "name": "people with bunny ears: medium-light skin tone, medium skin tone",
+          "slug": "people_with_bunny_ears_medium_light_skin_tone_medium_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🧑🏼‍🐰‍🧑🏾",
+          "name": "people with bunny ears: medium-light skin tone, medium-dark skin tone",
+          "slug": "people_with_bunny_ears_medium_light_skin_tone_medium_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🧑🏼‍🐰‍🧑🏿",
+          "name": "people with bunny ears: medium-light skin tone, dark skin tone",
+          "slug": "people_with_bunny_ears_medium_light_skin_tone_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🧑🏽‍🐰‍🧑🏻",
+          "name": "people with bunny ears: medium skin tone, light skin tone",
+          "slug": "people_with_bunny_ears_medium_skin_tone_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🧑🏽‍🐰‍🧑🏼",
+          "name": "people with bunny ears: medium skin tone, medium-light skin tone",
+          "slug": "people_with_bunny_ears_medium_skin_tone_medium_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🧑🏽‍🐰‍🧑🏾",
+          "name": "people with bunny ears: medium skin tone, medium-dark skin tone",
+          "slug": "people_with_bunny_ears_medium_skin_tone_medium_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🧑🏽‍🐰‍🧑🏿",
+          "name": "people with bunny ears: medium skin tone, dark skin tone",
+          "slug": "people_with_bunny_ears_medium_skin_tone_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🧑🏾‍🐰‍🧑🏻",
+          "name": "people with bunny ears: medium-dark skin tone, light skin tone",
+          "slug": "people_with_bunny_ears_medium_dark_skin_tone_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🧑🏾‍🐰‍🧑🏼",
+          "name": "people with bunny ears: medium-dark skin tone, medium-light skin tone",
+          "slug": "people_with_bunny_ears_medium_dark_skin_tone_medium_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🧑🏾‍🐰‍🧑🏽",
+          "name": "people with bunny ears: medium-dark skin tone, medium skin tone",
+          "slug": "people_with_bunny_ears_medium_dark_skin_tone_medium_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🧑🏾‍🐰‍🧑🏿",
+          "name": "people with bunny ears: medium-dark skin tone, dark skin tone",
+          "slug": "people_with_bunny_ears_medium_dark_skin_tone_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🧑🏿‍🐰‍🧑🏻",
+          "name": "people with bunny ears: dark skin tone, light skin tone",
+          "slug": "people_with_bunny_ears_dark_skin_tone_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🧑🏿‍🐰‍🧑🏼",
+          "name": "people with bunny ears: dark skin tone, medium-light skin tone",
+          "slug": "people_with_bunny_ears_dark_skin_tone_medium_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🧑🏿‍🐰‍🧑🏽",
+          "name": "people with bunny ears: dark skin tone, medium skin tone",
+          "slug": "people_with_bunny_ears_dark_skin_tone_medium_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🧑🏿‍🐰‍🧑🏾",
+          "name": "people with bunny ears: dark skin tone, medium-dark skin tone",
+          "slug": "people_with_bunny_ears_dark_skin_tone_medium_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👨🏻‍🐰‍👨🏼",
+          "name": "men with bunny ears: light skin tone, medium-light skin tone",
+          "slug": "men_with_bunny_ears_light_skin_tone_medium_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👨🏻‍🐰‍👨🏽",
+          "name": "men with bunny ears: light skin tone, medium skin tone",
+          "slug": "men_with_bunny_ears_light_skin_tone_medium_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👨🏻‍🐰‍👨🏾",
+          "name": "men with bunny ears: light skin tone, medium-dark skin tone",
+          "slug": "men_with_bunny_ears_light_skin_tone_medium_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👨🏻‍🐰‍👨🏿",
+          "name": "men with bunny ears: light skin tone, dark skin tone",
+          "slug": "men_with_bunny_ears_light_skin_tone_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👨🏼‍🐰‍👨🏻",
+          "name": "men with bunny ears: medium-light skin tone, light skin tone",
+          "slug": "men_with_bunny_ears_medium_light_skin_tone_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👨🏼‍🐰‍👨🏽",
+          "name": "men with bunny ears: medium-light skin tone, medium skin tone",
+          "slug": "men_with_bunny_ears_medium_light_skin_tone_medium_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👨🏼‍🐰‍👨🏾",
+          "name": "men with bunny ears: medium-light skin tone, medium-dark skin tone",
+          "slug": "men_with_bunny_ears_medium_light_skin_tone_medium_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👨🏼‍🐰‍👨🏿",
+          "name": "men with bunny ears: medium-light skin tone, dark skin tone",
+          "slug": "men_with_bunny_ears_medium_light_skin_tone_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👨🏽‍🐰‍👨🏻",
+          "name": "men with bunny ears: medium skin tone, light skin tone",
+          "slug": "men_with_bunny_ears_medium_skin_tone_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👨🏽‍🐰‍👨🏼",
+          "name": "men with bunny ears: medium skin tone, medium-light skin tone",
+          "slug": "men_with_bunny_ears_medium_skin_tone_medium_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👨🏽‍🐰‍👨🏾",
+          "name": "men with bunny ears: medium skin tone, medium-dark skin tone",
+          "slug": "men_with_bunny_ears_medium_skin_tone_medium_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👨🏽‍🐰‍👨🏿",
+          "name": "men with bunny ears: medium skin tone, dark skin tone",
+          "slug": "men_with_bunny_ears_medium_skin_tone_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👨🏾‍🐰‍👨🏻",
+          "name": "men with bunny ears: medium-dark skin tone, light skin tone",
+          "slug": "men_with_bunny_ears_medium_dark_skin_tone_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👨🏾‍🐰‍👨🏼",
+          "name": "men with bunny ears: medium-dark skin tone, medium-light skin tone",
+          "slug": "men_with_bunny_ears_medium_dark_skin_tone_medium_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👨🏾‍🐰‍👨🏽",
+          "name": "men with bunny ears: medium-dark skin tone, medium skin tone",
+          "slug": "men_with_bunny_ears_medium_dark_skin_tone_medium_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👨🏾‍🐰‍👨🏿",
+          "name": "men with bunny ears: medium-dark skin tone, dark skin tone",
+          "slug": "men_with_bunny_ears_medium_dark_skin_tone_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👨🏿‍🐰‍👨🏻",
+          "name": "men with bunny ears: dark skin tone, light skin tone",
+          "slug": "men_with_bunny_ears_dark_skin_tone_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👨🏿‍🐰‍👨🏼",
+          "name": "men with bunny ears: dark skin tone, medium-light skin tone",
+          "slug": "men_with_bunny_ears_dark_skin_tone_medium_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👨🏿‍🐰‍👨🏽",
+          "name": "men with bunny ears: dark skin tone, medium skin tone",
+          "slug": "men_with_bunny_ears_dark_skin_tone_medium_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👨🏿‍🐰‍👨🏾",
+          "name": "men with bunny ears: dark skin tone, medium-dark skin tone",
+          "slug": "men_with_bunny_ears_dark_skin_tone_medium_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👩🏻‍🐰‍👩🏼",
+          "name": "women with bunny ears: light skin tone, medium-light skin tone",
+          "slug": "women_with_bunny_ears_light_skin_tone_medium_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👩🏻‍🐰‍👩🏽",
+          "name": "women with bunny ears: light skin tone, medium skin tone",
+          "slug": "women_with_bunny_ears_light_skin_tone_medium_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👩🏻‍🐰‍👩🏾",
+          "name": "women with bunny ears: light skin tone, medium-dark skin tone",
+          "slug": "women_with_bunny_ears_light_skin_tone_medium_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👩🏻‍🐰‍👩🏿",
+          "name": "women with bunny ears: light skin tone, dark skin tone",
+          "slug": "women_with_bunny_ears_light_skin_tone_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👩🏼‍🐰‍👩🏻",
+          "name": "women with bunny ears: medium-light skin tone, light skin tone",
+          "slug": "women_with_bunny_ears_medium_light_skin_tone_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👩🏼‍🐰‍👩🏽",
+          "name": "women with bunny ears: medium-light skin tone, medium skin tone",
+          "slug": "women_with_bunny_ears_medium_light_skin_tone_medium_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👩🏼‍🐰‍👩🏾",
+          "name": "women with bunny ears: medium-light skin tone, medium-dark skin tone",
+          "slug": "women_with_bunny_ears_medium_light_skin_tone_medium_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👩🏼‍🐰‍👩🏿",
+          "name": "women with bunny ears: medium-light skin tone, dark skin tone",
+          "slug": "women_with_bunny_ears_medium_light_skin_tone_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👩🏽‍🐰‍👩🏻",
+          "name": "women with bunny ears: medium skin tone, light skin tone",
+          "slug": "women_with_bunny_ears_medium_skin_tone_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👩🏽‍🐰‍👩🏼",
+          "name": "women with bunny ears: medium skin tone, medium-light skin tone",
+          "slug": "women_with_bunny_ears_medium_skin_tone_medium_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👩🏽‍🐰‍👩🏾",
+          "name": "women with bunny ears: medium skin tone, medium-dark skin tone",
+          "slug": "women_with_bunny_ears_medium_skin_tone_medium_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👩🏽‍🐰‍👩🏿",
+          "name": "women with bunny ears: medium skin tone, dark skin tone",
+          "slug": "women_with_bunny_ears_medium_skin_tone_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👩🏾‍🐰‍👩🏻",
+          "name": "women with bunny ears: medium-dark skin tone, light skin tone",
+          "slug": "women_with_bunny_ears_medium_dark_skin_tone_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👩🏾‍🐰‍👩🏼",
+          "name": "women with bunny ears: medium-dark skin tone, medium-light skin tone",
+          "slug": "women_with_bunny_ears_medium_dark_skin_tone_medium_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👩🏾‍🐰‍👩🏽",
+          "name": "women with bunny ears: medium-dark skin tone, medium skin tone",
+          "slug": "women_with_bunny_ears_medium_dark_skin_tone_medium_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👩🏾‍🐰‍👩🏿",
+          "name": "women with bunny ears: medium-dark skin tone, dark skin tone",
+          "slug": "women_with_bunny_ears_medium_dark_skin_tone_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👩🏿‍🐰‍👩🏻",
+          "name": "women with bunny ears: dark skin tone, light skin tone",
+          "slug": "women_with_bunny_ears_dark_skin_tone_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👩🏿‍🐰‍👩🏼",
+          "name": "women with bunny ears: dark skin tone, medium-light skin tone",
+          "slug": "women_with_bunny_ears_dark_skin_tone_medium_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👩🏿‍🐰‍👩🏽",
+          "name": "women with bunny ears: dark skin tone, medium skin tone",
+          "slug": "women_with_bunny_ears_dark_skin_tone_medium_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👩🏿‍🐰‍👩🏾",
+          "name": "women with bunny ears: dark skin tone, medium-dark skin tone",
+          "slug": "women_with_bunny_ears_dark_skin_tone_medium_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
         },
         {
           "emoji": "🧖",
@@ -3487,6 +4047,41 @@
           "unicode_version": "3.0"
         },
         {
+          "emoji": "🤼🏻",
+          "name": "people wrestling: light skin tone",
+          "slug": "people_wrestling_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🤼🏼",
+          "name": "people wrestling: medium-light skin tone",
+          "slug": "people_wrestling_medium_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🤼🏽",
+          "name": "people wrestling: medium skin tone",
+          "slug": "people_wrestling_medium_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🤼🏾",
+          "name": "people wrestling: medium-dark skin tone",
+          "slug": "people_wrestling_medium_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🤼🏿",
+          "name": "people wrestling: dark skin tone",
+          "slug": "people_wrestling_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
           "emoji": "🤼‍♂️",
           "name": "men wrestling",
           "slug": "men_wrestling",
@@ -3494,11 +4089,501 @@
           "unicode_version": "4.0"
         },
         {
+          "emoji": "🤼🏻‍♂️",
+          "name": "men wrestling: light skin tone",
+          "slug": "men_wrestling_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🤼🏼‍♂️",
+          "name": "men wrestling: medium-light skin tone",
+          "slug": "men_wrestling_medium_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🤼🏽‍♂️",
+          "name": "men wrestling: medium skin tone",
+          "slug": "men_wrestling_medium_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🤼🏾‍♂️",
+          "name": "men wrestling: medium-dark skin tone",
+          "slug": "men_wrestling_medium_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🤼🏿‍♂️",
+          "name": "men wrestling: dark skin tone",
+          "slug": "men_wrestling_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
           "emoji": "🤼‍♀️",
           "name": "women wrestling",
           "slug": "women_wrestling",
           "skin_tone_support": true,
           "unicode_version": "4.0"
+        },
+        {
+          "emoji": "🤼🏻‍♀️",
+          "name": "women wrestling: light skin tone",
+          "slug": "women_wrestling_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🤼🏼‍♀️",
+          "name": "women wrestling: medium-light skin tone",
+          "slug": "women_wrestling_medium_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🤼🏽‍♀️",
+          "name": "women wrestling: medium skin tone",
+          "slug": "women_wrestling_medium_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🤼🏾‍♀️",
+          "name": "women wrestling: medium-dark skin tone",
+          "slug": "women_wrestling_medium_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🤼🏿‍♀️",
+          "name": "women wrestling: dark skin tone",
+          "slug": "women_wrestling_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🧑🏻‍🫯‍🧑🏼",
+          "name": "people wrestling: light skin tone, medium-light skin tone",
+          "slug": "people_wrestling_light_skin_tone_medium_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🧑🏻‍🫯‍🧑🏽",
+          "name": "people wrestling: light skin tone, medium skin tone",
+          "slug": "people_wrestling_light_skin_tone_medium_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🧑🏻‍🫯‍🧑🏾",
+          "name": "people wrestling: light skin tone, medium-dark skin tone",
+          "slug": "people_wrestling_light_skin_tone_medium_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🧑🏻‍🫯‍🧑🏿",
+          "name": "people wrestling: light skin tone, dark skin tone",
+          "slug": "people_wrestling_light_skin_tone_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🧑🏼‍🫯‍🧑🏻",
+          "name": "people wrestling: medium-light skin tone, light skin tone",
+          "slug": "people_wrestling_medium_light_skin_tone_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🧑🏼‍🫯‍🧑🏽",
+          "name": "people wrestling: medium-light skin tone, medium skin tone",
+          "slug": "people_wrestling_medium_light_skin_tone_medium_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🧑🏼‍🫯‍🧑🏾",
+          "name": "people wrestling: medium-light skin tone, medium-dark skin tone",
+          "slug": "people_wrestling_medium_light_skin_tone_medium_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🧑🏼‍🫯‍🧑🏿",
+          "name": "people wrestling: medium-light skin tone, dark skin tone",
+          "slug": "people_wrestling_medium_light_skin_tone_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🧑🏽‍🫯‍🧑🏻",
+          "name": "people wrestling: medium skin tone, light skin tone",
+          "slug": "people_wrestling_medium_skin_tone_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🧑🏽‍🫯‍🧑🏼",
+          "name": "people wrestling: medium skin tone, medium-light skin tone",
+          "slug": "people_wrestling_medium_skin_tone_medium_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🧑🏽‍🫯‍🧑🏾",
+          "name": "people wrestling: medium skin tone, medium-dark skin tone",
+          "slug": "people_wrestling_medium_skin_tone_medium_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🧑🏽‍🫯‍🧑🏿",
+          "name": "people wrestling: medium skin tone, dark skin tone",
+          "slug": "people_wrestling_medium_skin_tone_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🧑🏾‍🫯‍🧑🏻",
+          "name": "people wrestling: medium-dark skin tone, light skin tone",
+          "slug": "people_wrestling_medium_dark_skin_tone_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🧑🏾‍🫯‍🧑🏼",
+          "name": "people wrestling: medium-dark skin tone, medium-light skin tone",
+          "slug": "people_wrestling_medium_dark_skin_tone_medium_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🧑🏾‍🫯‍🧑🏽",
+          "name": "people wrestling: medium-dark skin tone, medium skin tone",
+          "slug": "people_wrestling_medium_dark_skin_tone_medium_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🧑🏾‍🫯‍🧑🏿",
+          "name": "people wrestling: medium-dark skin tone, dark skin tone",
+          "slug": "people_wrestling_medium_dark_skin_tone_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🧑🏿‍🫯‍🧑🏻",
+          "name": "people wrestling: dark skin tone, light skin tone",
+          "slug": "people_wrestling_dark_skin_tone_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🧑🏿‍🫯‍🧑🏼",
+          "name": "people wrestling: dark skin tone, medium-light skin tone",
+          "slug": "people_wrestling_dark_skin_tone_medium_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🧑🏿‍🫯‍🧑🏽",
+          "name": "people wrestling: dark skin tone, medium skin tone",
+          "slug": "people_wrestling_dark_skin_tone_medium_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "🧑🏿‍🫯‍🧑🏾",
+          "name": "people wrestling: dark skin tone, medium-dark skin tone",
+          "slug": "people_wrestling_dark_skin_tone_medium_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👨🏻‍🫯‍👨🏼",
+          "name": "men wrestling: light skin tone, medium-light skin tone",
+          "slug": "men_wrestling_light_skin_tone_medium_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👨🏻‍🫯‍👨🏽",
+          "name": "men wrestling: light skin tone, medium skin tone",
+          "slug": "men_wrestling_light_skin_tone_medium_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👨🏻‍🫯‍👨🏾",
+          "name": "men wrestling: light skin tone, medium-dark skin tone",
+          "slug": "men_wrestling_light_skin_tone_medium_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👨🏻‍🫯‍👨🏿",
+          "name": "men wrestling: light skin tone, dark skin tone",
+          "slug": "men_wrestling_light_skin_tone_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👨🏼‍🫯‍👨🏻",
+          "name": "men wrestling: medium-light skin tone, light skin tone",
+          "slug": "men_wrestling_medium_light_skin_tone_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👨🏼‍🫯‍👨🏽",
+          "name": "men wrestling: medium-light skin tone, medium skin tone",
+          "slug": "men_wrestling_medium_light_skin_tone_medium_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👨🏼‍🫯‍👨🏾",
+          "name": "men wrestling: medium-light skin tone, medium-dark skin tone",
+          "slug": "men_wrestling_medium_light_skin_tone_medium_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👨🏼‍🫯‍👨🏿",
+          "name": "men wrestling: medium-light skin tone, dark skin tone",
+          "slug": "men_wrestling_medium_light_skin_tone_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👨🏽‍🫯‍👨🏻",
+          "name": "men wrestling: medium skin tone, light skin tone",
+          "slug": "men_wrestling_medium_skin_tone_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👨🏽‍🫯‍👨🏼",
+          "name": "men wrestling: medium skin tone, medium-light skin tone",
+          "slug": "men_wrestling_medium_skin_tone_medium_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👨🏽‍🫯‍👨🏾",
+          "name": "men wrestling: medium skin tone, medium-dark skin tone",
+          "slug": "men_wrestling_medium_skin_tone_medium_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👨🏽‍🫯‍👨🏿",
+          "name": "men wrestling: medium skin tone, dark skin tone",
+          "slug": "men_wrestling_medium_skin_tone_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👨🏾‍🫯‍👨🏻",
+          "name": "men wrestling: medium-dark skin tone, light skin tone",
+          "slug": "men_wrestling_medium_dark_skin_tone_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👨🏾‍🫯‍👨🏼",
+          "name": "men wrestling: medium-dark skin tone, medium-light skin tone",
+          "slug": "men_wrestling_medium_dark_skin_tone_medium_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👨🏾‍🫯‍👨🏽",
+          "name": "men wrestling: medium-dark skin tone, medium skin tone",
+          "slug": "men_wrestling_medium_dark_skin_tone_medium_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👨🏾‍🫯‍👨🏿",
+          "name": "men wrestling: medium-dark skin tone, dark skin tone",
+          "slug": "men_wrestling_medium_dark_skin_tone_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👨🏿‍🫯‍👨🏻",
+          "name": "men wrestling: dark skin tone, light skin tone",
+          "slug": "men_wrestling_dark_skin_tone_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👨🏿‍🫯‍👨🏼",
+          "name": "men wrestling: dark skin tone, medium-light skin tone",
+          "slug": "men_wrestling_dark_skin_tone_medium_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👨🏿‍🫯‍👨🏽",
+          "name": "men wrestling: dark skin tone, medium skin tone",
+          "slug": "men_wrestling_dark_skin_tone_medium_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👨🏿‍🫯‍👨🏾",
+          "name": "men wrestling: dark skin tone, medium-dark skin tone",
+          "slug": "men_wrestling_dark_skin_tone_medium_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👩🏻‍🫯‍👩🏼",
+          "name": "women wrestling: light skin tone, medium-light skin tone",
+          "slug": "women_wrestling_light_skin_tone_medium_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👩🏻‍🫯‍👩🏽",
+          "name": "women wrestling: light skin tone, medium skin tone",
+          "slug": "women_wrestling_light_skin_tone_medium_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👩🏻‍🫯‍👩🏾",
+          "name": "women wrestling: light skin tone, medium-dark skin tone",
+          "slug": "women_wrestling_light_skin_tone_medium_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👩🏻‍🫯‍👩🏿",
+          "name": "women wrestling: light skin tone, dark skin tone",
+          "slug": "women_wrestling_light_skin_tone_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👩🏼‍🫯‍👩🏻",
+          "name": "women wrestling: medium-light skin tone, light skin tone",
+          "slug": "women_wrestling_medium_light_skin_tone_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👩🏼‍🫯‍👩🏽",
+          "name": "women wrestling: medium-light skin tone, medium skin tone",
+          "slug": "women_wrestling_medium_light_skin_tone_medium_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👩🏼‍🫯‍👩🏾",
+          "name": "women wrestling: medium-light skin tone, medium-dark skin tone",
+          "slug": "women_wrestling_medium_light_skin_tone_medium_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👩🏼‍🫯‍👩🏿",
+          "name": "women wrestling: medium-light skin tone, dark skin tone",
+          "slug": "women_wrestling_medium_light_skin_tone_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👩🏽‍🫯‍👩🏻",
+          "name": "women wrestling: medium skin tone, light skin tone",
+          "slug": "women_wrestling_medium_skin_tone_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👩🏽‍🫯‍👩🏼",
+          "name": "women wrestling: medium skin tone, medium-light skin tone",
+          "slug": "women_wrestling_medium_skin_tone_medium_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👩🏽‍🫯‍👩🏾",
+          "name": "women wrestling: medium skin tone, medium-dark skin tone",
+          "slug": "women_wrestling_medium_skin_tone_medium_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👩🏽‍🫯‍👩🏿",
+          "name": "women wrestling: medium skin tone, dark skin tone",
+          "slug": "women_wrestling_medium_skin_tone_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👩🏾‍🫯‍👩🏻",
+          "name": "women wrestling: medium-dark skin tone, light skin tone",
+          "slug": "women_wrestling_medium_dark_skin_tone_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👩🏾‍🫯‍👩🏼",
+          "name": "women wrestling: medium-dark skin tone, medium-light skin tone",
+          "slug": "women_wrestling_medium_dark_skin_tone_medium_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👩🏾‍🫯‍👩🏽",
+          "name": "women wrestling: medium-dark skin tone, medium skin tone",
+          "slug": "women_wrestling_medium_dark_skin_tone_medium_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👩🏾‍🫯‍👩🏿",
+          "name": "women wrestling: medium-dark skin tone, dark skin tone",
+          "slug": "women_wrestling_medium_dark_skin_tone_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👩🏿‍🫯‍👩🏻",
+          "name": "women wrestling: dark skin tone, light skin tone",
+          "slug": "women_wrestling_dark_skin_tone_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👩🏿‍🫯‍👩🏼",
+          "name": "women wrestling: dark skin tone, medium-light skin tone",
+          "slug": "women_wrestling_dark_skin_tone_medium_light_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👩🏿‍🫯‍👩🏽",
+          "name": "women wrestling: dark skin tone, medium skin tone",
+          "slug": "women_wrestling_dark_skin_tone_medium_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
+        },
+        {
+          "emoji": "👩🏿‍🫯‍👩🏾",
+          "name": "women wrestling: dark skin tone, medium-dark skin tone",
+          "slug": "women_wrestling_dark_skin_tone_medium_dark_skin_tone",
+          "skin_tone_support": true,
+          "unicode_version": "17.0"
         },
         {
           "emoji": "🤽",

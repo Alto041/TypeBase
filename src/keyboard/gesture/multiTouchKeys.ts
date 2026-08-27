@@ -13,7 +13,10 @@ import {keyboardBridge} from '../keyboardBridge';
 import {KEY_HIT_SLOP} from '../theme';
 import {isZeroLatencyModeActive, shouldSkipKeyPressEffects} from '../zeroLatencyMode';
 import type {KeyBounds} from './types';
-import {markSwipeTypingTapCommitted} from './gestureState';
+import {
+  clearSwipeTypingTapCommitted,
+  markSwipeTypingTapCommitted,
+} from './gestureState';
 import {
   intelligentHitTestKey,
   recordTouchIntelligenceTap,
@@ -453,6 +456,8 @@ function undoCommittedText(pointerId: number, session: MultiTouchSession): void 
   }
   session.committedOnDown = false;
   session.nativeCommitted = false;
+  clearSwipeTypingTapCommitted(pointerId);
+  undoCommittedTextHandler?.(session.defaultCommit);
 }
 
 function openAlternatePopup(
@@ -700,10 +705,19 @@ export function dispatchMultiTouchEnd(
 type SwipeStartCancelHandler = (pointerId: number) => void;
 let swipeStartCancelHandler: SwipeStartCancelHandler | null = null;
 
+type UndoCommittedTextHandler = (text: string) => void;
+let undoCommittedTextHandler: UndoCommittedTextHandler | null = null;
+
 export function setSwipeStartCancelHandler(
   handler: SwipeStartCancelHandler | null,
 ): void {
   swipeStartCancelHandler = handler;
+}
+
+export function setUndoCommittedTextHandler(
+  handler: UndoCommittedTextHandler | null,
+): void {
+  undoCommittedTextHandler = handler;
 }
 
 export function notifySwipeStarted(pointerId: number): void {

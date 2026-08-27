@@ -78,6 +78,7 @@ import {
 import type {Essential, KeyboardMode} from './essentials/types';
 import type {KeyGesturesConfig} from './components/Key';
 import {GestureTypingLayer} from './gesture/GestureTypingLayer';
+import {setUndoCommittedTextHandler} from './gesture/multiTouchKeys';
 import {SwipeTypingKeysHost} from './gesture/SwipeTypingContext';
 import {KeyLayoutProvider, useKeyLayoutContext} from './gesture/KeyLayoutContext';
 import {
@@ -249,6 +250,7 @@ import {
   derivePreviousWordFromEditor,
   pickTypedWordForBoundary,
   reconcileLivePrefixFromContext,
+  shouldInsertLeadingSpaceBeforeWord,
 } from './typingCompositor';
 
 const DOUBLE_TAP_MS = 350;
@@ -3657,6 +3659,24 @@ function KeyboardBody({
   }, []);
 
   useEffect(() => {
+    setUndoCommittedTextHandler(text => {
+      if (text.length !== 1 || !/[a-z]/i.test(text)) {
+        return;
+      }
+      const prefix = livePrefixRef.current;
+      if (prefix.endsWith(text)) {
+        livePrefixRef.current = prefix.slice(0, -text.length);
+      } else if (prefix.toLowerCase() === text.toLowerCase()) {
+        livePrefixRef.current = '';
+      }
+      refreshTouchIntelligenceFromLivePrefix();
+    });
+    return () => {
+      setUndoCommittedTextHandler(null);
+    };
+  }, [refreshTouchIntelligenceFromLivePrefix]);
+
+  useEffect(() => {
     const subscription = DeviceEventEmitter.addListener(
       'keyboardNativeFastPathKey',
       (payload: NativeFastPathKeyEvent) => {
@@ -3694,20 +3714,33 @@ function KeyboardBody({
       recordWordCommitted();
       recordKeystroke('char');
 
-      const needsLeadingSpace = livePrefixRef.current.length > 0;
-      keyboardBridge.insertText(needsLeadingSpace ? ` ${word} ` : `${word} `);
-      livePrefixRef.current = '';
-      touchIntelligencePreviousKeyRef.current = null;
-      syncTouchIntelligenceToNative();
+      void (async () => {
+        const context = await keyboardBridge.getTextBeforeCursor(64);
+        const needsLeadingSpace = shouldInsertLeadingSpaceBeforeWord(
+          context,
+          livePrefixRef.current,
+        );
+        keyboardBridge.insertText(needsLeadingSpace ? ` ${word} ` : `${word} `);
+        livePrefixRef.current = '';
+        touchIntelligencePreviousKeyRef.current = null;
+        syncTouchIntelligenceToNative();
 
-      if (shiftOn && !capsLocked) {
-        setShiftOn(false);
-      }
-      requestAnimationFrame(() => {
-        void refreshSuggestions();
-      });
+        if (shiftOn && !capsLocked) {
+          setShiftOn(false);
+        }
+        requestAnimationFrame(() => {
+          void refreshSuggestions();
+        });
+      })();
     },
-    [capsLocked, clearClipboardPasteSuggestion, markTyping, refreshSuggestions, shiftOn],
+    [
+      capsLocked,
+      clearClipboardPasteSuggestion,
+      markTyping,
+      refreshSuggestions,
+      shiftOn,
+      syncTouchIntelligenceToNative,
+    ],
   );
 
   const handleUndo = useCallback(() => {

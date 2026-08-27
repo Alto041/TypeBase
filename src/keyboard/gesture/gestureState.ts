@@ -37,6 +37,13 @@ export function markSwipeTypingTapCommitted(pointerId: number | string): void {
   }
 }
 
+export function clearSwipeTypingTapCommitted(pointerId: number | string): void {
+  const session = swipePointerSessionsRef.current.get(pointerKey(pointerId));
+  if (session) {
+    session.tapCommitted = false;
+  }
+}
+
 /** Never block other fingers — each key commits on touch-down independently. */
 export function shouldBlockSwipeTypingKeyInput(): boolean {
   return false;

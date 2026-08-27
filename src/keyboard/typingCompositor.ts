@@ -79,6 +79,20 @@ export function reconcileLivePrefixFromContext(
   return contextPrefix;
 }
 
+/** Insert a leading space when the cursor sits directly after a completed word. */
+export function shouldInsertLeadingSpaceBeforeWord(
+  textBeforeCursor: string,
+  livePrefix: string,
+): boolean {
+  if (livePrefix.trim().length > 0) {
+    return true;
+  }
+  if (!textBeforeCursor) {
+    return false;
+  }
+  return /\S$/.test(textBeforeCursor) && !/\s$/.test(textBeforeCursor);
+}
+
 export function derivePreviousWordFromEditor(
   context: string,
   prefix: string,

@@ -1,7 +1,6 @@
 import React, {useState} from 'react';
 import {
   Animated,
-  ImageBackground,
   Pressable,
   StatusBar,
   StyleSheet,
@@ -24,12 +23,6 @@ const C = {
 
 const TEXT_KERNING = -0.7;
 
-const ONBOARDING_BACKGROUNDS = [
-  require('./assets/bg.png'),
-  require('./assets/bg2.png'),
-  require('./assets/bg.png'),
-] as const;
-
 type OnboardingPage = {
   eyebrow: string;
   title: string;
@@ -41,21 +34,6 @@ type OnboardingScreenProps = {
   onComplete: () => void;
   fontsLoaded?: boolean;
 };
-
-function OnboardingBackground({pageIndex}: {pageIndex: number}) {
-  const source =
-    ONBOARDING_BACKGROUNDS[pageIndex] ?? ONBOARDING_BACKGROUNDS[0];
-
-  return (
-    <ImageBackground
-      source={source}
-      style={styles.background}
-      resizeMode="cover"
-      accessibilityElementsHidden
-      importantForAccessibility="no-hide-descendants"
-    />
-  );
-}
 
 export function OnboardingScreen({
   onComplete,
@@ -99,12 +77,7 @@ export function OnboardingScreen({
 
   return (
     <View style={styles.root}>
-      <StatusBar
-        barStyle="dark-content"
-        translucent
-        backgroundColor="transparent"
-      />
-      <OnboardingBackground pageIndex={pageIndex} />
+      <StatusBar barStyle="dark-content" backgroundColor={C.bg} />
 
       <SafeAreaView style={styles.safeArea}>
         <Animated.View style={[styles.page, animatedStyle]}>
@@ -159,9 +132,6 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: C.bg,
-  },
-  background: {
-    ...StyleSheet.absoluteFill,
   },
   safeArea: {
     flex: 1,
