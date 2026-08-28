@@ -77,6 +77,8 @@ type KeyboardModuleType = {
   setNativeKeyFastPathConfig: (json: string) => void;
   updateTouchIntelligenceContext: (json: string) => void;
   setNativeZeroLatencyMode: (enabled: boolean) => void;
+  setGamePerformanceMode: (enabled: boolean) => void;
+  clearNativeMidWordShiftBlock: () => void;
   updateNativeFastPathCaseState: (
     shiftOn: boolean,
     capsLocked: boolean,
@@ -530,6 +532,16 @@ export const keyboardBridge: KeyboardModuleType = {
   setNativeZeroLatencyMode: (enabled: boolean) => {
     if (Platform.OS === 'android' && KeyboardModule?.setNativeZeroLatencyMode) {
       KeyboardModule.setNativeZeroLatencyMode(enabled);
+    }
+  },
+  setGamePerformanceMode: (enabled: boolean) => {
+    if (Platform.OS === 'android' && KeyboardModule?.setGamePerformanceMode) {
+      KeyboardModule.setGamePerformanceMode(enabled);
+    }
+  },
+  clearNativeMidWordShiftBlock: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.clearNativeMidWordShiftBlock) {
+      KeyboardModule.clearNativeMidWordShiftBlock();
     }
   },
   updateNativeFastPathCaseState: (

@@ -72,6 +72,9 @@ object KeyboardInputBridge {
   @Volatile
   private var initialCapsMode: Boolean = false
 
+  @Volatile
+  private var gamePerformanceMode: Boolean = false
+
   /** True while MainActivity is in the foreground (shared React host must stay alive for the app). */
   @Volatile
   private var mainAppInForeground: Boolean = false
@@ -215,6 +218,12 @@ object KeyboardInputBridge {
     }
 
     val before = connection.getTextBeforeCursor(200, 0)?.toString().orEmpty()
+    if (before.isNotEmpty()) {
+      val last = before[before.length - 1]
+      if (last.isLetter()) {
+        return false
+      }
+    }
     return TextUtils.getCapsMode(before, before.length, mode) != 0
   }
 
@@ -268,6 +277,16 @@ object KeyboardInputBridge {
 
   fun setNativeZeroLatencyMode(enabled: Boolean) {
     inputService?.setNativeZeroLatencyMode(enabled)
+  }
+
+  fun setGamePerformanceMode(enabled: Boolean) {
+    gamePerformanceMode = enabled
+  }
+
+  fun isGamePerformanceMode(): Boolean = gamePerformanceMode
+
+  fun clearNativeMidWordShiftBlock() {
+    inputService?.clearNativeMidWordShiftBlock()
   }
 
   fun updateNativeFastPathCaseState(
@@ -635,6 +654,9 @@ object KeyboardInputBridge {
   }
 
   fun notifyEditorContextBeforeCursor(beforeCursor: String) {
+    if (gamePerformanceMode) {
+      return
+    }
     pendingEditorContextBeforeCursor = beforeCursor
     mainHandler.removeCallbacks(emitEditorContextRunnable)
     mainHandler.postDelayed(emitEditorContextRunnable, 40L)

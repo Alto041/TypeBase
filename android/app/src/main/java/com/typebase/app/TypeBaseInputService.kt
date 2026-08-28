@@ -398,6 +398,10 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
     nativeKeyFastPath.setZeroLatencyMode(enabled)
   }
 
+  fun clearNativeMidWordShiftBlock() {
+    nativeKeyFastPath.clearMidWordShiftBlock()
+  }
+
   fun updateNativeFastPathCaseState(
       shiftOn: Boolean,
       capsLocked: Boolean,

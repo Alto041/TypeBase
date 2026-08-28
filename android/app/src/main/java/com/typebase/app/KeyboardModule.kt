@@ -776,6 +776,16 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   }
 
   @ReactMethod
+  fun setGamePerformanceMode(enabled: Boolean) {
+    KeyboardInputBridge.setGamePerformanceMode(enabled)
+  }
+
+  @ReactMethod
+  fun clearNativeMidWordShiftBlock() {
+    KeyboardInputBridge.clearNativeMidWordShiftBlock()
+  }
+
+  @ReactMethod
   fun updateNativeFastPathCaseState(
       shiftOn: Boolean,
       capsLocked: Boolean,

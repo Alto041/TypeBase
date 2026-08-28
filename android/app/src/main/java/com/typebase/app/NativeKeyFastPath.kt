@@ -52,10 +52,14 @@ class NativeKeyFastPath {
   private var commitOnDown = true
   @Volatile
   private var zeroLatency = false
+  @Volatile
+  private var gamePerformance = false
   private var areaPageX = 0f
   private var areaPageY = 0f
   private var hitSlopHorizontal = 0f
   private var hitSlopVertical = 0f
+  @Volatile
+  private var blockAutoShiftReenable = false
   private var keyboardLayout = "letters"
   private var uppercase = false
   private var shiftOn = false
@@ -79,6 +83,7 @@ class NativeKeyFastPath {
       enabled = obj.optBoolean("enabled", false)
       commitOnDown = obj.optBoolean("commitOnDown", true)
       zeroLatency = obj.optBoolean("zeroLatency", false)
+      gamePerformance = obj.optBoolean("gamePerformance", false)
       areaPageX = obj.optDouble("areaPageX", 0.0).toFloat()
       areaPageY = obj.optDouble("areaPageY", 0.0).toFloat()
       hitSlopHorizontal = obj.optDouble("hitSlopHorizontal", 0.0).toFloat()
@@ -96,6 +101,7 @@ class NativeKeyFastPath {
       )
       if (!enabled) {
         zeroLatency = false
+        gamePerformance = false
         sessions.clear()
         synchronized(pendingJsCommitsLock) { pendingJsCommits.clear() }
       }
@@ -103,6 +109,7 @@ class NativeKeyFastPath {
     } catch (_: Exception) {
       enabled = false
       zeroLatency = false
+      gamePerformance = false
       keys = emptyList()
       keyById = emptyMap()
       lastConfigJson = ""
@@ -114,6 +121,7 @@ class NativeKeyFastPath {
   fun clear() {
     enabled = false
     zeroLatency = false
+    gamePerformance = false
     keys = emptyList()
     keyById = emptyMap()
     lastConfigJson = ""
@@ -170,9 +178,19 @@ class NativeKeyFastPath {
   }
 
   fun updateCaseState(shiftOn: Boolean, capsLocked: Boolean, uppercase: Boolean) {
+    if (blockAutoShiftReenable && shiftOn && !capsLocked) {
+      return
+    }
+    if (shiftOn && !capsLocked) {
+      blockAutoShiftReenable = false
+    }
     this.shiftOn = shiftOn
     this.capsLocked = capsLocked
     this.uppercase = shiftOn || capsLocked
+  }
+
+  fun clearMidWordShiftBlock() {
+    blockAutoShiftReenable = false
   }
 
   /** Undo a native letter commit when a touch becomes a swipe gesture. */
@@ -229,8 +247,10 @@ class NativeKeyFastPath {
 
         sessions[pointerId] = TouchSession(pointerId, key, text)
         touchIntelligence.recordTap(text, localX, localY, event.eventTime)
-        hitResult.analysis?.let { analysis ->
-          previewHandler.post { KeyboardInputBridge.notifyTouchIntelligenceHit(analysis) }
+        if (!zeroLatency && !gamePerformance) {
+          hitResult.analysis?.let { analysis ->
+            previewHandler.post { KeyboardInputBridge.notifyTouchIntelligenceHit(analysis) }
+          }
         }
         synchronized(pendingJsCommitsLock) {
           pendingJsCommits.addLast(
@@ -239,7 +259,7 @@ class NativeKeyFastPath {
         }
 
         // Haptic on touch-down immediately — never queue behind preview/sound.
-        if (zeroLatency) {
+        if (zeroLatency || gamePerformance) {
           KeyboardInputBridge.performLightKeyHapticForPointer(pointerId)
         } else {
           KeyboardInputBridge.performKeyHapticForPointer(pointerId)
@@ -247,7 +267,7 @@ class NativeKeyFastPath {
 
         // Preview and tap sound can post async; haptic must not wait on the handler.
         previewHandler.post {
-          if (!zeroLatency) {
+          if (!zeroLatency && !gamePerformance) {
             if (key.reactTag > 0) {
               KeyboardInputBridge.showKeyPreview(key.reactTag, text)
             }
@@ -357,6 +377,7 @@ class NativeKeyFastPath {
     if (shiftConsumed) {
       shiftOn = false
       uppercase = false
+      blockAutoShiftReenable = true
     }
 
     // Notify JS after commit — never block the touch path on the RN bridge.

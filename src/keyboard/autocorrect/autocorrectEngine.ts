@@ -332,6 +332,21 @@ function normalizeAutocorrectToken(typed: string): string | null {
   return mapped;
 }
 
+/** Digit slips that normalize to a dictionary word (h3llo → hello). */
+function tryLeetDigitSlipCorrection(typed: string, normalized: string): string | null {
+  const rawLower = typed.toLowerCase();
+  if (normalized === rawLower) {
+    return null;
+  }
+  if (
+    !isKnownEnglishWord(normalized) &&
+    !getBaseWords(getActiveLanguage()).includes(normalized)
+  ) {
+    return null;
+  }
+  return applyCaseToWord(normalized, typed);
+}
+
 /** Very common 1–2 letter words allowed in a split (blocks junk like "th", "ng"). */
 const SHORT_SEGMENT_WORDS = new Set<string>(['a', 'i']);
 let shortSegmentSeeded = false;
@@ -815,6 +830,11 @@ export function getFastAutocorrectPreview(
       return correction;
     }
     return null;
+  }
+
+  const leetFix = tryLeetDigitSlipCorrection(typed, lower);
+  if (leetFix && leetFix.toLowerCase() !== typed.toLowerCase()) {
+    return leetFix;
   }
 
   if (isKnownEnglishWord(lower)) {
@@ -1592,6 +1612,11 @@ export function getTypoSuggestionPreview(
     return applyCaseToWord(exactFix.correction, typed);
   }
 
+  const leetFix = tryLeetDigitSlipCorrection(typed, lower);
+  if (leetFix) {
+    return leetFix;
+  }
+
   if (isKnownEnglishWord(lower)) {
     return null;
   }
@@ -1608,12 +1633,6 @@ export function getTypoSuggestionPreview(
     if (phraseFix && phraseFix !== lower) {
       return applyCaseToWord(phraseFix, typed);
     }
-  }
-
-  // Digit slips that land on a real word (h3llo → hello).
-  const rawLower = typed.toLowerCase();
-  if (lower !== rawLower && isInActiveDictionary(lower)) {
-    return applyCaseToWord(lower, typed);
   }
 
   const missingSpace = findMissingSpaceCorrection(lower, learnedUses);
@@ -1713,6 +1732,14 @@ export function getAutocorrectCandidate(
     };
   }
 
+  const leetFix = tryLeetDigitSlipCorrection(typed, lower);
+  if (leetFix) {
+    return {
+      correction: leetFix,
+      confidence: 0.93,
+    };
+  }
+
   // Valid dictionary word — never fuzzy-shrink or neighbor-mutate (all → al).
   if (isKnownEnglishWord(lower)) {
     return null;
@@ -1745,14 +1772,6 @@ export function getAutocorrectCandidate(
         confidence: 0.93,
       };
     }
-  }
-
-  // Leet / digit slip that resolves to a dictionary word.
-  if (lower !== rawLower && isInActiveDictionary(lower)) {
-    return {
-      correction: applyCaseToWord(lower, typed),
-      confidence: 0.93,
-    };
   }
 
   const previousWord = options?.previousWord ?? '';
@@ -1993,6 +2012,19 @@ export function getSuggestionBarAutocorrect(
     return result;
   }
 
+  const leetFix = tryLeetDigitSlipCorrection(typed, lower);
+  if (leetFix && leetFix.toLowerCase() !== typed.toLowerCase()) {
+    const result = {
+      keepTyped: offerKeepTyped ? typed : null,
+      correction: leetFix,
+    };
+    if (suggestionBarAutocorrectCache.size > 512) {
+      suggestionBarAutocorrectCache.clear();
+    }
+    suggestionBarAutocorrectCache.set(cacheKey, {result, time: now});
+    return result;
+  }
+
   if (isKnownEnglishWord(lower)) {
     return {keepTyped: null, correction: null};
   }
@@ -2047,14 +2079,6 @@ export function getSuggestionBarAutocorrect(
       suggestionBarAutocorrectCache.set(cacheKey, {result, time: now});
       return result;
     }
-  }
-
-  const rawLower = typed.toLowerCase();
-  if (lower !== rawLower && isInActiveDictionary(lower)) {
-    return {
-      keepTyped: offerKeepTyped ? typed : null,
-      correction: applyCaseToWord(lower, typed),
-    };
   }
 
   if (isProbablyProperNoun(typed)) {
