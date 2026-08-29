@@ -267,7 +267,7 @@ class NativeKeyFastPath {
 
         // Preview and tap sound can post async; haptic must not wait on the handler.
         previewHandler.post {
-          if (!zeroLatency && !gamePerformance) {
+          if (!zeroLatency) {
             if (key.reactTag > 0) {
               KeyboardInputBridge.showKeyPreview(key.reactTag, text)
             }

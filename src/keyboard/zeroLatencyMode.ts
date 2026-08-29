@@ -24,13 +24,13 @@ export function setBurstTypingActive(active: boolean): void {
   burstTypingActive = active;
 }
 
-/** Only explicit user zero-latency / game mode disables previews and press tint. */
+/** Only explicit user zero-latency disables previews and press tint. */
 export function shouldSkipKeyPressEffects(): boolean {
-  return zeroLatencyModeActive || gamePerformanceModeActive;
+  return zeroLatencyModeActive;
 }
 
 export function shouldSkipKeyPreviewEffects(): boolean {
-  return zeroLatencyModeActive || gamePerformanceModeActive;
+  return zeroLatencyModeActive;
 }
 
 export function isGamePerformanceModeActive(): boolean {
@@ -54,5 +54,5 @@ export function shouldDeferLiveSuggestionBar(): boolean {
 }
 
 export function shouldSkipFrostedKeyboardEffects(): boolean {
-  return zeroLatencyModeActive || gamePerformanceModeActive;
+  return zeroLatencyModeActive;
 }

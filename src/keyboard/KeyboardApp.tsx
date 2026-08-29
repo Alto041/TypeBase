@@ -662,6 +662,8 @@ function KeyboardBody({
   const [gamePerformanceActive, setGamePerformanceActive] = useState(false);
   const gamePerformanceModeRef = useRef(false);
   const autoGamePerformanceRef = useRef(false);
+  /** Briefly disable native commit-on-down after rotation until key bounds remeasure. */
+  const [nativeFastPathLayoutHold, setNativeFastPathLayoutHold] = useState(false);
   const shiftOnRef = useRef(false);
   const capsLockedRef = useRef(false);
   const hasTypedInFieldRef = useRef(false);
@@ -1427,9 +1429,6 @@ function KeyboardBody({
           activateGamePerformanceMode();
         }
       });
-      if (theme.isLandscape && modeRef.current.type === 'typing') {
-        activateGamePerformanceMode();
-      }
     });
     return () => {
       capsSubscription.remove();
@@ -1440,7 +1439,6 @@ function KeyboardBody({
     syncAutoCapitalizeShift,
     syncTypingCompositorFromEditor,
     activateGamePerformanceMode,
-    theme.isLandscape,
   ]);
 
   useEffect(() => {
@@ -2850,21 +2848,27 @@ function KeyboardBody({
   useEffect(() => {
     const subscription = DeviceEventEmitter.addListener(
       'keyboardOrientationChange',
-      (landscape: boolean) => {
+      () => {
+        setNativeFastPathLayoutHold(true);
+        nativeFastPathActiveRef.current = false;
+        keyboardBridge.setNativeKeyFastPathConfig(
+          JSON.stringify({enabled: false}),
+        );
         layoutContext?.requestRemeasure();
-        if (landscape && modeRef.current.type === 'typing') {
-          activateGamePerformanceMode();
-        }
       },
     );
     return () => subscription.remove();
-  }, [layoutContext, activateGamePerformanceMode]);
+  }, [layoutContext]);
 
   useEffect(() => {
-    if (theme.isLandscape && mode.type === 'typing') {
-      activateGamePerformanceMode();
+    if (!nativeFastPathLayoutHold) {
+      return;
     }
-  }, [theme.isLandscape, mode.type, activateGamePerformanceMode]);
+    const timer = setTimeout(() => {
+      setNativeFastPathLayoutHold(false);
+    }, 220);
+    return () => clearTimeout(timer);
+  }, [nativeFastPathLayoutHold, layoutContext?.layoutEpoch, theme.isLandscape]);
 
   useEffect(() => {
     setControllerFocus(current => normalizeControllerFocus(rows, current));
@@ -3972,9 +3976,15 @@ function KeyboardBody({
       return;
     }
 
+    if (nativeFastPathLayoutHold) {
+      nativeFastPathActiveRef.current = false;
+      keyboardBridge.setNativeKeyFastPathConfig(JSON.stringify({enabled: false}));
+      return;
+    }
+
     let cancelled = false;
     const publishConfig = () => {
-      if (cancelled) {
+      if (cancelled || nativeFastPathLayoutHold) {
         return;
       }
 
@@ -4002,7 +4012,7 @@ function KeyboardBody({
       keyboardBridge.setNativeKeyFastPathConfig(
         JSON.stringify({
           enabled: true,
-          commitOnDown: true,
+          commitOnDown: !theme.isLandscape,
           zeroLatency: zeroLatencyMode,
           gamePerformance: gamePerformanceActive,
           areaPageX: origin.pageX,
@@ -4054,6 +4064,8 @@ function KeyboardBody({
     theme.keyHitSlop.vertical,
     zeroLatencyMode,
     gamePerformanceActive,
+    nativeFastPathLayoutHold,
+    theme.isLandscape,
     syncNativeFastPathCaseState,
   ]);
 
