@@ -564,6 +564,27 @@ export function getBaseWords(lang?: string): string[] {
   return getLangBase(l);
 }
 
+/** Word list for predictive hitbox prefix tries — language-specific, never cross-pollinates. */
+export function getPrefixIndexWordList(lang?: string): readonly string[] {
+  const l = lang ?? getActiveLanguage();
+  if (l === 'en') {
+    return getEnglishWordsByFrequency();
+  }
+  if (l === 'it') {
+    return getItalianBase();
+  }
+  if (l === 'de') {
+    return getGermanBase();
+  }
+  if (l === 'hi-en') {
+    return getHinglishCombinedBase();
+  }
+  if (l === 'fr-en') {
+    return getFranglaisCombinedBase();
+  }
+  return getLangBase(l);
+}
+
 /** Preload the dictionary for the active language (useful on layout switch). */
 export async function preloadActiveDictionary(): Promise<void> {
   const lang = getActiveLanguage();

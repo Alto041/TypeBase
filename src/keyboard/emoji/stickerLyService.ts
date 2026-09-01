@@ -3,6 +3,8 @@
  * @see https://github.com/theabbie/sticker.ly
  * @see https://www.npmjs.com/package/sticker.ly
  */
+import {readJsonResponse} from '../../../lib/safeFetchJson';
+
 const STICKERLY_API_ROOT = 'http://api.sticker.ly/v3.1';
 const STICKERLY_USER_AGENT =
   'androidapp.stickerly/1.13.3 (G011A; U; Android 22; pt-BR; br;)';
@@ -66,7 +68,7 @@ async function fetchStickerLyJson<T>(path: string): Promise<T> {
     throw new Error(`Sticker.ly request failed (${response.status})`);
   }
 
-  const json = (await response.json()) as T & StickerLyApiError;
+  const json = await readJsonResponse<T & StickerLyApiError>(response);
   if (json.error?.errorCode) {
     throw new Error(
       json.error.errorMessage?.trim() ||

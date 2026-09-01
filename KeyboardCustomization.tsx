@@ -668,9 +668,9 @@ export function ThemesScreen({onBack}: {onBack: () => void}) {
   const [design, setDesign] = useState<'typebase' | 'quivox' | 'macintosh' | 'apple'>('typebase');
   const [isDark, setIsDark] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [developerEyeEnabled, setDeveloperEyeEnabled] = useState(false);
   const [themeJson, setThemeJson] = useState(() => formatCustomThemeJsonForEditor('{}'));
   const [jsonError, setJsonError] = useState<string | null>(null);
+  const [themeJsonExpanded, setThemeJsonExpanded] = useState(false);
 
   // Custom keyboard font (applies to the whole keyboard)
   const [customFontFile, setCustomFontFile] = useState<string | null>(null);
@@ -680,10 +680,6 @@ export function ThemesScreen({onBack}: {onBack: () => void}) {
 
   const toggleAnim = useRef(new Animated.Value(0)).current;
   const fontToggleAnim = useRef(new Animated.Value(0)).current;
-
-  const syncDeveloperEye = useCallback((enabled: boolean) => {
-    setDeveloperEyeEnabled(enabled);
-  }, []);
 
   useEffect(() => {
     void ensureThemeLoaded().then(() => {
@@ -705,7 +701,6 @@ export function ThemesScreen({onBack}: {onBack: () => void}) {
     });
 
     void ensureLayoutLoaded().then(() => {
-      syncDeveloperEye(getKeyboardLayoutSettings().developerEyeEnabled);
       const ls = getKeyboardLayoutSettings();
       setCustomFontFile(ls.customFontFile ?? null);
       const fontOn = !!ls.customFontEnabled;
@@ -717,7 +712,6 @@ export function ThemesScreen({onBack}: {onBack: () => void}) {
       KEYBOARD_LAYOUT_CHANGED_EVENT,
       payload => {
         const parsed = parseLayoutEventPayload(payload);
-        syncDeveloperEye(parsed.developerEyeEnabled);
         setCustomFontFile(parsed.customFontFile ?? null);
         const fontOn = !!parsed.customFontEnabled;
         setCustomFontEnabled(fontOn);
@@ -726,7 +720,7 @@ export function ThemesScreen({onBack}: {onBack: () => void}) {
     );
 
     return () => layoutSubscription.remove();
-  }, [syncDeveloperEye, toggleAnim]);
+  }, [toggleAnim, fontToggleAnim]);
 
   const applyThemeJson = async () => {
     const result = parseCustomThemeJsonFromEditor(themeJson);
@@ -1033,12 +1027,21 @@ export function ThemesScreen({onBack}: {onBack: () => void}) {
           </Pressable>
         </View>
 
-        {developerEyeEnabled && (
+        <Pressable
+          style={styles.themeToggleContainer}
+          onPress={() => setThemeJsonExpanded(expanded => !expanded)}
+          disabled={loading}>
+          <ThemeIcon width={20} height={20} color={C.text} />
+          <Text style={styles.themeToggleLabel}>Custom theme JSON</Text>
+          <View style={{flex: 1}} />
+          <Text style={styles.themeJsonChevron}>{themeJsonExpanded ? '−' : '+'}</Text>
+        </Pressable>
+
+        {themeJsonExpanded ? (
           <View style={styles.jsonCard}>
             <Text style={styles.jsonLabel}>THEME JSON</Text>
             <Text style={styles.jsonHint}>
-              All keys are listed below. Use hex (#RRGGBB) or rgb/rgba. Leave blank
-              to keep the default.
+              Use hex (#RRGGBB) or rgb/rgba. Leave blank to keep the default.
             </Text>
             <TextInput
               style={styles.jsonInput}
@@ -1061,7 +1064,7 @@ export function ThemesScreen({onBack}: {onBack: () => void}) {
               <Text style={styles.jsonApplyText}>Apply</Text>
             </Pressable>
           </View>
-        )}
+        ) : null}
       </ScrollView>
     </SafeAreaView>
   );
@@ -1569,6 +1572,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 10,
+  },
+  themeJsonChevron: {
+    fontFamily: 'FragmentMono',
+    fontSize: 22,
+    color: C.sub,
+    width: 24,
+    textAlign: 'center',
   },
 
   jsonCard: {

@@ -34,7 +34,7 @@ export type KeyboardLayoutSettings = {
    * When false, Enter key uses the normal modifier key cap color.
    */
   enterKeyPreviewEnabled: boolean;
-  /** When true, show JSON theme editor on the Themes page. */
+  /** When true, show developer debug overlays on the keyboard (e.g. hit regions). */
   developerEyeEnabled: boolean;
   /**
    * When true, long-press on letter keys offers symbols/numbers (a→@, q→1, …)
@@ -67,6 +67,8 @@ export type KeyboardLayoutSettings = {
   customFontFile: string | null;
   /** Controller/gamepad navigation and button mapping settings. */
   controller: ControllerSettings;
+  /** When true, expand key hit regions based on predicted next letters. */
+  predictiveHitboxesEnabled: boolean;
 };
 
 export const DEFAULT_KEYBOARD_LAYOUT_SETTINGS: KeyboardLayoutSettings = {
@@ -88,6 +90,7 @@ export const DEFAULT_KEYBOARD_LAYOUT_SETTINGS: KeyboardLayoutSettings = {
   customFontEnabled: false,
   customFontFile: null,
   controller: DEFAULT_CONTROLLER_SETTINGS,
+  predictiveHitboxesEnabled: true,
 };
 
 /** Touch slop into gaps — horizontal fills keyGap; vertical reaches row gaps without full overlap. */
@@ -96,6 +99,19 @@ export const KEY_HIT_SLOP = {
   vertical:
     Math.ceil(DEFAULT_KEYBOARD_LAYOUT_SETTINGS.keyRowMargin / 2) +
     DEFAULT_KEYBOARD_LAYOUT_SETTINGS.keyGap,
+};
+
+/** iOS-style predictive hitbox expansion tuning. */
+export const PREDICTIVE_HITBOX_EXPANSION = {
+  /** Max extra slop as a fraction of base slop for the top-predicted key. */
+  maxExtraRatio: 0.78,
+  /** Require this probability margin over runner-up before asymmetric expansion. */
+  minProbabilityMargin: 0.02,
+  /** Expand even with low margin when the top letter clears this probability. */
+  minTopProbability: 0.28,
+  /** Bias extra vertical slop toward the top of the key (thumb approach). */
+  verticalTopBias: 1.15,
+  verticalBottomBias: 0.85,
 };
 const NUMPAD_KEYS_PADDING_TOP = 2;
 
@@ -871,6 +887,8 @@ export function createKeyboardTheme(
     numberRowEnabled: layout.numberRowEnabled,
     autoCapitalizeEnabled: layout.autoCapitalizeEnabled,
     keyboardHeightOffset: layout.keyboardHeightOffset ?? 0,
+    developerEyeEnabled: layout.developerEyeEnabled,
+    predictiveHitboxesEnabled: layout.predictiveHitboxesEnabled,
     keyHitSlop: {
       horizontal: layout.keyGap,
       vertical: Math.ceil(layout.keyRowMargin / 2) + layout.keyGap,

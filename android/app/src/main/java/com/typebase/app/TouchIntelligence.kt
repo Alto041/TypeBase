@@ -51,6 +51,17 @@ class TouchIntelligence {
       val lastTapY: Float = 0f,
       val lastTapAtMs: Long = 0L,
       val lastTapLetter: String? = null,
+      val predictiveNeutralMode: Boolean = true,
+      val topPredictedLetter: String? = null,
+      val topExpansionKeyId: String? = null,
+  )
+
+  data class KeyExpansion(
+      val left: Float,
+      val right: Float,
+      val top: Float,
+      val bottom: Float,
+      val probability: Float = 0f,
   )
 
   private var context = Context()
@@ -58,6 +69,8 @@ class TouchIntelligence {
   private var hitSlopVertical = 0f
   private var keys = emptyList<KeyGeometry>()
   private var keyByLetter = emptyMap<String, KeyGeometry>()
+  private var keyExpansions = emptyMap<String, KeyExpansion>()
+  private var letterProbabilities = emptyMap<String, Float>()
   private var neighborMap: Map<String, Set<String>> = emptyMap()
   private var neighborRadius = 0f
 
@@ -86,6 +99,9 @@ class TouchIntelligence {
     }
 
     val incomingPrefix = touchIntelligence.optString("wordPrefix", "")
+    val parsedExpansions = parseKeyExpansions(touchIntelligence.optJSONArray("keyExpansions"))
+    keyExpansions = parsedExpansions.first
+    letterProbabilities = parsedExpansions.second
     context =
         Context(
             enabled = touchIntelligence.optBoolean("enabled", true),
@@ -97,19 +113,93 @@ class TouchIntelligence {
             lastTapY = touchIntelligence.optDouble("lastTapY", 0.0).toFloat(),
             lastTapAtMs = touchIntelligence.optLong("lastTapAtMs", 0L),
             lastTapLetter = context.lastTapLetter,
+            predictiveNeutralMode = touchIntelligence.optBoolean("predictiveNeutralMode", true),
+            topPredictedLetter =
+                touchIntelligence.optString("topPredictedLetter", "")
+                    .takeIf { it.isNotEmpty() },
+            topExpansionKeyId =
+                touchIntelligence.optString("topExpansionKeyId", "")
+                    .takeIf { it.isNotEmpty() },
         )
   }
 
-  fun updateTypingContext(
-      previousKeyLetter: String?,
-      wordPrefix: String,
-  ) {
-    val mergedPrefix = mergeWordPrefix(wordPrefix, context.wordPrefix)
-    context =
-        context.copy(
-            previousKeyLetter = previousKeyLetter,
-            wordPrefix = mergedPrefix,
+  fun updateTypingContext(json: String) {
+    try {
+      val obj = JSONObject(json)
+      val mergedPrefix = mergeWordPrefix(obj.optString("wordPrefix", ""), context.wordPrefix)
+      val parsedExpansions = parseKeyExpansions(obj.optJSONArray("keyExpansions"))
+      keyExpansions = parsedExpansions.first
+      letterProbabilities = parsedExpansions.second
+      context =
+          context.copy(
+              previousKeyLetter =
+                  obj.optString("previousKeyLetter", "").takeIf { it.isNotEmpty() },
+              wordPrefix = mergedPrefix,
+              predictiveNeutralMode = obj.optBoolean("predictiveNeutralMode", true),
+              topPredictedLetter =
+                  obj.optString("topPredictedLetter", "").takeIf { it.isNotEmpty() },
+              topExpansionKeyId =
+                  obj.optString("topExpansionKeyId", "").takeIf { it.isNotEmpty() },
+          )
+    } catch (_: Exception) {
+      // Ignore malformed context payloads.
+    }
+  }
+
+  private fun parseKeyExpansions(
+      array: org.json.JSONArray?,
+  ): Pair<Map<String, KeyExpansion>, Map<String, Float>> {
+    if (array == null || array.length() == 0) {
+      return emptyMap<String, KeyExpansion>() to emptyMap()
+    }
+    val expansions = LinkedHashMap<String, KeyExpansion>()
+    val probabilities = mutableMapOf<String, Float>()
+    for (index in 0 until array.length()) {
+      val item = array.optJSONObject(index) ?: continue
+      val keyId = item.optString("keyId", "")
+      if (keyId.isEmpty()) {
+        continue
+      }
+      val probability = item.optDouble("probability", 0.0).toFloat()
+      expansions[keyId] =
+          KeyExpansion(
+              left = item.optDouble("left", hitSlopHorizontal.toDouble()).toFloat(),
+              right = item.optDouble("right", hitSlopHorizontal.toDouble()).toFloat(),
+              top = item.optDouble("top", hitSlopVertical.toDouble()).toFloat(),
+              bottom = item.optDouble("bottom", hitSlopVertical.toDouble()).toFloat(),
+              probability = probability,
+          )
+      keyByIdLetter(keyId)?.let { letter ->
+        probabilities[letter] = max(probabilities[letter] ?: 0f, probability)
+      }
+    }
+    return expansions to probabilities
+  }
+
+  private fun keyByIdLetter(keyId: String): String? {
+    return keys.firstOrNull { it.id == keyId }?.let { letterForKey(it) }
+  }
+
+  private fun keyExpansion(key: KeyGeometry): KeyExpansion {
+    return keyExpansions[key.id]
+        ?: KeyExpansion(
+            left = hitSlopHorizontal,
+            right = hitSlopHorizontal,
+            top = hitSlopVertical,
+            bottom = hitSlopVertical,
         )
+  }
+
+  private fun maxSlopForKey(key: KeyGeometry): Float {
+    val expansion = keyExpansion(key)
+    return max(max(expansion.left, expansion.right), max(expansion.top, expansion.bottom)) + 4f
+  }
+
+  private fun letterProbability(letter: String?): Float {
+    if (letter == null || context.predictiveNeutralMode) {
+      return 0f
+    }
+    return letterProbabilities[letter.lowercase()] ?: 0f
   }
 
   fun recordTap(letter: String, localX: Float, localY: Float, timestampMs: Long) {
@@ -288,13 +378,33 @@ class TouchIntelligence {
     var chosen: KeyGeometry? = geometric ?: bestKey
     var appliedRerank = false
 
-    val requiredMargin = MIN_RERANK_MARGIN * (1f - touchAmbiguity * 0.95f)
+    val geoLetter = letterForKey(geometric)
+    val bestLetter = letterForKey(bestKey)
+    val geoPrefixProb = if (geoLetter != null) letterProbability(geoLetter) else 0f
+    val bestPrefixProb = if (bestLetter != null) letterProbability(bestLetter) else 0f
+    val prefixFavorsBest =
+        bestPrefixProb > 0.32f && bestPrefixProb > geoPrefixProb + 0.12f
+
+    var requiredMargin = MIN_RERANK_MARGIN * (1f - touchAmbiguity * 0.95f)
+    if (prefixFavorsBest) {
+      requiredMargin *= max(0.25f, 1f - (bestPrefixProb - geoPrefixProb) * 1.4f)
+    }
 
     if (
         geometric != null &&
             bestKey.id != geometric.id &&
             isNeighborKey(geometric, bestKey) &&
             bestScore - geometricScoreValue >= requiredMargin
+    ) {
+      chosen = bestKey
+      appliedRerank = true
+    } else if (
+        geometric != null &&
+            bestKey.id != geometric.id &&
+            prefixFavorsBest &&
+            bestPrefixProb >= 0.45f &&
+            isNeighborKey(geometric, bestKey) &&
+            bestScore >= geometricScoreValue
     ) {
       chosen = bestKey
       appliedRerank = true
@@ -386,11 +496,30 @@ class TouchIntelligence {
 
     var gapMatch: KeyGeometry? = null
     var nearestCenter = Float.MAX_VALUE
+    val probabilityTieDistancePx = 10f
     for (key in candidates) {
       if (!pointInSlop(key, localX, localY)) {
         continue
       }
       val centerDistance = hypot(localX - key.centerX, localY - key.centerY)
+      val priority = letterProbability(letterForKey(key))
+      if (gapMatch != null) {
+        val distanceDelta = kotlin.math.abs(centerDistance - nearestCenter)
+        if (distanceDelta <= probabilityTieDistancePx) {
+          val currentPriority = letterProbability(letterForKey(gapMatch))
+          if (priority > currentPriority) {
+            nearestCenter = centerDistance
+            gapMatch = key
+            continue
+          }
+          if (priority == currentPriority && centerDistance < nearestCenter) {
+            nearestCenter = centerDistance
+            gapMatch = key
+            continue
+          }
+          continue
+        }
+      }
       if (centerDistance < nearestCenter) {
         nearestCenter = centerDistance
         gapMatch = key
@@ -400,7 +529,7 @@ class TouchIntelligence {
       return gapMatch
     }
 
-    val maxSnap = max(hitSlopHorizontal, hitSlopVertical) + 4f
+    val maxSnap = keys.maxOfOrNull { maxSlopForKey(it) } ?: (max(hitSlopHorizontal, hitSlopVertical) + 4f)
     var snapMatch: KeyGeometry? = null
     var nearestEdge = Float.MAX_VALUE
     for (key in candidates) {
@@ -418,7 +547,6 @@ class TouchIntelligence {
       localY: Float,
       geometric: KeyGeometry?,
   ): List<KeyGeometry> {
-    val maxSnap = max(hitSlopHorizontal, hitSlopVertical) + 4f
     val candidates = LinkedHashMap<String, KeyGeometry>()
 
     fun addCandidate(key: KeyGeometry?) {
@@ -428,6 +556,7 @@ class TouchIntelligence {
     }
 
     for (key in keys) {
+      val maxSnap = maxSlopForKey(key)
       if (
           pointInside(key, localX, localY) ||
               pointInSlop(key, localX, localY) ||
@@ -467,6 +596,7 @@ class TouchIntelligence {
     val velocityWeight = WEIGHT_VELOCITY * (1f + ambiguity * 0.4f)
     val neighborWeight = WEIGHT_NEIGHBOR * (1f + ambiguity * 0.55f)
     val bigramWeight = WEIGHT_BIGRAM * (1f + ambiguity * 0.55f)
+    val wordPrefixWeight = WEIGHT_WORD_PREFIX * (1f + ambiguity * 0.65f)
     val includeRawHit = ambiguity < 0.08f
     val references =
         listOfNotNull(
@@ -479,7 +609,8 @@ class TouchIntelligence {
         geo * geoWeight +
             velocityScore(key, localX, localY, velocity) * velocityWeight +
             neighborScore(candidateLetter, references) * neighborWeight +
-            bigramScore(candidateLetter) * bigramWeight
+            bigramScore(candidateLetter) * bigramWeight +
+            wordPrefixScore(candidateLetter) * wordPrefixWeight
 
     return score * timingScale
   }
@@ -506,6 +637,17 @@ class TouchIntelligence {
     return min(1f, (normDist - CONFIDENT_STRICT_CENTER_RATIO) / span)
   }
 
+  private fun wordPrefixScore(candidateLetter: String?): Float {
+    if (candidateLetter == null) {
+      return 0.45f
+    }
+    val probability = letterProbability(candidateLetter)
+    if (probability <= 0f) {
+      return 0.45f
+    }
+    return 0.4f + probability * 0.6f
+  }
+
   private fun geometricScore(key: KeyGeometry, x: Float, y: Float): Float {
     if (pointInside(key, x, y)) {
       val halfW = max((key.right - key.left) / 2f, 1f)
@@ -515,7 +657,8 @@ class TouchIntelligence {
     }
 
     val edgeDistance = distanceToRect(key, x, y)
-    val maxSlop = max(hitSlopHorizontal, hitSlopVertical) + 4f
+    val expansion = keyExpansion(key)
+    val maxSlop = max(max(expansion.left, expansion.right), max(expansion.top, expansion.bottom)) + 4f
     if (edgeDistance > maxSlop) {
       return Float.NEGATIVE_INFINITY
     }
@@ -619,10 +762,11 @@ class TouchIntelligence {
   }
 
   private fun pointInSlop(key: KeyGeometry, x: Float, y: Float): Boolean {
-    return x >= key.left - hitSlopHorizontal &&
-        x <= key.right + hitSlopHorizontal &&
-        y >= key.top - hitSlopVertical &&
-        y <= key.bottom + hitSlopVertical
+    val expansion = keyExpansion(key)
+    return x >= key.left - expansion.left &&
+        x <= key.right + expansion.right &&
+        y >= key.top - expansion.top &&
+        y <= key.bottom + expansion.bottom
   }
 
   private fun distanceToRect(key: KeyGeometry, x: Float, y: Float): Float {
@@ -687,10 +831,11 @@ class TouchIntelligence {
   }
 
   companion object {
-    private const val WEIGHT_GEOMETRIC = 0.42f
-    private const val WEIGHT_VELOCITY = 0.12f
-    private const val WEIGHT_NEIGHBOR = 0.18f
-    private const val WEIGHT_BIGRAM = 0.18f
+    private const val WEIGHT_GEOMETRIC = 0.36f
+    private const val WEIGHT_VELOCITY = 0.1f
+    private const val WEIGHT_NEIGHBOR = 0.15f
+    private const val WEIGHT_BIGRAM = 0.14f
+    private const val WEIGHT_WORD_PREFIX = 0.25f
     private const val CONFIDENT_STRICT_CENTER_RATIO = 0.12f
     private const val MIN_RERANK_MARGIN = 0.002f
 

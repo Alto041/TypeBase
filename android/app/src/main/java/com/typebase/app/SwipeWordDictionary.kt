@@ -101,6 +101,33 @@ object SwipeWordDictionary {
   fun isKnownWord(word: String): Boolean =
     staticRank.containsKey(word.trim().lowercase())
 
+  /** Frequency-ordered prefix completions for the live suggestion bar. */
+  fun getPrefixCompletions(context: Context, prefix: String, limit: Int = 8): List<String> {
+    ensureLoaded(context)
+    val lower = prefix.trim().lowercase()
+    if (lower.isEmpty()) {
+      return words.take(limit.coerceAtLeast(1))
+    }
+    if (!lower.all { it in 'a'..'z' }) {
+      return emptyList()
+    }
+    val first = lower[0]
+    if (first !in 'a'..'z') {
+      return emptyList()
+    }
+    val bucket = wordsByFirstLetter[first - 'a']
+    val results = ArrayList<String>(limit.coerceAtLeast(1))
+    for ((word, _) in bucket) {
+      if (word.startsWith(lower)) {
+        results.add(word)
+        if (results.size >= limit) {
+          break
+        }
+      }
+    }
+    return results
+  }
+
   fun getSwipeCandidates(
     context: Context,
     prefs: SharedPreferences,

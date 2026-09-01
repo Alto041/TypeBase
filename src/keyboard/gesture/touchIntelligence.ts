@@ -1,6 +1,12 @@
 import {keyboardBridge} from '../keyboardBridge';
 import type {KeyBounds} from './types';
 import {getLetterBigramWeight} from './touchIntelligenceLetterBigrams';
+import {
+  expandedKeyBounds,
+  getLetterHitPriority,
+  getPredictiveHitboxState,
+  serializeKeyExpansionsForNative,
+} from './predictiveHitboxes';
 import {recordTouchIntelligenceAnalysis} from './touchIntelligenceTelemetry';
 
 export type TouchIntelligenceTypingContext = {
@@ -26,6 +32,10 @@ export type TouchIntelligenceNativeConfig = {
   lastTapX: number;
   lastTapY: number;
   lastTapAtMs: number;
+  predictiveNeutralMode: boolean;
+  topPredictedLetter: string | null;
+  topExpansionKeyId: string | null;
+  keyExpansions: ReturnType<typeof serializeKeyExpansionsForNative>;
 };
 
 type LastTapRecord = {
@@ -35,10 +45,11 @@ type LastTapRecord = {
   timestampMs: number;
 };
 
-const WEIGHT_GEOMETRIC = 0.42;
-const WEIGHT_VELOCITY = 0.12;
-const WEIGHT_NEIGHBOR = 0.18;
-const WEIGHT_BIGRAM = 0.18;
+const WEIGHT_GEOMETRIC = 0.36;
+const WEIGHT_VELOCITY = 0.1;
+const WEIGHT_NEIGHBOR = 0.15;
+const WEIGHT_BIGRAM = 0.14;
+const WEIGHT_WORD_PREFIX = 0.25;
 const CONFIDENT_STRICT_CENTER_RATIO = 0.12;
 const MIN_RERANK_MARGIN = 0.002;
 
@@ -83,6 +94,7 @@ export function recordTouchIntelligenceTap(
 
 export function getTouchIntelligenceNativeConfig(): TouchIntelligenceNativeConfig {
   const typing = getTouchIntelligenceTypingContext();
+  const hitboxState = getPredictiveHitboxState();
   return {
     enabled: true,
     previousKeyLetter: typing.previousKeyLetter,
@@ -90,11 +102,16 @@ export function getTouchIntelligenceNativeConfig(): TouchIntelligenceNativeConfi
     lastTapX: lastTap?.localX ?? 0,
     lastTapY: lastTap?.localY ?? 0,
     lastTapAtMs: lastTap?.timestampMs ?? 0,
+    predictiveNeutralMode: hitboxState.neutralMode,
+    topPredictedLetter: hitboxState.topLetter,
+    topExpansionKeyId: hitboxState.topExpansionKeyId,
+    keyExpansions: serializeKeyExpansionsForNative(),
   };
 }
 
 export function syncTouchIntelligenceToNative(): void {
   const typing = getTouchIntelligenceTypingContext();
+  const hitboxState = getPredictiveHitboxState();
   const payload = JSON.stringify({
     enabled: true,
     previousKeyLetter: typing.previousKeyLetter,
@@ -102,6 +119,10 @@ export function syncTouchIntelligenceToNative(): void {
     lastTapX: lastTap?.localX ?? 0,
     lastTapY: lastTap?.localY ?? 0,
     lastTapAtMs: lastTap?.timestampMs ?? 0,
+    predictiveNeutralMode: hitboxState.neutralMode,
+    topPredictedLetter: hitboxState.topLetter,
+    topExpansionKeyId: hitboxState.topExpansionKeyId,
+    keyExpansions: serializeKeyExpansionsForNative(),
   });
   if (payload === lastNativeContextPayload) {
     return;
@@ -144,12 +165,7 @@ function distanceToRect(
 }
 
 function expandedBounds(layout: KeyBounds, slop: KeyHitSlop) {
-  return {
-    left: layout.x - slop.horizontal,
-    right: layout.x + layout.width + slop.horizontal,
-    top: layout.y - slop.vertical,
-    bottom: layout.y + layout.height + slop.vertical,
-  };
+  return expandedKeyBounds(layout, slop);
 }
 
 function buildNeighborCacheKey(layouts: readonly KeyBounds[]): string {
@@ -310,6 +326,17 @@ function bigramScore(
   }
 
   return best;
+}
+
+function wordPrefixScore(candidateLetter: string | null): number {
+  if (!candidateLetter) {
+    return 0.45;
+  }
+  const probability = getLetterHitPriority(candidateLetter);
+  if (probability <= 0) {
+    return 0.45;
+  }
+  return 0.4 + probability * 0.6;
 }
 
 function timingFactor(msSinceLastTap: number): number {
@@ -479,6 +506,7 @@ function scoreCandidate(
   const velocityWeight = WEIGHT_VELOCITY * (1 + ambiguity * 0.4);
   const neighborWeight = WEIGHT_NEIGHBOR * (1 + ambiguity * 0.55);
   const bigramWeight = WEIGHT_BIGRAM * (1 + ambiguity * 0.55);
+  const wordPrefixWeight = WEIGHT_WORD_PREFIX * (1 + ambiguity * 0.65);
   const includeRawHit = ambiguity < 0.08;
   const references = [
     typing.previousKeyLetter,
@@ -495,7 +523,8 @@ function scoreCandidate(
       typing.previousKeyLetter,
       typing.wordPrefix,
     ) *
-      bigramWeight;
+      bigramWeight +
+    wordPrefixScore(candidateLetter) * wordPrefixWeight;
 
   return score * timingScale;
 }
@@ -600,6 +629,7 @@ function maybeEmitTouchHitTelemetry(
   if (!recordTelemetry) {
     return;
   }
+  const hitboxState = getPredictiveHitboxState();
   recordTouchIntelligenceAnalysis({
     localX,
     localY,
@@ -615,6 +645,9 @@ function maybeEmitTouchHitTelemetry(
     velocityPxPerSec: options.velocityPxPerSec,
     wordPrefix: options.wordPrefix,
     previousKeyLetter: options.previousKeyLetter,
+    predictiveNeutralMode: hitboxState.neutralMode,
+    topPredictedLetter: hitboxState.topLetter,
+    topExpansionKeyId: hitboxState.topExpansionKeyId,
   });
 }
 
@@ -745,13 +778,33 @@ export function intelligentHitTestKey(
   let finalHit = geometricHit ?? bestLayout;
   let appliedRerank = false;
 
-  const requiredMargin = MIN_RERANK_MARGIN * (1 - touchAmbiguity * 0.95);
+  const geoLetter = geometricHit ? keyLetter(geometricHit) : null;
+  const bestLetter = keyLetter(bestLayout);
+  const geoPrefixProb = geoLetter ? getLetterHitPriority(geoLetter) : 0;
+  const bestPrefixProb = bestLetter ? getLetterHitPriority(bestLetter) : 0;
+  const prefixFavorsBest =
+    bestPrefixProb > 0.32 && bestPrefixProb > geoPrefixProb + 0.12;
+
+  let requiredMargin = MIN_RERANK_MARGIN * (1 - touchAmbiguity * 0.95);
+  if (prefixFavorsBest) {
+    requiredMargin *= Math.max(0.25, 1 - (bestPrefixProb - geoPrefixProb) * 1.4);
+  }
 
   if (
     geometricHit != null &&
     bestLayout.id !== geometricHit.id &&
     isNeighborKey(geometricHit, bestLayout, neighborMap) &&
     bestScore - geometricScoreValue >= requiredMargin
+  ) {
+    finalHit = bestLayout;
+    appliedRerank = true;
+  } else if (
+    geometricHit != null &&
+    bestLayout.id !== geometricHit.id &&
+    prefixFavorsBest &&
+    bestPrefixProb >= 0.45 &&
+    isNeighborKey(geometricHit, bestLayout, neighborMap) &&
+    bestScore >= geometricScoreValue
   ) {
     finalHit = bestLayout;
     appliedRerank = true;

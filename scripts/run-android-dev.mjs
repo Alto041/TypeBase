@@ -67,6 +67,19 @@ ensureLocalExpoSettings();
 console.log('Setting up adb port reverse (device 8081 -> PC 8081)...');
 run('adb', ['reverse', 'tcp:8081', 'tcp:8081']);
 
+const reverseCheck = spawnSync('adb', ['reverse', '--list'], {
+  cwd: root,
+  encoding: 'utf8',
+  shell: isWin,
+});
+if (!String(reverseCheck.stdout ?? '').includes('tcp:8081')) {
+  console.warn(
+    '\nWarning: adb reverse for port 8081 is not active. ' +
+      'Metro dev requests may fail with "upstream connect error".\n' +
+      'Use a USB-connected device and ensure adb sees it (`adb devices`).\n',
+  );
+}
+
 const metroEnv = {
   ...process.env,
   REACT_NATIVE_PACKAGER_HOSTNAME: 'localhost',

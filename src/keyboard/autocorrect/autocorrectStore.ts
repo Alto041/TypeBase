@@ -15,6 +15,9 @@ function normalizeSettings(raw: Partial<AutocorrectSettings>): AutocorrectSettin
     aiAutoCorrectEnabled:
       raw.aiAutoCorrectEnabled ??
       DEFAULT_AUTOCORRECT_SETTINGS.aiAutoCorrectEnabled,
+    contextCorrectionEnabled:
+      raw.contextCorrectionEnabled ??
+      DEFAULT_AUTOCORRECT_SETTINGS.contextCorrectionEnabled,
   };
 }
 

@@ -2,6 +2,8 @@
  * MyInstants sound browser via the community REST API.
  * @see README-sfx.md / https://github.com/abdipr/myinstants-api
  */
+import {readJsonResponse} from '../../../lib/safeFetchJson';
+
 const MYINSTANTS_API_BASE = 'https://myinstants-api.vercel.app';
 
 export const SFX_COLUMNS = 2;
@@ -47,7 +49,7 @@ async function fetchSounds(path: string, params?: Record<string, string>): Promi
   if (!response.ok) {
     throw new Error(`MyInstants request failed (${response.status})`);
   }
-  const json = (await response.json()) as MyInstantsListResponse;
+  const json = await readJsonResponse<MyInstantsListResponse>(response);
   if (!isOkStatus(json.status)) {
     throw new Error(json.message ?? 'MyInstants request failed');
   }

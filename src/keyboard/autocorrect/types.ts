@@ -4,12 +4,15 @@ export type AutocorrectSettings = {
   autoApplyOnSpace: boolean;
   /** Runs a conservative AI proofread after pauses/boundaries. */
   aiAutoCorrectEnabled: boolean;
+  /** Uses sentence bigrams + personal history to pick better typo fixes. */
+  contextCorrectionEnabled: boolean;
 };
 
 export const DEFAULT_AUTOCORRECT_SETTINGS: AutocorrectSettings = {
   enabled: true,
   autoApplyOnSpace: true,
   aiAutoCorrectEnabled: false,
+  contextCorrectionEnabled: true,
 };
 
 export const AUTOCORRECT_REMEMBERS = [

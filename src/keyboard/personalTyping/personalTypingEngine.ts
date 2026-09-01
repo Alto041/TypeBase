@@ -402,6 +402,30 @@ export function isHardRejectedCorrection(typed: string, candidate: string): bool
   return hardRejectedCorrections.has(correctionKey(from, to));
 }
 
+export function queryPersonalContextCorrections(
+  typedWord: string,
+): Array<{to: string; confidence: number}> {
+  const from = normalizeLearnedWord(typedWord);
+  if (!from) {
+    return [];
+  }
+  const results: Array<{to: string; confidence: number}> = [];
+  for (const entry of Object.values(profile.corrections)) {
+    if (entry.from !== from) {
+      continue;
+    }
+    if (entry.rejections > entry.accepts * 2) {
+      continue;
+    }
+    if (entry.confidence < 0.25) {
+      continue;
+    }
+    results.push({to: entry.to, confidence: entry.confidence});
+  }
+  results.sort((a, b) => b.confidence - a.confidence);
+  return results.slice(0, 6);
+}
+
 export function queryPhrasesByPrefix(prefix: string, limit = 2): string[] {
   const normalized = prefix.trim().toLowerCase();
   if (!normalized) {

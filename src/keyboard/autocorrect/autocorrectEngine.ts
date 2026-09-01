@@ -29,6 +29,7 @@ import {
   symSpellRank,
 } from './dictionaryManager';
 import {getHinglishPhraseCorrection, isHinglishHeadword} from './hinglishDictionary';
+import {getContextCorrectionCandidate} from './contextCorrectionEngine';
 
 /** Manual rank overrides for slang / contractions. */
 const SUPPLEMENTAL_RANK = new Map<string, number>([
@@ -583,6 +584,10 @@ type CollectOptions = {
 export type AutocorrectLookupOptions = CollectOptions & {
   /** Word before the token being corrected — light context for short typos. */
   previousWord?: string;
+  /** Full text before cursor — enables context-based correction. */
+  context?: string;
+  /** Trailing words before the token (overrides context parsing when set). */
+  trailingWords?: string[];
   /** Space/enter boundary — allow missing-space splits without a full fuzzy scan. */
   boundary?: boolean;
 };
@@ -1745,6 +1750,25 @@ export function getAutocorrectCandidate(
     return null;
   }
 
+  if (options?.context || options?.trailingWords?.length) {
+    const shouldRunContext =
+      options.boundary === true || options.lightweight !== true;
+    if (shouldRunContext) {
+      const contextFix = getContextCorrectionCandidate(typed, options.context ?? '', {
+        previousWord: options.previousWord,
+        trailingWords: options.trailingWords,
+        boundary: options.boundary,
+        lightweight: options.lightweight,
+      });
+      if (contextFix && contextFix.correction.toLowerCase() !== lower) {
+        return {
+          correction: applyCaseToWord(contextFix.correction, typed),
+          confidence: contextFix.confidence,
+        };
+      }
+    }
+  }
+
   // Fast path: accidental double letter / adjacent-key slip (hhello, pwople).
   if (isEnglishLikeLang()) {
     const quickFix = findQuickTypoFixes(lower, options?.previousWord ?? '', {
@@ -1962,7 +1986,7 @@ export function getAutocorrectPreview(typedWord: string): string | null {
 /** Bar chips: keep what you typed + optional correction (correction may be blocked from auto-apply). */
 export function getSuggestionBarAutocorrect(
   typedWord: string,
-  options?: {fast?: boolean; previousWord?: string},
+  options?: {fast?: boolean; previousWord?: string; context?: string},
 ): {
   keepTyped: string | null;
   correction: string | null;
@@ -2031,6 +2055,28 @@ export function getSuggestionBarAutocorrect(
 
   const fast = options?.fast ?? false;
 
+  if (!fast && options?.context) {
+    const contextFix = getContextCorrectionCandidate(typed, options.context, {
+      previousWord,
+      lightweight: false,
+    });
+    if (
+      contextFix &&
+      contextFix.correction.toLowerCase() !== typed.toLowerCase() &&
+      contextFix.confidence >= MIN_SUGGESTION_BAR_CONFIDENCE
+    ) {
+      const result = {
+        keepTyped: offerKeepTyped ? typed : null,
+        correction: contextFix.correction,
+      };
+      if (suggestionBarAutocorrectCache.size > 512) {
+        suggestionBarAutocorrectCache.clear();
+      }
+      suggestionBarAutocorrectCache.set(cacheKey, {result, time: now});
+      return result;
+    }
+  }
+
   if (fast) {
     const preview = getFastAutocorrectPreview(typed, {previousWord});
     if (preview && preview.toLowerCase() !== typed.toLowerCase()) {
@@ -2089,6 +2135,7 @@ export function getSuggestionBarAutocorrect(
     lightweight: true,
     skipFrequentScan: true,
     previousWord,
+    context: !fast ? options?.context : undefined,
   });
   const correction =
     candidate &&

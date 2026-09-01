@@ -18,6 +18,10 @@ import {
   markSwipeTypingTapCommitted,
 } from './gestureState';
 import {
+  expandedKeyBounds,
+  getLetterHitPriority,
+} from './predictiveHitboxes';
+import {
   intelligentHitTestKey,
   recordTouchIntelligenceTap,
 } from './touchIntelligence';
@@ -135,12 +139,16 @@ export function isMultiTouchTextKey(keyDef: KeyDefinition): boolean {
 }
 
 function expandedBounds(layout: KeyBounds, slop: KeyHitSlop) {
-  return {
-    left: layout.x - slop.horizontal,
-    right: layout.x + layout.width + slop.horizontal,
-    top: layout.y - slop.vertical,
-    bottom: layout.y + layout.height + slop.vertical,
-  };
+  return expandedKeyBounds(layout, slop);
+}
+
+function keyLetterFromLayout(layout: KeyBounds): string | null {
+  const value = layout.keyDef.value ?? layout.letter ?? '';
+  if (value.length !== 1) {
+    return null;
+  }
+  const lower = value.toLowerCase();
+  return /[a-z]/.test(lower) ? lower : null;
 }
 
 function distanceToKeyBounds(
@@ -209,6 +217,7 @@ export function hitTestKeyGeometric(
 
   let gapMatch: KeyBounds | null = null;
   let nearestCenter = Infinity;
+  const PROBABILITY_TIE_DISTANCE_PX = 10;
 
   for (const layout of candidates) {
     const bounds = expandedBounds(layout, slop);
@@ -225,6 +234,25 @@ export function hitTestKeyGeometric(
       localX - layout.centerX,
       localY - layout.centerY,
     );
+    const letter = keyLetterFromLayout(layout);
+    const priority = getLetterHitPriority(letter);
+    if (gapMatch) {
+      const distanceDelta = Math.abs(centerDistance - nearestCenter);
+      if (distanceDelta <= PROBABILITY_TIE_DISTANCE_PX) {
+        const currentPriority = getLetterHitPriority(keyLetterFromLayout(gapMatch));
+        if (priority > currentPriority) {
+          nearestCenter = centerDistance;
+          gapMatch = layout;
+          continue;
+        }
+        if (priority === currentPriority && centerDistance < nearestCenter) {
+          nearestCenter = centerDistance;
+          gapMatch = layout;
+          continue;
+        }
+        continue;
+      }
+    }
     if (centerDistance < nearestCenter) {
       nearestCenter = centerDistance;
       gapMatch = layout;

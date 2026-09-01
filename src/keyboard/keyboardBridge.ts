@@ -141,6 +141,7 @@ type KeyboardModuleType = {
     previousWord: string | null,
     fast: boolean,
   ) => Promise<string[]>;
+  syncNativeSuggestionPrefix: (prefix: string) => void;
 };
 
 const {KeyboardModule} = NativeModules;
@@ -860,5 +861,10 @@ export const keyboardBridge: KeyboardModuleType = {
       ) as Promise<string[]>;
     }
     return Promise.resolve([]);
+  },
+  syncNativeSuggestionPrefix: (prefix: string) => {
+    if (Platform.OS === 'android' && KeyboardModule?.syncNativeSuggestionPrefix) {
+      KeyboardModule.syncNativeSuggestionPrefix(prefix);
+    }
   },
 };

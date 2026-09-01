@@ -63,6 +63,8 @@ export function TouchIntelligenceHitsScreen({onBack}: {onBack: () => void}) {
     totalHits: 0,
     nativeCommits: 0,
     appliedReranks: 0,
+    predictiveActiveHits: 0,
+    neutralModeHits: 0,
   });
 
   useEffect(() => {
@@ -86,6 +88,8 @@ export function TouchIntelligenceHitsScreen({onBack}: {onBack: () => void}) {
         totalHits: snapshot.summary.totalHits,
         nativeCommits: snapshot.summary.nativeCommits,
         appliedReranks: snapshot.summary.appliedReranks,
+        predictiveActiveHits: snapshot.summary.predictiveActiveHits,
+        neutralModeHits: snapshot.summary.neutralModeHits,
       });
     };
 
@@ -124,7 +128,8 @@ export function TouchIntelligenceHitsScreen({onBack}: {onBack: () => void}) {
         </View>
         <Text style={styles.summary}>
           {corrections.length} fixes · {summary.totalHits} analyzed ·{' '}
-          {summary.nativeCommits} native
+          {summary.nativeCommits} native · {summary.predictiveActiveHits} predictive ·{' '}
+          {summary.neutralModeHits} neutral
         </Text>
         <Pressable onPress={clearTouchIntelligenceHits}>
           <Text style={styles.clear}>Clear</Text>

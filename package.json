@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "android": "node scripts/run-android-dev.mjs",
-    "android:build": "expo run:android",
+    "android:build": "node scripts/run-android-dev.mjs",
+    "android:raw": "expo run:android",
     "android:reverse": "adb reverse tcp:8081 tcp:8081",
     "android:release": "cd android && .\\gradlew.bat assembleRelease",
     "android:bundle": "cd android && .\\gradlew.bat bundleRelease",

@@ -50,7 +50,7 @@ android {
         applicationId "com.typebase.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 25
+        versionCode 26
         versionName "2.0.0-beta.1"
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
@@ -95,6 +95,18 @@ android {
     androidResources {
         ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~'
     }
+}
+
+// USB dev: device localhost:8081 must forward to PC Metro (avoids "upstream connect error" JSON parse noise).
+tasks.register("adbReverseMetro", Exec) {
+    group = "react"
+    description = "Forward device tcp:8081 to host Metro for debug builds."
+    commandLine "adb", "reverse", "tcp:8081", "tcp:8081"
+    ignoreExitValue true
+}
+
+tasks.matching { it.name == "installDebug" }.configureEach {
+    dependsOn("adbReverseMetro")
 }
 
 ["pickFirsts", "excludes", "merges", "doNotStrip"].each { prop ->

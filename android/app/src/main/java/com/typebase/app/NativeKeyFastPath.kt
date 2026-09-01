@@ -135,11 +135,7 @@ class NativeKeyFastPath {
       return
     }
     try {
-      val obj = JSONObject(json)
-      touchIntelligence.updateTypingContext(
-          obj.optString("previousKeyLetter", "").takeIf { it.isNotEmpty() },
-          obj.optString("wordPrefix", ""),
-      )
+      touchIntelligence.updateTypingContext(json)
       lastTouchContextJson = json
     } catch (_: Exception) {
       // Ignore malformed context payloads.
@@ -243,6 +239,10 @@ class NativeKeyFastPath {
                 text[0].isUpperCase()
         if (!commitKeyTextOnly(key, text, shiftConsumed)) {
           return false
+        }
+
+        if (keyboardLayout == "letters" && text.length == 1 && text[0].isLetter()) {
+          NativeSuggestionBarEngine.appendLetter(text)
         }
 
         sessions[pointerId] = TouchSession(pointerId, key, text)

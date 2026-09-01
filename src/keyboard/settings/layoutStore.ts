@@ -96,6 +96,10 @@ function normalizeLayout(raw: unknown): KeyboardLayoutSettings {
         ? obj['customFontFile'].trim()
         : defaults.customFontFile,
     controller: normalizeControllerSettings(obj['controller']),
+    predictiveHitboxesEnabled:
+      typeof obj['predictiveHitboxesEnabled'] === 'boolean'
+        ? obj['predictiveHitboxesEnabled']
+        : defaults.predictiveHitboxesEnabled,
   };
 }
 

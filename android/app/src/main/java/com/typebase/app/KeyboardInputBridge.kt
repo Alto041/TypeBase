@@ -60,6 +60,8 @@ object KeyboardInputBridge {
       CopyOnWriteArrayList<(String, String, String, String, Boolean) -> Unit>()
   private val touchIntelligenceHitListeners =
       CopyOnWriteArrayList<(TouchIntelligence.HitAnalysis) -> Unit>()
+  private val nativeSuggestionsListeners =
+      CopyOnWriteArrayList<(NativeSuggestionBarEngine.Snapshot) -> Unit>()
   private var showKeyPreviewFn: ((Int, String) -> Unit)? = null
   private var hideKeyPreviewFn: ((Int) -> Unit)? = null
   private val previewContainerChangedListeners = CopyOnWriteArrayList<() -> Unit>()
@@ -704,6 +706,17 @@ object KeyboardInputBridge {
   ): () -> Unit {
     touchIntelligenceHitListeners.add(listener)
     return { touchIntelligenceHitListeners.remove(listener) }
+  }
+
+  fun notifyNativeSuggestionsUpdated(snapshot: NativeSuggestionBarEngine.Snapshot) {
+    nativeSuggestionsListeners.forEach { listener -> listener(snapshot) }
+  }
+
+  fun addNativeSuggestionsListener(
+      listener: (NativeSuggestionBarEngine.Snapshot) -> Unit,
+  ): () -> Unit {
+    nativeSuggestionsListeners.add(listener)
+    return { nativeSuggestionsListeners.remove(listener) }
   }
 
   fun registerKeyPreviewCallbacks(

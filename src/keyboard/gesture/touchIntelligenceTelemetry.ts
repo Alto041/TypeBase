@@ -1,5 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import {getPredictiveHitboxState} from './predictiveHitboxes';
+
 export type TouchIntelligenceHitRecord = {
   id: string;
   at: number;
@@ -18,6 +20,9 @@ export type TouchIntelligenceHitRecord = {
   velocityPxPerSec: number;
   wordPrefix: string;
   previousKeyLetter: string | null;
+  predictiveNeutralMode?: boolean;
+  topPredictedLetter?: string | null;
+  topExpansionKeyId?: string | null;
   source: 'js' | 'native' | null;
 };
 
@@ -30,6 +35,8 @@ export type TouchIntelligenceTelemetrySummary = {
   nativeCommits: number;
   jsCommits: number;
   mismatchCommits: number;
+  predictiveActiveHits: number;
+  neutralModeHits: number;
 };
 
 const STORAGE_KEY = '@typebase/touch_intelligence_hits_v1';
@@ -200,6 +207,7 @@ export function recordNativeTouchIntelligenceHit(
     return;
   }
 
+  const hitboxState = getPredictiveHitboxState();
   recordTouchIntelligenceAnalysis({
     localX: Number(payload.localX ?? 0),
     localY: Number(payload.localY ?? 0),
@@ -224,6 +232,9 @@ export function recordNativeTouchIntelligenceHit(
       typeof payload.previousKeyLetter === 'string'
         ? payload.previousKeyLetter
         : null,
+    predictiveNeutralMode: hitboxState.neutralMode,
+    topPredictedLetter: hitboxState.topLetter,
+    topExpansionKeyId: hitboxState.topExpansionKeyId,
     committedLetter: predictedLetter,
     source: 'native',
   });
@@ -273,6 +284,8 @@ export function summarizeTouchIntelligenceHits(
   let nativeCommits = 0;
   let jsCommits = 0;
   let mismatchCommits = 0;
+  let predictiveActiveHits = 0;
+  let neutralModeHits = 0;
 
   for (const record of hitRecords) {
     if (record.reranked) {
@@ -300,6 +313,11 @@ export function summarizeTouchIntelligenceHits(
     ) {
       mismatchCommits += 1;
     }
+    if (record.predictiveNeutralMode) {
+      neutralModeHits += 1;
+    } else if (record.topPredictedLetter) {
+      predictiveActiveHits += 1;
+    }
   }
 
   return {
@@ -311,6 +329,8 @@ export function summarizeTouchIntelligenceHits(
     nativeCommits,
     jsCommits,
     mismatchCommits,
+    predictiveActiveHits,
+    neutralModeHits,
   };
 }
 

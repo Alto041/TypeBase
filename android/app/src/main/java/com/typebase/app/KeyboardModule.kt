@@ -49,6 +49,7 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   private var removeInitialCapsModeListener: (() -> Unit)? = null
   private var removeEditorContextListener: (() -> Unit)? = null
   private var removeNativeFastPathKeyListener: (() -> Unit)? = null
+  private var removeNativeSuggestionsListener: (() -> Unit)? = null
   private var removeTouchIntelligenceHitListener: (() -> Unit)? = null
   private var removeControllerInputListener: (() -> Unit)? = null
   private var removeControllerConnectionListener: (() -> Unit)? = null
@@ -78,6 +79,7 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     super.initialize()
     Thread {
           SwipeWordDictionary.ensureLoaded(reactApplicationContext)
+          NativeSuggestionBarEngine.preload(reactApplicationContext)
         }
         .start()
     removePrefersNumpadListener =
@@ -154,6 +156,21 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
             reactApplicationContext
                 .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
                 .emit("keyboardNativeFastPathKey", event)
+          }
+        }
+    removeNativeSuggestionsListener =
+        KeyboardInputBridge.addNativeSuggestionsListener { snapshot ->
+          if (reactApplicationContext.hasActiveReactInstance()) {
+            val event = Arguments.createMap()
+            event.putString("prefix", snapshot.prefix)
+            event.putInt("generation", snapshot.generation)
+            event.putDouble("atMs", snapshot.atMs.toDouble())
+            val suggestions = Arguments.createArray()
+            snapshot.suggestions.forEach { suggestions.pushString(it) }
+            event.putArray("suggestions", suggestions)
+            reactApplicationContext
+                .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                .emit("keyboardNativeSuggestionsUpdated", event)
           }
         }
     removeTouchIntelligenceHitListener =
@@ -248,6 +265,8 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     removeEditorContextListener = null
     removeNativeFastPathKeyListener?.invoke()
     removeNativeFastPathKeyListener = null
+    removeNativeSuggestionsListener?.invoke()
+    removeNativeSuggestionsListener = null
     removeTouchIntelligenceHitListener?.invoke()
     removeTouchIntelligenceHitListener = null
     removeControllerInputListener?.invoke()
@@ -1989,46 +2008,10 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   }
 
   private val suggestionExecutor = Executors.newSingleThreadExecutor()
-  private var wordFrequencyMap: Map<String, Int>? = null
 
-  private fun loadWordFrequency() {
-    if (wordFrequencyMap != null) return
-    try {
-      val map = mutableMapOf<String, Int>()
-      val assetManager = reactApplicationContext.assets
-      assetManager.open("words.json").use { input ->
-        val jsonStr = input.bufferedReader().use { it.readText() }
-        val json = JSONObject(jsonStr)
-        json.keys().forEach { word ->
-          map[word] = json.optInt(word, 0)
-        }
-      }
-      wordFrequencyMap = map
-    } catch (e: Exception) {
-      // Fallback: create minimal map
-      wordFrequencyMap = emptyMap()
-    }
-  }
-
-  private fun getWordSuggestions(prefix: String, limit: Int = 8): Array<String> {
-    if (prefix.isEmpty()) return emptyArray()
-    loadWordFrequency()
-    
-    val suggestions = mutableListOf<Pair<String, Int>>()
-    val words = wordFrequencyMap ?: return emptyArray()
-    
-    // Prefix match + frequency sort (fast trie-like lookup)
-    words.forEach { (word, freq) ->
-      if (word.startsWith(prefix, ignoreCase = true)) {
-        suggestions.add(word to freq)
-      }
-    }
-    
-    return suggestions
-      .sortedByDescending { it.second }
-      .take(limit)
-      .map { it.first }
-      .toTypedArray()
+  @ReactMethod
+  fun syncNativeSuggestionPrefix(prefix: String) {
+    NativeSuggestionBarEngine.syncPrefix(prefix)
   }
 
   @ReactMethod
@@ -2039,17 +2022,18 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     fast: Boolean,
     promise: Promise
   ) {
-    // Run on background thread to avoid blocking JS
     suggestionExecutor.execute {
       try {
-        val suggestions = if (prefix.length < 1) {
-          emptyArray<String>()
-        } else {
-          getWordSuggestions(prefix)
-        }
-        
+        val suggestions =
+            if (prefix.length < 1) {
+              emptyArray<String>()
+            } else {
+              SwipeWordDictionary
+                  .getPrefixCompletions(reactApplicationContext, prefix, 8)
+                  .toTypedArray()
+            }
+
         UiThreadUtil.runOnUiThread {
-          // Convert to ReadableArray for React Native
           val result = Arguments.createArray()
           suggestions.forEach { result.pushString(it) }
           promise.resolve(result)

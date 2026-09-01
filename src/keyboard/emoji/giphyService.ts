@@ -50,13 +50,15 @@ function buildUrl(path: string, params: Record<string, string | number>): string
   return `${GIPHY_BASE_URL}/${path}?${search.toString()}`;
 }
 
+import {readJsonResponse} from '../../../lib/safeFetchJson';
+
 async function fetchGifs(url: string): Promise<GiphyListResponse> {
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`GIPHY request failed (${response.status})`);
   }
 
-  const json = (await response.json()) as GiphyListResponse;
+  const json = await readJsonResponse<GiphyListResponse>(response);
   if (json.meta?.status !== 200) {
     throw new Error(json.meta?.msg ?? 'GIPHY request failed');
   }

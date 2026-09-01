@@ -80,12 +80,24 @@ import type {KeyGesturesConfig} from './components/Key';
 import {GestureTypingLayer} from './gesture/GestureTypingLayer';
 import {setUndoCommittedTextHandler} from './gesture/multiTouchKeys';
 import {SwipeTypingKeysHost} from './gesture/SwipeTypingContext';
+import {PredictiveHitboxOverlay} from './gesture/PredictiveHitboxOverlay';
+import {ContextCorrectionDebugOverlay} from './autocorrect/ContextCorrectionDebugOverlay';
+import {setContextCorrectionDebugCapture} from './autocorrect/contextCorrectionEngine';
+import {preloadContextBigrams} from './autocorrect/contextBigrams';
+import {
+  clearNativeSuggestionSnapshot,
+  getFreshNativeSuggestions,
+  parseNativeSuggestionsPayload,
+  recordNativeSuggestionSnapshot,
+  syncNativeSuggestionPrefix,
+} from './nativeSuggestionBar';
 import {KeyLayoutProvider, useKeyLayoutContext} from './gesture/KeyLayoutContext';
 import {
   getTouchIntelligenceNativeConfig,
   setTouchIntelligenceTypingContextProvider,
   syncTouchIntelligenceToNative,
 } from './gesture/touchIntelligence';
+import {updatePredictiveHitboxes} from './gesture/predictiveHitboxes';
 import {installTouchIntelligenceNativeTelemetry} from './gesture/touchIntelligenceNativeBridge';
 import {hydrateTouchIntelligenceHitsFromStorage} from './gesture/touchIntelligenceTelemetry';
 import {
@@ -446,6 +458,7 @@ type LetterKeyboardRowsProps = {
   multiTouchEnabled?: boolean;
   focusedKeyId?: string | null;
   typeLiftProcessing?: boolean;
+  predictiveHitboxTick?: number;
 };
 
 const LetterKeyboardRows = React.memo(function LetterKeyboardRows({
@@ -471,6 +484,7 @@ const LetterKeyboardRows = React.memo(function LetterKeyboardRows({
   multiTouchEnabled,
   focusedKeyId,
   typeLiftProcessing,
+  predictiveHitboxTick = 0,
 }: LetterKeyboardRowsProps) {
   const theme = useKeyboardTheme();
   const styles = useThemedStyles(createKeyboardAppStyles);
@@ -491,6 +505,12 @@ const LetterKeyboardRows = React.memo(function LetterKeyboardRows({
       onNativeFastPathShiftConsumed={onNativeFastPathShiftConsumed}
       shouldConsumeShiftForCommit={shouldConsumeShiftForCommit}
       onSpaceLongPress={onSpaceLongPress}>
+      {theme.developerEyeEnabled && theme.predictiveHitboxesEnabled ? (
+        <PredictiveHitboxOverlay
+          visible={layout === 'letters'}
+          revision={predictiveHitboxTick}
+        />
+      ) : null}
       {rows.map((row, index) => (
         <KeyboardRow
           key={`${layout}-${modeType}-${index}`}
@@ -555,7 +575,11 @@ function computeTypingSuggestionBar(
     prefix.length < 2 ||
     shouldSkipAutocorrectForToken(prefix)
       ? {keepTyped: null, correction: null}
-      : getSuggestionBarAutocorrect(prefix, {fast, previousWord});
+      : getSuggestionBarAutocorrect(prefix, {
+          fast,
+          previousWord,
+          context: fast ? undefined : options.context,
+        });
 
   const phraseSuggestions =
     fast ||
@@ -565,13 +589,18 @@ function computeTypingSuggestionBar(
       ? []
       : getPhraseSuggestions(options.context, 2);
   // Prefix completions (trie) plus a small high-confidence fuzzy pass while typing.
+  const nativeSuggestions =
+    Platform.OS === 'android' && fast
+      ? getFreshNativeSuggestions(prefix)
+      : null;
   let wordSuggestions =
     shouldSkipAutocorrectForToken(prefix) || prefix.length < 1
       ? []
-      : getWordSuggestions(prefix, TYPING_BAR_WORD_LIMIT, {
-        skipFuzzy: suggestionsOnly,
-        lightweight: true,
-      });
+      : nativeSuggestions ??
+        getWordSuggestions(prefix, TYPING_BAR_WORD_LIMIT, {
+          skipFuzzy: suggestionsOnly,
+          lightweight: true,
+        });
   const reserved = new Set<string>();
   const keepTyped = sanitizeSuggestionText(barAutocorrect.keepTyped);
   const correction = sanitizeSuggestionText(barAutocorrect.correction);
@@ -656,6 +685,8 @@ function KeyboardBody({
   const lastTypingAtRef = useRef(0);
   const typingIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [stoppedTyping, setStoppedTyping] = useState(true);
+  const [predictiveHitboxTick, setPredictiveHitboxTick] = useState(0);
+  const [contextCorrectionTick, setContextCorrectionTick] = useState(0);
   const stoppedTypingRef = useRef(true);
   const [zeroLatencyMode, setZeroLatencyMode] = useState(false);
   const zeroLatencyModeRef = useRef(false);
@@ -826,8 +857,15 @@ function KeyboardBody({
     const prefix = livePrefixRef.current;
     touchIntelligencePreviousKeyRef.current =
       prefix.length > 0 ? prefix[prefix.length - 1]!.toLowerCase() : null;
+    if (layoutContext) {
+      updatePredictiveHitboxes(prefix, layoutContext.getLayouts(), {
+        enabled: theme.predictiveHitboxesEnabled,
+        lang: getActiveLanguage(),
+      });
+      setPredictiveHitboxTick(tick => tick + 1);
+    }
     syncTouchIntelligenceToNative();
-  }, [syncTouchIntelligenceToNative]);
+  }, [layoutContext, syncTouchIntelligenceToNative, theme.predictiveHitboxesEnabled]);
 
   /** Uppercase at most one letter per shift tap — uses refs so fast typing can't double-cap. */
   const consumeLetterCommitText = useCallback((keyValue: string): string => {
@@ -1196,6 +1234,7 @@ function KeyboardBody({
     setIsAiAutocorrectProcessing(false);
     setCurrentPrefix('');
     setSuggestions([]);
+    clearNativeSuggestionSnapshot();
   }, []);
 
   const syncTypingCompositorFromEditor = useCallback(
@@ -1527,8 +1566,35 @@ function KeyboardBody({
       ensureAutocorrectLoaded(),
     ]).then(() => {
       suggestionDictionariesReadyRef.current = true;
+      preloadContextBigrams();
     });
   }, []);
+
+  useEffect(() => {
+    const capture =
+      theme.developerEyeEnabled &&
+      autocorrectSettings.contextCorrectionEnabled;
+    setContextCorrectionDebugCapture(capture);
+    if (capture) {
+      preloadContextBigrams();
+    }
+    return () => setContextCorrectionDebugCapture(false);
+  }, [
+    theme.developerEyeEnabled,
+    autocorrectSettings.contextCorrectionEnabled,
+  ]);
+
+  useEffect(() => {
+    if (!theme.developerEyeEnabled) {
+      return;
+    }
+    setContextCorrectionTick(tick => tick + 1);
+  }, [
+    currentPrefix,
+    autocorrectPreview,
+    typedKeepSuggestion,
+    theme.developerEyeEnabled,
+  ]);
 
   const markTyping = useCallback(() => {
     if (zeroLatencyModeRef.current || isBurstTyping(lastLetterCommitAtRef.current)) {
@@ -2044,6 +2110,9 @@ function KeyboardBody({
       }
       instantSuggestionLastFlushAtRef.current = Date.now();
       lastInstantPrefixRef.current = nextPrefix;
+      if (Platform.OS === 'android') {
+        syncNativeSuggestionPrefix(nextPrefix);
+      }
 
       const commitSuggestionBarState = (
         barState: ReturnType<typeof computeTypingSuggestionBar>,
@@ -2632,6 +2701,7 @@ function KeyboardBody({
           lightweight: true,
           skipFrequentScan: true,
           boundary: true,
+          context,
           previousWord: extractPreviousWordFromContext(
             context,
             typedWord,
@@ -3791,6 +3861,37 @@ function KeyboardBody({
     syncNativeShiftConsumed,
   ]);
 
+  useEffect(() => {
+    if (Platform.OS !== 'android') {
+      return;
+    }
+    const subscription = DeviceEventEmitter.addListener(
+      'keyboardNativeSuggestionsUpdated',
+      (payload: unknown) => {
+        const snapshot = parseNativeSuggestionsPayload(payload);
+        if (!snapshot) {
+          return;
+        }
+        recordNativeSuggestionSnapshot(snapshot);
+        if (layoutRef.current !== 'letters' || modeRef.current.type !== 'typing') {
+          return;
+        }
+        if (snapshot.prefix !== livePrefixRef.current) {
+          return;
+        }
+        if (shouldSkipAutocorrectForToken(snapshot.prefix)) {
+          return;
+        }
+        lastInstantPrefixRef.current = snapshot.prefix;
+        lastFlushedBarPrefixRef.current = snapshot.prefix;
+        lastFlushedSuggestionsRef.current = snapshot.suggestions;
+        setCurrentPrefix(snapshot.prefix);
+        setSuggestions(snapshot.suggestions);
+      },
+    );
+    return () => subscription.remove();
+  }, []);
+
   const handleWordCommitted = useCallback(
     (word: string) => {
       setSwipePreview(null);
@@ -4008,6 +4109,10 @@ function KeyboardBody({
       }
 
       const origin = layoutContext.areaOriginRef.current;
+      updatePredictiveHitboxes(livePrefixRef.current, keyLayouts, {
+        enabled: theme.predictiveHitboxesEnabled,
+        lang: getActiveLanguage(),
+      });
       const touchIntelligence = getTouchIntelligenceNativeConfig();
       keyboardBridge.setNativeKeyFastPathConfig(
         JSON.stringify({
@@ -4021,6 +4126,7 @@ function KeyboardBody({
           hitSlopVertical: theme.keyHitSlop.vertical,
           layout,
           touchIntelligence,
+          keyExpansions: touchIntelligence.keyExpansions,
           keys: keyLayouts.map(({id, keyDef, x, y, width, height, centerX, centerY}) => ({
             id,
             type: keyDef.type ?? 'char',
@@ -4062,6 +4168,8 @@ function KeyboardBody({
     gestureEnabled,
     theme.keyHitSlop.horizontal,
     theme.keyHitSlop.vertical,
+    theme.predictiveHitboxesEnabled,
+    theme.letterLayoutId,
     zeroLatencyMode,
     gamePerformanceActive,
     nativeFastPathLayoutHold,
@@ -4322,7 +4430,8 @@ function KeyboardBody({
             }}
           />
         ) : null}
-        <SuggestionBar
+        <View style={styles.suggestionBarShell}>
+          <SuggestionBar
           suggestions={suggestions}
           prefix={currentPrefix}
           swipePreview={swipePreview}
@@ -4473,6 +4582,18 @@ function KeyboardBody({
                 : undefined
           }
         />
+          {theme.developerEyeEnabled &&
+          autocorrectSettings.contextCorrectionEnabled ? (
+            <ContextCorrectionDebugOverlay
+              visible={
+                layout === 'letters' ||
+                layout === 'numbers' ||
+                layout === 'symbols'
+              }
+              revision={contextCorrectionTick}
+            />
+          ) : null}
+        </View>
 
         <View
           style={[
@@ -4743,6 +4864,7 @@ function KeyboardBody({
                         : null
                     }
                     typeLiftProcessing={isAiAutocorrectProcessing}
+                    predictiveHitboxTick={predictiveHitboxTick}
                   />
             </View>
           ) : null}
@@ -4913,6 +5035,10 @@ function createKeyboardAppStyles(theme: KeyboardTheme) {
     container: {
       flex: 1,
       backgroundColor: theme.container,
+    },
+    suggestionBarShell: {
+      position: 'relative',
+      zIndex: 70,
     },
     keysPadding: {
       paddingTop: theme.keysPaddingTop,
