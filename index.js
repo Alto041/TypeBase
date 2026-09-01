@@ -8,7 +8,7 @@ if (__DEV__) {
   const metroJsonHint =
     'Metro dev connection failed (non-JSON proxy error). USB: run `adb reverse tcp:8081 tcp:8081` or use `npm run android`.';
 
-  const isMetroJsonParseNoise = (error: unknown): boolean => {
+  const isMetroJsonParseNoise = error => {
     if (!(error instanceof SyntaxError)) {
       return false;
     }
@@ -16,16 +16,15 @@ if (__DEV__) {
     return message.includes('is not valid JSON') && message.includes('upstream');
   };
 
-  const globalWithEvents = globalThis as typeof globalThis & {
-    addEventListener?: (type: string, listener: (event: {reason?: unknown}) => void) => void;
-  };
-  globalWithEvents.addEventListener?.('unhandledrejection', event => {
-    if (isMetroJsonParseNoise(event.reason)) {
-      console.warn(`[TypeBase] ${metroJsonHint}`);
-    }
-  });
+  if (typeof globalThis.addEventListener === 'function') {
+    globalThis.addEventListener('unhandledrejection', event => {
+      if (isMetroJsonParseNoise(event.reason)) {
+        console.warn(`[TypeBase] ${metroJsonHint}`);
+      }
+    });
+  }
 
-  const errorUtils = (globalThis as {ErrorUtils?: {getGlobalHandler?: () => (error: Error, isFatal?: boolean) => void; setGlobalHandler?: (handler: (error: Error, isFatal?: boolean) => void) => void}}).ErrorUtils;
+  const errorUtils = globalThis.ErrorUtils;
   const previousHandler = errorUtils?.getGlobalHandler?.();
   errorUtils?.setGlobalHandler?.((error, isFatal) => {
     if (isMetroJsonParseNoise(error)) {

@@ -13,6 +13,8 @@ type EmojiPanelTabBarProps = {
 
 const ICON_SIZE = 22;
 const PILL_INSET = 4;
+const SELECTED_SCALE = 1.15;
+const IDLE_SCALE = 1;
 
 export function EmojiPanelTabBar({selected, onSelect}: EmojiPanelTabBarProps) {
   const theme = useKeyboardTheme();
@@ -27,6 +29,13 @@ export function EmojiPanelTabBar({selected, onSelect}: EmojiPanelTabBarProps) {
   const tabWidth = barWidth > 0 ? barWidth / EMOJI_PANEL_TABS.length : 0;
   const pillWidth = Math.max(0, tabWidth - PILL_INSET * 2);
 
+  const iconScales = useRef(
+    EMOJI_PANEL_TABS.map(() => new Animated.Value(IDLE_SCALE)),
+  ).current;
+  const iconOpacities = useRef(
+    EMOJI_PANEL_TABS.map(() => new Animated.Value(0.42)),
+  ).current;
+
   useEffect(() => {
     if (tabWidth <= 0) {
       return;
@@ -36,6 +45,25 @@ export function EmojiPanelTabBar({selected, onSelect}: EmojiPanelTabBarProps) {
       selectedIndex * tabWidth + PILL_INSET,
     );
   }, [pillTranslateX, selectedIndex, tabWidth]);
+
+  useEffect(() => {
+    EMOJI_PANEL_TABS.forEach((tab, index) => {
+      const isSelected = tab.id === selected;
+      Animated.parallel([
+        Animated.spring(iconScales[index]!, {
+          toValue: isSelected ? SELECTED_SCALE : IDLE_SCALE,
+          friction: 8,
+          tension: 220,
+          useNativeDriver: true,
+        }),
+        Animated.timing(iconOpacities[index]!, {
+          toValue: isSelected ? 1 : 0.42,
+          duration: 180,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    });
+  }, [selected, iconScales, iconOpacities]);
 
   const onBarLayout = (event: LayoutChangeEvent) => {
     const width = Math.round(event.nativeEvent.layout.width);
@@ -59,7 +87,7 @@ export function EmojiPanelTabBar({selected, onSelect}: EmojiPanelTabBarProps) {
         />
       ) : null}
 
-      {EMOJI_PANEL_TABS.map(({id, Icon}) => {
+      {EMOJI_PANEL_TABS.map(({id, Icon}, index) => {
         const isSelected = selected === id;
 
         return (
@@ -74,12 +102,17 @@ export function EmojiPanelTabBar({selected, onSelect}: EmojiPanelTabBarProps) {
               pressed && styles.buttonPressed,
             ]}
             hitSlop={4}>
-            <Icon
-              width={ICON_SIZE}
-              height={ICON_SIZE}
-              color={theme.icon}
-              style={{opacity: isSelected ? 1 : 0.42}}
-            />
+            <Animated.View
+              style={{
+                transform: [{scale: iconScales[index]!}],
+                opacity: iconOpacities[index]!,
+              }}>
+              <Icon
+                width={ICON_SIZE}
+                height={ICON_SIZE}
+                color={isSelected ? theme.icon : theme.icon}
+              />
+            </Animated.View>
           </Pressable>
         );
       })}

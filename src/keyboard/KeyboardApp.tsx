@@ -3236,17 +3236,35 @@ function KeyboardBody({
         const emojiSearching =
           panelTab === 'emojis' && emojiSearchActiveRef.current;
         switch (keyDef.type) {
+          case 'letters':
+            if (gifSearching || sfxSearching || emojiSearching) {
+              setLayout('letters');
+              resetCase();
+            }
+            return;
           case 'numbers':
-            setGifSearchQuery('');
-            setGifSearchActive(false);
-            setEmojiSearchQuery('');
-            setEmojiSearchActive(false);
-            setSfxSearchQuery('');
-            setSfxSearchActive(false);
-            stopSfxPreview();
-            setMode({type: 'typing'});
-            setLayout('letters');
-            resetCase();
+            if (!gifSearching && !sfxSearching && !emojiSearching) {
+              // ABC on the emoji bottom row — return to the typing keyboard.
+              void toggleEmojiPanel();
+              return;
+            }
+            if (layout === 'letters') {
+              setLayout('numbers');
+              resetCase();
+            } else if (layout === 'numpad') {
+              setLayout('letters');
+              resetCase();
+            } else {
+              setLayout('letters');
+              resetCase();
+            }
+            return;
+          case 'symbols':
+            if (layout !== 'symbols') {
+              // Switch to the symbols keyboard while keeping the emoji search open.
+              setLayout('symbols');
+              resetCase();
+            }
             return;
           case 'enter':
             if (gifSearching) {

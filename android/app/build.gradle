@@ -53,6 +53,8 @@ android {
         versionCode 26
         versionName "2.0.0-beta.1"
 
+        manifestPlaceholders = [usesCleartextTraffic: "true"]
+
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
         buildConfigField "String", "PLAY_LICENSE_PUBLIC_KEY", "\"${playLicensePublicKey}\""
     }
