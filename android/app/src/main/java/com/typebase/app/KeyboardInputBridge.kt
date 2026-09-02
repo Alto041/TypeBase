@@ -64,6 +64,8 @@ object KeyboardInputBridge {
       CopyOnWriteArrayList<(NativeSuggestionBarEngine.Snapshot) -> Unit>()
   private var showKeyPreviewFn: ((Int, String) -> Unit)? = null
   private var hideKeyPreviewFn: ((Int) -> Unit)? = null
+  private var showKeyPressedFn: ((Int) -> Unit)? = null
+  private var hideKeyPressedFn: ((Int) -> Unit)? = null
   private val previewContainerChangedListeners = CopyOnWriteArrayList<() -> Unit>()
   private val controllerInputListeners = CopyOnWriteArrayList<(String) -> Unit>()
   private val controllerConnectionListeners = CopyOnWriteArrayList<(Boolean) -> Unit>()
@@ -361,8 +363,17 @@ object KeyboardInputBridge {
   /** Softer touch-down haptic for zero-latency mode. Never debounced. */
   fun performLightKeyHapticForPointer(pointerId: Int) {
     if (keyHapticEnabled) {
-      val lightMs = (keyHapticPulseMs - 4).coerceAtLeast(6).toLong()
-      pulseVibrator(lightMs, hapticAmplitudeForPulseMs(keyHapticPulseMs - 4))
+      val view = inputService?.keyboardViewForFeedback
+      if (view != null) {
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+          performViewLightKeyHaptic(view)
+        } else {
+          mainHandler.post { performViewLightKeyHaptic(view) }
+        }
+      } else {
+        val lightMs = (keyHapticPulseMs - 4).coerceAtLeast(6).toLong()
+        pulseVibrator(lightMs, hapticAmplitudeForPulseMs(keyHapticPulseMs - 4))
+      }
       val now = SystemClock.uptimeMillis()
       lastHapticMs = now
       lastPointerHapticMs = now
@@ -452,11 +463,10 @@ object KeyboardInputBridge {
     lightHapticEngineFallback()
   }
 
-  /** Snappier per-key pulse for fast bursts — still fires on every key, never skipped. */
+  /** Gboard-style KEYBOARD_TAP when the IME view is available; vibrator only as fallback. */
   private fun fireConfiguredKeyHapticPulse() {
-    val durationMs = keyHapticPulseMs.toLong()
     val view = inputService?.keyboardViewForFeedback
-    if (view != null && durationMs <= 10) {
+    if (view != null) {
       if (Looper.myLooper() == Looper.getMainLooper()) {
         performViewFastKeyHaptic(view)
       } else {
@@ -464,6 +474,7 @@ object KeyboardInputBridge {
       }
       return
     }
+    val durationMs = keyHapticPulseMs.toLong()
     pulseVibrator(durationMs, hapticAmplitudeForPulseMs(keyHapticPulseMs))
   }
 
@@ -722,14 +733,20 @@ object KeyboardInputBridge {
   fun registerKeyPreviewCallbacks(
       show: (Int, String) -> Unit,
       hide: (Int) -> Unit,
+      showPressed: (Int) -> Unit,
+      hidePressed: (Int) -> Unit,
   ) {
     showKeyPreviewFn = show
     hideKeyPreviewFn = hide
+    showKeyPressedFn = showPressed
+    hideKeyPressedFn = hidePressed
   }
 
   fun clearKeyPreviewCallbacks() {
     showKeyPreviewFn = null
     hideKeyPreviewFn = null
+    showKeyPressedFn = null
+    hideKeyPressedFn = null
   }
 
   fun showKeyPreview(reactTag: Int, label: String) {
@@ -738,6 +755,18 @@ object KeyboardInputBridge {
 
   fun hideKeyPreview(reactTag: Int) {
     hideKeyPreviewFn?.invoke(reactTag)
+  }
+
+  fun showKeyPressed(reactTag: Int) {
+    if (reactTag > 0) {
+      showKeyPressedFn?.invoke(reactTag)
+    }
+  }
+
+  fun hideKeyPressed(reactTag: Int) {
+    if (reactTag > 0) {
+      hideKeyPressedFn?.invoke(reactTag)
+    }
   }
 
   fun consumeNativeFastPathPointer(pointerId: Int): Boolean =

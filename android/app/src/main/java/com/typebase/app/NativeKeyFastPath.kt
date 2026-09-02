@@ -265,12 +265,12 @@ class NativeKeyFastPath {
           KeyboardInputBridge.performKeyHapticForPointer(pointerId)
         }
 
-        // Preview and tap sound can post async; haptic must not wait on the handler.
+        if (!zeroLatency && key.reactTag > 0) {
+          KeyboardInputBridge.showKeyPressed(key.reactTag)
+          KeyboardInputBridge.showKeyPreview(key.reactTag, text)
+        }
         previewHandler.post {
           if (!zeroLatency) {
-            if (key.reactTag > 0) {
-              KeyboardInputBridge.showKeyPreview(key.reactTag, text)
-            }
             KeyboardInputBridge.playKeyTapSound()
           }
         }
@@ -282,6 +282,7 @@ class NativeKeyFastPath {
         val pointerId = event.getPointerId(event.actionIndex)
         sessions[pointerId]?.key?.reactTag?.let { reactTag ->
           if (reactTag > 0) {
+            KeyboardInputBridge.hideKeyPressed(reactTag)
             KeyboardInputBridge.hideKeyPreview(reactTag)
           }
         }
@@ -294,6 +295,7 @@ class NativeKeyFastPath {
       MotionEvent.ACTION_CANCEL -> {
         for (session in sessions.values) {
           if (session.key.reactTag > 0) {
+            KeyboardInputBridge.hideKeyPressed(session.key.reactTag)
             KeyboardInputBridge.hideKeyPreview(session.key.reactTag)
           }
         }

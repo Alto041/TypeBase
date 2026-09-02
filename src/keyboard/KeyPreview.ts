@@ -11,6 +11,7 @@ export function setKeyPreviewTheme(
   textColor: string,
   fontAssetPath?: string | null,
   cornerRadiusDp?: number,
+  pressedOverlayColor?: string,
 ): void {
   KeyPreview?.setTheme(
     backgroundColor,
@@ -19,6 +20,7 @@ export function setKeyPreviewTheme(
     typeof cornerRadiusDp === 'number' && Number.isFinite(cornerRadiusDp)
       ? Math.round(cornerRadiusDp)
       : 6,
+    pressedOverlayColor ?? backgroundColor,
   );
 }
 
@@ -28,6 +30,18 @@ export function showKeyPreview(reactTag: number, label: string): void {
 
 export function hideKeyPreview(reactTag: number): void {
   KeyPreview?.hide(reactTag);
+}
+
+export function showKeyPressed(reactTag: number): void {
+  if (reactTag > 0) {
+    KeyPreview?.showPressed(reactTag);
+  }
+}
+
+export function hideKeyPressed(reactTag: number): void {
+  if (reactTag > 0) {
+    KeyPreview?.hidePressed(reactTag);
+  }
 }
 
 export function hideAllKeyPreviews(): void {

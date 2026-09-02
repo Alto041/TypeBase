@@ -280,11 +280,14 @@ function KeyComponent({
             showKeyPreview(tag, label);
           }
         }
+        return;
       }
-      if (!pressed) {
-        animateMultiTouchPress(false);
-      } else if (!shouldSkipKeyPressEffects()) {
-        animateMultiTouchPress(true);
+      if (isSpaceKey) {
+        if (!pressed) {
+          animateMultiTouchPress(false);
+        } else if (!shouldSkipKeyPressEffects()) {
+          animateMultiTouchPress(true);
+        }
       }
     });
   }, [
@@ -293,6 +296,7 @@ function KeyComponent({
     keyDef.label,
     keyDef.value,
     isUppercase,
+    isSpaceKey,
     usesMultiTouchDispatch,
     usesMultiTouchRouter,
   ]);
@@ -523,10 +527,10 @@ function KeyComponent({
     const nativeCommitted =
       pointerId != null &&
       keyboardBridge.consumeNativeFastPathPointer(pointerId);
+    triggerKeyHaptic(pointerId, {nativeCommitted});
     if (!nativeCommitted) {
       onPress(keyDef);
     }
-    triggerKeyHaptic(pointerId, {nativeCommitted});
   }, [keyDef, onPress, isEnterAction]);
 
   const isSpaceGesture =
@@ -790,6 +794,7 @@ function KeyComponent({
             },
             isSpaceKey && styles.spaceKey,
             keyPressed &&
+              !usesMultiTouchRouter &&
               (isSpaceKey ? styles.spaceKeyPressed : styles.letterKeyPressed),
             keyboardKeyChromeStyle(theme, isMacintosh && keyPressed),
             keyboardKeyPressMotionStyle(theme, isQuivox && keyPressed, {

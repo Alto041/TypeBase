@@ -1,5 +1,6 @@
 import {isBackspaceKeyType} from '../components/keyboardRowLayout';
-import {hideAllKeyPreviews} from '../KeyPreview';
+import {hideAllKeyPreviews, hideKeyPressed, showKeyPressed} from '../KeyPreview';
+import {getKeyReactTag} from '../keyReactTags';
 import {
   computeAlternatePopupGeometry,
   getKeyAlternates,
@@ -366,6 +367,16 @@ export function setMultiTouchKeyPressed(
   } else if (wasPressed) {
     pressedMultiTouchKeyIds.delete(id);
   }
+
+  const reactTag = getKeyReactTag(id);
+  if (reactTag && !shouldSkipKeyPressEffects()) {
+    if (pressed && !options?.nativeCommitted) {
+      showKeyPressed(reactTag);
+    } else if (!pressed) {
+      hideKeyPressed(reactTag);
+    }
+  }
+
   // Always deliver release so keys never stay visually stuck.
   if (!pressed || !shouldSkipKeyPressEffects()) {
     pressVisualHandlers.get(id)?.(pressed, options);
@@ -614,6 +625,8 @@ export function dispatchMultiTouchStart(
     const isUppercase = options.getIsUppercase();
 
     if (!nativeCommitted) {
+      setMultiTouchKeyPressed(resolvedHit.id, true);
+      triggerKeyHaptic(pid, {nativeCommitted: false});
       options.onKeyCommit(resolvedHit.keyDef, defaultCommit);
       annotateLastTouchIntelligenceCommit(defaultCommit, 'js', localX, localY);
     } else {
@@ -649,9 +662,6 @@ export function dispatchMultiTouchStart(
       }
       setMultiTouchKeyPressed(resolvedHit.id, true, {nativeCommitted: true});
       options.onNativeFastPathLetterCommit?.(defaultCommit);
-    } else {
-      setMultiTouchKeyPressed(resolvedHit.id, true);
-      triggerKeyHaptic(pid, {nativeCommitted: false});
     }
     markSwipeTypingTapCommitted(pid);
 

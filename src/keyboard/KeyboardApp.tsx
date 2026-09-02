@@ -1088,8 +1088,16 @@ function KeyboardBody({
       theme.label,
       fontAsset,
       theme.keyRadius,
+      keyboardOpaqueKeyFill(theme, 'letterPressed'),
     );
-  }, [theme.design, theme.keyRadius, theme.label, theme.scheme, theme.letterKey]);
+  }, [
+    theme.design,
+    theme.keyRadius,
+    theme.label,
+    theme.scheme,
+    theme.letterKey,
+    theme.letterKeyPressed,
+  ]);
 
   useEffect(() => {
     void keyboardBridge.getPrefersNumpad().then(setPrefersNumpad);
@@ -4139,7 +4147,7 @@ function KeyboardBody({
       keyboardBridge.setNativeKeyFastPathConfig(
         JSON.stringify({
           enabled: true,
-          commitOnDown: !theme.isLandscape,
+          commitOnDown: true,
           zeroLatency: zeroLatencyMode,
           gamePerformance: gamePerformanceActive,
           areaPageX: origin.pageX,

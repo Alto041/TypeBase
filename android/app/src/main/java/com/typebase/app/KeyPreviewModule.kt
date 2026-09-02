@@ -17,6 +17,7 @@ class KeyPreviewModule(private val reactContext: ReactApplicationContext) :
     ReactContextBaseJavaModule(reactContext) {
 
     private val manager = KeyPreviewManager(reactContext)
+    private val pressOverlayManager = KeyPressOverlayManager(reactContext)
     private val anchorViewCache = HashMap<Int, WeakReference<View>>()
     /** Bumped only on hide so in-flight Fabric resolves are not cancelled by duplicate shows. */
     private val hideGenerations = HashMap<Int, Int>()
@@ -27,9 +28,12 @@ class KeyPreviewModule(private val reactContext: ReactApplicationContext) :
     @ReactMethod
     fun init() {
         manager.init()
+        pressOverlayManager.init()
         KeyboardInputBridge.registerKeyPreviewCallbacks(
             show = { reactTag, label -> showPreviewOnUiThread(reactTag, label) },
             hide = { reactTag -> hidePreviewOnUiThread(reactTag) },
+            showPressed = { reactTag -> showPressedOnUiThread(reactTag) },
+            hidePressed = { reactTag -> hidePressedOnUiThread(reactTag) },
         )
     }
 
@@ -39,11 +43,16 @@ class KeyPreviewModule(private val reactContext: ReactApplicationContext) :
         textColor: String,
         fontAssetPath: String,
         cornerRadiusDp: Double,
+        pressedOverlayColor: String,
     ) {
         manager.setTheme(
             backgroundColor,
             textColor,
             fontAssetPath.trim().ifEmpty { null },
+            cornerRadiusDp.toFloat().coerceAtLeast(0f),
+        )
+        pressOverlayManager.setTheme(
+            pressedOverlayColor,
             cornerRadiusDp.toFloat().coerceAtLeast(0f),
         )
     }
@@ -81,11 +90,18 @@ class KeyPreviewModule(private val reactContext: ReactApplicationContext) :
     @ReactMethod
     fun hide(reactTag: Int) {
         UiThreadUtil.runOnUiThread {
-            // Do not bump hideGenerations here — that raced ahead of async shows on
-            // fast taps and cancelled previews before they ever appeared. The manager
-            // keeps the bubble visible for a minimum duration, then dismisses.
             manager.hide(reactTag)
         }
+    }
+
+    @ReactMethod
+    fun showPressed(reactTag: Int) {
+        showPressedOnUiThread(reactTag)
+    }
+
+    @ReactMethod
+    fun hidePressed(reactTag: Int) {
+        hidePressedOnUiThread(reactTag)
     }
 
     @ReactMethod
@@ -96,6 +112,7 @@ class KeyPreviewModule(private val reactContext: ReactApplicationContext) :
                 hideGenerations[tag] = (hideGenerations[tag] ?: 0) + 1
             }
             manager.hideAll()
+            pressOverlayManager.hideAll()
         }
     }
 
@@ -107,6 +124,7 @@ class KeyPreviewModule(private val reactContext: ReactApplicationContext) :
                 hideGenerations[tag] = (hideGenerations[tag] ?: 0) + 1
             }
             manager.hideAllDelayed(delayMs.toLong())
+            pressOverlayManager.hideAll()
         }
     }
 
@@ -118,6 +136,7 @@ class KeyPreviewModule(private val reactContext: ReactApplicationContext) :
             globalHideGeneration = 0
             KeyboardInputBridge.clearKeyPreviewCallbacks()
             manager.destroy()
+            pressOverlayManager.destroy()
         }
     }
 
@@ -127,8 +146,42 @@ class KeyPreviewModule(private val reactContext: ReactApplicationContext) :
 
     private fun hidePreviewOnUiThread(reactTag: Int) {
         UiThreadUtil.runOnUiThread {
-            // Match JS hide(): delayed dismiss without cancelling in-flight show.
             manager.hide(reactTag)
+        }
+    }
+
+    private fun showPressedOnUiThread(reactTag: Int) {
+        if (reactTag <= 0) {
+            return
+        }
+        UiThreadUtil.runOnUiThread {
+            resolveAnchorView(reactTag)?.let { view ->
+                pressOverlayManager.show(reactTag, view)
+                return@runOnUiThread
+            }
+
+            val uiManager =
+                UIManagerHelper.getUIManagerForReactTag(reactContext, reactTag)
+                    as? FabricUIManager ?: return@runOnUiThread
+
+            uiManager.addUIBlock(
+                UIBlock { resolver ->
+                    UiThreadUtil.runOnUiThread {
+                        val view = resolver.resolveView(reactTag) ?: return@runOnUiThread
+                        anchorViewCache[reactTag] = WeakReference(view)
+                        pressOverlayManager.show(reactTag, view)
+                    }
+                },
+            )
+        }
+    }
+
+    private fun hidePressedOnUiThread(reactTag: Int) {
+        if (reactTag <= 0) {
+            return
+        }
+        UiThreadUtil.runOnUiThread {
+            pressOverlayManager.hide(reactTag)
         }
     }
 

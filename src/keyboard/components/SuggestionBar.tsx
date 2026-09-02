@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Text,
   View,
+  type PressableProps,
   type TextStyle,
 } from 'react-native';
 import {playZeroLatencySound} from '../zeroLatencySound';
@@ -54,6 +55,97 @@ const ONE_CHIP_WORD_LENGTH = 20;
 const THREE_CHIP_TEXT_LENGTH = 12;
 const TWO_CHIP_TEXT_LENGTH = 18;
 const ONE_CHIP_TEXT_LENGTH = 28;
+const TAP_PRESS_SCALE = 0.9;
+
+type SuggestionBarTapProps = {
+  onPress: () => void;
+  disabled?: boolean;
+  style?: PressableProps['style'];
+  contentStyle?: PressableProps['style'];
+  hitSlop?: number;
+  children: React.ReactNode;
+};
+
+function animateSuggestionBarTap(
+  scale: Animated.Value,
+  toValue: number,
+): void {
+  Animated.spring(scale, {
+    toValue,
+    friction: 8,
+    tension: 240,
+    useNativeDriver: true,
+  }).start();
+}
+
+function SuggestionBarTap({
+  onPress,
+  disabled = false,
+  style,
+  contentStyle,
+  hitSlop = 6,
+  children,
+}: SuggestionBarTapProps) {
+  const scale = useRef(new Animated.Value(1)).current;
+
+  return (
+    <Pressable
+      disabled={disabled}
+      hitSlop={hitSlop}
+      onPressIn={() => {
+        if (disabled) {
+          return;
+        }
+        animateSuggestionBarTap(scale, TAP_PRESS_SCALE);
+        triggerKeyHaptic();
+        onPress();
+      }}
+      onPressOut={() => {
+        if (!disabled) {
+          animateSuggestionBarTap(scale, 1);
+        }
+      }}
+      style={style}>
+      <Animated.View style={[{transform: [{scale}]}, contentStyle]}>
+        {children}
+      </Animated.View>
+    </Pressable>
+  );
+}
+
+type SuggestionBarTapWithPressedProps = {
+  onPress: () => void;
+  style?: PressableProps['style'];
+  children: (pressed: boolean) => React.ReactNode;
+};
+
+function SuggestionBarTapWithPressed({
+  onPress,
+  style,
+  children,
+}: SuggestionBarTapWithPressedProps) {
+  const scale = useRef(new Animated.Value(1)).current;
+
+  return (
+    <Pressable
+      hitSlop={6}
+      onPressIn={() => {
+        animateSuggestionBarTap(scale, TAP_PRESS_SCALE);
+        triggerKeyHaptic();
+        onPress();
+      }}
+      onPressOut={() => {
+        animateSuggestionBarTap(scale, 1);
+      }}
+      style={style}>
+      {({pressed}) => (
+        <Animated.View style={{transform: [{scale}]}}>
+          {children(pressed)}
+        </Animated.View>
+      )}
+    </Pressable>
+  );
+}
 
 function asDisplayText(value: unknown): string {
   if (value == null) {
@@ -292,39 +384,28 @@ function SuggestionBarComponent({
               )}
             </View>
             {panelSearch.query ? (
-              <Pressable
-                onPressIn={() => {
-                  triggerKeyHaptic();
-                  panelSearch.onClear();
-                }}
+              <SuggestionBarTap
+                onPress={panelSearch.onClear}
                 hitSlop={6}
-                style={({pressed}) => [
-                  styles.gifSearchClear,
-                  pressed && styles.toolbarButtonPressed,
-                ]}>
+                style={styles.gifSearchClear}>
                 <Text style={styles.gifSearchClearLabel}>✕</Text>
-              </Pressable>
+              </SuggestionBarTap>
             ) : (
               <SearchIcon width={18} height={18} color={theme.iconMuted} />
             )}
           </View>
         ) : (
-          <Pressable
-            onPressIn={() => {
-              triggerKeyHaptic();
-              panelSearch.onActivate();
-            }}
-            style={({pressed}) => [
-              styles.gifSearchOnly,
-              pressed && styles.gifSearchTriggerPressed,
-            ]}>
+          <SuggestionBarTap
+            onPress={panelSearch.onActivate}
+            style={styles.gifSearchOnly}
+            contentStyle={styles.gifSearchTapContent}>
             <Text
               style={[styles.gifSearchPlaceholder, {flex: 1}]}
               numberOfLines={1}>
               {panelSearch.placeholder}
             </Text>
             <SearchIcon width={18} height={18} color={theme.iconMuted} />
-          </Pressable>
+          </SuggestionBarTap>
         )}
       </View>
     );
@@ -415,20 +496,15 @@ function SuggestionBarComponent({
   return (
     <View style={styles.container}>
       <View style={styles.toolbarLeading}>
-        <Pressable
+        <SuggestionBarTap
           onPress={() => {
-            triggerKeyHaptic();
             if (isFormMode) {
               essentialsForm?.onBack();
             } else {
               onItemsPress?.();
             }
           }}
-          style={({pressed}) => [
-            styles.toolbarButton,
-            pressed && styles.toolbarButtonPressed,
-          ]}
-          hitSlop={6}>
+          style={styles.toolbarButton}>
           {showLeadingBack ? (
             <BackIcon width={22} height={14} color={theme.icon} />
           ) : isMacintosh ? (
@@ -443,40 +519,24 @@ function SuggestionBarComponent({
               color={itemsIconColor}
             />
           )}
-        </Pressable>
+        </SuggestionBarTap>
 
         {!isFormMode ? (
-          <Pressable
-            onPressIn={() => {
-              triggerKeyHaptic();
-              onTranslatePress?.();
-            }}
-            style={({pressed}) => [
-              styles.toolbarButton,
-              pressed && styles.toolbarButtonPressed,
-            ]}
-            hitSlop={6}>
+          <SuggestionBarTap
+            onPress={() => onTranslatePress?.()}
+            style={styles.toolbarButton}>
             <TranslateIcon
               width={toolbarIconSize}
               height={toolbarIconSize}
               color={translateIconColor}
             />
-          </Pressable>
+          </SuggestionBarTap>
         ) : null}
 
         {showUndoRedoButtons ? (
-          <Pressable
-            onPressIn={() => {
-              triggerKeyHaptic();
-              onUndo?.();
-            }}
-            style={({pressed}) => [
-              styles.toolbarButton,
-              pressed && styles.toolbarButtonPressed,
-            ]}
-            hitSlop={6}>
+          <SuggestionBarTap onPress={() => onUndo?.()} style={styles.toolbarButton}>
             <UndoIcon width={22} height={22} color={theme.icon} />
-          </Pressable>
+          </SuggestionBarTap>
         ) : null}
       </View>
 
@@ -519,15 +579,9 @@ function SuggestionBarComponent({
           </View>
         ) : hasAiAutocorrectSuggestion && aiAutocorrectSuggestion ? (
           <View style={styles.clipboardPasteContainer}>
-            <Pressable
-              onPressIn={() => {
-                triggerKeyHaptic();
-                onAiAutocorrectSelect?.();
-              }}
-              style={({pressed}) => [
-                styles.aiAutocorrectPill,
-                pressed && styles.clipboardPastePillPressed,
-              ]}>
+            <SuggestionBarTap
+              onPress={() => onAiAutocorrectSelect?.()}
+              style={styles.aiAutocorrectPill}>
               <CheckIcon width={15} height={15} color={theme.icon} />
               <Text style={styles.aiAutocorrectBrand} numberOfLines={1}>
                 {TYPELIFT_BRAND_NAME}
@@ -538,20 +592,16 @@ function SuggestionBarComponent({
                   ONE_CHIP_TEXT_LENGTH,
                 )}
               </Text>
-            </Pressable>
+            </SuggestionBarTap>
           </View>
         ) : hasClipboardPaste && clipboardPasteSuggestion ? (
           <View style={styles.clipboardPasteContainer}>
-            <Pressable
-              onPressIn={() => {
-                triggerKeyHaptic();
-                onClipboardPasteSelect?.();
-              }}
+            <SuggestionBarTapWithPressed
+              onPress={() => onClipboardPasteSelect?.()}
               style={({pressed}) => [
                 styles.clipboardPastePill,
                 isMacintosh && styles.clipboardPastePillDepth,
                 isMacintosh && keyboardKeyChromeStyle(theme, pressed),
-                pressed && styles.clipboardPastePillPressed,
               ]}>
               {({pressed}) => (
                 <>
@@ -577,29 +627,23 @@ function SuggestionBarComponent({
                   )}
                 </>
               )}
-            </Pressable>
+            </SuggestionBarTapWithPressed>
           </View>
         ) : showEssentials ? (
           <View style={styles.row}>
             {essentialSuggestions.map((item, index) => (
               <Fragment key={item.keyword}>
                 {index > 0 ? <View style={styles.divider} /> : null}
-                <Pressable
-                  onPressIn={() => {
-                    triggerKeyHaptic();
-                    onEssentialSelect?.(item);
-                  }}
-                  style={({pressed}) => [
-                    styles.suggestion,
-                    pressed && styles.suggestionPressed,
-                  ]}>
+                <SuggestionBarTap
+                  onPress={() => onEssentialSelect?.(item)}
+                  style={styles.suggestion}>
                   <Text style={styles.essentialKeyword} numberOfLines={1}>
                     @@{asDisplayText(item.keyword)}
                   </Text>
                   <Text style={styles.essentialValue} numberOfLines={1}>
                     {asDisplayText(item.value)}
                   </Text>
-                </Pressable>
+                </SuggestionBarTap>
               </Fragment>
             ))}
           </View>
@@ -608,16 +652,12 @@ function SuggestionBarComponent({
             {wordSuggestionChips.map((chip, index) => (
               <Fragment key={`${chip.kind}:${chip.text}`}>
                 {index > 0 ? <View style={styles.divider} /> : null}
-                <Pressable
-                  onPressIn={() => {
-                    triggerKeyHaptic();
-                    onSelect(chip.text);
-                  }}
-                  style={({pressed}) => [
+                <SuggestionBarTap
+                  onPress={() => onSelect(chip.text)}
+                  style={[
                     styles.suggestion,
                     chip.kind === 'keep' && styles.typedKeepSuggestion,
                     chip.kind === 'autocorrect' && styles.autocorrectSuggestion,
-                    pressed && styles.suggestionPressed,
                   ]}>
                   <Text
                     style={
@@ -631,7 +671,7 @@ function SuggestionBarComponent({
                       wordSuggestionDisplayMax,
                     )}
                   </Text>
-                </Pressable>
+                </SuggestionBarTap>
               </Fragment>
             ))}
           </View>
@@ -639,33 +679,24 @@ function SuggestionBarComponent({
       </View>
 
       {isFormMode && essentialsForm ? (
-        <Pressable
-          onPressIn={() => {
+        <SuggestionBarTap
+          onPress={() => {
             if (!essentialsForm.canConfirm) {
               return;
             }
-            triggerKeyHaptic();
             essentialsForm.onConfirm();
           }}
-          style={({pressed}) => [
+          disabled={!essentialsForm.canConfirm}
+          style={[
             styles.toolbarButton,
             !essentialsForm.canConfirm && styles.confirmButtonDisabled,
-            pressed && essentialsForm.canConfirm && styles.toolbarButtonPressed,
-          ]}
-          hitSlop={6}>
+          ]}>
           <CheckIcon width={24} height={24} color={theme.icon} />
-        </Pressable>
+        </SuggestionBarTap>
       ) : trailingAction ? (
-        <Pressable
-          onPressIn={() => {
-            triggerKeyHaptic();
-            trailingAction.onPress();
-          }}
-          style={({pressed}) => [
-            styles.toolbarButton,
-            pressed && styles.toolbarButtonPressed,
-          ]}
-          hitSlop={6}>
+        <SuggestionBarTap
+          onPress={() => trailingAction.onPress()}
+          style={styles.toolbarButton}>
           {trailingAction.icon === 'insert' ? (
             <InsertIcon
               width={toolbarIconSize}
@@ -679,37 +710,23 @@ function SuggestionBarComponent({
               color={theme.icon}
             />
           )}
-        </Pressable>
+        </SuggestionBarTap>
       ) : (
         <View style={styles.toolbarTrailing}>
           {showUndoRedoButtons ? (
-            <Pressable
-              onPressIn={() => {
-                triggerKeyHaptic();
-                onRedo?.();
-              }}
-              style={({pressed}) => [
-                styles.toolbarButton,
-                pressed && styles.toolbarButtonPressed,
-              ]}
-              hitSlop={6}>
+            <SuggestionBarTap onPress={() => onRedo?.()} style={styles.toolbarButton}>
               <RedoIcon width={22} height={22} color={theme.icon} />
-            </Pressable>
+            </SuggestionBarTap>
           ) : null}
-          <Pressable
-            onPressIn={() => {
-              triggerKeyHaptic();
+          <SuggestionBarTap
+            onPress={() => {
               if (isApple) {
                 onAiPress?.();
               } else {
                 onEmojiPress?.();
               }
             }}
-            style={({pressed}) => [
-              styles.toolbarButton,
-              pressed && styles.toolbarButtonPressed,
-            ]}
-            hitSlop={6}>
+            style={styles.toolbarButton}>
             {isApple ? (
               <ArtificialIcon
                 width={toolbarIconSize}
@@ -723,17 +740,10 @@ function SuggestionBarComponent({
                 color={emojiIconColor}
               />
             )}
-          </Pressable>
-          <Pressable
-            onPressIn={() => {
-              triggerKeyHaptic();
-              onVoicePress?.();
-            }}
-            style={({pressed}) => [
-              styles.toolbarButton,
-              pressed && styles.toolbarButtonPressed,
-            ]}
-            hitSlop={6}>
+          </SuggestionBarTap>
+          <SuggestionBarTap
+            onPress={() => onVoicePress?.()}
+            style={styles.toolbarButton}>
             {voiceActive ? (
               <StopIcon
                 width={toolbarIconSize}
@@ -747,7 +757,7 @@ function SuggestionBarComponent({
                 color={voiceIconColor}
               />
             )}
-          </Pressable>
+          </SuggestionBarTap>
         </View>
       )}
       {showZeroLatencyBadge ? (
@@ -996,6 +1006,12 @@ function createSuggestionBarStyles(theme: KeyboardTheme) {
     borderRadius: theme.keyRadius,
     backgroundColor: theme.letterKey,
     paddingHorizontal: 12,
+    gap: 6,
+  },
+  gifSearchTapContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 6,
   },
   gifSearchField: {
