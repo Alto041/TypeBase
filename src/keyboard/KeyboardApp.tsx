@@ -578,7 +578,7 @@ function computeTypingSuggestionBar(
       : getSuggestionBarAutocorrect(prefix, {
           fast,
           previousWord,
-          context: fast ? undefined : options.context,
+          context: options.context,
         });
 
   const phraseSuggestions =
@@ -2308,9 +2308,10 @@ function KeyboardBody({
         return;
       }
       const localCandidate = getAutocorrectCandidate(requestedToken, {
+        previousWord: previousWordRef.current,
+        context: undefined,
         lightweight: true,
         skipFrequentScan: true,
-        previousWord: previousWordRef.current,
       });
       if (localCandidate && localCandidate.confidence >= 0.82) {
         return;
@@ -2493,10 +2494,8 @@ function KeyboardBody({
       : SUGGESTION_FULL_REFRESH_DEBOUNCE_MS;
     suggestionRefreshTimerRef.current = setTimeout(() => {
       suggestionRefreshTimerRef.current = null;
-      // Keep the background path prefix-only while typing. Full SymSpell
-      // autocorrect is still applied at the word boundary, but the debounced
-      // refresh uses the high-confidence fast preview path.
-      void refreshSuggestions({fast: true});
+      // After a short pause, run the full context-aware path (not prefix-only).
+      void refreshSuggestions({fast: false});
     }, debounceMs);
   },
   [applyInstantSuggestionBar, refreshSuggestions],
@@ -2698,8 +2697,7 @@ function KeyboardBody({
         }
 
         let candidate = getAutocorrectCandidate(typedWord, {
-          lightweight: true,
-          skipFrequentScan: true,
+          lightweight: false,
           boundary: true,
           context,
           previousWord: extractPreviousWordFromContext(
@@ -2710,7 +2708,7 @@ function KeyboardBody({
         if (
           candidate &&
           !isEnglishSymSpellReady() &&
-          candidate.confidence < 0.92 &&
+          candidate.confidence < 0.55 &&
           !candidate.correction.includes(' ')
         ) {
           candidate = null;
@@ -2720,6 +2718,9 @@ function KeyboardBody({
             typedWord.length + boundaryLength,
             candidate!.correction + boundaryText,
           );
+          const correctedTail =
+            candidate!.correction.split(/\s+/).pop() ?? typedWord;
+          previousWordRef.current = correctedTail.toLowerCase();
           observeCorrectionAccepted(typedWord, candidate!.correction);
           const correctionParts = candidate!.correction.split(/\s+/);
           for (const part of correctionParts) {
@@ -3389,6 +3390,9 @@ function KeyboardBody({
           return;
         case 'space': {
           const typedFallback = livePrefixRef.current;
+          if (typedFallback.trim()) {
+            previousWordRef.current = typedFallback.trim().toLowerCase();
+          }
           const contextPromise = keyboardBridge.getTextBeforeCursor(96);
           livePrefixRef.current = '';
           touchIntelligencePreviousKeyRef.current = null;

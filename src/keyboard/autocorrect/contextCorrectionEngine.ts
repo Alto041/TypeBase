@@ -43,11 +43,12 @@ export type ContextCorrectionDebugState = {
   at: number;
 };
 
-const MIN_CONTEXT_CONFIDENCE = 0.56;
-const MIN_CONTEXT_CONFIDENCE_BOUNDARY = 0.58;
+const MIN_CONTEXT_CONFIDENCE = 0.48;
+const MIN_CONTEXT_CONFIDENCE_BOUNDARY = 0.52;
 const MAX_SYMSPELL_CANDIDATES = 8;
-const MAX_BIGRAM_SEEDS_LIGHT = 8;
-const MAX_BIGRAM_SEEDS_FULL = 14;
+const MAX_SYMSPELL_CANDIDATES_LIGHT = 5;
+const MAX_BIGRAM_SEEDS_LIGHT = 10;
+const MAX_BIGRAM_SEEDS_FULL = 16;
 const RESULT_CACHE_TTL_MS = 280;
 const RESULT_CACHE_MAX = 72;
 
@@ -116,6 +117,20 @@ function buildTrailingWords(
   return extractTrailingWords(ctx, 4);
 }
 
+function resolveTrailingWords(
+  context: string,
+  typedWord: string,
+  trailingWords?: string[],
+  previousWord?: string,
+): string[] {
+  const resolved = buildTrailingWords(context, typedWord, trailingWords);
+  if (resolved.length > 0) {
+    return resolved;
+  }
+  const prev = previousWord?.trim().toLowerCase();
+  return prev ? [prev] : [];
+}
+
 function scoreCandidateInContext(
   trailingWords: readonly string[],
   candidate: string,
@@ -129,7 +144,7 @@ function scoreCandidateInContext(
   if (trailingWords.length > 0) {
     const previous = trailingWords[trailingWords.length - 1]!;
     bigram = getBigramFollowScore(previous, candidateLower);
-    score += bigram * 2.4;
+    score += bigram * 3.2;
 
     if (trailingWords.length >= 2) {
       const secondLast = trailingWords[trailingWords.length - 2]!;
@@ -137,8 +152,15 @@ function scoreCandidateInContext(
     }
   }
 
+  // Baseline for plausible typos so SymSpell hits still win without a strong bigram.
+  if (edits === 1) {
+    score += 32;
+  } else if (edits === 2) {
+    score += 14;
+  }
+  score -= edits * 6;
+
   score += personalBoost;
-  score -= edits * 14;
 
   return {rawScore: score, bigram};
 }
@@ -244,6 +266,18 @@ function gatherCandidates(
       }
       add(hit.word, hit.edits, 0, 'bigram');
     }
+  } else {
+    const symHits = lookupCandidatesSync(
+      typedLower,
+      maxEdits,
+      MAX_SYMSPELL_CANDIDATES_LIGHT,
+    );
+    for (const hit of symHits) {
+      if (hit.word.includes(' ')) {
+        continue;
+      }
+      add(hit.word, hit.edits, 0, 'bigram');
+    }
   }
 
   return candidates;
@@ -302,10 +336,11 @@ export function getContextCorrectionCandidate(
     return null;
   }
 
-  const trailingWords = buildTrailingWords(
+  const trailingWords = resolveTrailingWords(
     context,
     typed,
     options?.trailingWords,
+    options?.previousWord,
   );
   const previousWord =
     options?.previousWord?.toLowerCase() ??

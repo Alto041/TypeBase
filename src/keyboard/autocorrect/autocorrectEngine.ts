@@ -1750,9 +1750,11 @@ export function getAutocorrectCandidate(
     return null;
   }
 
-  if (options?.context || options?.trailingWords?.length) {
+  if (options?.context || options?.previousWord || options?.trailingWords?.length) {
     const shouldRunContext =
-      options.boundary === true || options.lightweight !== true;
+      options.boundary === true ||
+      options.lightweight !== true ||
+      Boolean(options.previousWord);
     if (shouldRunContext) {
       const contextFix = getContextCorrectionCandidate(typed, options.context ?? '', {
         previousWord: options.previousWord,
@@ -2054,11 +2056,16 @@ export function getSuggestionBarAutocorrect(
   }
 
   const fast = options?.fast ?? false;
+  const contextEnabled = getAutocorrectSettings().contextCorrectionEnabled;
+  const canUseContext =
+    contextEnabled && Boolean(options?.context || previousWord);
 
-  if (!fast && options?.context) {
-    const contextFix = getContextCorrectionCandidate(typed, options.context, {
+  if (canUseContext) {
+    const contextFix = getContextCorrectionCandidate(typed, options?.context ?? '', {
       previousWord,
-      lightweight: false,
+      trailingWords: previousWord ? [previousWord] : undefined,
+      lightweight: fast,
+      boundary: !fast,
     });
     if (
       contextFix &&
