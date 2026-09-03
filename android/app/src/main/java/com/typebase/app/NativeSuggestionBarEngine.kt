@@ -1,6 +1,8 @@
 package com.typebase.app
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
@@ -12,11 +14,16 @@ import java.util.concurrent.atomic.AtomicInteger
 object NativeSuggestionBarEngine {
   private const val SUGGESTION_LIMIT = 8
   private const val MAX_PREFIX_LENGTH = 28
+  /** Coalesce RN events during fast typing so the JS thread stays responsive. */
+  private const val NOTIFY_THROTTLE_MS = 56L
 
   private val generation = AtomicInteger(0)
   private val executor: ExecutorService = Executors.newSingleThreadExecutor()
+  private val mainHandler = Handler(Looper.getMainLooper())
 
   @Volatile private var livePrefix: String = ""
+  @Volatile private var pendingNotifySnapshot: Snapshot? = null
+  private var notifyPosted = false
 
   data class Snapshot(
       val prefix: String,
@@ -57,6 +64,9 @@ object NativeSuggestionBarEngine {
 
   fun clearPrefix() {
     livePrefix = ""
+    pendingNotifySnapshot = null
+    notifyPosted = false
+    mainHandler.removeCallbacksAndMessages(null)
     val snapshot =
         Snapshot(
             prefix = "",
@@ -69,6 +79,24 @@ object NativeSuggestionBarEngine {
   }
 
   fun getLatestSnapshot(): Snapshot? = latestSnapshot
+
+  private fun emitSnapshotThrottled(snapshot: Snapshot) {
+    latestSnapshot = snapshot
+    pendingNotifySnapshot = snapshot
+    if (notifyPosted) {
+      return
+    }
+    notifyPosted = true
+    mainHandler.postDelayed(
+        {
+          notifyPosted = false
+          val pending = pendingNotifySnapshot ?: return@postDelayed
+          pendingNotifySnapshot = null
+          KeyboardInputBridge.notifyNativeSuggestionsUpdated(pending)
+        },
+        NOTIFY_THROTTLE_MS,
+    )
+  }
 
   private fun scheduleCompute(prefix: String, context: Context? = null) {
     val appContext = context?.applicationContext
@@ -90,8 +118,7 @@ object NativeSuggestionBarEngine {
               generation = runId,
               atMs = System.currentTimeMillis(),
           )
-      latestSnapshot = snapshot
-      KeyboardInputBridge.notifyNativeSuggestionsUpdated(snapshot)
+      emitSnapshotThrottled(snapshot)
     }
   }
 }

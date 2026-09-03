@@ -20,7 +20,7 @@ export function triggerKeyHaptic(
 
   if (!frameHapticHandled) {
     if (isZeroLatencyModeActive()) {
-      keyboardBridge.performLightKeyHaptic();
+      keyboardBridge.performSubtleKeyHaptic();
     } else {
       keyboardBridge.performKeyHaptic();
     }

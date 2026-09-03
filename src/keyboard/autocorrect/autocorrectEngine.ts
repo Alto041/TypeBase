@@ -30,6 +30,11 @@ import {
 } from './dictionaryManager';
 import {getHinglishPhraseCorrection, isHinglishHeadword} from './hinglishDictionary';
 import {getContextCorrectionCandidate} from './contextCorrectionEngine';
+import {
+  getPunctuationCorrection,
+  shouldAutoApplyPunctuation,
+  applyCaseToPunctuation,
+} from './punctuationCorrections';
 
 /** Manual rank overrides for slang / contractions. */
 const SUPPLEMENTAL_RANK = new Map<string, number>([
@@ -1750,6 +1755,21 @@ export function getAutocorrectCandidate(
     return null;
   }
 
+  // Punctuation correction (contractions, apostrophes)
+  // Check this early for high-confidence common patterns
+  if (isEnglishLikeLang()) {
+    const punctFix = getPunctuationCorrection(typed, options?.previousWord);
+    if (
+      punctFix &&
+      shouldAutoApplyPunctuation(punctFix, typed, 0.90)
+    ) {
+      return {
+        correction: applyCaseToPunctuation(punctFix.correction, typed),
+        confidence: punctFix.confidence,
+      };
+    }
+  }
+
   if (options?.context || options?.previousWord || options?.trailingWords?.length) {
     const shouldRunContext =
       options.boundary === true ||
@@ -2053,6 +2073,26 @@ export function getSuggestionBarAutocorrect(
 
   if (isKnownEnglishWord(lower)) {
     return {keepTyped: null, correction: null};
+  }
+
+  // Punctuation correction (contractions, apostrophes) — show in bar but don't auto-apply
+  // Show this even if it wouldn't auto-apply, so user can tap it if they want
+  if (isEnglishLikeLang()) {
+    const punctFix = getPunctuationCorrection(typed, previousWord);
+    if (
+      punctFix &&
+      punctFix.correction.toLowerCase() !== typed.toLowerCase()
+    ) {
+      const result = {
+        keepTyped: offerKeepTyped ? typed : null,
+        correction: applyCaseToPunctuation(punctFix.correction, typed),
+      };
+      if (suggestionBarAutocorrectCache.size > 512) {
+        suggestionBarAutocorrectCache.clear();
+      }
+      suggestionBarAutocorrectCache.set(cacheKey, {result, time: now});
+      return result;
+    }
   }
 
   const fast = options?.fast ?? false;

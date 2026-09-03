@@ -60,6 +60,7 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   private var previewPlayer: MediaPlayer? = null
   private val swipeDecodeExecutor = Executors.newSingleThreadExecutor()
   private val swipePreviewGeneration = AtomicInteger(0)
+  private val nativeTouchpadEngine = NativeTouchpadEngine()
 
   private fun stopCurrentPreview() {
     previewPlayer?.let { player ->
@@ -1885,6 +1886,12 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     return true
   }
 
+  @ReactMethod(isBlockingSynchronousMethod = true)
+  fun performSubtleKeyHaptic(): Boolean {
+    KeyboardInputBridge.performSubtleKeyHaptic()
+    return true
+  }
+
   @ReactMethod
   fun syncCustomTapSound() {
     KeyTapSoundPlayer.sync(reactApplicationContext)
@@ -2040,6 +2047,104 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
         }
       } catch (error: Throwable) {
         promise.reject("SUGGESTIONS_ERROR", error.message, error)
+      }
+    }
+  }
+
+  /**
+   * Process a touch event on the touchpad using the native engine.
+   * Returns true if the gesture was consumed.
+   */
+  @ReactMethod
+  fun processTouchpadGesture(eventJson: String, selectMode: Boolean, promise: Promise) {
+    UiThreadUtil.runOnUiThread {
+      try {
+        // Parse event JSON (x, y, action)
+        val eventObj = JSONObject(eventJson)
+        val x = eventObj.getDouble("x").toFloat()
+        val y = eventObj.getDouble("y").toFloat()
+        val action = eventObj.getInt("action")
+
+        val consumed = nativeTouchpadEngine.processGesture(action, x, y, selectMode)
+        promise.resolve(consumed)
+      } catch (e: Exception) {
+        promise.reject("PROCESS_TOUCHPAD_GESTURE_FAILED", e)
+      }
+    }
+  }
+  
+  /**
+   * Poll pending cursor movements from the native touchpad engine.
+   * Returns a JSON object with pending moves and metadata.
+   */
+  @ReactMethod
+  fun pollTouchpadMoves(shouldFireHaptic: Boolean, promise: Promise) {
+    UiThreadUtil.runOnUiThread {
+      try {
+        val snapshot = nativeTouchpadEngine.pollPendingMoves(shouldFireHaptic)
+        
+        // Convert moves to JSON array
+        val movesArray = JSONArray()
+        for (move in snapshot.moves) {
+          val moveObj = JSONObject()
+          moveObj.put("direction", move.direction)
+          moveObj.put("count", move.count)
+          movesArray.put(moveObj)
+        }
+        
+        val result = JSONObject()
+        result.put("moves", movesArray)
+        result.put("selectMode", snapshot.selectMode)
+        result.put("gestureEnded", snapshot.gestureEnded)
+        result.put("fireHaptic", shouldFireHaptic && snapshot.moves.isNotEmpty())
+        
+        promise.resolve(result.toString())
+      } catch (e: Exception) {
+        promise.reject("POLL_TOUCHPAD_MOVES_FAILED", e)
+      }
+    }
+  }
+  
+  /**
+   * Set selection mode in the native touchpad engine.
+   */
+  @ReactMethod
+  fun setTouchpadSelectMode(active: Boolean, promise: Promise) {
+    UiThreadUtil.runOnUiThread {
+      try {
+        nativeTouchpadEngine.setSelectMode(active)
+        promise.resolve(true)
+      } catch (e: Exception) {
+        promise.reject("SET_TOUCHPAD_SELECT_MODE_FAILED", e)
+      }
+    }
+  }
+  
+  /**
+   * Query if touchpad gesture is currently active.
+   */
+  @ReactMethod
+  fun isTouchpadGestureActive(promise: Promise) {
+    UiThreadUtil.runOnUiThread {
+      try {
+        promise.resolve(nativeTouchpadEngine.isGestureActive())
+      } catch (e: Exception) {
+        promise.reject("IS_TOUCHPAD_GESTURE_ACTIVE_FAILED", e)
+      }
+    }
+  }
+  
+  /**
+   * Reset the native touchpad engine state.
+   */
+  @ReactMethod
+  fun resetTouchpadEngine(promise: Promise) {
+    UiThreadUtil.runOnUiThread {
+      try {
+        nativeTouchpadEngine.reset()
+        promise.resolve(true)
+      } catch (e: Exception) {
+        promise.reject("RESET_TOUCHPAD_ENGINE_FAILED", e)
       }
     }
   }

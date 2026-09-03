@@ -628,16 +628,22 @@ export function dispatchMultiTouchStart(
       setMultiTouchKeyPressed(resolvedHit.id, true);
       triggerKeyHaptic(pid, {nativeCommitted: false});
       options.onKeyCommit(resolvedHit.keyDef, defaultCommit);
-      annotateLastTouchIntelligenceCommit(defaultCommit, 'js', localX, localY);
+      if (!isZeroLatencyModeActive()) {
+        annotateLastTouchIntelligenceCommit(defaultCommit, 'js', localX, localY);
+      }
     } else {
-      annotateLastTouchIntelligenceCommit(defaultCommit, 'native', localX, localY);
+      if (!isZeroLatencyModeActive()) {
+        annotateLastTouchIntelligenceCommit(defaultCommit, 'native', localX, localY);
+      }
     }
-    recordTouchIntelligenceTap(
-      defaultCommit,
-      localX,
-      localY,
-      touch.timestamp ?? Date.now(),
-    );
+    if (!isZeroLatencyModeActive()) {
+      recordTouchIntelligenceTap(
+        defaultCommit,
+        localX,
+        localY,
+        touch.timestamp ?? Date.now(),
+      );
+    }
 
     const session: MultiTouchSession = {
       keyId: resolvedHit.id,

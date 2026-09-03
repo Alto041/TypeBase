@@ -69,6 +69,7 @@ type KeyboardModuleType = {
   openInputMethodSettings: () => void;
   performKeyHaptic: () => void;
   performLightKeyHaptic: () => void;
+  performSubtleKeyHaptic: () => void;
   playKeyTapSound: () => void;
   syncCustomTapSound: () => void;
   playCustomTapSound: () => void;
@@ -115,6 +116,11 @@ type KeyboardModuleType = {
   ) => Promise<boolean>;
   copySelection: () => Promise<boolean>;
   cutSelection: () => Promise<boolean>;
+  processTouchpadGesture: (eventJson: string, selectMode: boolean) => Promise<boolean>;
+  pollTouchpadMoves: (shouldFireHaptic: boolean) => Promise<string>;
+  setTouchpadSelectMode: (active: boolean) => Promise<boolean>;
+  isTouchpadGestureActive: () => Promise<boolean>;
+  resetTouchpadEngine: () => Promise<boolean>;
   deleteWordBackward: () => Promise<boolean>;
   deleteSentenceBackward: () => Promise<boolean>;
   getLaunchableApps: () => Promise<Array<{packageName: string; label: string}>>;
@@ -495,6 +501,11 @@ export const keyboardBridge: KeyboardModuleType = {
       KeyboardModule.performLightKeyHaptic();
     }
   },
+  performSubtleKeyHaptic: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.performSubtleKeyHaptic) {
+      KeyboardModule.performSubtleKeyHaptic();
+    }
+  },
   playKeyTapSound: () => {
     if (Platform.OS === 'android' && KeyboardModule?.playKeyTapSound) {
       KeyboardModule.playKeyTapSound();
@@ -719,6 +730,36 @@ export const keyboardBridge: KeyboardModuleType = {
   cutSelection: () => {
     if (Platform.OS === 'android' && KeyboardModule?.cutSelection) {
       return KeyboardModule.cutSelection() as Promise<boolean>;
+    }
+    return Promise.resolve(false);
+  },
+  processTouchpadGesture: (eventJson: string, selectMode: boolean) => {
+    if (Platform.OS === 'android' && KeyboardModule?.processTouchpadGesture) {
+      return KeyboardModule.processTouchpadGesture(eventJson, selectMode) as Promise<boolean>;
+    }
+    return Promise.resolve(false);
+  },
+  pollTouchpadMoves: (shouldFireHaptic: boolean) => {
+    if (Platform.OS === 'android' && KeyboardModule?.pollTouchpadMoves) {
+      return KeyboardModule.pollTouchpadMoves(shouldFireHaptic) as Promise<string>;
+    }
+    return Promise.resolve('{"moves":[],"selectMode":false,"gestureEnded":false,"fireHaptic":false}');
+  },
+  setTouchpadSelectMode: (active: boolean) => {
+    if (Platform.OS === 'android' && KeyboardModule?.setTouchpadSelectMode) {
+      return KeyboardModule.setTouchpadSelectMode(active) as Promise<boolean>;
+    }
+    return Promise.resolve(false);
+  },
+  isTouchpadGestureActive: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.isTouchpadGestureActive) {
+      return KeyboardModule.isTouchpadGestureActive() as Promise<boolean>;
+    }
+    return Promise.resolve(false);
+  },
+  resetTouchpadEngine: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.resetTouchpadEngine) {
+      return KeyboardModule.resetTouchpadEngine() as Promise<boolean>;
     }
     return Promise.resolve(false);
   },

@@ -223,8 +223,18 @@ class NativeKeyFastPath {
         val rawY = event.rawYForIndex(index)
         val localX = rawX - areaPageX
         val localY = rawY - areaPageY
-        val hitResult = touchIntelligence.hitTestWithAnalysis(localX, localY, event.eventTime)
-        val key = hitResult.key?.let { keyById[it.id] } ?: return false
+        val key =
+            if (zeroLatency || gamePerformance) {
+              touchIntelligence.geometricHitTest(localX, localY)?.let { geometry ->
+                keyById[geometry.id]
+              }
+            } else {
+              touchIntelligence
+                  .hitTestWithAnalysis(localX, localY, event.eventTime)
+                  .key
+                  ?.let { geometry -> keyById[geometry.id] }
+            }
+                ?: return false
 
         if (!commitOnDown) {
           return false
@@ -242,15 +252,14 @@ class NativeKeyFastPath {
         }
 
         if (keyboardLayout == "letters" && text.length == 1 && text[0].isLetter()) {
-          NativeSuggestionBarEngine.appendLetter(text)
+          if (!zeroLatency && !gamePerformance) {
+            NativeSuggestionBarEngine.appendLetter(text)
+          }
         }
 
         sessions[pointerId] = TouchSession(pointerId, key, text)
-        touchIntelligence.recordTap(text, localX, localY, event.eventTime)
         if (!zeroLatency && !gamePerformance) {
-          hitResult.analysis?.let { analysis ->
-            previewHandler.post { KeyboardInputBridge.notifyTouchIntelligenceHit(analysis) }
-          }
+          touchIntelligence.recordTap(text, localX, localY, event.eventTime)
         }
         synchronized(pendingJsCommitsLock) {
           pendingJsCommits.addLast(
@@ -258,8 +267,9 @@ class NativeKeyFastPath {
           )
         }
 
-        // Haptic on touch-down immediately — never queue behind preview/sound.
-        if (zeroLatency || gamePerformance) {
+        if (zeroLatency) {
+          KeyboardInputBridge.performSubtleKeyHapticForPointer(pointerId)
+        } else if (gamePerformance) {
           KeyboardInputBridge.performLightKeyHapticForPointer(pointerId)
         } else {
           KeyboardInputBridge.performKeyHapticForPointer(pointerId)
@@ -268,11 +278,7 @@ class NativeKeyFastPath {
         if (!zeroLatency && key.reactTag > 0) {
           KeyboardInputBridge.showKeyPressed(key.reactTag)
           KeyboardInputBridge.showKeyPreview(key.reactTag, text)
-        }
-        previewHandler.post {
-          if (!zeroLatency) {
-            KeyboardInputBridge.playKeyTapSound()
-          }
+          previewHandler.post { KeyboardInputBridge.playKeyTapSound() }
         }
         false
       }
@@ -280,15 +286,16 @@ class NativeKeyFastPath {
       MotionEvent.ACTION_UP,
       MotionEvent.ACTION_POINTER_UP -> {
         val pointerId = event.getPointerId(event.actionIndex)
-        sessions[pointerId]?.key?.reactTag?.let { reactTag ->
-          if (reactTag > 0) {
-            KeyboardInputBridge.hideKeyPressed(reactTag)
-            KeyboardInputBridge.hideKeyPreview(reactTag)
+        if (!zeroLatency) {
+          sessions[pointerId]?.key?.reactTag?.let { reactTag ->
+            if (reactTag > 0) {
+              KeyboardInputBridge.hideKeyPressed(reactTag)
+              KeyboardInputBridge.hideKeyPreview(reactTag)
+            }
           }
         }
-        // Keep sessions briefly so JS can acknowledge native commits even when
-        // touch identifiers do not match MotionEvent pointer ids.
-        previewHandler.postDelayed({ sessions.remove(pointerId) }, 450)
+        val sessionCleanupDelayMs = if (zeroLatency) 120L else 450L
+        previewHandler.postDelayed({ sessions.remove(pointerId) }, sessionCleanupDelayMs)
         false
       }
 
@@ -380,20 +387,6 @@ class NativeKeyFastPath {
       shiftOn = false
       uppercase = false
       blockAutoShiftReenable = true
-    }
-
-    // Notify JS after commit — never block the touch path on the RN bridge.
-    val keyId = key.id
-    val keyType = key.type
-    val keyValue = key.value
-    previewHandler.post {
-      KeyboardInputBridge.notifyNativeFastPathKey(
-          keyId,
-          keyType,
-          keyValue,
-          text,
-          shiftConsumed,
-      )
     }
 
     return true

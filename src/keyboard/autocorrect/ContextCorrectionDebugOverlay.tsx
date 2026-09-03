@@ -23,31 +23,21 @@ export function ContextCorrectionDebugOverlay({
     return null;
   }
 
-  const topRunner = snapshot.runners[0];
-  const candidateLine = snapshot.candidate
-    ? `${snapshot.typedWord} → ${snapshot.candidate.correction} (${Math.round(snapshot.candidate.confidence * 100)}%, ${snapshot.candidate.source})`
-    : snapshot.skippedReason
-      ? `skip: ${snapshot.skippedReason}`
-      : 'no pick';
+  const line = snapshot.candidate
+    ? `${snapshot.typedWord} → ${snapshot.candidate.correction} · ${Math.round(snapshot.candidate.confidence * 100)}%`
+    : snapshot.typedWord
+      ? snapshot.typedWord
+      : null;
+
+  if (!line) {
+    return null;
+  }
 
   return (
     <View pointerEvents="none" style={styles.panel}>
-      <Text style={styles.title}>Context correction</Text>
       <Text style={styles.line} numberOfLines={1}>
-        after: {snapshot.previousWord || '—'}
-        {snapshot.trailingWords.length > 1
-          ? ` · trail: ${snapshot.trailingWords.slice(-3).join(' ')}`
-          : ''}
+        {line}
       </Text>
-      <Text style={styles.pick} numberOfLines={1}>
-        {candidateLine}
-      </Text>
-      {topRunner ? (
-        <Text style={styles.runner} numberOfLines={1}>
-          top: {topRunner.word} · bg {topRunner.bigram} · score{' '}
-          {Math.round(topRunner.rawScore)}
-        </Text>
-      ) : null}
     </View>
   );
 }
@@ -57,35 +47,19 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 8,
     right: 8,
-    bottom: 4,
+    bottom: 2,
     zIndex: 80,
-    borderRadius: 8,
+    borderRadius: 6,
     paddingHorizontal: 8,
-    paddingVertical: 5,
-    backgroundColor: 'rgba(12,12,16,0.88)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,149,0,0.75)',
-  },
-  title: {
-    color: 'rgba(255,149,0,0.95)',
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.4,
-    marginBottom: 2,
+    paddingVertical: 3,
+    backgroundColor: 'rgba(12, 12, 16, 0.82)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255, 149, 0, 0.55)',
   },
   line: {
-    color: 'rgba(255,255,255,0.82)',
+    color: 'rgba(255, 255, 255, 0.92)',
     fontSize: 10,
-  },
-  pick: {
-    color: 'rgba(255,255,255,0.95)',
-    fontSize: 11,
     fontWeight: '600',
-    marginTop: 2,
-  },
-  runner: {
-    color: 'rgba(255,255,255,0.62)',
-    fontSize: 9,
-    marginTop: 1,
+    letterSpacing: 0.1,
   },
 });

@@ -342,6 +342,10 @@ object KeyboardInputBridge {
   /** Gaps below this use the snappier KEYBOARD_TAP primitive (Gboard-style bursts). */
   private const val FAST_TYPING_GAP_MS = 95L
 
+  /** Zero-latency: shortest pulse, lowest amplitude — felt but not distracting. */
+  private const val SUBTLE_HAPTIC_MS = 4L
+  private const val SUBTLE_HAPTIC_AMPLITUDE = 28
+
   /** Collapse duplicate JS haptics in the same frame only — never throttle touch-down pulses. */
   private const val JS_HAPTIC_DEBOUNCE_MS = 8L
 
@@ -373,6 +377,26 @@ object KeyboardInputBridge {
       } else {
         val lightMs = (keyHapticPulseMs - 4).coerceAtLeast(6).toLong()
         pulseVibrator(lightMs, hapticAmplitudeForPulseMs(keyHapticPulseMs - 4))
+      }
+      val now = SystemClock.uptimeMillis()
+      lastHapticMs = now
+      lastPointerHapticMs = now
+    }
+    synchronized(hapticHandledPointers) { hapticHandledPointers.add(pointerId) }
+  }
+
+  /** Barely-there tick for zero-latency — lighter than game-performance haptics. */
+  fun performSubtleKeyHapticForPointer(pointerId: Int) {
+    if (keyHapticEnabled) {
+      val view = inputService?.keyboardViewForFeedback
+      if (view != null) {
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+          performViewSubtleKeyHaptic(view)
+        } else {
+          mainHandler.post { performViewSubtleKeyHaptic(view) }
+        }
+      } else {
+        pulseVibrator(SUBTLE_HAPTIC_MS, SUBTLE_HAPTIC_AMPLITUDE)
       }
       val now = SystemClock.uptimeMillis()
       lastHapticMs = now
@@ -430,6 +454,29 @@ object KeyboardInputBridge {
     }
     val lightMs = (keyHapticPulseMs - 4).coerceAtLeast(6).toLong()
     pulseVibrator(lightMs, hapticAmplitudeForPulseMs(keyHapticPulseMs - 4))
+  }
+
+  /** JS-only subtle haptic for zero-latency letter keys. No tap sound. */
+  fun performSubtleKeyHaptic() {
+    val now = SystemClock.uptimeMillis()
+    if (now - lastHapticMs < JS_HAPTIC_DEBOUNCE_MS) {
+      return
+    }
+    lastHapticMs = now
+
+    if (!keyHapticEnabled) {
+      return
+    }
+    val view = inputService?.keyboardViewForFeedback
+    if (view != null) {
+      if (Looper.myLooper() == Looper.getMainLooper()) {
+        performViewSubtleKeyHaptic(view)
+      } else {
+        mainHandler.post { performViewSubtleKeyHaptic(view) }
+      }
+      return
+    }
+    pulseVibrator(SUBTLE_HAPTIC_MS, SUBTLE_HAPTIC_AMPLITUDE)
   }
 
   /**
@@ -547,6 +594,17 @@ object KeyboardInputBridge {
     }
   }
 
+  private fun performViewSubtleKeyHaptic(view: View) {
+    val flags =
+        HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING or
+            HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING
+    @Suppress("DEPRECATION")
+    val ok = view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK, flags)
+    if (!ok) {
+      subtleHapticEngineFallback()
+    }
+  }
+
   private fun performViewFastKeyHaptic(view: View) {
     val flags =
         HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING or
@@ -581,6 +639,25 @@ object KeyboardInputBridge {
     } else {
       @Suppress("DEPRECATION")
       vib.vibrate(8L)
+    }
+  }
+
+  private fun subtleHapticEngineFallback() {
+    val ctx = inputService?.applicationContext ?: return
+    val vib =
+        vibrator
+            ?: (ctx.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator)?.also { vibrator = it }
+            ?: return
+    if (!vib.hasVibrator()) {
+      return
+    }
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+      vib.vibrate(
+          VibrationEffect.createOneShot(SUBTLE_HAPTIC_MS, SUBTLE_HAPTIC_AMPLITUDE),
+      )
+    } else {
+      @Suppress("DEPRECATION")
+      vib.vibrate(SUBTLE_HAPTIC_MS)
     }
   }
 

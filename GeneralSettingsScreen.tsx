@@ -18,10 +18,11 @@ import DiscordIcon from './assets/discord.svg';
 import FeedbackIcon from './assets/feedback.svg';
 import GraphicEqIcon from './assets/graphic_eq.svg';
 import DevIcon from './assets/dev.svg';
-import StatsIcon from './assets/stats.svg';
+import EngineOutlineIcon from './assets/engine-outline.svg';
 import SymbolToggleIcon from './assets/symbol-toggle.svg';
 import NumberRowIcon from './assets/123.svg';
 import AutoCapIcon from './assets/format-letter-case-upper.svg';
+import PersonalIcon from './assets/personal.svg';
 
 import {playSwitchOffSound, playSwitchOnSound} from './src/app/switchSound';
 import {
@@ -388,7 +389,7 @@ export function GeneralSettingsScreen({
               if (onOpenPersonalTyping) onOpenPersonalTyping();
             }}>
             <View style={styles.rowInner}>
-              <AutoCapIcon width={ROW_ICON} height={ROW_ICON} color={C.text} />
+              <PersonalIcon width={ROW_ICON} height={ROW_ICON} color={C.text} />
               <Text style={styles.rowTitle}>Personal typing</Text>
             </View>
           </Pressable>
@@ -400,7 +401,7 @@ export function GeneralSettingsScreen({
               if (onOpenEngineStats) onOpenEngineStats();
             }}>
             <View style={styles.rowInner}>
-              <StatsIcon width={ROW_ICON} height={ROW_ICON} color={C.text} />
+              <EngineOutlineIcon width={ROW_ICON} height={ROW_ICON} color={C.text} />
               <Text style={styles.rowTitle}>Engine Stats</Text>
             </View>
           </Pressable>
@@ -445,7 +446,7 @@ export function GeneralSettingsScreen({
           <View style={[styles.rowCard, styles.rowCardStatic]}>
             <View style={styles.rowInner}>
               <Text style={styles.rowSubLabel}>App Version</Text>
-              <Text style={styles.rowValue}>1.5.0</Text>
+              <Text style={styles.rowValue}>2.0.0 Beta</Text>
             </View>
           </View>
         </View>

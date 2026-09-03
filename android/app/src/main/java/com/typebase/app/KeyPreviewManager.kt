@@ -227,6 +227,15 @@ class KeyPreviewManager(private val fallbackContext: Context) {
                 hideRequested.remove(reactTag)
                 return@Runnable
             }
+            val visibleMs =
+                shownAtMs[reactTag]?.let { SystemClock.uptimeMillis() - it } ?: elapsed
+            if (visibleMs >= FLASH_MIN_VISIBLE_MS) {
+                hideRequested.remove(reactTag)
+                showSeq[reactTag] = (showSeq[reactTag] ?: 0) + 1
+                cancelPendingLayoutShow(reactTag)
+                releasePreview(reactTag)
+                return@Runnable
+            }
             tv.animate()
                 .alpha(0f)
                 .setDuration(FADE_OUT_MS)
@@ -572,11 +581,11 @@ class KeyPreviewManager(private val fallbackContext: Context) {
         private const val GEIST_WEIGHT = 500
         private const val DARK_PREVIEW_BACKGROUND = "#454545"
         private const val DARK_PREVIEW_TEXT = "#FFFFFF"
-        /** Shortest flash so ultra-fast taps still register visually. */
-        private const val FLASH_MIN_VISIBLE_MS = 40L
-        /** Gboard-like fade out duration. */
-        private const val FADE_OUT_MS = 55L
-        private const val DEFAULT_HIDE_AFTER_RELEASE_MS = 40L
+        /** Minimum flash for ultra-fast taps before dismiss. */
+        private const val FLASH_MIN_VISIBLE_MS = 18L
+        /** Quick fade only when the preview barely appeared. */
+        private const val FADE_OUT_MS = 28L
+        private const val DEFAULT_HIDE_AFTER_RELEASE_MS = 18L
         private const val DEFAULT_FONT_ASSET = "fonts/Geist-VariableFont_wght.ttf"
     }
 }

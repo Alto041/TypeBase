@@ -20,6 +20,7 @@ import * as Haptics from 'expo-haptics';
 
 import BackIcon from './assets/back.svg';
 import EnterIcon from './assets/enter-icon.svg';
+import HapticIcon from './assets/haptic.svg';
 import ResetIcon from './assets/reset.svg';
 import ThemeIcon from './assets/theme.svg';
 import GraphicEqIcon from './assets/graphic_eq.svg';
@@ -28,7 +29,6 @@ import FontIcon from './assets/font.svg';
 
 import {playSwitchOffSound, playSwitchOnSound} from './src/app/switchSound';
 import {formatDocumentPickerError} from './lib/pickDocumentAsync';
-import {StandaloneInsetSlider} from './components/InsetSlider';
 
 import {
   ensureLayoutLoaded,
@@ -86,6 +86,9 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
   const lastHapticPulseRef = useRef(
     DEFAULT_KEYBOARD_LAYOUT_SETTINGS.keyHapticPulseMs,
   );
+  const loadingRef = useRef(true);
+  const hapticEnabledRef = useRef(DEFAULT_KEYBOARD_LAYOUT_SETTINGS.keyHapticEnabled);
+  const hapticPulseMsRef = useRef(DEFAULT_KEYBOARD_LAYOUT_SETTINGS.keyHapticPulseMs);
   const tapSoundAnim = useRef(new Animated.Value(0)).current;
   const enterKeyAnim = useRef(new Animated.Value(0)).current;
 
@@ -131,6 +134,11 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
   const keyGap = layout.keyGap;
   const rowGap = layout.keyRowMargin;
   const keyRadius = layout.keyRadius;
+  const hapticPulseMs = layout.keyHapticPulseMs;
+  const hapticEnabled = layout.keyHapticEnabled;
+  loadingRef.current = loading;
+  hapticEnabledRef.current = hapticEnabled;
+  hapticPulseMsRef.current = hapticPulseMs;
 
   const handleReset = () => {
     setLayout(DEFAULT_KEYBOARD_LAYOUT_SETTINGS);
@@ -398,6 +406,46 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
     })
   ).current;
 
+  // ==================== HAPTIC INTENSITY horizontal slider (full-width card) ====================
+  const HAPTIC_MIN = 6;
+  const HAPTIC_MAX = 24;
+  const HAPTIC_RANGE = HAPTIC_MAX - HAPTIC_MIN;
+  const HAPTIC_TRACK_W = 168;
+  const HAPTIC_KNOB_SIZE = 18;
+  const HAPTIC_DRAG_PX = 210;
+
+  const hapticProgress = (hapticPulseMs - HAPTIC_MIN) / HAPTIC_RANGE;
+  const hapticKnobLeft = hapticProgress * (HAPTIC_TRACK_W - HAPTIC_KNOB_SIZE);
+
+  const hapticDragRef = useRef({ startValue: HAPTIC_MIN });
+
+  const hapticSliderPan = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () =>
+        hapticEnabledRef.current && !loadingRef.current,
+      onMoveShouldSetPanResponder: () =>
+        hapticEnabledRef.current && !loadingRef.current,
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderGrant: () => {
+        hapticDragRef.current.startValue = hapticPulseMsRef.current;
+      },
+      onPanResponderMove: (_evt, gestureState) => {
+        const deltaValue = (gestureState.dx / HAPTIC_DRAG_PX) * HAPTIC_RANGE;
+        let next = Math.round(hapticDragRef.current.startValue + deltaValue);
+        next = Math.max(HAPTIC_MIN, Math.min(HAPTIC_MAX, next));
+
+        if (next !== hapticPulseMsRef.current) {
+          if (next !== lastHapticPulseRef.current) {
+            lastHapticPulseRef.current = next;
+            keyboardBridge.performKeyHaptic();
+          }
+          update('keyHapticPulseMs', next);
+          Haptics.selectionAsync().catch(() => {});
+        }
+      },
+    })
+  ).current;
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={C.bg} />
@@ -552,6 +600,46 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
             </View>
           </View>
 
+          <View
+            style={[
+              styles.hapticCard,
+              (!hapticEnabled || loading) && styles.hapticCardDisabled,
+            ]}>
+            <Text style={[styles.configLabel, styles.configLabelTopLeft]}>
+              HAPTIC INTENSITY
+            </Text>
+            <View style={styles.hapticValueWrap}>
+              <View style={styles.hapticValueRow}>
+                <View style={styles.valueBox}>
+                  <TextInput
+                    style={styles.valueInput}
+                    value={String(hapticPulseMs)}
+                    onChangeText={text => {
+                      const n = parseInt(text.replace(/[^0-9]/g, ''), 10);
+                      if (!isNaN(n)) {
+                        if (n !== lastHapticPulseRef.current) {
+                          lastHapticPulseRef.current = n;
+                          keyboardBridge.performKeyHaptic();
+                        }
+                        update('keyHapticPulseMs', n);
+                      }
+                    }}
+                    keyboardType="number-pad"
+                    editable={!loading && hapticEnabled}
+                  />
+                </View>
+                <Text style={styles.hapticUnit}>ms</Text>
+              </View>
+            </View>
+            <View style={styles.hapticSliderArea} {...hapticSliderPan.panHandlers}>
+              <View style={styles.hapticTrack} />
+              <View style={[styles.hapticKnob, {left: hapticKnobLeft}]} />
+            </View>
+            <View style={styles.hapticIconBadge}>
+              <HapticIcon width={18} height={18} color={C.text} />
+            </View>
+          </View>
+
           <View style={styles.themeToggleContainer}>
             <EnterIcon width={20} height={20} color={C.red} />
             <View style={styles.tapSoundTextCol}>
@@ -630,27 +718,6 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
                 ]}
               />
             </Pressable>
-          </View>
-
-          <View style={styles.sliderStack}>
-            <StandaloneInsetSlider
-              label="Haptic intensity"
-              value={layout.keyHapticPulseMs}
-              minimumValue={6}
-              maximumValue={24}
-              step={1}
-              isDark={false}
-              invertTrackColors
-              disabled={loading || !layout.keyHapticEnabled}
-              formatValue={value => `${value}ms`}
-              onChange={next => {
-                if (next !== lastHapticPulseRef.current) {
-                  lastHapticPulseRef.current = next;
-                  keyboardBridge.performKeyHaptic();
-                }
-                update('keyHapticPulseMs', next);
-              }}
-            />
           </View>
 
           {/* Reset all settings row */}
@@ -1192,10 +1259,64 @@ const styles = StyleSheet.create({
   customizeSection: {
     gap: 8,
   },
-  sliderStack: {
-    marginBottom: 4,
-    gap: 10,
-    paddingTop: 6,
+  hapticCard: {
+    backgroundColor: C.card,
+    borderRadius: CARD_R,
+    height: 108,
+    position: 'relative',
+    marginTop: 0,
+  },
+  hapticCardDisabled: {
+    opacity: 0.45,
+  },
+  hapticValueWrap: {
+    position: 'absolute',
+    left: 14,
+    bottom: 14,
+  },
+  hapticValueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  hapticUnit: {
+    fontFamily: 'FragmentMono',
+    fontSize: 13,
+    color: C.sub,
+    letterSpacing: TEXT_KERNING,
+  },
+  hapticSliderArea: {
+    position: 'absolute',
+    right: 14,
+    bottom: 22,
+    width: 168,
+    height: 36,
+    justifyContent: 'center',
+  },
+  hapticTrack: {
+    width: '100%',
+    height: 4,
+    backgroundColor: '#F2F2F2',
+    borderRadius: 2,
+  },
+  hapticKnob: {
+    position: 'absolute',
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#111111',
+    top: 9,
+  },
+  hapticIconBadge: {
+    position: 'absolute',
+    right: 14,
+    top: 14,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#F2F2F2',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   configRow: {
     flexDirection: 'row',

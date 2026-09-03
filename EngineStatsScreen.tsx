@@ -11,8 +11,6 @@ import {
 import {SafeAreaView} from 'react-native-safe-area-context';
 
 import StatsIcon from './assets/stats.svg';
-import DeviceIcon from './assets/device.svg';
-import GraphicEqIcon from './assets/graphic_eq.svg';
 import ArrowForwardIcon from './assets/arrow_forward_ios.svg';
 import {keyboardBridge} from './src/keyboard/keyboardBridge';
 import {ensurePersonalTypingLoaded} from './src/keyboard/personalTyping/personalTypingEngine';
@@ -28,9 +26,7 @@ import {
   getGemmaRuntimeStats,
   isGemmaModelDownloaded,
   isGemmaModelLoaded,
-  askGemma,
 } from './src/keyboard/ai/gemmaBridge';
-import {ensureGemmaModelLoaded} from './src/keyboard/ai/gemmaModelManager';
 import {loadMetricsSnapshot} from './src/keyboard/metrics/metricsStore';
 import {getAiAutocorrectTelemetry} from './src/keyboard/autocorrect/aiAutocorrectTelemetry';
 import {
@@ -182,7 +178,6 @@ function formatMs(value: number | null): string {
 
 export function EngineStatsScreen({onBack}: {onBack: () => void}) {
   const [snap, setSnap] = useState(DEFAULT_SNAPSHOT);
-  const [diagnosticMessage, setDiagnosticMessage] = useState('');
   const [showTouchHits, setShowTouchHits] = useState(false);
   const [touchSummary, setTouchSummary] = useState(() =>
     getTouchIntelligenceTelemetrySummary(),
@@ -312,37 +307,6 @@ export function EngineStatsScreen({onBack}: {onBack: () => void}) {
       cancelled = true;
     };
   }, []);
-
-  const runBenchmark = () => {
-    const startedAt = Date.now();
-    const words = getEnglishWordsByFrequency();
-    const sample = words.slice(0, 1000);
-    const elapsed = Date.now() - startedAt;
-    setDiagnosticMessage(
-      `Checked ${sample.length.toLocaleString()} dictionary entries in ${elapsed}ms.`,
-    );
-  };
-
-  const testInference = async () => {
-    setDiagnosticMessage('Running a short on-device inference…');
-    try {
-      await ensureGemmaModelLoaded();
-      await askGemma('Reply with the single word: ready');
-      const runtime = getGemmaRuntimeStats();
-      setSnap(current => ({
-        ...current,
-        gemmaLoaded: true,
-        gemmaLastMs: runtime.lastInferenceMs,
-        gemmaP50Ms: runtime.p50InferenceMs,
-        gemmaLoadMs: runtime.lastLoadMs,
-      }));
-      setDiagnosticMessage('On-device inference completed.');
-    } catch (error) {
-      setDiagnosticMessage(
-        error instanceof Error ? error.message : 'Inference is unavailable.',
-      );
-    }
-  };
 
   if (showTouchHits) {
     return <TouchIntelligenceHitsScreen onBack={() => setShowTouchHits(false)} />;
@@ -507,27 +471,6 @@ export function EngineStatsScreen({onBack}: {onBack: () => void}) {
             <ArrowForwardIcon width={14} height={14} color={C.muted} />
           </View>
         </Pressable>
-
-        <View style={styles.toolsCard}>
-          <View style={styles.toolsHeader}>
-            <DeviceIcon width={18} height={18} color={C.text} />
-            <Text style={styles.toolsTitle}>Diagnostics</Text>
-          </View>
-          <Text style={styles.toolsHint}>
-            Run a lightweight dictionary check or test the on-device model.
-          </Text>
-          <Pressable style={styles.toolButton} onPress={runBenchmark}>
-            <GraphicEqIcon width={16} height={16} color={C.muted} />
-            <Text style={styles.toolButtonText}>Run benchmarks</Text>
-          </Pressable>
-          <Pressable style={styles.toolButton} onPress={() => void testInference()}>
-            <DeviceIcon width={16} height={16} color={C.muted} />
-            <Text style={styles.toolButtonText}>Test inference</Text>
-          </Pressable>
-          {diagnosticMessage ? (
-            <Text style={styles.toolsResult}>{diagnosticMessage}</Text>
-          ) : null}
-        </View>
 
         <Text style={styles.footerNote}>
           Settings and learned-data values are read from this device.
@@ -718,53 +661,6 @@ const styles = StyleSheet.create({
     color: C.sub,
     fontFamily: 'FragmentMono',
     letterSpacing: TEXT_KERNING,
-  },
-  toolsCard: {
-    backgroundColor: C.card,
-    borderRadius: CARD_R,
-    padding: 14,
-    gap: 10,
-  },
-  toolsHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  toolsTitle: {
-    fontSize: 14,
-    color: C.text,
-    fontFamily: 'FragmentMono',
-    letterSpacing: TEXT_KERNING,
-    textTransform: 'uppercase',
-  },
-  toolsHint: {
-    fontSize: 12,
-    color: C.sub,
-    lineHeight: 17,
-    letterSpacing: TEXT_KERNING,
-  },
-  toolsResult: {
-    fontSize: 12,
-    color: C.sub,
-    lineHeight: 17,
-    letterSpacing: TEXT_KERNING,
-  },
-  toolButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    minHeight: 44,
-    borderRadius: 10,
-    backgroundColor: C.bg,
-    opacity: 0.72,
-  },
-  toolButtonText: {
-    fontSize: 13,
-    color: C.muted,
-    fontFamily: 'FragmentMono',
-    letterSpacing: TEXT_KERNING,
-    textTransform: 'uppercase',
   },
   footerNote: {
     textAlign: 'center',

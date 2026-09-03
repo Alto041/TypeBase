@@ -36,8 +36,6 @@ export function TouchpadPanel({onGestureActiveChange}: TouchpadPanelProps) {
   const accumYRef = useRef(0);
   const lastDxRef = useRef(0);
   const lastDyRef = useRef(0);
-  const gridRef = useRef<any>(null);
-  const gridWidthRef = useRef(0);
   const draggingRef = useRef(false);
 
   selectModeRef.current = selectMode;
@@ -170,16 +168,7 @@ export function TouchpadPanel({onGestureActiveChange}: TouchpadPanelProps) {
 
   return (
     <View style={panelStyles.container}>
-      <View
-        ref={gridRef}
-        collapsable={false}
-        style={styles.grid}
-        onLayout={(e) => {
-          const w = e.nativeEvent.layout.width;
-          if (w > 0) {
-            gridWidthRef.current = w;
-          }
-        }}>
+      <View collapsable={false} style={styles.grid}>
         <View
           style={[
             styles.trackpad,

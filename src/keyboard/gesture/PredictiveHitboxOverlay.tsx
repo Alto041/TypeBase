@@ -65,10 +65,12 @@ export function PredictiveHitboxOverlay({
               top: overlay.top,
               width: overlay.width,
               height: overlay.height,
-              borderColor: overlay.isTop ? 'rgba(44,198,66,0.95)' : 'rgba(0,122,255,0.7)',
+              borderColor: overlay.isTop
+                ? 'rgba(44, 198, 66, 0.95)'
+                : 'rgba(0, 122, 255, 0.7)',
               backgroundColor: overlay.isTop
-                ? `rgba(44,198,66,${0.08 + overlay.probability * 0.18})`
-                : `rgba(0,122,255,${0.04 + overlay.probability * 0.12})`,
+                ? `rgba(44, 198, 66, ${0.08 + overlay.probability * 0.18})`
+                : `rgba(0, 122, 255, ${0.04 + overlay.probability * 0.12})`,
             },
           ]}
         />

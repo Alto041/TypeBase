@@ -48,11 +48,25 @@ export function shouldDeferHeavyTypingSideEffects(): boolean {
   );
 }
 
-/** Only explicit performance modes disable live suggestion-bar updates. */
+/** Skip live suggestion-bar React work during fast bursts and performance modes. */
 export function shouldDeferLiveSuggestionBar(): boolean {
-  return zeroLatencyModeActive || gamePerformanceModeActive;
+  return (
+    zeroLatencyModeActive ||
+    gamePerformanceModeActive ||
+    burstTypingActive
+  );
 }
 
 export function shouldSkipFrostedKeyboardEffects(): boolean {
   return zeroLatencyModeActive;
+}
+
+/** Skip touch-intel scoring, telemetry, and native context sync. */
+export function shouldSkipTouchIntelligenceWork(): boolean {
+  return zeroLatencyModeActive;
+}
+
+/** Skip native prefix tracking and suggestion-bar bridge traffic. */
+export function shouldSkipNativeSuggestionTracking(): boolean {
+  return zeroLatencyModeActive || gamePerformanceModeActive;
 }
