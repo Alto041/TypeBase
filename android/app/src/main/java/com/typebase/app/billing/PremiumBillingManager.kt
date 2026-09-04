@@ -11,13 +11,14 @@ import com.android.billingclient.api.BillingClientStateListener
 import com.android.billingclient.api.BillingFlowParams
 import com.android.billingclient.api.BillingResult
 import com.android.billingclient.api.ProductDetails
+import com.android.billingclient.api.ProductDetails.OneTimePurchaseOfferDetails
 import com.android.billingclient.api.Purchase
+import com.android.billingclient.api.PendingPurchasesParams
 import com.android.billingclient.api.PurchasesUpdatedListener
 import com.android.billingclient.api.QueryProductDetailsParams
 import com.android.billingclient.api.QueryPurchasesParams
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.modules.core.DeviceEventManagerModule
-import com.typebase.app.BuildConfig
 import com.typebase.app.MainActivity
 import com.typebase.app.licensing.PlayLicenseStore
 
@@ -33,9 +34,6 @@ object PremiumBillingManager : PurchasesUpdatedListener {
   private var pendingRestoreCallback: ((Boolean, String?) -> Unit)? = null
 
   fun isPremiumCached(context: Context): Boolean {
-    if (BuildConfig.DEBUG) {
-      return true
-    }
     val appContext = context.applicationContext
     if (PremiumStore.isPremium(appContext)) {
       return true
@@ -49,12 +47,6 @@ object PremiumBillingManager : PurchasesUpdatedListener {
 
   fun refreshEntitlement(context: Context, callback: ((Boolean) -> Unit)? = null) {
     val appContext = context.applicationContext
-    if (BuildConfig.DEBUG) {
-      PremiumStore.setPremium(appContext, true)
-      emitPremiumChanged(true)
-      callback?.let { deliver(it, true) }
-      return
-    }
 
     if (PlayLicenseStore.isLicensed(appContext)) {
       PremiumStore.setPremium(appContext, true)
@@ -108,9 +100,20 @@ object PremiumBillingManager : PurchasesUpdatedListener {
           finishPurchase(false, "Premium product is not available yet.")
           return
         }
+        val offer = selectOffer(details)
+        if (offer == null) {
+          finishPurchase(false, "Premium product is not available yet.")
+          return
+        }
+        val offerToken = offer.offerToken
+        if (offerToken.isNullOrBlank()) {
+          finishPurchase(false, "Premium product is not available yet.")
+          return
+        }
         val productParams =
             BillingFlowParams.ProductDetailsParams.newBuilder()
                 .setProductDetails(details)
+                .setOfferToken(offerToken)
                 .build()
         val flowParams =
             BillingFlowParams.newBuilder()
@@ -211,7 +214,15 @@ object PremiumBillingManager : PurchasesUpdatedListener {
           AcknowledgePurchaseParams.newBuilder()
               .setPurchaseToken(purchase.purchaseToken)
               .build()
-      billingClient?.acknowledgePurchase(params) { /* no-op */ }
+      billingClient?.acknowledgePurchase(params) { result ->
+        if (result.responseCode == BillingClient.BillingResponseCode.OK) {
+          val appContext = reactContext?.applicationContext
+          if (appContext != null) {
+            PremiumStore.setPremium(appContext, true, purchase.purchaseToken)
+            emitPremiumChanged(true)
+          }
+        }
+      }
     }
     val appContext = reactContext?.applicationContext
     if (appContext != null) {
@@ -257,7 +268,8 @@ object PremiumBillingManager : PurchasesUpdatedListener {
             .setProductType(BillingClient.ProductType.INAPP)
             .build()
     val params = QueryProductDetailsParams.newBuilder().setProductList(listOf(product)).build()
-    client.queryProductDetailsAsync(params) { result, detailsList ->
+    client.queryProductDetailsAsync(params) { result, productDetailsResult ->
+      val detailsList = productDetailsResult.productDetailsList
       if (result.responseCode != BillingClient.BillingResponseCode.OK || detailsList.isEmpty()) {
         deliver(callback, null)
         return@queryProductDetailsAsync
@@ -290,7 +302,9 @@ object PremiumBillingManager : PurchasesUpdatedListener {
     val client =
         BillingClient.newBuilder(appContext)
             .setListener(this)
-            .enablePendingPurchases()
+            .enablePendingPurchases(
+                PendingPurchasesParams.newBuilder().enableOneTimeProducts().build(),
+            )
             .build()
     billingClient = client
     client.startConnection(
@@ -306,8 +320,19 @@ object PremiumBillingManager : PurchasesUpdatedListener {
     )
   }
 
+  private fun selectOffer(details: ProductDetails): OneTimePurchaseOfferDetails? {
+    val offers = details.oneTimePurchaseOfferDetailsList
+    if (!offers.isNullOrEmpty()) {
+      return offers.first()
+    }
+    return details.oneTimePurchaseOfferDetails
+  }
+
   private fun formatPrice(details: ProductDetails?): String? {
-    return details?.oneTimePurchaseOfferDetails?.formattedPrice
+    if (details == null) {
+      return null
+    }
+    return selectOffer(details)?.formattedPrice
   }
 
   private fun emitPremiumChanged(isPremium: Boolean) {

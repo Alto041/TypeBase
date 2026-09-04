@@ -84,20 +84,22 @@ export function PremiumProvider({children}: {children: ReactNode}) {
   const purchase = useCallback(async () => {
     const success = await purchasePremium();
     if (success) {
-      setIsPremium(true);
-      setPremiumCached(true);
+      const entitled = await syncPremium();
+      setIsPremium(entitled);
+      setPremiumCached(entitled);
     }
     return success;
-  }, []);
+  }, [syncPremium]);
 
   const restore = useCallback(async () => {
     const success = await restorePremiumPurchases();
     if (success) {
-      setIsPremium(true);
-      setPremiumCached(true);
+      const entitled = await syncPremium();
+      setIsPremium(entitled);
+      setPremiumCached(entitled);
     }
     return success;
-  }, []);
+  }, [syncPremium]);
 
   const value = useMemo(
     () => ({

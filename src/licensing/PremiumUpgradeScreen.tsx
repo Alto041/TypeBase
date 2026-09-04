@@ -42,7 +42,10 @@ export function PremiumUpgradeScreen({onBack}: PremiumUpgradeScreenProps) {
     setError(null);
     setBusy('purchase');
     try {
-      await purchase();
+      const success = await purchase();
+      if (!success) {
+        setError('Purchase was cancelled or could not be completed.');
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Purchase failed.');
     } finally {

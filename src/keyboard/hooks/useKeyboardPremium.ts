@@ -2,26 +2,32 @@ import {useCallback, useEffect, useState} from 'react';
 
 import {
   canUseFeature,
+  getPremiumCached,
   initPremiumListener,
   readPremiumFromNative,
+  setPremiumCached,
   type PremiumFeature,
-} from '../licensing/entitlements';
-import {applyFreeTierDefaults} from '../licensing/freeTierDefaults';
+} from '../../licensing/entitlements';
+import {applyFreeTierDefaults} from '../../licensing/freeTierDefaults';
 
 export function useKeyboardPremium() {
   const [showUpsell, setShowUpsell] = useState(false);
   const [premiumReady, setPremiumReady] = useState(false);
+  const [isPremium, setIsPremium] = useState(getPremiumCached);
 
   useEffect(() => {
     let active = true;
     void (async () => {
-      await readPremiumFromNative();
+      const entitled = await readPremiumFromNative();
       await applyFreeTierDefaults();
       if (active) {
+        setIsPremium(entitled);
         setPremiumReady(true);
       }
     })();
-    const unsubscribe = initPremiumListener(() => {
+    const unsubscribe = initPremiumListener(next => {
+      setPremiumCached(next);
+      setIsPremium(next);
       void applyFreeTierDefaults();
     });
     return () => {
@@ -41,7 +47,7 @@ export function useKeyboardPremium() {
     [],
   );
 
-  const isPluginPremium = canUseFeature('plugins');
+  const isPluginPremium = isPremium || canUseFeature('plugins');
 
   return {
     premiumReady,
