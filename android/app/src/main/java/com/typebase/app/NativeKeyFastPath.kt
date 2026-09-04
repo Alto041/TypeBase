@@ -173,6 +173,10 @@ class NativeKeyFastPath {
     zeroLatency = enabled
   }
 
+  fun setGamePerformanceMode(enabled: Boolean) {
+    gamePerformance = enabled
+  }
+
   fun updateCaseState(shiftOn: Boolean, capsLocked: Boolean, uppercase: Boolean) {
     if (blockAutoShiftReenable && shiftOn && !capsLocked) {
       return
@@ -275,7 +279,7 @@ class NativeKeyFastPath {
           KeyboardInputBridge.performKeyHapticForPointer(pointerId)
         }
 
-        if (!zeroLatency && key.reactTag > 0) {
+        if (!zeroLatency && !gamePerformance && key.reactTag > 0) {
           KeyboardInputBridge.showKeyPressed(key.reactTag)
           KeyboardInputBridge.showKeyPreview(key.reactTag, text)
           previewHandler.post { KeyboardInputBridge.playKeyTapSound() }
@@ -286,7 +290,7 @@ class NativeKeyFastPath {
       MotionEvent.ACTION_UP,
       MotionEvent.ACTION_POINTER_UP -> {
         val pointerId = event.getPointerId(event.actionIndex)
-        if (!zeroLatency) {
+        if (!zeroLatency && !gamePerformance) {
           sessions[pointerId]?.key?.reactTag?.let { reactTag ->
             if (reactTag > 0) {
               KeyboardInputBridge.hideKeyPressed(reactTag)
@@ -294,7 +298,8 @@ class NativeKeyFastPath {
             }
           }
         }
-        val sessionCleanupDelayMs = if (zeroLatency) 120L else 450L
+        val sessionCleanupDelayMs =
+            if (zeroLatency || gamePerformance) 120L else 450L
         previewHandler.postDelayed({ sessions.remove(pointerId) }, sessionCleanupDelayMs)
         false
       }

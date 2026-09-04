@@ -36926,3 +36926,433 @@
 {"_e":"metro:client_log","_t":1788456544479,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/autocorrect/contextCorrectionEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
 {"_e":"metro:client_log","_t":1788456546157,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":11,\"initialProps\":{},\"fabric\":true}"]}
 {"_e":"metro:client_log","_t":1788456546359,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"root:init","_t":1788486874137,"format":"v0-jsonl","version":"56.1.14"}
+{"_e":"devserver:start","_t":1788486874180,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../..\\..\\src\\app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1788486874984,"serverRoot":"../..\\..","projectRoot":"../..\\..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"metro:instantiate","_t":1788486901932,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"metro:bundling:started","_t":1788486908464,"id":"1","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1788486908465,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1788486908472,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1788486908585,"id":"1","progress":0.012345679012345678,"total":45,"current":5}
+{"_e":"metro:bundling:progress","_t":1788486908685,"id":"1","progress":0.012345679012345678,"total":245,"current":7}
+{"_e":"metro:bundling:progress","_t":1788486908785,"id":"1","progress":0.03357912337929333,"total":382,"current":70}
+{"_e":"metro:bundling:progress","_t":1788486908885,"id":"1","progress":0.10155778287646418,"total":455,"current":145}
+{"_e":"metro:bundling:progress","_t":1788486908985,"id":"1","progress":0.1511564407849344,"total":553,"current":215}
+{"_e":"metro:bundling:progress","_t":1788486909086,"id":"1","progress":0.23791721609666225,"total":654,"current":319}
+{"_e":"metro:bundling:progress","_t":1788486909188,"id":"1","progress":0.275625,"total":720,"current":378}
+{"_e":"metro:bundling:progress","_t":1788486909287,"id":"1","progress":0.3142995493515534,"total":833,"current":467}
+{"_e":"metro:bundling:progress","_t":1788486909387,"id":"1","progress":0.3878147573248925,"total":888,"current":553}
+{"_e":"metro:bundling:progress","_t":1788486909487,"id":"1","progress":0.5076746705393818,"total":967,"current":689}
+{"_e":"metro:bundling:progress","_t":1788486909593,"id":"1","progress":0.5347607975985074,"total":1068,"current":781}
+{"_e":"metro:bundling:progress","_t":1788486909693,"id":"1","progress":0.6086811135459784,"total":1110,"current":866}
+{"_e":"metro:bundling:progress","_t":1788486909793,"id":"1","progress":0.6299258240635894,"total":1139,"current":904}
+{"_e":"metro:bundling:progress","_t":1788486909908,"id":"1","progress":0.8030218510317751,"total":1184,"current":1061}
+{"_e":"metro:bundling:progress","_t":1788486910009,"id":"1","progress":0.8031532162634868,"total":1233,"current":1105}
+{"_e":"metro:bundling:progress","_t":1788486910109,"id":"1","progress":0.8411983778487443,"total":1328,"current":1218}
+{"_e":"metro:bundling:progress","_t":1788486910209,"id":"1","progress":0.929600082218882,"total":1395,"current":1345}
+{"_e":"metro:bundling:progress","_t":1788486910319,"id":"1","progress":0.9810045030665554,"total":1467,"current":1453}
+{"_e":"metro:bundling:progress","_t":1788486910429,"id":"1","progress":0.9986572676908477,"total":1489,"current":1488}
+{"_e":"metro:bundling:progress","_t":1788486910588,"id":"1","progress":0.999,"total":1489,"current":1489}
+{"_e":"metro:bundling:progress","_t":1788486910690,"id":"1","progress":0.999,"total":1494,"current":1493}
+{"_e":"metro:bundling:progress","_t":1788486911657,"id":"1","progress":0.999,"total":1494,"current":1494}
+{"_e":"metro:bundling:done","_t":1788486911871,"id":"1","total":1494,"ms":3406.5531}
+{"_e":"metro:client_log","_t":1788486915081,"level":"warn","data":["Require cycle: src/keyboard/settings/layoutStore.ts -> src/keyboard/settings/tapSoundStore.ts -> src/keyboard/settings/layoutStore.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1788486915081,"level":"warn","data":["Require cycle: src/keyboard/suggestions/learnedDictionary.ts -> src/keyboard/autocorrect/dictionaryManager.ts -> src/keyboard/suggestions/learnedDictionary.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1788486915082,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1788486915082,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/autocorrect/contextCorrectionEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1788486933385,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":11,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1788486933575,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"metro:client_log","_t":1788486937539,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1788486940773,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1788486945519,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"root:init","_t":1788487498556,"format":"v0-jsonl","version":"56.1.14"}
+{"_e":"devserver:start","_t":1788487498634,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../..\\..\\src\\app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1788487500418,"serverRoot":"../..\\..","projectRoot":"../..\\..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"metro:instantiate","_t":1788487554963,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"metro:bundling:started","_t":1788487561945,"id":"1","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1788487561946,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1788487561956,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1788487562069,"id":"1","progress":0.010000000000000002,"total":2,"current":1}
+{"_e":"metro:bundling:progress","_t":1788487562188,"id":"1","progress":0.012345679012345678,"total":45,"current":5}
+{"_e":"metro:bundling:progress","_t":1788487562292,"id":"1","progress":0.012345679012345678,"total":170,"current":7}
+{"_e":"metro:bundling:progress","_t":1788487562392,"id":"1","progress":0.012345679012345678,"total":171,"current":9}
+{"_e":"metro:bundling:progress","_t":1788487562493,"id":"1","progress":0.012345679012345678,"total":260,"current":17}
+{"_e":"metro:bundling:progress","_t":1788487562594,"id":"1","progress":0.013082575077961466,"total":306,"current":35}
+{"_e":"metro:bundling:progress","_t":1788487562694,"id":"1","progress":0.01863441672965482,"total":315,"current":43}
+{"_e":"metro:bundling:progress","_t":1788487562794,"id":"1","progress":0.028539821366258565,"total":367,"current":62}
+{"_e":"metro:bundling:progress","_t":1788487562894,"id":"1","progress":0.052212811426570645,"total":407,"current":93}
+{"_e":"metro:bundling:progress","_t":1788487562996,"id":"1","progress":0.09424761400058089,"total":443,"current":136}
+{"_e":"metro:bundling:progress","_t":1788487563098,"id":"1","progress":0.10522249163308516,"total":484,"current":157}
+{"_e":"metro:bundling:progress","_t":1788487563210,"id":"1","progress":0.11951065063476562,"total":512,"current":177}
+{"_e":"metro:bundling:progress","_t":1788487563314,"id":"1","progress":0.11951065063476562,"total":561,"current":190}
+{"_e":"metro:bundling:progress","_t":1788487563413,"id":"1","progress":0.12808864265927977,"total":570,"current":204}
+{"_e":"metro:bundling:progress","_t":1788487563513,"id":"1","progress":0.1321206815765034,"total":597,"current":217}
+{"_e":"metro:bundling:progress","_t":1788487563616,"id":"1","progress":0.17145834282025388,"total":611,"current":253}
+{"_e":"metro:bundling:progress","_t":1788487563719,"id":"1","progress":0.1832991985336064,"total":654,"current":280}
+{"_e":"metro:bundling:progress","_t":1788487563819,"id":"1","progress":0.22081920509683828,"total":698,"current":328}
+{"_e":"metro:bundling:progress","_t":1788487563919,"id":"1","progress":0.25691530310348987,"total":728,"current":369}
+{"_e":"metro:bundling:progress","_t":1788487564020,"id":"1","progress":0.28067165605658284,"total":789,"current":418}
+{"_e":"metro:bundling:progress","_t":1788487564119,"id":"1","progress":0.28973955049909283,"total":823,"current":443}
+{"_e":"metro:bundling:progress","_t":1788487564219,"id":"1","progress":0.3424518883569616,"total":851,"current":498}
+{"_e":"metro:bundling:progress","_t":1788487564323,"id":"1","progress":0.42837547407522014,"total":877,"current":574}
+{"_e":"metro:bundling:progress","_t":1788487564424,"id":"1","progress":0.4846594404132701,"total":915,"current":637}
+{"_e":"metro:bundling:progress","_t":1788487564526,"id":"1","progress":0.5199168975069253,"total":950,"current":685}
+{"_e":"metro:bundling:progress","_t":1788487564626,"id":"1","progress":0.5689906980339612,"total":985,"current":743}
+{"_e":"metro:bundling:progress","_t":1788487564742,"id":"1","progress":0.6679450401311968,"total":1007,"current":823}
+{"_e":"metro:bundling:progress","_t":1788487564842,"id":"1","progress":0.6679450401311968,"total":1102,"current":879}
+{"_e":"metro:bundling:progress","_t":1788487564943,"id":"1","progress":0.6835513671027341,"total":1143,"current":945}
+{"_e":"metro:bundling:progress","_t":1788487565043,"id":"1","progress":0.7319589610585485,"total":1163,"current":995}
+{"_e":"metro:bundling:progress","_t":1788487565178,"id":"1","progress":0.7355292315228474,"total":1173,"current":1006}
+{"_e":"metro:bundling:progress","_t":1788487565278,"id":"1","progress":0.7700957934194085,"total":1176,"current":1032}
+{"_e":"metro:bundling:progress","_t":1788487565379,"id":"1","progress":0.8438703493085897,"total":1192,"current":1095}
+{"_e":"metro:bundling:progress","_t":1788487565478,"id":"1","progress":0.8513778426300663,"total":1229,"current":1134}
+{"_e":"metro:bundling:progress","_t":1788487565579,"id":"1","progress":0.8513778426300663,"total":1257,"current":1155}
+{"_e":"metro:bundling:progress","_t":1788487565806,"id":"1","progress":0.8544227039775554,"total":1269,"current":1173}
+{"_e":"metro:bundling:progress","_t":1788487565868,"id":"1","progress":0.855880141160895,"total":1269,"current":1174}
+{"_e":"metro:bundling:progress","_t":1788487565967,"id":"1","progress":0.8640117395348951,"total":1277,"current":1187}
+{"_e":"metro:bundling:progress","_t":1788487566067,"id":"1","progress":0.8798149149690524,"total":1290,"current":1210}
+{"_e":"metro:bundling:progress","_t":1788487566170,"id":"1","progress":0.8798149149690524,"total":1329,"current":1230}
+{"_e":"metro:bundling:progress","_t":1788487566271,"id":"1","progress":0.8798578450729155,"total":1355,"current":1271}
+{"_e":"metro:bundling:progress","_t":1788487566378,"id":"1","progress":0.9022930401887214,"total":1377,"current":1308}
+{"_e":"metro:bundling:progress","_t":1788487566478,"id":"1","progress":0.9271449321658182,"total":1401,"current":1349}
+{"_e":"metro:bundling:progress","_t":1788487566579,"id":"1","progress":0.962542369889132,"total":1428,"current":1401}
+{"_e":"metro:bundling:progress","_t":1788487566678,"id":"1","progress":0.9689103230404859,"total":1468,"current":1445}
+{"_e":"metro:bundling:progress","_t":1788487566781,"id":"1","progress":0.9744548369317423,"total":1478,"current":1459}
+{"_e":"metro:bundling:progress","_t":1788487566905,"id":"1","progress":0.999,"total":1495,"current":1495}
+{"_e":"metro:bundling:done","_t":1788487567209,"id":"1","total":1495,"ms":5263.2803}
+{"_e":"metro:client_log","_t":1788487570320,"level":"warn","data":["Require cycle: src/keyboard/settings/layoutStore.ts -> src/keyboard/settings/tapSoundStore.ts -> src/keyboard/settings/layoutStore.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1788487570324,"level":"warn","data":["Require cycle: src/keyboard/suggestions/learnedDictionary.ts -> src/keyboard/autocorrect/dictionaryManager.ts -> src/keyboard/suggestions/learnedDictionary.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1788487570324,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1788487570325,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/autocorrect/contextCorrectionEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1788487579935,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":11,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1788487580133,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"metro:client_log","_t":1788487642726,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1788487652759,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1788487656677,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1788487661405,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:bundling:started","_t":1788487678852,"id":"2","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1788487678852,"id":"2","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1788487678855,"id":"2","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1788487678957,"id":"2","progress":0.004253308128544423,"total":276,"current":18}
+{"_e":"metro:bundling:progress","_t":1788487679056,"id":"2","progress":0.07529883529075959,"total":379,"current":104}
+{"_e":"metro:bundling:progress","_t":1788487679160,"id":"2","progress":0.09424761400058089,"total":443,"current":136}
+{"_e":"metro:bundling:progress","_t":1788487679260,"id":"2","progress":0.16298678323593865,"total":592,"current":239}
+{"_e":"metro:bundling:progress","_t":1788487679360,"id":"2","progress":0.25671111111111117,"total":750,"current":380}
+{"_e":"metro:bundling:progress","_t":1788487679460,"id":"2","progress":0.388871354626941,"total":890,"current":555}
+{"_e":"metro:bundling:progress","_t":1788487679564,"id":"2","progress":0.5299097326763647,"total":941,"current":685}
+{"_e":"metro:bundling:progress","_t":1788487679664,"id":"2","progress":0.6184998882653299,"total":974,"current":766}
+{"_e":"metro:bundling:progress","_t":1788487679897,"id":"2","progress":0.6547158401479789,"total":1006,"current":814}
+{"_e":"metro:bundling:progress","_t":1788487680021,"id":"2","progress":0.6679450401311968,"total":1007,"current":823}
+{"_e":"metro:bundling:progress","_t":1788487680121,"id":"2","progress":0.6679450401311968,"total":1113,"current":906}
+{"_e":"metro:bundling:progress","_t":1788487680221,"id":"2","progress":0.7167661873852983,"total":1154,"current":977}
+{"_e":"metro:bundling:progress","_t":1788487680334,"id":"2","progress":0.7344854685378,"total":1175,"current":1007}
+{"_e":"metro:bundling:progress","_t":1788487680433,"id":"2","progress":0.842570403210886,"total":1267,"current":1163}
+{"_e":"metro:bundling:progress","_t":1788487680535,"id":"2","progress":0.8798578450729155,"total":1355,"current":1271}
+{"_e":"metro:bundling:progress","_t":1788487680635,"id":"2","progress":0.9659309644430273,"total":1455,"current":1430}
+{"_e":"metro:bundling:done","_t":1788487680843,"id":"2","total":1455,"ms":1991.2188}
+{"_e":"metro:client_log","_t":1788487683755,"level":"warn","data":["Require cycle: src/keyboard/settings/layoutStore.ts -> src/keyboard/settings/tapSoundStore.ts -> src/keyboard/settings/layoutStore.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1788487683755,"level":"warn","data":["Require cycle: src/keyboard/suggestions/learnedDictionary.ts -> src/keyboard/autocorrect/dictionaryManager.ts -> src/keyboard/suggestions/learnedDictionary.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1788487683755,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1788487683755,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/autocorrect/contextCorrectionEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1788487683756,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":11,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1788487684210,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"root:init","_t":1788487935429,"format":"v0-jsonl","version":"56.1.14"}
+{"_e":"devserver:start","_t":1788487935467,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../..\\..\\src\\app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1788487936048,"serverRoot":"../..\\..","projectRoot":"../..\\..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"metro:instantiate","_t":1788487961844,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"metro:bundling:started","_t":1788487968391,"id":"1","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1788487968391,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1788487968396,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1788487968496,"id":"1","progress":0.0014792899408284025,"total":130,"current":5}
+{"_e":"metro:bundling:progress","_t":1788487968596,"id":"1","progress":0.007365226108264646,"total":268,"current":23}
+{"_e":"metro:bundling:progress","_t":1788487968697,"id":"1","progress":0.06989034218522923,"total":348,"current":92}
+{"_e":"metro:bundling:progress","_t":1788487968797,"id":"1","progress":0.11069142834681123,"total":529,"current":176}
+{"_e":"metro:bundling:progress","_t":1788487968897,"id":"1","progress":0.161844365173735,"total":609,"current":245}
+{"_e":"metro:bundling:progress","_t":1788487968997,"id":"1","progress":0.2177777777777778,"total":720,"current":336}
+{"_e":"metro:bundling:progress","_t":1788487969099,"id":"1","progress":0.37162816842562413,"total":853,"current":520}
+{"_e":"metro:bundling:progress","_t":1788487969199,"id":"1","progress":0.48085752748715216,"total":884,"current":613}
+{"_e":"metro:bundling:progress","_t":1788487969299,"id":"1","progress":0.6527457614515171,"total":984,"current":795}
+{"_e":"metro:bundling:progress","_t":1788487969399,"id":"1","progress":0.6727521033278823,"total":1118,"current":917}
+{"_e":"metro:bundling:progress","_t":1788487969504,"id":"1","progress":0.8545768325412888,"total":1191,"current":1101}
+{"_e":"metro:bundling:progress","_t":1788487969604,"id":"1","progress":0.8545768325412888,"total":1246,"current":1146}
+{"_e":"metro:bundling:progress","_t":1788487969704,"id":"1","progress":0.8961192069379471,"total":1293,"current":1224}
+{"_e":"metro:bundling:progress","_t":1788487969804,"id":"1","progress":0.9184591379304335,"total":1417,"current":1358}
+{"_e":"metro:bundling:progress","_t":1788487969904,"id":"1","progress":0.9811832160779734,"total":1481,"current":1467}
+{"_e":"metro:bundling:done","_t":1788487970110,"id":"1","total":1481,"ms":1719.4878}
+{"_e":"metro:client_log","_t":1788487973289,"level":"warn","data":["Require cycle: src/keyboard/settings/layoutStore.ts -> src/keyboard/settings/tapSoundStore.ts -> src/keyboard/settings/layoutStore.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1788487973289,"level":"warn","data":["Require cycle: src/keyboard/suggestions/learnedDictionary.ts -> src/keyboard/autocorrect/dictionaryManager.ts -> src/keyboard/suggestions/learnedDictionary.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1788487973290,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1788487973290,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/autocorrect/contextCorrectionEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1788488002556,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":11,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1788488002776,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"root:init","_t":1788488640836,"format":"v0-jsonl","version":"56.1.14"}
+{"_e":"devserver:start","_t":1788488640915,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../..\\..\\src\\app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1788488642677,"serverRoot":"../..\\..","projectRoot":"../..\\..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"metro:instantiate","_t":1788488680453,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"metro:bundling:started","_t":1788488686976,"id":"1","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1788488686977,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1788488686989,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1788488687098,"id":"1","progress":0.04000000000000001,"total":8,"current":2}
+{"_e":"metro:bundling:progress","_t":1788488687199,"id":"1","progress":0.04000000000000001,"total":170,"current":6}
+{"_e":"metro:bundling:progress","_t":1788488687313,"id":"1","progress":0.04000000000000001,"total":181,"current":14}
+{"_e":"metro:bundling:progress","_t":1788488687413,"id":"1","progress":0.061471210982856364,"total":242,"current":60}
+{"_e":"metro:bundling:progress","_t":1788488687513,"id":"1","progress":0.13046833928032123,"total":299,"current":108}
+{"_e":"metro:bundling:progress","_t":1788488687616,"id":"1","progress":0.13593988559688736,"total":377,"current":139}
+{"_e":"metro:bundling:progress","_t":1788488687717,"id":"1","progress":0.15857143572111368,"total":447,"current":178}
+{"_e":"metro:bundling:progress","_t":1788488687818,"id":"1","progress":0.18662399999999998,"total":500,"current":216}
+{"_e":"metro:bundling:progress","_t":1788488687917,"id":"1","progress":0.21743789834804794,"total":549,"current":256}
+{"_e":"metro:bundling:progress","_t":1788488688018,"id":"1","progress":0.252461018801514,"total":611,"current":307}
+{"_e":"metro:bundling:progress","_t":1788488688119,"id":"1","progress":0.31502491297053703,"total":661,"current":371}
+{"_e":"metro:bundling:progress","_t":1788488688222,"id":"1","progress":0.3694387839516127,"total":691,"current":420}
+{"_e":"metro:bundling:progress","_t":1788488688322,"id":"1","progress":0.41868512110726647,"total":714,"current":462}
+{"_e":"metro:bundling:progress","_t":1788488688422,"id":"1","progress":0.45663714186013704,"total":734,"current":496}
+{"_e":"metro:bundling:progress","_t":1788488688522,"id":"1","progress":0.5639831898639254,"total":759,"current":570}
+{"_e":"metro:bundling:progress","_t":1788488688623,"id":"1","progress":0.6021293826294133,"total":799,"current":620}
+{"_e":"metro:bundling:progress","_t":1788488688723,"id":"1","progress":0.6531915296089728,"total":829,"current":670}
+{"_e":"metro:bundling:progress","_t":1788488688823,"id":"1","progress":0.6531915296089728,"total":923,"current":706}
+{"_e":"metro:bundling:progress","_t":1788488688923,"id":"1","progress":0.6531915296089728,"total":952,"current":749}
+{"_e":"metro:bundling:progress","_t":1788488689023,"id":"1","progress":0.6894334365574749,"total":996,"current":827}
+{"_e":"metro:bundling:progress","_t":1788488689181,"id":"1","progress":0.8248154056495568,"total":1013,"current":920}
+{"_e":"metro:bundling:progress","_t":1788488689281,"id":"1","progress":0.8248154056495568,"total":1024,"current":926}
+{"_e":"metro:bundling:progress","_t":1788488689382,"id":"1","progress":0.8248154056495568,"total":1078,"current":978}
+{"_e":"metro:bundling:progress","_t":1788488689488,"id":"1","progress":0.8482058668488148,"total":1101,"current":1014}
+{"_e":"metro:bundling:progress","_t":1788488689589,"id":"1","progress":0.8747077000326839,"total":1143,"current":1069}
+{"_e":"metro:bundling:progress","_t":1788488689690,"id":"1","progress":0.8747077000326839,"total":1178,"current":1099}
+{"_e":"metro:bundling:progress","_t":1788488689789,"id":"1","progress":0.9021875270515929,"total":1216,"current":1155}
+{"_e":"metro:bundling:progress","_t":1788488689889,"id":"1","progress":0.9524632976400779,"total":1247,"current":1217}
+{"_e":"metro:bundling:progress","_t":1788488689989,"id":"1","progress":0.9524632976400779,"total":1288,"current":1254}
+{"_e":"metro:bundling:progress","_t":1788488690090,"id":"1","progress":0.9678305332359387,"total":1295,"current":1274}
+{"_e":"metro:bundling:progress","_t":1788488690190,"id":"1","progress":0.9954250917778684,"total":1310,"current":1307}
+{"_e":"metro:bundling:progress","_t":1788488690305,"id":"1","progress":0.9969674012908692,"total":1318,"current":1316}
+{"_e":"metro:bundling:progress","_t":1788488690761,"id":"1","progress":0.9984831249812909,"total":1318,"current":1317}
+{"_e":"metro:bundling:progress","_t":1788488691238,"id":"1","progress":0.999,"total":1318,"current":1318}
+{"_e":"metro:bundling:progress","_t":1788488691341,"id":"1","progress":0.999,"total":1447,"current":1352}
+{"_e":"metro:bundling:progress","_t":1788488691443,"id":"1","progress":0.999,"total":1486,"current":1446}
+{"_e":"metro:bundling:progress","_t":1788488691555,"id":"1","progress":0.999,"total":1489,"current":1488}
+{"_e":"metro:bundling:progress","_t":1788488691680,"id":"1","progress":0.999,"total":1489,"current":1489}
+{"_e":"metro:bundling:progress","_t":1788488691786,"id":"1","progress":0.999,"total":1495,"current":1494}
+{"_e":"metro:bundling:progress","_t":1788488691799,"id":"1","progress":0.999,"total":1495,"current":1495}
+{"_e":"metro:bundling:done","_t":1788488692114,"id":"1","total":1495,"ms":5137.6496}
+{"_e":"metro:client_log","_t":1788488695211,"level":"warn","data":["Require cycle: src/keyboard/settings/layoutStore.ts -> src/keyboard/settings/tapSoundStore.ts -> src/keyboard/settings/layoutStore.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1788488695212,"level":"warn","data":["Require cycle: src/keyboard/suggestions/learnedDictionary.ts -> src/keyboard/autocorrect/dictionaryManager.ts -> src/keyboard/suggestions/learnedDictionary.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1788488695212,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1788488695212,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/autocorrect/contextCorrectionEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1788488754492,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":11,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1788488754694,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"root:init","_t":1788490158953,"format":"v0-jsonl","version":"56.1.14"}
+{"_e":"devserver:start","_t":1788490158991,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../..\\..\\src\\app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1788490159997,"serverRoot":"../..\\..","projectRoot":"../..\\..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"metro:instantiate","_t":1788490186375,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"metro:bundling:started","_t":1788490191893,"id":"1","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1788490191894,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1788490191899,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1788490191998,"id":"1","progress":0.012345679012345678,"total":45,"current":5}
+{"_e":"metro:bundling:progress","_t":1788490192098,"id":"1","progress":0.012345679012345678,"total":245,"current":7}
+{"_e":"metro:bundling:progress","_t":1788490192198,"id":"1","progress":0.012345679012345678,"total":269,"current":16}
+{"_e":"metro:bundling:progress","_t":1788490192298,"id":"1","progress":0.041437626659933044,"total":393,"current":80}
+{"_e":"metro:bundling:progress","_t":1788490192398,"id":"1","progress":0.1000380222681359,"total":528,"current":167}
+{"_e":"metro:bundling:progress","_t":1788490192498,"id":"1","progress":0.14612122788761706,"total":620,"current":237}
+{"_e":"metro:bundling:progress","_t":1788490192599,"id":"1","progress":0.2410413938382199,"total":719,"current":353}
+{"_e":"metro:bundling:progress","_t":1788490192699,"id":"1","progress":0.2912366517196746,"total":832,"current":449}
+{"_e":"metro:bundling:progress","_t":1788490192799,"id":"1","progress":0.42390938321139887,"total":877,"current":571}
+{"_e":"metro:bundling:progress","_t":1788490192901,"id":"1","progress":0.4935507130267585,"total":948,"current":666}
+{"_e":"metro:bundling:progress","_t":1788490193001,"id":"1","progress":0.5952727466968547,"total":1033,"current":797}
+{"_e":"metro:bundling:progress","_t":1788490193101,"id":"1","progress":0.6548500191712809,"total":1127,"current":912}
+{"_e":"metro:bundling:progress","_t":1788490193201,"id":"1","progress":0.7431119569950267,"total":1167,"current":1006}
+{"_e":"metro:bundling:progress","_t":1788490193323,"id":"1","progress":0.8494409742158983,"total":1187,"current":1094}
+{"_e":"metro:bundling:progress","_t":1788490193425,"id":"1","progress":0.8494409742158983,"total":1262,"current":1163}
+{"_e":"metro:bundling:progress","_t":1788490193528,"id":"1","progress":0.8736979281317965,"total":1348,"current":1260}
+{"_e":"metro:bundling:progress","_t":1788490193628,"id":"1","progress":0.9498338802593171,"total":1417,"current":1381}
+{"_e":"metro:bundling:progress","_t":1788490193739,"id":"1","progress":0.9755941402113202,"total":1466,"current":1448}
+{"_e":"metro:bundling:progress","_t":1788490193846,"id":"1","progress":0.9986572676908477,"total":1489,"current":1488}
+{"_e":"metro:bundling:progress","_t":1788490194103,"id":"1","progress":0.999,"total":1489,"current":1489}
+{"_e":"metro:bundling:done","_t":1788490194303,"id":"1","total":1489,"ms":2409.4}
+{"_e":"metro:client_log","_t":1788490205018,"level":"warn","data":["Require cycle: src/keyboard/settings/layoutStore.ts -> src/keyboard/settings/tapSoundStore.ts -> src/keyboard/settings/layoutStore.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1788490205018,"level":"warn","data":["Require cycle: src/keyboard/suggestions/learnedDictionary.ts -> src/keyboard/autocorrect/dictionaryManager.ts -> src/keyboard/suggestions/learnedDictionary.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1788490205019,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1788490205019,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/autocorrect/contextCorrectionEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1788490207611,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":11,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1788490207839,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"metro:client_log","_t":1788490766566,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1788490769673,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"root:init","_t":1788491113876,"format":"v0-jsonl","version":"56.1.14"}
+{"_e":"devserver:start","_t":1788491113922,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../..\\..\\src\\app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1788491114694,"serverRoot":"../..\\..","projectRoot":"../..\\..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"metro:instantiate","_t":1788491141772,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"metro:bundling:started","_t":1788491147676,"id":"1","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1788491147677,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1788491147683,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1788491147813,"id":"1","progress":0.0004081216202428324,"total":99,"current":2}
+{"_e":"metro:bundling:progress","_t":1788491147951,"id":"1","progress":0.001245674740484429,"total":170,"current":6}
+{"_e":"metro:bundling:progress","_t":1788491148052,"id":"1","progress":0.023126420183057616,"total":217,"current":33}
+{"_e":"metro:bundling:progress","_t":1788491148152,"id":"1","progress":0.08544378698224853,"total":260,"current":76}
+{"_e":"metro:bundling:progress","_t":1788491148254,"id":"1","progress":0.13652398735995405,"total":295,"current":109}
+{"_e":"metro:bundling:progress","_t":1788491148357,"id":"1","progress":0.16133240229893878,"total":361,"current":145}
+{"_e":"metro:bundling:progress","_t":1788491148461,"id":"1","progress":0.16133240229893878,"total":436,"current":167}
+{"_e":"metro:bundling:progress","_t":1788491148561,"id":"1","progress":0.1810774105930285,"total":470,"current":200}
+{"_e":"metro:bundling:progress","_t":1788491148661,"id":"1","progress":0.21789259405509184,"total":542,"current":253}
+{"_e":"metro:bundling:progress","_t":1788491148764,"id":"1","progress":0.2541219420784565,"total":609,"current":307}
+{"_e":"metro:bundling:progress","_t":1788491148867,"id":"1","progress":0.26837929955220824,"total":637,"current":330}
+{"_e":"metro:bundling:progress","_t":1788491148997,"id":"1","progress":0.28114656571119523,"total":645,"current":342}
+{"_e":"metro:bundling:progress","_t":1788491149098,"id":"1","progress":0.3176859504132231,"total":660,"current":372}
+{"_e":"metro:bundling:progress","_t":1788491149202,"id":"1","progress":0.3447842377748806,"total":671,"current":394}
+{"_e":"metro:bundling:progress","_t":1788491149302,"id":"1","progress":0.3683718132914564,"total":692,"current":420}
+{"_e":"metro:bundling:progress","_t":1788491149409,"id":"1","progress":0.4008719273888724,"total":706,"current":447}
+{"_e":"metro:bundling:progress","_t":1788491149510,"id":"1","progress":0.4264161366418823,"total":732,"current":478}
+{"_e":"metro:bundling:progress","_t":1788491149612,"id":"1","progress":0.4584802767857805,"total":734,"current":497}
+{"_e":"metro:bundling:progress","_t":1788491149734,"id":"1","progress":0.488291857598648,"total":737,"current":515}
+{"_e":"metro:bundling:progress","_t":1788491149834,"id":"1","progress":0.4886783552881998,"total":741,"current":518}
+{"_e":"metro:bundling:progress","_t":1788491149935,"id":"1","progress":0.5333484254038763,"total":749,"current":547}
+{"_e":"metro:bundling:progress","_t":1788491150037,"id":"1","progress":0.5485552549427679,"total":775,"current":574}
+{"_e":"metro:bundling:progress","_t":1788491150150,"id":"1","progress":0.566294255688195,"total":792,"current":596}
+{"_e":"metro:bundling:progress","_t":1788491150249,"id":"1","progress":0.6375992518808711,"total":799,"current":638}
+{"_e":"metro:bundling:progress","_t":1788491150366,"id":"1","progress":0.6375992518808711,"total":882,"current":654}
+{"_e":"metro:bundling:progress","_t":1788491150460,"id":"1","progress":0.6375992518808711,"total":923,"current":696}
+{"_e":"metro:bundling:progress","_t":1788491150561,"id":"1","progress":0.6375992518808711,"total":948,"current":740}
+{"_e":"metro:bundling:progress","_t":1788491150664,"id":"1","progress":0.6523668639053255,"total":962,"current":777}
+{"_e":"metro:bundling:progress","_t":1788491150764,"id":"1","progress":0.6573695861176108,"total":983,"current":797}
+{"_e":"metro:bundling:progress","_t":1788491150864,"id":"1","progress":0.7191452407128538,"total":987,"current":837}
+{"_e":"metro:bundling:progress","_t":1788491150964,"id":"1","progress":0.8035586736718464,"total":1004,"current":900}
+{"_e":"metro:bundling:progress","_t":1788491151065,"id":"1","progress":0.8251440219369556,"total":1015,"current":922}
+{"_e":"metro:bundling:progress","_t":1788491151165,"id":"1","progress":0.8259897439028112,"total":1086,"current":987}
+{"_e":"metro:bundling:progress","_t":1788491151265,"id":"1","progress":0.8661895892559554,"total":1111,"current":1034}
+{"_e":"metro:bundling:progress","_t":1788491151373,"id":"1","progress":0.8661895892559554,"total":1161,"current":1079}
+{"_e":"metro:bundling:progress","_t":1788491151474,"id":"1","progress":0.9097732010509834,"total":1191,"current":1136}
+{"_e":"metro:bundling:progress","_t":1788491151575,"id":"1","progress":0.9383306720859341,"total":1245,"current":1206}
+{"_e":"metro:bundling:progress","_t":1788491151675,"id":"1","progress":0.9585776095186588,"total":1290,"current":1263}
+{"_e":"metro:bundling:progress","_t":1788491151779,"id":"1","progress":0.9815954852908706,"total":1298,"current":1286}
+{"_e":"metro:bundling:progress","_t":1788491151885,"id":"1","progress":0.9984831249812909,"total":1318,"current":1317}
+{"_e":"metro:bundling:progress","_t":1788491152710,"id":"1","progress":0.999,"total":1318,"current":1318}
+{"_e":"metro:bundling:progress","_t":1788491152823,"id":"1","progress":0.999,"total":1375,"current":1318}
+{"_e":"metro:bundling:progress","_t":1788491152835,"id":"1","progress":0.999,"total":1375,"current":1319}
+{"_e":"metro:bundling:progress","_t":1788491152945,"id":"1","progress":0.999,"total":1467,"current":1373}
+{"_e":"metro:bundling:progress","_t":1788491153115,"id":"1","progress":0.999,"total":1467,"current":1374}
+{"_e":"metro:bundling:progress","_t":1788491153221,"id":"1","progress":0.999,"total":1468,"current":1374}
+{"_e":"metro:bundling:progress","_t":1788491154066,"id":"1","progress":0.999,"total":1468,"current":1375}
+{"_e":"metro:bundling:progress","_t":1788491164258,"id":"1","progress":0.999,"total":1468,"current":1376}
+{"_e":"metro:bundling:progress","_t":1788491164361,"id":"1","progress":0.999,"total":1469,"current":1378}
+{"_e":"metro:bundling:progress","_t":1788491164706,"id":"1","progress":0.999,"total":1469,"current":1379}
+{"_e":"metro:bundling:progress","_t":1788491164814,"id":"1","progress":0.999,"total":1494,"current":1462}
+{"_e":"metro:bundling:progress","_t":1788491166031,"id":"1","progress":0.999,"total":1494,"current":1463}
+{"_e":"metro:bundling:progress","_t":1788491166147,"id":"1","progress":0.999,"total":1495,"current":1467}
+{"_e":"metro:bundling:progress","_t":1788491167675,"id":"1","progress":0.999,"total":1495,"current":1468}
+{"_e":"metro:bundling:progress","_t":1788491167778,"id":"1","progress":0.999,"total":1495,"current":1489}
+{"_e":"metro:bundling:progress","_t":1788491167904,"id":"1","progress":0.999,"total":1495,"current":1490}
+{"_e":"metro:bundling:progress","_t":1788491168011,"id":"1","progress":0.999,"total":1495,"current":1492}
+{"_e":"metro:bundling:progress","_t":1788491168139,"id":"1","progress":0.999,"total":1495,"current":1493}
+{"_e":"metro:bundling:progress","_t":1788491168370,"id":"1","progress":0.999,"total":1495,"current":1495}
+{"_e":"metro:bundling:done","_t":1788491169411,"id":"1","total":1495,"ms":21734.7218}
+{"_e":"metro:client_log","_t":1788491179985,"level":"warn","data":["Require cycle: src/keyboard/settings/layoutStore.ts -> src/keyboard/settings/tapSoundStore.ts -> src/keyboard/settings/layoutStore.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1788491179986,"level":"warn","data":["Require cycle: src/keyboard/suggestions/learnedDictionary.ts -> src/keyboard/autocorrect/dictionaryManager.ts -> src/keyboard/suggestions/learnedDictionary.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1788491179986,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1788491179986,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/autocorrect/contextCorrectionEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"root:init","_t":1788493344542,"format":"v0-jsonl","version":"56.1.14"}
+{"_e":"devserver:start","_t":1788493344728,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../..\\..\\src\\app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1788493354991,"serverRoot":"../..\\..","projectRoot":"../..\\..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"metro:instantiate","_t":1788493389982,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"root:init","_t":1788496913503,"format":"v0-jsonl","version":"56.1.14"}
+{"_e":"devserver:start","_t":1788496913543,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../..\\..\\src\\app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1788496914282,"serverRoot":"../..\\..","projectRoot":"../..\\..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"metro:instantiate","_t":1788496941226,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"metro:bundling:started","_t":1788496947322,"id":"1","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1788496947322,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1788496947331,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1788496947506,"id":"1","progress":0.010000000000000002,"total":1,"current":1}
+{"_e":"metro:bundling:progress","_t":1788496947607,"id":"1","progress":0.010000000000000002,"total":216,"current":7}
+{"_e":"metro:bundling:progress","_t":1788496947706,"id":"1","progress":0.010000000000000002,"total":271,"current":18}
+{"_e":"metro:bundling:progress","_t":1788496947806,"id":"1","progress":0.06190334470364689,"total":418,"current":104}
+{"_e":"metro:bundling:progress","_t":1788496947906,"id":"1","progress":0.09366224745315746,"total":513,"current":157}
+{"_e":"metro:bundling:progress","_t":1788496948007,"id":"1","progress":0.16000000000000003,"total":605,"current":242}
+{"_e":"metro:bundling:progress","_t":1788496948107,"id":"1","progress":0.22168960905204074,"total":703,"current":331}
+{"_e":"metro:bundling:progress","_t":1788496948207,"id":"1","progress":0.40624846828742284,"total":808,"current":515}
+{"_e":"metro:bundling:progress","_t":1788496948307,"id":"1","progress":0.5025029984445569,"total":924,"current":655}
+{"_e":"metro:bundling:progress","_t":1788496948407,"id":"1","progress":0.7013853752799429,"total":1003,"current":840}
+{"_e":"metro:bundling:progress","_t":1788496948507,"id":"1","progress":0.7013853752799429,"total":1133,"current":930}
+{"_e":"metro:bundling:progress","_t":1788496948607,"id":"1","progress":0.8008733122665901,"total":1180,"current":1056}
+{"_e":"metro:bundling:progress","_t":1788496948708,"id":"1","progress":0.8536974278094493,"total":1223,"current":1130}
+{"_e":"metro:bundling:progress","_t":1788496948808,"id":"1","progress":0.8825450713352199,"total":1354,"current":1272}
+{"_e":"metro:bundling:progress","_t":1788496948908,"id":"1","progress":0.9613029336899296,"total":1433,"current":1405}
+{"_e":"metro:bundling:progress","_t":1788496949008,"id":"1","progress":0.9797234057478734,"total":1472,"current":1457}
+{"_e":"metro:bundling:progress","_t":1788496949110,"id":"1","progress":0.999,"total":1495,"current":1495}
+{"_e":"metro:bundling:done","_t":1788496949331,"id":"1","total":1495,"ms":2009.5294}
+{"_e":"metro:client_log","_t":1788496951976,"level":"warn","data":["Require cycle: src/keyboard/settings/layoutStore.ts -> src/keyboard/settings/tapSoundStore.ts -> src/keyboard/settings/layoutStore.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1788496951977,"level":"warn","data":["Require cycle: src/keyboard/suggestions/learnedDictionary.ts -> src/keyboard/autocorrect/dictionaryManager.ts -> src/keyboard/suggestions/learnedDictionary.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1788496951977,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1788496951977,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/autocorrect/contextCorrectionEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1788496964101,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":11,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1788496964291,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"metro:client_log","_t":1788496969116,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1788496969970,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1788496970812,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1788496971813,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1788496986442,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1788496988179,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1788496988727,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1788496990147,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1788496990854,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1788496991288,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1788496992176,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1788496993026,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1788496994431,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1788496995732,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1788497033551,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1788497034371,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1788497035301,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"root:init","_t":1788497764430,"format":"v0-jsonl","version":"56.1.14"}
+{"_e":"devserver:start","_t":1788497764494,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../..\\..\\src\\app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1788497765750,"serverRoot":"../..\\..","projectRoot":"../..\\..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"metro:instantiate","_t":1788497797329,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"metro:bundling:started","_t":1788497803109,"id":"1","platform":"android","environment":null,"entry":"index.js"}
+{"_e":"metro:bundling:progress","_t":1788497803110,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1788497803118,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1788497803230,"id":"1","progress":0.012345679012345678,"total":45,"current":5}
+{"_e":"metro:bundling:progress","_t":1788497803330,"id":"1","progress":0.012345679012345678,"total":248,"current":10}
+{"_e":"metro:bundling:progress","_t":1788497803430,"id":"1","progress":0.02267077737603306,"total":352,"current":53}
+{"_e":"metro:bundling:progress","_t":1788497803532,"id":"1","progress":0.06191452313253544,"total":426,"current":106}
+{"_e":"metro:bundling:progress","_t":1788497803633,"id":"1","progress":0.10729095897327377,"total":519,"current":170}
+{"_e":"metro:bundling:progress","_t":1788497803738,"id":"1","progress":0.13946589396193906,"total":565,"current":211}
+{"_e":"metro:bundling:progress","_t":1788497803839,"id":"1","progress":0.15790509624380866,"total":609,"current":242}
+{"_e":"metro:bundling:progress","_t":1788497803940,"id":"1","progress":0.19245781960120348,"total":677,"current":297}
+{"_e":"metro:bundling:progress","_t":1788497804041,"id":"1","progress":0.2776327104750776,"total":799,"current":421}
+{"_e":"metro:bundling:progress","_t":1788497804140,"id":"1","progress":0.41647512168739864,"total":860,"current":555}
+{"_e":"metro:bundling:progress","_t":1788497804241,"id":"1","progress":0.5201375137450017,"total":929,"current":670}
+{"_e":"metro:bundling:progress","_t":1788497804341,"id":"1","progress":0.5511021192047486,"total":982,"current":729}
+{"_e":"metro:bundling:progress","_t":1788497804441,"id":"1","progress":0.6660247263931324,"total":1006,"current":821}
+{"_e":"metro:bundling:progress","_t":1788497804541,"id":"1","progress":0.6707421057231195,"total":1127,"current":923}
+{"_e":"metro:bundling:progress","_t":1788497804641,"id":"1","progress":0.7978425739729963,"total":1180,"current":1054}
+{"_e":"metro:bundling:progress","_t":1788497804741,"id":"1","progress":0.8532617974788669,"total":1193,"current":1102}
+{"_e":"metro:bundling:progress","_t":1788497804841,"id":"1","progress":0.8532617974788669,"total":1255,"current":1152}
+{"_e":"metro:bundling:progress","_t":1788497804941,"id":"1","progress":0.871500347527663,"total":1279,"current":1194}
+{"_e":"metro:bundling:progress","_t":1788497805041,"id":"1","progress":0.889576122329489,"total":1355,"current":1278}
+{"_e":"metro:bundling:progress","_t":1788497805142,"id":"1","progress":0.9486376431443995,"total":1422,"current":1385}
+{"_e":"metro:bundling:progress","_t":1788497805242,"id":"1","progress":0.9742993501736128,"total":1469,"current":1450}
+{"_e":"metro:bundling:progress","_t":1788497805342,"id":"1","progress":0.9784081933983715,"total":1474,"current":1458}
+{"_e":"metro:bundling:done","_t":1788497805641,"id":"1","total":1474,"ms":2531.7791}
+{"_e":"metro:client_log","_t":1788497808609,"level":"warn","data":["Require cycle: src/keyboard/settings/layoutStore.ts -> src/keyboard/settings/tapSoundStore.ts -> src/keyboard/settings/layoutStore.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1788497808610,"level":"warn","data":["Require cycle: src/keyboard/suggestions/learnedDictionary.ts -> src/keyboard/autocorrect/dictionaryManager.ts -> src/keyboard/suggestions/learnedDictionary.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1788497808610,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1788497808611,"level":"warn","data":["Require cycle: src/keyboard/suggestions/wordSuggestions.ts -> src/keyboard/autocorrect/autocorrectEngine.ts -> src/keyboard/autocorrect/contextCorrectionEngine.ts -> src/keyboard/suggestions/wordSuggestions.ts\n\nRequire cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle."]}
+{"_e":"metro:client_log","_t":1788497824150,"level":"log","data":["Running \"TypeBaseKeyboard\" with {\"rootTag\":11,\"initialProps\":{},\"fabric\":true}"]}
+{"_e":"metro:client_log","_t":1788497824348,"level":"warn","data":["InteractionManager has been deprecated and will be removed in a future release. Please refactor long tasks into smaller ones, and  use 'requestIdleCallback' instead."]}
+{"_e":"metro:client_log","_t":1788497828673,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1788497829340,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1788497832976,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1788497834805,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1788497835530,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1788497836242,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1788497837050,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1788497838280,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1788497839305,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1788497840223,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1788497843765,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1788497845806,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1788497846315,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1788497846989,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1788497847943,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1788497848294,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1788497848963,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1788497849644,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1788497850561,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1788497853027,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1788497853456,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}
+{"_e":"metro:client_log","_t":1788497854721,"level":"log","data":["[AiAutocorrect]","schedule skipped: setting off","{\"aiAutoCorrectEnabled\": false, \"enabled\": true}"]}

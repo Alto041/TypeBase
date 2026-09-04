@@ -111,3 +111,159 @@ export function decimatePoints(points: Point[], maxCount: number): Point[] {
 
   return [...keep].sort((a, b) => a - b).map(index => points[index]);
 }
+
+/** Preserve endpoints, sharp turns, and evenly spaced samples when capping path length. */
+export function compactPointsWithLandmarks(
+  points: Point[],
+  maxCount: number,
+): Point[] {
+  return decimatePoints(points, maxCount);
+}
+
+export class PointBuffer {
+  private points: Point[] = [];
+
+  constructor(
+    private readonly maxPoints: number,
+    private readonly compactTarget: number,
+  ) {}
+
+  reset(): void {
+    this.points = [];
+  }
+
+  get length(): number {
+    return this.points.length;
+  }
+
+  toArray(): Point[] {
+    return this.points;
+  }
+
+  snapshot(): Point[] {
+    return this.points.map(point => ({...point}));
+  }
+
+  push(next: Point): void {
+    this.points.push(next);
+    if (this.points.length > this.maxPoints) {
+      this.points = compactPointsWithLandmarks(this.points, this.compactTarget);
+    }
+  }
+}
+
+export type TimedSample = Point & {t: number};
+
+export class TimedPointBuffer {
+  private points: TimedSample[] = [];
+
+  constructor(private readonly maxPoints: number) {}
+
+  reset(): void {
+    this.points = [];
+  }
+
+  get length(): number {
+    return this.points.length;
+  }
+
+  toArray(): TimedSample[] {
+    return this.points;
+  }
+
+  snapshot(): TimedSample[] {
+    return this.points.map(point => ({...point}));
+  }
+
+  push(next: TimedSample): void {
+    this.points.push(next);
+    if (this.points.length > this.maxPoints) {
+      this.points = compactTimedPoints(this.points, this.maxPoints);
+    }
+  }
+}
+
+function compactTimedPoints(
+  points: TimedSample[],
+  maxCount: number,
+): TimedSample[] {
+  if (points.length <= maxCount) {
+    return points;
+  }
+
+  const speeds: number[] = [];
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const dt = Math.max(1, points[index + 1]!.t - points[index]!.t);
+    const ds = distance(points[index]!, points[index + 1]!);
+    speeds.push(ds / dt);
+  }
+  const sorted = [...speeds].sort((a, b) => a - b);
+  const median = sorted[Math.floor(sorted.length / 2)] ?? 0.4;
+  const pauseThreshold = median * 0.35;
+
+  const keep = new Set<number>([0, points.length - 1]);
+  for (let index = 1; index < speeds.length; index += 1) {
+    if (speeds[index]! <= pauseThreshold) {
+      keep.add(index);
+      keep.add(index + 1);
+    }
+  }
+
+  while (keep.size < maxCount) {
+    const stride = Math.max(1, Math.floor(points.length / maxCount));
+    for (let index = 0; index < points.length && keep.size < maxCount; index += stride) {
+      keep.add(index);
+    }
+    if (keep.size < maxCount) {
+      keep.add(Math.floor(points.length / 2));
+    }
+    break;
+  }
+
+  return [...keep]
+    .sort((a, b) => a - b)
+    .slice(0, maxCount)
+    .map(index => points[index]!);
+}
+
+/**
+ * Fast chained glides often include a brief dwell between words without a full lift.
+ * Keep only the segment after the last pause so consecutive words do not merge.
+ */
+export function trimGestureAtLastPause(
+  spatialPoints: Point[],
+  timedPoints: Array<Point & {t: number}>,
+  pauseGapMs = 110,
+): {spatial: Point[]; timed: Array<Point & {t: number}>} {
+  if (timedPoints.length < 4) {
+    return {spatial: spatialPoints, timed: timedPoints};
+  }
+
+  let lastGapIndex = 0;
+  for (let index = 1; index < timedPoints.length; index += 1) {
+    const gap = timedPoints[index]!.t - timedPoints[index - 1]!.t;
+    if (gap >= pauseGapMs) {
+      lastGapIndex = index;
+    }
+  }
+
+  if (lastGapIndex === 0) {
+    return {spatial: spatialPoints, timed: timedPoints};
+  }
+
+  const timed = timedPoints.slice(lastGapIndex);
+  if (timed.length < 2 || spatialPoints.length < 2) {
+    return {spatial: spatialPoints, timed: timedPoints};
+  }
+
+  const ratio = lastGapIndex / timedPoints.length;
+  const spatialStart = Math.min(
+    spatialPoints.length - 2,
+    Math.max(0, Math.floor(spatialPoints.length * ratio)),
+  );
+  const spatial = spatialPoints.slice(spatialStart);
+  if (spatial.length < 2) {
+    return {spatial: spatialPoints, timed: timedPoints};
+  }
+  return {spatial, timed};
+}

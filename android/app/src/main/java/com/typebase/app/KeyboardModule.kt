@@ -33,9 +33,13 @@ import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.UiThreadUtil
 import com.facebook.react.bridge.WritableMap
 import com.facebook.react.modules.core.DeviceEventManagerModule
+import com.typebase.app.billing.PremiumBillingManager
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.Executors
+import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
 class KeyboardModule(reactContext: ReactApplicationContext) :
@@ -58,7 +62,22 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   private var backspaceHoldRunnable: Runnable? = null
   private var backspaceTickRunnable: Runnable? = null
   private var previewPlayer: MediaPlayer? = null
-  private val swipeDecodeExecutor = Executors.newSingleThreadExecutor()
+  /** Commit must never wait behind in-flight or queued swipe previews. */
+  private val swipeCommitExecutor =
+      Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "swipe-commit").apply { priority = Thread.NORM_PRIORITY + 1 }
+      }
+  /** Keep at most one preview job; drop stale previews instead of queueing seconds of work. */
+  private val swipePreviewExecutor =
+      ThreadPoolExecutor(
+          0,
+          1,
+          0L,
+          TimeUnit.MILLISECONDS,
+          LinkedBlockingQueue(1),
+          { runnable -> Thread(runnable, "swipe-preview") },
+          ThreadPoolExecutor.DiscardOldestPolicy(),
+      )
   private val swipePreviewGeneration = AtomicInteger(0)
   private val nativeTouchpadEngine = NativeTouchpadEngine()
 
@@ -284,7 +303,8 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     stopBackspaceRepeatInternal()
     stopCurrentPreview()
     swipePreviewGeneration.incrementAndGet()
-    swipeDecodeExecutor.shutdownNow()
+    swipePreviewExecutor.shutdownNow()
+    swipeCommitExecutor.shutdownNow()
     super.invalidate()
   }
 
@@ -707,9 +727,9 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
       timedPointsJson: String,
       promise: Promise,
   ) {
-    // Final decode must not wait behind obsolete in-progress previews.
+    // Invalidate any queued/in-flight previews so commit can run immediately.
     swipePreviewGeneration.incrementAndGet()
-    swipeDecodeExecutor.execute {
+    swipeCommitExecutor.execute {
       try {
         val word =
             SwipeWordDictionary.decodeSwipeGesture(
@@ -735,9 +755,8 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
       timedPointsJson: String,
       promise: Promise,
   ) {
-    // Each new preview invalidates older queued previews.
     val generation = swipePreviewGeneration.incrementAndGet()
-    swipeDecodeExecutor.execute {
+    swipePreviewExecutor.execute {
       try {
         if (generation != swipePreviewGeneration.get()) {
           promise.resolve("")
@@ -766,6 +785,23 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   @ReactMethod
   fun cancelSwipePreview() {
     swipePreviewGeneration.incrementAndGet()
+  }
+
+  /** Insert a swipe word with spacing resolved on the IME thread (no JS round-trip). */
+  @ReactMethod
+  fun commitSwipeWord(word: String) {
+    val trimmed = word.trim()
+    if (trimmed.isEmpty()) {
+      return
+    }
+    val connection = KeyboardInputBridge.getInputConnection() ?: return
+    val before = connection.getTextBeforeCursor(64, 0)?.toString().orEmpty()
+    val needsLeadingSpace =
+        before.isNotEmpty() &&
+            before.last().isLetterOrDigit() &&
+            !before.endsWith(' ')
+    val text = if (needsLeadingSpace) " $trimmed " else "$trimmed "
+    connection.commitText(text, 1)
   }
 
   @ReactMethod
@@ -1184,6 +1220,15 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
       promise.resolve(saved)
     } catch (error: Exception) {
       promise.reject("SET_CUSTOM_LETTER_LAYOUTS_FAILED", error)
+    }
+  }
+
+  @ReactMethod
+  fun isPremiumCached(promise: Promise) {
+    try {
+      promise.resolve(PremiumBillingManager.isPremiumCached(reactApplicationContext))
+    } catch (error: Exception) {
+      promise.reject("PREMIUM_CACHE_READ_FAILED", error)
     }
   }
 

@@ -46,6 +46,7 @@ import {
   listCustomLayoutMeta,
 } from './src/keyboard/settings/customLayoutStore';
 import {hapticTap} from './lib/haptics';
+import {usePremium} from './src/licensing/PremiumContext';
 
 const C = {
   bg: '#f2f2f4',
@@ -249,6 +250,7 @@ function LayoutSwipeRow({
 }
 
 export function LanguageLayoutScreen({onBack}: {onBack: () => void}) {
+  const {canUse} = usePremium();
   const [selectedId, setSelectedId] = useState<LetterLayoutId>('en-us');
   const [importing, setImporting] = useState(false);
   const importInFlightRef = useRef(false);
@@ -312,12 +314,20 @@ export function LanguageLayoutScreen({onBack}: {onBack: () => void}) {
   }, [customEntries]);
 
   const selectLayout = useCallback(async (id: LetterLayoutId) => {
+    if (id !== 'en-us' && !canUse('layouts_custom')) {
+      Alert.alert('Premium feature', 'Unlock TypeBase to use alternate layouts.');
+      return;
+    }
     hapticTap();
     setSelectedId(id);
     await updateKeyboardLayoutSetting('letterLayoutId', id);
-  }, []);
+  }, [canUse]);
 
   const handleImportKlc = useCallback(async () => {
+    if (!canUse('layouts_custom')) {
+      Alert.alert('Premium feature', 'Unlock TypeBase to import custom layouts.');
+      return;
+    }
     if (importInFlightRef.current) {
       return;
     }

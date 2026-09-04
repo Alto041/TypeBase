@@ -28,7 +28,6 @@ import com.facebook.react.bridge.ReactContext
 import com.facebook.react.bridge.UiThreadUtil
 import com.facebook.react.common.LifecycleState
 import com.facebook.react.interfaces.fabric.ReactSurface
-import com.typebase.app.licensing.PlayLicenseManager
 
 class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListener {
 
@@ -108,13 +107,6 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
           clipToPadding = false
         }
     container = frame
-    if (!PlayLicenseManager.canUseApp(this)) {
-      mountUnlicensedPlaceholder(frame)
-      // Background verify in case this is a Play install whose installer
-      // metadata was delayed; remount happens on next input view start.
-      PlayLicenseManager.ensureLicensed(this) { /* no-op */ }
-      return frame
-    }
     resumeReactForKeyboard()
     mountKeyboardSurface(frame)
     return frame
@@ -137,10 +129,6 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
     KeyboardInputBridge.refreshSupportsNewline(info)
     KeyboardInputBridge.refreshInitialCapsMode(info)
     val frame = container ?: return
-    if (!PlayLicenseManager.canUseApp(this)) {
-      mountUnlicensedPlaceholder(frame)
-      return
-    }
     resumeReactForKeyboard {
       // Reset JS to the main alphabet view after React resumes, before the window is shown.
       KeyboardInputBridge.notifyKeyboardSessionStart()
@@ -151,10 +139,6 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
   override fun onWindowShown() {
     super.onWindowShown()
     val frame = container ?: return
-    if (!PlayLicenseManager.canUseApp(this)) {
-      mountUnlicensedPlaceholder(frame)
-      return
-    }
     resumeReactForKeyboard()
     mountKeyboardSurface(frame)
     KeyboardInputBridge.notifyKeyboardShown()
@@ -193,6 +177,9 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
   }
 
   private fun publishEditorContextBeforeCursor(forced: String? = null) {
+    if (KeyboardInputBridge.isGamePerformanceMode()) {
+      return
+    }
     if (forced != null) {
       KeyboardInputBridge.notifyEditorContextBeforeCursor(forced)
       return
@@ -266,10 +253,6 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
   }
 
   private fun mountKeyboardSurface(frame: FrameLayout) {
-    if (!PlayLicenseManager.canUseApp(this)) {
-      mountUnlicensedPlaceholder(frame)
-      return
-    }
     val app = application as? ReactApplication ?: return
     val host = app.reactHost ?: return
 
@@ -396,6 +379,10 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
 
   fun setNativeZeroLatencyMode(enabled: Boolean) {
     nativeKeyFastPath.setZeroLatencyMode(enabled)
+  }
+
+  fun setNativeGamePerformanceMode(enabled: Boolean) {
+    nativeKeyFastPath.setGamePerformanceMode(enabled)
   }
 
   fun clearNativeMidWordShiftBlock() {

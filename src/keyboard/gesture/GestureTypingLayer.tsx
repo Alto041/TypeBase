@@ -17,7 +17,7 @@ type GestureTypingLayerProps = {
   /** Shrink-wrap content instead of filling the IME window (dial pad). */
   compact?: boolean;
   isUppercase: boolean;
-  onWordCommitted: (word: string) => void;
+  onWordCommitted: (word: string, options?: {textAlreadyInserted?: boolean}) => void;
   onSwipePreviewChange?: (word: string | null) => void;
   onSwipeActiveChange?: (active: boolean) => void;
   trackpadEnabled?: boolean;

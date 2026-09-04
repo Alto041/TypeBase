@@ -11,6 +11,7 @@ import {
 } from './englishPrefixIndex';
 import {getExactDictionaryFix, isPreserveTypedWord} from './dictionaryFixes';
 import {getAutocorrectSettings} from './autocorrectStore';
+import {canUseFeature} from '../../licensing/entitlements';
 import {getLearnedCounts} from '../suggestions/learnedDictionary';
 import {
   isHardRejectedCorrection,
@@ -2096,7 +2097,9 @@ export function getSuggestionBarAutocorrect(
   }
 
   const fast = options?.fast ?? false;
-  const contextEnabled = getAutocorrectSettings().contextCorrectionEnabled;
+  const contextEnabled =
+    canUseFeature('autocorrect_full') &&
+    getAutocorrectSettings().contextCorrectionEnabled;
   const canUseContext =
     contextEnabled && Boolean(options?.context || previousWord);
 
@@ -2208,6 +2211,9 @@ export function shouldAutoApply(
   candidate: AutocorrectCandidate | null,
   typedWord: string,
 ): boolean {
+  if (!canUseFeature('autocorrect_full')) {
+    return false;
+  }
   if (!getAutocorrectSettings().autoApplyOnSpace) {
     return false;
   }

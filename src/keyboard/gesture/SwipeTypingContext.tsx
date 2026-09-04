@@ -12,7 +12,7 @@ import {triggerKeyHaptic} from '../haptics';
 import {useKeyboardTheme} from '../KeyboardThemeContext';
 import {keyboardBridge} from '../keyboardBridge';
 import {hideAllKeyPreviews} from '../KeyPreview';
-import {clampPoint, decimatePoints, distance} from './coordinates';
+import {clampPoint, compactPointsWithLandmarks, distance, PointBuffer, TimedPointBuffer} from './coordinates';
 import {decodeSwipeGesture, previewSwipeGesture} from './gestureDecoder';
 import {ensureLearnedDictionaryLoaded} from '../suggestions/learnedDictionary';
 import {
@@ -58,41 +58,53 @@ function pointerId(touch: {identifier: number | string}): number {
 /** Finger movement below this is treated as a tap, not a swipe. */
 const SWIPE_TAP_SLOP_DP = 10;
 const SWIPE_MIN_STEP_DP = 1.5;
-const SWIPE_MAX_POINTS = 320;
-const SWIPE_COMPACT_TARGET = 180;
-const SWIPE_TIMED_MAX_POINTS = 600;
-const SWIPE_PREVIEW_TIMED_POINTS = 180;
-const SWIPE_PREVIEW_INTERVAL_MS = 220;
+const SWIPE_MAX_POINTS = 480;
+const SWIPE_COMPACT_TARGET = 240;
+const SWIPE_TIMED_MAX_POINTS = 900;
+const SWIPE_PREVIEW_TIMED_POINTS = 120;
+const SWIPE_PREVIEW_INTERVAL_MS = 280;
+const SWIPE_BRIDGE_PREVIEW_POINTS = 64;
+const SWIPE_BRIDGE_COMMIT_POINTS = 240;
 const TRAIL_MIN_STEP_DP = 1.65;
 
-function appendBoundedPoint(points: Point[], next: Point): Point[] {
-  const appended = [...points, next];
-  return appended.length > SWIPE_MAX_POINTS
-    ? decimatePoints(appended, SWIPE_COMPACT_TARGET)
-    : appended;
-}
-
-function compactTimedPoints(
-  points: Array<Point & {t: number}>,
-): Array<Point & {t: number}> {
-  if (points.length <= SWIPE_TIMED_MAX_POINTS) {
+function samplePointsForBridge(points: Point[], maxPoints: number): Point[] {
+  if (points.length <= maxPoints) {
     return points;
   }
-  const compacted = [points[0]!];
-  for (let index = 1; index < points.length - 1; index += 2) {
-    compacted.push(points[index]!);
-  }
-  compacted.push(points[points.length - 1]!);
-  return compacted;
+  return compactPointsWithLandmarks(points, maxPoints);
 }
 
-function sampleTimedPointsForPreview(
+function pointsToBridgeJson(points: Point[]): string {
+  const flat = new Array<number>(points.length * 2);
+  for (let index = 0; index < points.length; index += 1) {
+    const point = points[index]!;
+    flat[index * 2] = Math.round(point.x * 10) / 10;
+    flat[index * 2 + 1] = Math.round(point.y * 10) / 10;
+  }
+  return JSON.stringify(flat);
+}
+
+function timedPointsToBridgeJson(
   points: Array<Point & {t: number}>,
+): string {
+  const flat = new Array<number>(points.length * 3);
+  for (let index = 0; index < points.length; index += 1) {
+    const point = points[index]!;
+    flat[index * 3] = Math.round(point.x * 10) / 10;
+    flat[index * 3 + 1] = Math.round(point.y * 10) / 10;
+    flat[index * 3 + 2] = point.t;
+  }
+  return JSON.stringify(flat);
+}
+
+function sampleTimedPointsForBridge(
+  points: Array<Point & {t: number}>,
+  maxPoints: number,
 ): Array<Point & {t: number}> {
-  if (points.length <= SWIPE_PREVIEW_TIMED_POINTS) {
+  if (points.length <= maxPoints) {
     return points;
   }
-  const stride = Math.ceil(points.length / SWIPE_PREVIEW_TIMED_POINTS);
+  const stride = Math.ceil(points.length / maxPoints);
   const sampled = [points[0]!];
   for (let index = stride; index < points.length - 1; index += stride) {
     sampled.push(points[index]!);
@@ -166,7 +178,7 @@ function pathDistance(points: Point[]): number {
 type SwipeTypingProviderProps = {
   enabled: boolean;
   isUppercase: boolean;
-  onWordCommitted: (word: string) => void;
+  onWordCommitted: (word: string, options?: {textAlreadyInserted?: boolean}) => void;
   onSwipePreviewChange?: (word: string | null) => void;
   onSwipeActiveChange?: (active: boolean) => void;
   children: React.ReactNode;
@@ -181,16 +193,15 @@ export function SwipeTypingProvider({
   children,
 }: SwipeTypingProviderProps) {
   const layoutContext = useKeyLayoutContext();
+  const spatialBufferRef = useRef(
+    new PointBuffer(SWIPE_MAX_POINTS, SWIPE_COMPACT_TARGET),
+  );
+  const timedBufferRef = useRef(new TimedPointBuffer(SWIPE_TIMED_MAX_POINTS));
   const pagePointsRef = useRef<PagePoint[]>([]);
-  const localPointsRef = useRef<Point[]>([]);
-  /** High-fidelity timed samples (position + timestamp) recorded on a time basis.
-   * Used exclusively for Gboard-style pause/anchor detection. Not spatially filtered
-   * so dwells produce many samples at nearly the same location but increasing t.
-   */
-  const timedPointsRef = useRef<Array<Point & {t: number}>>([]);
   const lastTimedSampleTimeRef = useRef(0);
   const lastPreviewUpdateRef = useRef(0);
   const previewGenerationRef = useRef(0);
+  const previewInFlightRef = useRef(false);
   const layoutsJsonRef = useRef('');
   const previewTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const trailOriginRef = useRef({pageX: 0, pageY: 0});
@@ -225,6 +236,7 @@ export function SwipeTypingProvider({
 
   const clearSwipePreview = useCallback(() => {
     previewGenerationRef.current += 1;
+    previewInFlightRef.current = false;
     lastPreviewUpdateRef.current = 0;
     if (previewTimeoutRef.current != null) {
       clearTimeout(previewTimeoutRef.current);
@@ -239,7 +251,7 @@ export function SwipeTypingProvider({
       return;
     }
 
-    const points = localPointsRef.current;
+    const points = spatialBufferRef.current.toArray();
     if (
       points.length < 2 ||
       pathDistance(points) < dp(SWIPE_TAP_SLOP_DP)
@@ -253,12 +265,25 @@ export function SwipeTypingProvider({
       return;
     }
 
+    if (previewInFlightRef.current) {
+      return;
+    }
+
     const generation = previewGenerationRef.current + 1;
     previewGenerationRef.current = generation;
-    const snapshotPoints = points.map(point => ({...point}));
-    const snapshotTimed = sampleTimedPointsForPreview(timedPointsRef.current).map(
-      point => ({...point}),
+    const snapshotPoints = samplePointsForBridge(
+      spatialBufferRef.current.snapshot(),
+      SWIPE_BRIDGE_PREVIEW_POINTS,
     );
+    const snapshotTimed = sampleTimedPointsForBridge(
+      timedBufferRef.current.snapshot(),
+      SWIPE_PREVIEW_TIMED_POINTS,
+    );
+    const layoutsJson =
+      layoutsJsonRef.current || keyLayoutsToJson(layouts);
+    layoutsJsonRef.current = layoutsJson;
+    const pointsJson = pointsToBridgeJson(snapshotPoints);
+    const timedJson = timedPointsToBridgeJson(snapshotTimed);
 
     if (previewTimeoutRef.current != null) {
       clearTimeout(previewTimeoutRef.current);
@@ -268,16 +293,37 @@ export function SwipeTypingProvider({
       if (generation !== previewGenerationRef.current) {
         return;
       }
-      const word = previewSwipeGesture(
-        snapshotPoints,
-        layouts,
-        isUppercase,
-        snapshotTimed,
-      );
-      if (generation !== previewGenerationRef.current) {
+
+      const resolvePreview = (word: string | null) => {
+        previewInFlightRef.current = false;
+        if (generation !== previewGenerationRef.current) {
+          return;
+        }
+        onSwipePreviewChange(word);
+      };
+
+      if (Platform.OS === 'android') {
+        previewInFlightRef.current = true;
+        void keyboardBridge
+          .previewSwipeGesture(
+            pointsJson,
+            layoutsJson,
+            isUppercase,
+            timedJson,
+          )
+          .then(nativeWord => {
+            const trimmed = nativeWord?.trim();
+            resolvePreview(trimmed || null);
+          })
+          .catch(() => {
+            resolvePreview(null);
+          });
         return;
       }
-      onSwipePreviewChange(word);
+
+      resolvePreview(
+        previewSwipeGesture(snapshotPoints, layouts, isUppercase, snapshotTimed),
+      );
     }, 0);
   }, [isUppercase, layoutContext, onSwipePreviewChange]);
 
@@ -302,8 +348,8 @@ export function SwipeTypingProvider({
     activeSwipePointerIdRef.current = null;
     gestureSwipeActiveRef.current = false;
     pagePointsRef.current = [];
-    localPointsRef.current = [];
-    timedPointsRef.current = [];
+    spatialBufferRef.current.reset();
+    timedBufferRef.current.reset();
     lastTimedSampleTimeRef.current = 0;
     clearSwipePreview();
     clearTrail();
@@ -372,21 +418,23 @@ export function SwipeTypingProvider({
   const appendSwipePoint = useCallback(
     (pageX: number, pageY: number) => {
       const local = pageToTrailLocal(pageX, pageY);
-      const points = localPointsRef.current;
+      const points = spatialBufferRef.current.toArray();
       const minDistance = dp(SWIPE_MIN_STEP_DP);
       if (points.length > 0) {
         const last = points[points.length - 1];
-        const dx = local.x - last.x;
-        const dy = local.y - last.y;
+        const dx = local.x - last!.x;
+        const dy = local.y - last!.y;
         if (dx * dx + dy * dy < minDistance * minDistance) {
           return local;
         }
       }
       appendPagePoint(pageX, pageY);
-      localPointsRef.current = appendBoundedPoint(points, local);
+      spatialBufferRef.current.push(local);
 
       appendTrailPoint(local);
-      scheduleSwipePreview();
+      if (Platform.OS !== 'android') {
+        scheduleSwipePreview();
+      }
       return local;
     },
     [appendPagePoint, appendTrailPoint, pageToTrailLocal, scheduleSwipePreview],
@@ -405,11 +453,7 @@ export function SwipeTypingProvider({
     }
     lastTimedSampleTimeRef.current = now;
 
-    const buf = timedPointsRef.current;
-    buf.push({ x: local.x, y: local.y, t: now });
-    if (buf.length > SWIPE_TIMED_MAX_POINTS) {
-      timedPointsRef.current = compactTimedPoints(buf);
-    }
+    timedBufferRef.current.push({x: local.x, y: local.y, t: now});
 
     if (gestureSwipeActiveRef.current) {
       appendTrailPoint(local);
@@ -455,7 +499,12 @@ export function SwipeTypingProvider({
           keyboardBridge.deleteBackward();
         }
         triggerKeyHaptic();
-        onWordCommitted(word);
+        if (Platform.OS === 'android') {
+          keyboardBridge.commitSwipeWord(word);
+          onWordCommitted(word, {textAlreadyInserted: true});
+        } else {
+          onWordCommitted(word);
+        }
         return true;
       };
 
@@ -475,24 +524,42 @@ export function SwipeTypingProvider({
       };
 
       if (Platform.OS === 'android' && layouts.length > 0) {
-        const layoutsJson = keyLayoutsToJson(layouts);
+        const bridgePoints = samplePointsForBridge(
+          localPoints,
+          SWIPE_BRIDGE_COMMIT_POINTS,
+        );
+        const bridgeTimed = sampleTimedPointsForBridge(
+          timedPoints,
+          SWIPE_BRIDGE_COMMIT_POINTS,
+        );
+        const layoutsJson =
+          layoutsJsonRef.current || keyLayoutsToJson(layouts);
+        let settled = false;
+
+        const settle = (word: string | null, failed: boolean) => {
+          if (settled) {
+            return;
+          }
+          settled = true;
+          if (!word?.trim()) {
+            runJsDecode();
+            return;
+          }
+          commitDecodedWord(word);
+        };
+
         void keyboardBridge
           .decodeSwipeGesture(
-            JSON.stringify(localPoints),
+            pointsToBridgeJson(bridgePoints),
             layoutsJson,
             isUppercase,
-            JSON.stringify(timedPoints),
+            timedPointsToBridgeJson(bridgeTimed),
           )
           .then(nativeWord => {
-            const trimmed = nativeWord?.trim();
-            if (!trimmed) {
-              runJsDecode();
-              return;
-            }
-            commitDecodedWord(trimmed);
+            settle(nativeWord?.trim() || null, false);
           })
           .catch(() => {
-            runJsDecode();
+            settle(null, true);
           });
         return;
       }
@@ -507,25 +574,31 @@ export function SwipeTypingProvider({
       hideAllKeyPreviews();
       gestureSwipeActiveRef.current = true;
       onSwipeActiveChange?.(true);
+      clearSwipePreview();
+      swipeTrailPointsRef.current = [];
+      swipeTrailHeadRef.current = null;
+      spatialBufferRef.current.reset();
+      timedBufferRef.current.reset();
+      pagePointsRef.current = [];
+      lastTimedSampleTimeRef.current = 0;
+      const layouts = layoutContext?.getLayouts() ?? [];
+      layoutsJsonRef.current =
+        layouts.length > 0 ? keyLayoutsToJson(layouts) : '';
       syncTrailBounds(() => {
-        const layouts = layoutContext?.getLayouts() ?? [];
-        layoutsJsonRef.current =
-          layouts.length > 0 ? keyLayoutsToJson(layouts) : '';
-        swipeTrailPointsRef.current = [];
-        swipeTrailHeadRef.current = null;
-        localPointsRef.current = [];
-        pagePointsRef.current = [];
-        timedPointsRef.current = [];
-        lastTimedSampleTimeRef.current = 0;
-        // Record start position for timed analysis
         recordTimedSample(session.rawStartX, session.rawStartY);
         appendSwipePoint(session.rawStartX, session.rawStartY);
-        // Immediately record the first move point in time buffer
         recordTimedSample(pageX, pageY);
         appendSwipePoint(pageX, pageY);
       });
     },
-    [appendSwipePoint, layoutContext, onSwipeActiveChange, recordTimedSample, syncTrailBounds],
+    [
+      appendSwipePoint,
+      clearSwipePreview,
+      layoutContext,
+      onSwipeActiveChange,
+      recordTimedSample,
+      syncTrailBounds,
+    ],
   );
 
   const finishPointerSession = useCallback(
@@ -546,17 +619,18 @@ export function SwipeTypingProvider({
         if (!lastPage || endJump < dp(48)) {
           appendSwipePoint(endPageX, endPageY);
         }
-        const localPoints = [...localPointsRef.current];
-        const timedPoints = [...timedPointsRef.current];
+        const localPoints = spatialBufferRef.current.snapshot();
+        const timedPoints = timedBufferRef.current.snapshot();
         const tapCommitted = session.tapCommitted;
         pagePointsRef.current = [];
-        localPointsRef.current = [];
-        timedPointsRef.current = [];
+        spatialBufferRef.current.reset();
+        timedBufferRef.current.reset();
         lastTimedSampleTimeRef.current = 0;
         layoutsJsonRef.current = '';
         swipeTrailHeadRef.current = null;
         activeSwipePointerIdRef.current = null;
         gestureSwipeActiveRef.current = false;
+        clearSwipePreview();
         setTrailFading(true);
         decodeAndCommit(localPoints, timedPoints, tapCommitted);
         return;
@@ -566,8 +640,8 @@ export function SwipeTypingProvider({
         activeSwipePointerIdRef.current = null;
         gestureSwipeActiveRef.current = false;
         pagePointsRef.current = [];
-        localPointsRef.current = [];
-        timedPointsRef.current = [];
+        spatialBufferRef.current.reset();
+        timedBufferRef.current.reset();
         lastTimedSampleTimeRef.current = 0;
         clearSwipePreview();
         onSwipeActiveChange?.(false);

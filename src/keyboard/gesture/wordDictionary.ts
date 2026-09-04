@@ -46,7 +46,7 @@ export function wordKeySequence(word: string): string {
   return collapseTracePattern(word.toLowerCase());
 }
 
-const MAX_SWIPE_WORD_LENGTH = 22;
+const MAX_SWIPE_WORD_LENGTH = 32;
 
 type SwipeCandidate = {word: string; rank: number};
 

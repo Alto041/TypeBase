@@ -42,16 +42,19 @@ type ItemsMenuPanelProps = {
   onSelectResize: () => void;
   onSelectMetrics?: () => void;
   onSelectOneHand?: () => void;
+  pluginsLocked?: boolean;
+  onLockedPluginPress?: () => void;
 };
 
 type PluginTileProps = {
   title: string;
   Icon: FC<{width?: number; height?: number; color?: string}>;
   tileStyle?: StyleProp<ViewStyle>;
+  locked?: boolean;
   onPress: () => void;
 };
 
-function PluginTile({title, Icon, tileStyle, onPress}: PluginTileProps) {
+function PluginTile({title, Icon, tileStyle, locked = false, onPress}: PluginTileProps) {
   const theme = useKeyboardTheme();
   const styles = useThemedStyles(createItemsMenuStyles);
 
@@ -66,6 +69,7 @@ function PluginTile({title, Icon, tileStyle, onPress}: PluginTileProps) {
       style={[styles.tile, tileStyle]}>
       <PluginPanelIcon Icon={Icon} />
       <Text style={styles.tileTitle}>{title}</Text>
+      {locked ? <Text style={styles.lockLabel}>Premium</Text> : null}
       <View style={styles.tileSpacer} />
       <ArrowIcon width={9} height={16} color={theme.iconMuted} />
     </TouchableOpacity>
@@ -140,6 +144,8 @@ export function ItemsMenuPanel({
   onSelectResize,
   onSelectMetrics,
   onSelectOneHand,
+  pluginsLocked = false,
+  onLockedPluginPress,
 }: ItemsMenuPanelProps) {
   const theme = useKeyboardTheme();
   const panelStyles = usePluginPanelStyles();
@@ -175,8 +181,13 @@ export function ItemsMenuPanel({
             Icon={plugin.Icon}
             tileStyle={getTileStyle(index, plugins.length)}
             onPress={() => {
+              if (pluginsLocked) {
+                onLockedPluginPress?.();
+                return;
+              }
               handlers[plugin.id]?.();
             }}
+            locked={pluginsLocked}
           />
         ))}
       </PluginScrollView>
@@ -230,6 +241,14 @@ function createItemsMenuStyles(theme: KeyboardTheme) {
       fontSize: 16,
       fontFamily: theme.fontFamily,
       fontWeight: '600',
+    },
+    lockLabel: {
+      color: theme.iconMuted,
+      fontSize: 11,
+      fontFamily: theme.fontFamily,
+      fontWeight: '600',
+      textTransform: 'uppercase',
+      marginLeft: 4,
     },
     tileSpacer: {
       flex: 1,

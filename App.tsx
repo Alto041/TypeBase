@@ -45,11 +45,11 @@ import { AiConfigScreen } from './AiConfigScreen';
 import { OnboardingScreen } from './OnboardingScreen';
 import { LanguageLayoutScreen } from './LanguageLayoutScreen';
 import {
-  ensurePlayLicensed,
-  isPlayLicenseCached,
-  type PlayLicenseStatus,
-} from './src/licensing/playLicense';
-import { LicenseGateScreen } from './src/licensing/LicenseGateScreen';
+  consumePendingPremiumUpgrade,
+} from './src/licensing/premium';
+import {PremiumProvider, usePremium} from './src/licensing/PremiumContext';
+import {PremiumUpgradeScreen} from './src/licensing/PremiumUpgradeScreen';
+import {ensurePlayLicensed} from './src/licensing/playLicense';
 
 const C = {
   bg: '#f2f2f4',
@@ -346,6 +346,7 @@ function SetupScreen() {
   const [showConsoleSettings, setShowConsoleSettings] = useState(false);
   const [showEngineStats, setShowEngineStats] = useState(false);
   const [showPersonalTyping, setShowPersonalTyping] = useState(false);
+  const [showPremiumUpgrade, setShowPremiumUpgrade] = useState(false);
   const { animatedStyle, transitionTo } = useScreenTransition();
 
   const changeTab = (next: NavTab) => {
@@ -400,6 +401,32 @@ function SetupScreen() {
     transitionTo(() => setShowPersonalTyping(false));
   };
 
+  const openPremiumUpgrade = () => {
+    transitionTo(() => setShowPremiumUpgrade(true));
+  };
+
+  const closePremiumUpgrade = () => {
+    transitionTo(() => setShowPremiumUpgrade(false));
+  };
+
+  useEffect(() => {
+    const checkPendingPremium = async () => {
+      const pending = await consumePendingPremiumUpgrade();
+      if (pending) {
+        openPremiumUpgrade();
+      }
+    };
+    void checkPendingPremium();
+  }, []);
+
+  if (showPremiumUpgrade) {
+    return (
+      <View style={styles.setupRoot}>
+        <PremiumUpgradeScreen onBack={closePremiumUpgrade} />
+      </View>
+    );
+  }
+
   if (showAiConfig) {
     return (
       <View style={styles.setupRoot}>
@@ -448,6 +475,7 @@ function SetupScreen() {
           onOpenConsole={openConsoleSettings}
           onOpenEngineStats={openEngineStats}
           onOpenPersonalTyping={openPersonalTyping}
+          onOpenPremium={openPremiumUpgrade}
         />
       );
     }
@@ -461,6 +489,7 @@ function SetupScreen() {
       <LaunchpadScreen
         onOpenAiConfig={openAiConfig}
         onOpenLanguageLayout={openLanguageLayout}
+        onOpenPremium={openPremiumUpgrade}
       />
     );
   };
@@ -523,10 +552,13 @@ function QuickActionsToggleIcon({expanded}: {expanded: boolean}) {
 function LaunchpadScreen({
   onOpenAiConfig,
   onOpenLanguageLayout,
+  onOpenPremium,
 }: {
   onOpenAiConfig: () => void;
   onOpenLanguageLayout: () => void;
+  onOpenPremium: () => void;
 }) {
+  const {isPremium, canUse} = usePremium();
   const [quickActionsExpanded, setQuickActionsExpanded] = useState(false);
 
   return (
@@ -547,7 +579,13 @@ function LaunchpadScreen({
 
           <View style={styles.configRow}>
             <Pressable
-              onPress={onOpenAiConfig}
+              onPress={() => {
+                if (!canUse('ai_config')) {
+                  onOpenPremium();
+                  return;
+                }
+                onOpenAiConfig();
+              }}
               style={[styles.configCard, styles.configCardLeft]}
             >
               <Text style={[styles.configLabel, styles.configLabelTopLeft]}>
@@ -576,11 +614,20 @@ function LaunchpadScreen({
         <View style={styles.stack}>
           <LaunchpadCard
             icon={<LanguageLayoutIcon width={HOME_ICON} height={HOME_ICON} color={C.text} />}
+            title="Unlock TypeBase"
+            description={isPremium ? 'Premium active' : 'One-time purchase for full features'}
+            titleFontFamily="FragmentMono"
+            radius={18}
+            onPress={onOpenPremium}
+            position="top"
+          />
+          <LaunchpadCard
+            icon={<LanguageLayoutIcon width={HOME_ICON} height={HOME_ICON} color={C.text} />}
             title="Language & layout"
             titleFontFamily="FragmentMono"
             radius={18}
             onPress={onOpenLanguageLayout}
-            position="solo"
+            position="bottom"
           />
           <Reanimated.View
             layout={LinearTransition.duration(180)}
@@ -627,42 +674,17 @@ function LaunchpadScreen({
 export default function App() {
   const [onboardingComplete, setOnboardingComplete] = useState(false);
   const [hydratingOnboarding, setHydratingOnboarding] = useState(true);
-  const [licensePhase, setLicensePhase] = useState<
-    'checking_cache' | 'activating' | PlayLicenseStatus
-  >('checking_cache');
   const [fontsLoaded] = useFonts({
     FragmentMono: require('./assets/FragmentMono-Regular.ttf'),
     Geist: require('./assets/Geist-VariableFont_wght.ttf'),
     Inter: require('./assets/Inter_24pt-Regular.ttf'),
   });
 
-  const runLicenseCheck = useCallback(async () => {
-    if (Platform.OS !== 'android') {
-      setLicensePhase('licensed');
-      return;
-    }
-    try {
-      const cached = await isPlayLicenseCached();
-      if (cached) {
-        setLicensePhase('licensed');
-        // Still refresh LVL in native when needed; ensurePlayLicensed is cheap
-        // for already-allowed Play installs.
-        void ensurePlayLicensed().catch(() => undefined);
-        return;
-      }
-      setLicensePhase('activating');
-      const result = await ensurePlayLicensed();
-      // Soft-fail: only hard-gate on definitive unlicensed. Transient LVL /
-      // network issues must not look like "app doesn't open" to Play review.
-      setLicensePhase(result === 'unlicensed' ? 'unlicensed' : 'licensed');
-    } catch {
-      setLicensePhase('licensed');
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      void ensurePlayLicensed().catch(() => undefined);
     }
   }, []);
-
-  useEffect(() => {
-    void runLicenseCheck();
-  }, [runLicenseCheck]);
 
   useEffect(() => {
     const hydrate = async () => {
@@ -680,49 +702,27 @@ export default function App() {
     hydrate();
   }, []);
 
-  if (licensePhase === 'checking_cache' || licensePhase === 'activating') {
-    return (
-      <SafeAreaProvider>
-        <LicenseGateScreen
-          status="needs_network"
-          checking
-        />
-      </SafeAreaProvider>
-    );
-  }
-
-  if (licensePhase === 'unlicensed') {
-    return (
-      <SafeAreaProvider>
-        <LicenseGateScreen
-          status="unlicensed"
-          onRetry={() => {
-            setLicensePhase('activating');
-            void runLicenseCheck();
-          }}
-        />
-      </SafeAreaProvider>
-    );
-  }
-
   return (
     <SafeAreaProvider>
-      {hydratingOnboarding ? (
-        <View style={styles.safeArea} />
-      ) : onboardingComplete ? (
-        <SetupScreen />
-      ) : (
-        <OnboardingScreen
-          fontsLoaded={fontsLoaded}
-          onComplete={async () => {
-            try {
-              await AsyncStorage.setItem(ONBOARDING_COMPLETE_KEY, '1');
-            } finally {
+      <PremiumProvider>
+        {hydratingOnboarding ? (
+          <View style={styles.safeArea} />
+        ) : onboardingComplete ? (
+          <SetupScreen />
+        ) : (
+          <OnboardingScreen
+            fontsLoaded={fontsLoaded}
+            onComplete={async () => {
+              try {
+                await AsyncStorage.setItem(ONBOARDING_COMPLETE_KEY, '1');
+              } catch {
+                // ignore
+              }
               setOnboardingComplete(true);
-            }
-          }}
-        />
-      )}
+            }}
+          />
+        )}
+      </PremiumProvider>
     </SafeAreaProvider>
   );
 }

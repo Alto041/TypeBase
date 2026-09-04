@@ -1,5 +1,6 @@
 package com.typebase.app
 
+import com.typebase.app.billing.PremiumModule
 import com.typebase.app.licensing.PlayLicenseModule
 import com.facebook.react.ReactPackage
 import com.facebook.react.bridge.NativeModule
@@ -18,6 +19,7 @@ class KeyboardModulePackage : ReactPackage {
           GemmaModule(reactContext),
           ParakeetVoiceModule(reactContext),
           PlayLicenseModule(reactContext),
+          PremiumModule(reactContext),
       )
 
   override fun createViewManagers(

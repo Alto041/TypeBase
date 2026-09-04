@@ -3,12 +3,28 @@ import {
   DEFAULT_AUTOCORRECT_SETTINGS,
   type AutocorrectSettings,
 } from './types';
+import {canUseFeature} from '../../licensing/entitlements';
+
+function clampAutocorrectForTier(
+  settings: AutocorrectSettings,
+): AutocorrectSettings {
+  if (canUseFeature('autocorrect_full')) {
+    return settings;
+  }
+  return {
+    ...settings,
+    enabled: settings.enabled,
+    autoApplyOnSpace: false,
+    aiAutoCorrectEnabled: false,
+    contextCorrectionEnabled: false,
+  };
+}
 
 let cached: AutocorrectSettings = {...DEFAULT_AUTOCORRECT_SETTINGS};
 let loadPromise: Promise<void> | null = null;
 
 function normalizeSettings(raw: Partial<AutocorrectSettings>): AutocorrectSettings {
-  return {
+  return clampAutocorrectForTier({
     enabled: raw.enabled ?? DEFAULT_AUTOCORRECT_SETTINGS.enabled,
     autoApplyOnSpace:
       raw.autoApplyOnSpace ?? DEFAULT_AUTOCORRECT_SETTINGS.autoApplyOnSpace,
@@ -18,10 +34,11 @@ function normalizeSettings(raw: Partial<AutocorrectSettings>): AutocorrectSettin
     contextCorrectionEnabled:
       raw.contextCorrectionEnabled ??
       DEFAULT_AUTOCORRECT_SETTINGS.contextCorrectionEnabled,
-  };
+  });
 }
 
 async function persistSettings(): Promise<void> {
+  cached = clampAutocorrectForTier(cached);
   try {
     await keyboardBridge.setAutocorrectSettings(JSON.stringify(cached));
   } catch {
@@ -61,7 +78,7 @@ export async function reloadAutocorrectFromStorage(): Promise<void> {
 }
 
 export function getAutocorrectSettings(): AutocorrectSettings {
-  return {...cached};
+  return clampAutocorrectForTier({...cached});
 }
 
 export async function setAutocorrectEnabled(enabled: boolean): Promise<void> {

@@ -1,4 +1,5 @@
 import {keyboardBridge} from '../keyboardBridge';
+import {canUseFeature} from '../../licensing/entitlements';
 import {
   DEFAULT_GESTURE_SETTINGS,
   DEFAULT_LAUNCHER_APP_PACKAGE,
@@ -19,8 +20,22 @@ let cachedCommaLauncherArmed = false;
 let cachedPeriodRewriteArmed = false;
 let loadPromise: Promise<void> | null = null;
 
-function normalizeSettings(raw: PersistedGestureData): GestureSettings {
+function clampGesturesForTier(settings: GestureSettings): GestureSettings {
+  if (canUseFeature('gestures')) {
+    return settings;
+  }
   return {
+    swipeTyping: false,
+    spaceCursorSwipe: false,
+    backspaceWordSwipe: false,
+    backspaceSentenceHold: false,
+    commaLauncher: false,
+    undoRedo: false,
+    trackpadMode: false,
+  };
+}
+function normalizeSettings(raw: PersistedGestureData): GestureSettings {
+  return clampGesturesForTier({
     swipeTyping: raw.swipeTyping ?? DEFAULT_GESTURE_SETTINGS.swipeTyping,
     spaceCursorSwipe:
       raw.spaceCursorSwipe ?? DEFAULT_GESTURE_SETTINGS.spaceCursorSwipe,
@@ -35,7 +50,7 @@ function normalizeSettings(raw: PersistedGestureData): GestureSettings {
       DEFAULT_GESTURE_SETTINGS.commaLauncher,
     undoRedo: raw.undoRedo ?? DEFAULT_GESTURE_SETTINGS.undoRedo,
     trackpadMode: raw.trackpadMode ?? DEFAULT_GESTURE_SETTINGS.trackpadMode,
-  };
+  });
 }
 
 function buildPersistPayload(): string {
@@ -137,7 +152,7 @@ export async function reloadGesturesFromStorage(): Promise<void> {
 }
 
 export function getGestureSettings(): GestureSettings {
-  return {...cached};
+  return clampGesturesForTier({...cached});
 }
 
 export function getLauncherAppPackage(): string {
@@ -156,6 +171,9 @@ export async function setGestureSetting(
   key: GestureSettingKey,
   enabled: boolean,
 ): Promise<void> {
+  if (!canUseFeature('gestures')) {
+    return;
+  }
   cached = {...cached, [key]: enabled};
   await persistSettings();
 }

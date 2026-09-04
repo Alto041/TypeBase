@@ -36,6 +36,7 @@ type KeyboardModuleType = {
     timedPointsJson?: string,
   ) => Promise<string>;
   cancelSwipePreview: () => void;
+  commitSwipeWord: (word: string) => void;
   getEssentials: () => Promise<string>;
   setEssentials: (json: string) => Promise<boolean>;
   getPrefersNumpad: () => Promise<boolean>;
@@ -148,6 +149,7 @@ type KeyboardModuleType = {
     fast: boolean,
   ) => Promise<string[]>;
   syncNativeSuggestionPrefix: (prefix: string) => void;
+  isPremiumCached: () => Promise<boolean>;
 };
 
 const {KeyboardModule} = NativeModules;
@@ -297,6 +299,13 @@ export const keyboardBridge: KeyboardModuleType = {
     if (Platform.OS === 'android' && KeyboardModule?.cancelSwipePreview) {
       KeyboardModule.cancelSwipePreview();
     }
+  },
+  commitSwipeWord: (word: string) => {
+    if (Platform.OS === 'android' && KeyboardModule?.commitSwipeWord) {
+      KeyboardModule.commitSwipeWord(word);
+      return;
+    }
+    KeyboardModule?.insertText?.(`${word} `);
   },
   getEssentials: () => {
     if (Platform.OS === 'android' && KeyboardModule?.getEssentials) {
@@ -907,5 +916,11 @@ export const keyboardBridge: KeyboardModuleType = {
     if (Platform.OS === 'android' && KeyboardModule?.syncNativeSuggestionPrefix) {
       KeyboardModule.syncNativeSuggestionPrefix(prefix);
     }
+  },
+  isPremiumCached: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.isPremiumCached) {
+      return KeyboardModule.isPremiumCached() as Promise<boolean>;
+    }
+    return Promise.resolve(true);
   },
 };

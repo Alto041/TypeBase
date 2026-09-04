@@ -48,6 +48,7 @@ import {
   clearCustomKeyboardFont,
   importCustomKeyboardFont,
 } from './src/keyboard/settings/fontStore';
+import {usePremium} from './src/licensing/PremiumContext';
 import {
   ensureThemeLoaded,
   getKeyboardColorScheme,
@@ -77,6 +78,7 @@ const CARD_R = 25;
 const TEXT_KERNING = -0.7;
 
 export function CustomizeScreen({onBack}: {onBack: () => void}) {
+  const {canUse} = usePremium();
   const [layout, setLayout] = useState<KeyboardLayoutSettings>(
     DEFAULT_KEYBOARD_LAYOUT_SETTINGS,
   );
@@ -120,6 +122,10 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
   }, [syncTapSoundState, tapSoundAnim]);
 
   const update = (key: keyof KeyboardLayoutSettings, value: number) => {
+    if (!canUse('keyboard_customize')) {
+      Alert.alert('Premium feature', 'Unlock TypeBase to customize key sizing and sounds.');
+      return;
+    }
     let next = value;
     if (key === 'keyHeight') next = Math.max(40, Math.min(64, value));
     if (key === 'keyGap') next = Math.max(0, Math.min(12, value));
@@ -205,6 +211,10 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
   };
 
   const handleImportTapSound = async () => {
+    if (!canUse('keyboard_customize')) {
+      Alert.alert('Premium feature', 'Unlock TypeBase to import custom tap sounds.');
+      return;
+    }
     if (loading || importingTapSound || importTapSoundInFlightRef.current) {
       return;
     }
@@ -732,6 +742,7 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
 }
 
 export function ThemesScreen({onBack}: {onBack: () => void}) {
+  const {canUse} = usePremium();
   const [design, setDesign] = useState<'typebase' | 'quivox' | 'macintosh' | 'apple'>('typebase');
   const [isDark, setIsDark] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -790,6 +801,10 @@ export function ThemesScreen({onBack}: {onBack: () => void}) {
   }, [toggleAnim, fontToggleAnim]);
 
   const applyThemeJson = async () => {
+    if (!canUse('themes_premium')) {
+      Alert.alert('Premium feature', 'Unlock TypeBase to import a custom theme.');
+      return;
+    }
     const result = parseCustomThemeJsonFromEditor(themeJson);
     if (!result.ok) {
       setJsonError(result.error);
@@ -804,6 +819,10 @@ export function ThemesScreen({onBack}: {onBack: () => void}) {
   };
 
   const select = (which: 'typebase' | 'quivox' | 'macintosh' | 'apple') => {
+    if (which !== 'typebase' && !canUse('themes_premium')) {
+      Alert.alert('Premium feature', 'Unlock TypeBase to use this theme.');
+      return;
+    }
     if (loading) return;
     setDesign(which);
     void setKeyboardDesign(which);
@@ -833,6 +852,10 @@ export function ThemesScreen({onBack}: {onBack: () => void}) {
   const isApple = design === 'apple';
 
   const handleImportKeyboardFont = async () => {
+    if (!canUse('themes_premium')) {
+      Alert.alert('Premium feature', 'Unlock TypeBase to use a custom keyboard font.');
+      return;
+    }
     if (loading || importingFont || importFontInFlightRef.current) return;
     importFontInFlightRef.current = true;
     try {

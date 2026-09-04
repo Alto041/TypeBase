@@ -285,6 +285,7 @@ object KeyboardInputBridge {
 
   fun setGamePerformanceMode(enabled: Boolean) {
     gamePerformanceMode = enabled
+    inputService?.setNativeGamePerformanceMode(enabled)
   }
 
   fun isGamePerformanceMode(): Boolean = gamePerformanceMode

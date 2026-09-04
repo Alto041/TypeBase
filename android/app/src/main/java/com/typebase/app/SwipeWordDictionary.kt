@@ -17,12 +17,16 @@ import kotlin.math.min
 object SwipeWordDictionary {
   private const val LEARNED_WORDS_KEY = "learned_words"
   private const val SWIPE_CANDIDATE_LIMIT = 320
-  private const val SWIPE_SCORE_LIMIT = 200
-  private const val PREVIEW_CANDIDATE_LIMIT = 120
-  private const val PREVIEW_SCORE_LIMIT = 45
-  private const val SHAPE_FALLBACK_SCORE_LIMIT = 1200
-  /** Dictionary + commit length ceiling (was 16; blocked longer dict words). */
-  private const val MAX_SWIPE_WORD_LENGTH = 22
+  private const val SWIPE_SCORE_LIMIT = 160
+  private const val PREVIEW_CANDIDATE_LIMIT = 40
+  private const val PREVIEW_SCORE_LIMIT = 20
+  private const val SHAPE_FALLBACK_SCORE_LIMIT = 500
+  private const val MAX_PARSE_POINTS = 512
+  private const val MAX_PREVIEW_POINTS = 128
+  private const val MAX_PARSE_KEYS = 80
+  private const val MAX_PARSE_TIMED = 900
+  /** Dictionary + commit length ceiling. */
+  private const val MAX_SWIPE_WORD_LENGTH = 32
 
   private data class DecodeConfig(
       val candidateLimit: Int,
@@ -36,7 +40,7 @@ object SwipeWordDictionary {
       DecodeConfig(
           candidateLimit = SWIPE_CANDIDATE_LIMIT,
           scoreLimit = SWIPE_SCORE_LIMIT,
-          rejectThresholdLong = 2.55,
+          rejectThresholdLong = 3.1,
           rejectThresholdShort = 2.05,
           preview = false,
       )
@@ -45,7 +49,7 @@ object SwipeWordDictionary {
       DecodeConfig(
           candidateLimit = PREVIEW_CANDIDATE_LIMIT,
           scoreLimit = PREVIEW_SCORE_LIMIT,
-          rejectThresholdLong = 2.55,
+          rejectThresholdLong = 3.1,
           rejectThresholdShort = 2.45,
           preview = true,
       )
@@ -58,7 +62,14 @@ object SwipeWordDictionary {
   /** Frequency-ordered buckets avoid walking the entire dictionary per decode. */
   private val wordsByFirstLetter =
       Array(26) { ArrayList<Pair<String, Int>>(512) }
+  /** Length-indexed buckets for O(k) long-glide candidate seeding. */
+  private val wordsByLength =
+      Array(MAX_SWIPE_WORD_LENGTH + 1) { ArrayList<Pair<String, Int>>(256) }
 
+  @Volatile private var cachedKeysJson: String? = null
+  @Volatile private var cachedKeys: List<Key>? = null
+  @Volatile private var learnedWordsCache: Map<String, Int>? = null
+  @Volatile private var learnedWordsCacheAt: Long = 0L
   private data class Pt(val x: Double, val y: Double)
   private data class TimedPt(val x: Double, val y: Double, val t: Long)
   private data class Key(
@@ -92,6 +103,7 @@ object SwipeWordDictionary {
           words.add(word)
           staticRank[word] = rank
           wordsByFirstLetter[word[0] - 'a'].add(word to rank)
+          wordsByLength[word.length].add(word to rank)
         }
       }
       loaded = true
@@ -300,23 +312,56 @@ object SwipeWordDictionary {
       timedPointsJson: String,
       config: DecodeConfig,
   ): String? {
+    return try {
+      decodeSwipeGestureInternalUnsafe(
+          context,
+          prefs,
+          pointsJson,
+          layoutsJson,
+          isUppercase,
+          timedPointsJson,
+          config,
+      )
+    } catch (error: Exception) {
+      android.util.Log.w("SwipeWordDictionary", "decode failed", error)
+      null
+    }
+  }
+
+  private fun decodeSwipeGestureInternalUnsafe(
+      context: Context,
+      prefs: SharedPreferences,
+      pointsJson: String,
+      layoutsJson: String,
+      isUppercase: Boolean,
+      timedPointsJson: String,
+      config: DecodeConfig,
+  ): String? {
     ensureLoaded(context)
-    val rawPoints = parsePoints(pointsJson)
-    val keys = parseKeys(layoutsJson)
+    val rawPoints = parsePoints(pointsJson, config.preview)
+    val keys = parseKeysCached(layoutsJson)
     if (rawPoints.size < 2 || keys.size < 10) {
       return null
     }
 
     val keyMap = keys.associateBy { it.letter }
     val scale = keyboardScale(keys)
+    val preTrace = buildTracePattern(rawPoints, rawPoints, keys)
     val resampleCount =
         if (config.preview) {
-          min(32, resampleCountFor(rawPoints.size))
+          min(32, resampleCountFor(rawPoints.size, preTrace.length))
         } else {
-          resampleCountFor(rawPoints.size)
+          resampleCountFor(rawPoints.size, preTrace.length)
         }
     val path = resamplePath(rawPoints, resampleCount)
-    val pattern = buildTracePattern(rawPoints, path, keys)
+    val timedPoints = parseTimedPoints(timedPointsJson)
+    val pauseAnchors =
+        if (!config.preview && timedPoints.size >= 3) {
+          extractPauseAnchors(timedPoints, keys)
+        } else {
+          emptyList()
+        }
+    val pattern = buildTracePattern(rawPoints, path, keys, pauseAnchors)
     val startLetter = nearestLetter(rawPoints.first(), keys) ?: return null
     val candidatePattern =
         if (pattern.length >= 2 && pattern[0] == startLetter) pattern
@@ -326,12 +371,7 @@ object SwipeWordDictionary {
     val gestureLength = pathLength(rawPoints)
     val keyboardHeight = keys.maxOfOrNull { it.y + it.height } ?: 0.0
     val verticalSpan = pathVerticalSpan(rawPoints)
-    val learned = readLearnedWords(prefs)
-
-    val timedPoints = parseTimedPoints(timedPointsJson)
-    val pauseAnchors =
-        if (timedPoints.size >= 3) extractPauseAnchors(timedPoints, keys)
-        else emptyList()
+    val learned = readLearnedWordsCached(prefs)
 
     val candidates =
         prioritizeCandidates(
@@ -364,6 +404,7 @@ object SwipeWordDictionary {
               verticalSpan,
               keyboardHeight,
               pauseAnchors,
+              config.preview,
           ) ?: continue
       if (score < bestScore) {
         secondScore = bestScore
@@ -375,8 +416,11 @@ object SwipeWordDictionary {
     }
 
     val rejectThreshold =
-        if (candidatePattern.length >= 7) config.rejectThresholdLong
-        else config.rejectThresholdShort
+        when {
+          candidatePattern.length >= 8 -> config.rejectThresholdLong
+          candidatePattern.length >= 7 -> 2.55
+          else -> config.rejectThresholdShort
+        }
     val margin =
         if (secondScore == Double.POSITIVE_INFINITY) 1.0
         else max(0.0, secondScore - bestScore)
@@ -403,6 +447,28 @@ object SwipeWordDictionary {
     }
 
     val result = bestWord ?: return null
+    if (!config.preview) {
+      val finalScore =
+          scoreCandidate(
+              result,
+              candidatePattern,
+              rawPoints,
+              path,
+              gestureTurns,
+              keyMap,
+              scale,
+              gestureLength,
+              staticRank[result] ?: 5000,
+              learned[result] ?: 0,
+              verticalSpan,
+              keyboardHeight,
+              pauseAnchors,
+              preview = false,
+          ) ?: Double.POSITIVE_INFINITY
+      if (finalScore > rejectThreshold + 0.35) {
+        return null
+      }
+    }
     return if (isUppercase) result.replaceFirstChar { it.uppercase() } else result
   }
 
@@ -470,32 +536,52 @@ object SwipeWordDictionary {
           }
         }
       }
+      if (pauseAnchors.size >= 3) {
+        val mid = pauseAnchors[pauseAnchors.size / 2]
+        val midPattern = "${pauseAnchors.first()}$mid"
+        for ((word, rank) in firstLetterWords) {
+          if (wordMatchesTrace(word, midPattern, maxEdits + 1)) {
+            if (push(word, rank, false)) {
+              return results
+            }
+          }
+        }
+      }
     }
 
     // Highest priority: words whose length matches a long swipe target.
-    for ((word, rank) in firstLetterWords) {
-      if (word.length !in anchorMin..anchorMax) {
-        continue
-      }
-      if (push(word, rank, true) && results.size >= maxCandidates) {
-        return results
+    for (len in anchorMax downTo anchorMin) {
+      for ((word, rank) in wordsByLength[len]) {
+        if (word.firstOrNull() != first) {
+          continue
+        }
+        if (push(word, rank, true) && results.size >= maxCandidates) {
+          return results
+        }
       }
     }
 
     // Length-near trace matches so long swipes keep longer dictionary words.
-    for ((word, rank) in firstLetterWords) {
-      if (word.length !in nearMin..nearMax) {
-        continue
-      }
-      if (push(word, rank, true) && results.size >= maxCandidates) {
-        return results
+    for (len in nearMax downTo nearMin) {
+      for ((word, rank) in wordsByLength[len]) {
+        if (word.firstOrNull() != first) {
+          continue
+        }
+        if (push(word, rank, true) && results.size >= maxCandidates) {
+          return results
+        }
       }
     }
 
     // Length-aware trace matches first (long words survive crowded short hits).
-    for ((word, rank) in firstLetterWords) {
-      if (word.length >= preferMinLen && push(word, rank, true) && results.size >= maxCandidates) {
-        return results
+    for (len in MAX_SWIPE_WORD_LENGTH downTo preferMinLen) {
+      for ((word, rank) in wordsByLength[len]) {
+        if (word.firstOrNull() != first) {
+          continue
+        }
+        if (push(word, rank, true) && results.size >= maxCandidates) {
+          return results
+        }
       }
     }
 
@@ -531,9 +617,12 @@ object SwipeWordDictionary {
   ): String? {
     val startLetter = nearestLetter(rawPoints.first(), keys) ?: return null
     val firstLetterWords = wordsByFirstLetter[startLetter - 'a']
-    val fallbackPattern = buildTracePattern(rawPoints, path, keys)
+    val fallbackPattern = buildTracePattern(rawPoints, path, keys, pauseAnchors)
     var bestWord: String? = null
     var bestScore = Double.POSITIVE_INFINITY
+    val patternLength =
+        if (fallbackPattern.length >= 2) fallbackPattern.length else 6
+    val earlyExitScore = if (patternLength >= 8) 1.35 else 1.05
 
     for ((word, rank) in firstLetterWords.take(SHAPE_FALLBACK_SCORE_LIMIT)) {
       val pattern =
@@ -553,13 +642,18 @@ object SwipeWordDictionary {
               verticalSpan,
               keyboardHeight,
               pauseAnchors,
+              preview = false,
           ) ?: continue
-      if (score > 2.1) {
+      val scoreCutoff = if (patternLength >= 8) 3.1 else if (patternLength >= 7) 2.65 else 2.1
+      if (score > scoreCutoff) {
         continue
       }
       if (score < bestScore) {
         bestScore = score
         bestWord = word
+        if (bestScore < earlyExitScore) {
+          break
+        }
       }
     }
 
@@ -580,6 +674,7 @@ object SwipeWordDictionary {
       verticalSpan: Double = 0.0,
       keyboardHeight: Double = 0.0,
       pauseAnchors: List<Char> = emptyList(),
+      preview: Boolean = false,
   ): Double? {
     val idealPath = idealPath(word, keyMap)
     if (idealPath.size < 2) {
@@ -589,14 +684,20 @@ object SwipeWordDictionary {
     val lengthPenalty =
         lengthPenalty(word, pattern, idealLength, gestureLength, pauseAnchors.size >= 2)
             ?: return null
-    if (!passesProximityGate(word, rawPoints, keyMap, verticalSpan, keyboardHeight)) {
+    if (!preview && !passesProximityGate(word, rawPoints, keyMap, verticalSpan, keyboardHeight)) {
       return null
     }
     val proximity = proximityScore(word, path, keyMap, scale) ?: return null
     val anchors = anchorScore(word, rawPoints, keyMap, scale) ?: return null
-    val turns = turnScore(gestureTurns, extractIdealTurns(idealPath), scale)
-    val dtw = dtwAverage(path, resamplePath(idealPath, path.size)) / scale
-    val shape = proximity * 0.50 + dtw * 0.50
+    val turns =
+        if (preview) 0.0
+        else turnScore(gestureTurns, extractIdealTurns(idealPath), scale)
+    val dtw =
+        if (preview) 0.0
+        else dtwAverage(path, resamplePath(idealPath, path.size)) / scale
+    val shape =
+        if (preview) proximity
+        else proximity * 0.50 + dtw * 0.50
     val trace = keySequence(word)
     val exactTraceBonus = if (trace == pattern) -0.55 else 0.0
     val lengthGapPenalty =
@@ -605,9 +706,9 @@ object SwipeWordDictionary {
     val learnedBonus = min(0.55, learnedUses * 0.08)
 
     var score =
-        shape * 0.72 +
+        shape * (if (preview) 0.9 else 0.72) +
             anchors * 0.55 +
-            turns * 0.42 +
+            turns * (if (preview) 0.0 else 0.42) +
             lengthPenalty * 1.15 +
             lengthGapPenalty +
             rankPenalty +
@@ -615,7 +716,7 @@ object SwipeWordDictionary {
             learnedBonus
 
     // Gboard-style pause anchors: deliberate dwells are high-confidence intent.
-    if (pauseAnchors.size > 2) {
+    if (!preview && pauseAnchors.size > 2) {
       val internal = pauseAnchors.subList(1, pauseAnchors.size - 1)
       if (internal.isNotEmpty()) {
         var pos = 0
@@ -630,7 +731,7 @@ object SwipeWordDictionary {
             score -= 0.55
           }
         }
-        if (internal.size >= 2 && misses > 0) {
+        if (misses >= 2) {
           return null
         }
       }
@@ -644,7 +745,24 @@ object SwipeWordDictionary {
       return emptyList()
     }
     val array = JSONArray(json)
-    return List(array.length()) { index ->
+    if (array.length() == 0) {
+      return emptyList()
+    }
+    val first = array.opt(0)
+    if (first is Number) {
+      val values = min(array.length(), MAX_PARSE_TIMED * 3)
+      val count = values / 3
+      return List(count) { index ->
+        val base = index * 3
+        TimedPt(
+            array.getDouble(base),
+            array.getDouble(base + 1),
+            array.optLong(base + 2, index.toLong()),
+        )
+      }
+    }
+    val limit = min(array.length(), MAX_PARSE_TIMED)
+    return List(limit) { index ->
       val item = array.getJSONObject(index)
       TimedPt(
           item.optDouble("x"),
@@ -654,18 +772,52 @@ object SwipeWordDictionary {
     }
   }
 
-  private fun parsePoints(json: String): List<Pt> {
+  private fun parsePoints(json: String, preview: Boolean = false): List<Pt> {
+    if (json.isBlank() || json == "[]") {
+      return emptyList()
+    }
     val array = JSONArray(json)
-    return List(array.length()) { index ->
+    if (array.length() == 0) {
+      return emptyList()
+    }
+    val maxPoints = if (preview) MAX_PREVIEW_POINTS else MAX_PARSE_POINTS
+    val first = array.opt(0)
+    if (first is Number) {
+      val values = min(array.length(), maxPoints * 2)
+      val count = values / 2
+      return List(count) { index ->
+        Pt(array.getDouble(index * 2), array.getDouble(index * 2 + 1))
+      }
+    }
+    val limit = min(array.length(), maxPoints)
+    return List(limit) { index ->
       val item = array.getJSONObject(index)
       Pt(item.optDouble("x"), item.optDouble("y"))
     }
   }
 
+  private fun parseKeysCached(json: String): List<Key> {
+    val cached = cachedKeys
+    if (cached != null && json == cachedKeysJson) {
+      return cached
+    }
+    val parsed = parseKeys(json)
+    cachedKeysJson = json
+    cachedKeys = parsed
+    return parsed
+  }
+
   private fun parseKeys(json: String): List<Key> {
     val array = JSONArray(json)
-    val keys = ArrayList<Key>(array.length())
-    for (index in 0 until array.length()) {
+    val keys = ArrayList<Key>(min(array.length(), MAX_PARSE_KEYS))
+    val limit = min(array.length(), MAX_PARSE_KEYS)
+    if (array.length() > MAX_PARSE_KEYS) {
+      android.util.Log.w(
+          "SwipeWordDictionary",
+          "trimming layout keys ${array.length()} -> $MAX_PARSE_KEYS",
+      )
+    }
+    for (index in 0 until limit) {
       val item = array.getJSONObject(index)
       val letter = item.optString("letter").firstOrNull() ?: continue
       keys.add(
@@ -707,6 +859,10 @@ object SwipeWordDictionary {
       return emptyList()
     }
 
+    val effectiveMinPause = if (timed.size > 200) max(minPauseMs, 90L) else minPauseMs
+    val maxDwellDistance = 8.0
+    val maxAnchors = 8
+
     val speeds = ArrayList<Double>(timed.size - 1)
     for (i in 0 until timed.size - 1) {
       val dt = max(1L, timed[i + 1].t - timed[i].t).toDouble()
@@ -737,18 +893,41 @@ object SwipeWordDictionary {
       }
       val regionEnd = j
       val durationMs = (timed.getOrNull(regionEnd)?.t ?: 0L) - timed[regionStart].t
-      if (durationMs >= minPauseMs) {
-        val mid = (regionStart + regionEnd) / 2
-        val letter =
-            nearestLetter(
+      if (durationMs >= effectiveMinPause) {
+        var maxMovement = 0.0
+        val anchorPt = Pt(timed[regionStart].x, timed[regionStart].y)
+        val endIdx = min(regionEnd, timed.size - 1)
+        for (k in regionStart..endIdx) {
+          maxMovement =
+              max(
+                  maxMovement,
+                  distance(anchorPt, Pt(timed[k].x, timed[k].y)),
+              )
+        }
+        if (maxMovement <= maxDwellDistance) {
+          var totalWeight = 0.0
+          var cx = 0.0
+          var cy = 0.0
+          for (k in regionStart until endIdx) {
+            val dt = max(1L, timed[k + 1].t - timed[k].t).toDouble()
+            totalWeight += dt
+            cx += timed[k].x * dt
+            cy += timed[k].y * dt
+          }
+          val centroid =
+              if (totalWeight > 0.0) {
+                Pt(cx / totalWeight, cy / totalWeight)
+              } else {
+                val mid = (regionStart + regionEnd) / 2
                 Pt(
                     timed[mid.coerceIn(0, timed.size - 1)].x,
                     timed[mid.coerceIn(0, timed.size - 1)].y,
-                ),
-                keys,
-            )
-        if (letter != null && anchors.lastOrNull() != letter) {
-          anchors.add(letter)
+                )
+              }
+          val letter = nearestLetter(centroid, keys)
+          if (letter != null && anchors.lastOrNull() != letter) {
+            anchors.add(letter)
+          }
         }
       }
       i = regionEnd + 1
@@ -761,7 +940,16 @@ object SwipeWordDictionary {
       }
     }
 
-    return anchors
+    val merged = ArrayList<Char>(min(anchors.size, maxAnchors))
+    for (anchor in anchors) {
+      if (merged.lastOrNull() != anchor) {
+        merged.add(anchor)
+      }
+      if (merged.size >= maxAnchors) {
+        break
+      }
+    }
+    return merged
   }
 
   private fun keyboardScale(keys: List<Key>): Double {
@@ -770,8 +958,10 @@ object SwipeWordDictionary {
     return max(hypot(maxX, maxY) * 0.35, 48.0)
   }
 
-  private fun resampleCountFor(pointCount: Int): Int =
-      min(60, max(36, (pointCount * 0.55).toInt()))
+  private fun resampleCountFor(pointCount: Int, traceKeyCount: Int = 0): Int {
+    val scaled = kotlin.math.round(kotlin.math.sqrt(pointCount.toDouble()) * 6.0 + traceKeyCount * 4.0).toInt()
+    return min(72, max(36, scaled))
+  }
 
   private fun distance(a: Pt, b: Pt): Double = hypot(a.x - b.x, a.y - b.y)
 
@@ -843,7 +1033,12 @@ object SwipeWordDictionary {
     return if (bestDistance <= keySize * 0.85) best?.letter else null
   }
 
-  private fun buildTracePattern(raw: List<Pt>, path: List<Pt>, keys: List<Key>): String {
+  private fun buildTracePattern(
+      raw: List<Pt>,
+      path: List<Pt>,
+      keys: List<Key>,
+      pauseAnchors: List<Char> = emptyList(),
+  ): String {
     fun trace(points: List<Pt>): String {
       val out = StringBuilder()
       var last: Char? = null
@@ -858,10 +1053,13 @@ object SwipeWordDictionary {
     }
     val rawTrace = trace(raw)
     val pathTrace = trace(path)
-    if (rawTrace.length >= 2 && pathTrace.length >= 2) {
-      return if (rawTrace.length <= pathTrace.length) rawTrace else pathTrace
+    val anchorTrace = pauseAnchors.joinToString("")
+    val candidates =
+        listOf(rawTrace, pathTrace, anchorTrace).filter { it.length >= 2 }
+    if (candidates.isEmpty()) {
+      return if (rawTrace.length >= 2) rawTrace else pathTrace
     }
-    return if (rawTrace.length >= 2) rawTrace else pathTrace
+    return candidates.maxByOrNull { it.length } ?: rawTrace
   }
 
   private fun keySequence(word: String): String {
@@ -939,11 +1137,11 @@ object SwipeWordDictionary {
           else -> 5
         }
     val verticalBoost =
-        if (keyboardHeight > 0 && verticalSpan > keyboardHeight * 0.42) 0.15 else 0.0
+        if (keyboardHeight > 0 && verticalSpan > keyboardHeight * 0.35) 0.28 else 0.0
     val longWordStretch =
         when {
-          sequence.length >= 10 -> 0.12
-          sequence.length >= 8 -> 0.08
+          sequence.length >= 10 -> 0.16
+          sequence.length >= 8 -> 0.12
           else -> 0.0
         }
     var misses = 0
@@ -1086,6 +1284,18 @@ object SwipeWordDictionary {
     return array
   }
 
+  private fun readLearnedWordsCached(prefs: SharedPreferences): Map<String, Int> {
+    val now = android.os.SystemClock.uptimeMillis()
+    val cached = learnedWordsCache
+    if (cached != null && now - learnedWordsCacheAt < 5_000L) {
+      return cached
+    }
+    val fresh = readLearnedWords(prefs)
+    learnedWordsCache = fresh
+    learnedWordsCacheAt = now
+    return fresh
+  }
+
   private fun readLearnedWords(prefs: SharedPreferences): Map<String, Int> {
     val raw = prefs.getString(LEARNED_WORDS_KEY, "{}") ?: "{}"
     val json = JSONObject(raw)
@@ -1209,4 +1419,16 @@ object SwipeWordDictionary {
 
     return dp[word.length] <= maxEdits
   }
+
+  internal fun testingParsePointsCount(json: String): Int = parsePoints(json, false).size
+
+  internal fun testingParseTimedPointsCount(json: String): Int =
+      parseTimedPoints(json).size
+
+  internal fun testingExtractPauseAnchorsJson(
+      timedJson: String,
+      keysJson: String,
+  ): String =
+      extractPauseAnchors(parseTimedPoints(timedJson), parseKeys(keysJson))
+          .joinToString("")
 }

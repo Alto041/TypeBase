@@ -1,4 +1,5 @@
 import {InteractionManager} from 'react-native';
+import {canUseFeature} from '../../licensing/entitlements';
 import {keyboardBridge} from '../keyboardBridge';
 import {
   isLearnablePhrase,
@@ -405,6 +406,9 @@ export function isHardRejectedCorrection(typed: string, candidate: string): bool
 export function queryPersonalContextCorrections(
   typedWord: string,
 ): Array<{to: string; confidence: number}> {
+  if (!canUseFeature('personal_typing')) {
+    return [];
+  }
   const from = normalizeLearnedWord(typedWord);
   if (!from) {
     return [];
@@ -463,6 +467,9 @@ function upsertWord(
   word: string,
   source: LearningSource,
 ): LearnedWordEntry | null {
+  if (!canUseFeature('personal_typing')) {
+    return null;
+  }
   if (!isLearnableWord(word)) {
     return null;
   }
@@ -495,6 +502,9 @@ function upsertPhrase(
   source: LearningSource,
   schedule = true,
 ): LearnedPhraseEntry | null {
+  if (!canUseFeature('personal_typing')) {
+    return null;
+  }
   if (!isLearnablePhrase(phrase)) {
     return null;
   }

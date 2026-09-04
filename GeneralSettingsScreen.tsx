@@ -40,6 +40,7 @@ import {
   DEFAULT_CONTROLLER_SETTINGS,
   type ControllerSettings,
 } from './src/keyboard/controller/controllerSettings';
+import {usePremium} from './src/licensing/PremiumContext';
 
 const C = {
   bg: '#f2f2f4',
@@ -60,12 +61,15 @@ export function GeneralSettingsScreen({
   onOpenConsole,
   onOpenEngineStats,
   onOpenPersonalTyping,
+  onOpenPremium,
 }: {
   onBack: () => void;
   onOpenConsole?: () => void;
   onOpenEngineStats?: () => void;
   onOpenPersonalTyping?: () => void;
+  onOpenPremium?: () => void;
 }) {
+  const {isPremium, canUse} = usePremium();
   const [uiSoundsEnabled, setUiSoundsEnabledState] = useState(true);
   const [keyHapticEnabled, setKeyHapticEnabledState] = useState(true);
   const [developerEyeEnabled, setDeveloperEyeEnabledState] = useState(false);
@@ -157,6 +161,10 @@ export function GeneralSettingsScreen({
   };
 
   const toggleLetterSymbolAlternates = async () => {
+    if (!canUse('extended_characters')) {
+      onOpenPremium?.();
+      return;
+    }
     const next = !letterSymbolAlternatesEnabled;
     setLetterSymbolAlternatesEnabledState(next);
     void updateKeyboardLayoutSetting('letterSymbolAlternatesEnabled', next);
@@ -167,6 +175,10 @@ export function GeneralSettingsScreen({
   };
 
   const toggleNumberRow = async () => {
+    if (!canUse('number_row')) {
+      onOpenPremium?.();
+      return;
+    }
     const next = !numberRowEnabled;
     setNumberRowEnabledState(next);
     void updateKeyboardLayoutSetting('numberRowEnabled', next);
@@ -191,6 +203,17 @@ export function GeneralSettingsScreen({
       <StatusBar barStyle="dark-content" backgroundColor={C.bg} />
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <Text style={styles.pageTitle}>Settings</Text>
+
+        {!isPremium ? (
+          <Pressable
+            style={[styles.rowCard, styles.firstSettingCard, {marginBottom: ROW_GAP}]}
+            onPress={() => onOpenPremium?.()}>
+            <View style={styles.rowInner}>
+              <Text style={styles.rowTitle}>Unlock TypeBase Premium</Text>
+              <Text style={styles.rowValue}>→</Text>
+            </View>
+          </Pressable>
+        ) : null}
 
         {/* Main keyboard settings — separate cards, tighter gaps, Nothing-style outer rounding */}
         <View style={styles.mainSettingsStack}>
@@ -386,7 +409,11 @@ export function GeneralSettingsScreen({
           <Pressable
             style={[styles.rowCard, styles.middleSettingCard]}
             onPress={() => {
-              if (onOpenPersonalTyping) onOpenPersonalTyping();
+              if (!canUse('personal_typing')) {
+                onOpenPremium?.();
+                return;
+              }
+              onOpenPersonalTyping?.();
             }}>
             <View style={styles.rowInner}>
               <PersonalIcon width={ROW_ICON} height={ROW_ICON} color={C.text} />

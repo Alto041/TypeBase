@@ -14,6 +14,8 @@ import com.facebook.react.ReactApplication
 import com.facebook.react.bridge.UiThreadUtil
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnabled
 import com.facebook.react.defaults.DefaultReactActivityDelegate
+import com.typebase.app.billing.PremiumBillingManager
+import com.typebase.app.billing.PremiumNavigation
 import expo.modules.ReactActivityDelegateWrapper
 
 class MainActivity : ReactActivity() {
@@ -24,6 +26,9 @@ class MainActivity : ReactActivity() {
     super.onCreate(null)
     if (intent?.getBooleanExtra(EXTRA_REQUEST_MIC, false) == true) {
       requestMicPermissionIfNeeded()
+    }
+    if (intent?.getBooleanExtra(PremiumBillingManager.EXTRA_OPEN_PREMIUM, false) == true) {
+      PremiumNavigation.markOpenUpgrade()
     }
   }
 
@@ -51,6 +56,9 @@ class MainActivity : ReactActivity() {
     super.onNewIntent(intent)
     if (intent.getBooleanExtra(EXTRA_REQUEST_MIC, false)) {
       requestMicPermissionIfNeeded()
+    }
+    if (intent.getBooleanExtra(PremiumBillingManager.EXTRA_OPEN_PREMIUM, false)) {
+      PremiumNavigation.markOpenUpgrade()
     }
   }
 

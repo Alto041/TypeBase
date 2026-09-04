@@ -12,7 +12,7 @@ import type {KeyDefinition} from '../layouts/qwerty';
 import {triggerKeyHaptic} from '../haptics';
 import {keyboardBridge} from '../keyboardBridge';
 import {KEY_HIT_SLOP} from '../theme';
-import {isZeroLatencyModeActive, shouldSkipKeyPressEffects} from '../zeroLatencyMode';
+import {isZeroLatencyModeActive, shouldSkipKeyPressEffects, shouldSkipTouchIntelligenceWork} from '../zeroLatencyMode';
 import type {KeyBounds} from './types';
 import {
   clearSwipeTypingTapCommitted,
@@ -628,15 +628,15 @@ export function dispatchMultiTouchStart(
       setMultiTouchKeyPressed(resolvedHit.id, true);
       triggerKeyHaptic(pid, {nativeCommitted: false});
       options.onKeyCommit(resolvedHit.keyDef, defaultCommit);
-      if (!isZeroLatencyModeActive()) {
+      if (!shouldSkipTouchIntelligenceWork()) {
         annotateLastTouchIntelligenceCommit(defaultCommit, 'js', localX, localY);
       }
     } else {
-      if (!isZeroLatencyModeActive()) {
+      if (!shouldSkipTouchIntelligenceWork()) {
         annotateLastTouchIntelligenceCommit(defaultCommit, 'native', localX, localY);
       }
     }
-    if (!isZeroLatencyModeActive()) {
+    if (!shouldSkipTouchIntelligenceWork()) {
       recordTouchIntelligenceTap(
         defaultCommit,
         localX,
@@ -671,18 +671,20 @@ export function dispatchMultiTouchStart(
     }
     markSwipeTypingTapCommitted(pid);
 
-    session.longPressTimer = setTimeout(() => {
-      session.longPressTimer = null;
-      const alternates = getKeyAlternates(
-        resolvedHit.keyDef,
-        options.keyboardLayout,
-        isUppercase,
-      );
-      session.alternates = alternates;
-      if (alternates.length > 0) {
-        openAlternatePopup(pid, session, resolvedHit, options.areaWidth);
-      }
-    }, LONG_PRESS_MS);
+    if (!shouldSkipKeyPressEffects()) {
+      session.longPressTimer = setTimeout(() => {
+        session.longPressTimer = null;
+        const alternates = getKeyAlternates(
+          resolvedHit.keyDef,
+          options.keyboardLayout,
+          isUppercase,
+        );
+        session.alternates = alternates;
+        if (alternates.length > 0) {
+          openAlternatePopup(pid, session, resolvedHit, options.areaWidth);
+        }
+      }, LONG_PRESS_MS);
+    }
 
     activeSessions.set(pid, session);
   }
