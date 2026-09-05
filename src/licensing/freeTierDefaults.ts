@@ -8,6 +8,11 @@ import {DEFAULT_GESTURE_SETTINGS} from '../keyboard/gestures/types';
 import {keyboardBridge} from '../keyboard/keyboardBridge';
 import {updateKeyboardLayoutSetting} from '../keyboard/settings/layoutStore';
 import {setKeyboardDesign} from '../keyboard/settings/themeStore';
+import {
+  ensureVoiceSttProviderLoaded,
+  getVoiceSttProvider,
+  setVoiceSttProvider,
+} from '../keyboard/settings/voiceSttProviderStore';
 import {readPremiumFromNative} from './entitlements';
 
 export async function applyFreeTierDefaults(): Promise<void> {
@@ -73,6 +78,11 @@ export async function applyFreeTierDefaults(): Promise<void> {
     }
   } catch {
     // ignore malformed gesture payload
+  }
+
+  await ensureVoiceSttProviderLoaded();
+  if (getVoiceSttProvider() !== 'android') {
+    await setVoiceSttProvider('android');
   }
 }
 

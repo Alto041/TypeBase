@@ -16,6 +16,7 @@ class VoiceActivationSoundModule(reactContext: ReactApplicationContext) :
   private var switchOffPlayer: MediaPlayer? = null
   private var navigationPlayer: MediaPlayer? = null
   private var zeroPlayer: MediaPlayer? = null
+  private var typeLiftPlayer: MediaPlayer? = null
 
   @ReactMethod
   fun preload(promise: Promise) {
@@ -102,6 +103,21 @@ class VoiceActivationSoundModule(reactContext: ReactApplicationContext) :
     }
   }
 
+  @ReactMethod
+  fun playTypeLift(promise: Promise) {
+    try {
+      val mediaPlayer = ensureTypeLiftPlayer()
+      if (mediaPlayer.isPlaying) {
+        mediaPlayer.pause()
+        mediaPlayer.seekTo(0)
+      }
+      mediaPlayer.start()
+      promise.resolve(true)
+    } catch (_: Exception) {
+      promise.resolve(false)
+    }
+  }
+
   private fun ensureVoicePlayer(): MediaPlayer {
     voicePlayer?.let { return it }
 
@@ -172,6 +188,20 @@ class VoiceActivationSoundModule(reactContext: ReactApplicationContext) :
     return mediaPlayer
   }
 
+  private fun ensureTypeLiftPlayer(): MediaPlayer {
+    typeLiftPlayer?.let { return it }
+
+    val mediaPlayer =
+        MediaPlayer.create(reactApplicationContext, R.raw.typelift)
+            ?: throw IllegalStateException("typelift sound resource missing")
+
+    mediaPlayer.setOnCompletionListener { completed ->
+      completed.seekTo(0)
+    }
+    typeLiftPlayer = mediaPlayer
+    return mediaPlayer
+  }
+
   override fun invalidate() {
     voicePlayer?.release()
     voicePlayer = null
@@ -183,6 +213,8 @@ class VoiceActivationSoundModule(reactContext: ReactApplicationContext) :
     navigationPlayer = null
     zeroPlayer?.release()
     zeroPlayer = null
+    typeLiftPlayer?.release()
+    typeLiftPlayer = null
     super.invalidate()
   }
 }

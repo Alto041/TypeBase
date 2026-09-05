@@ -34,6 +34,7 @@ import SettingsIcon from './assets/settings.svg';
 import ActionsIcon from './assets/actions.svg';
 import AddIcon from './assets/add.svg';
 import RemoveIcon from './assets/remove.svg';
+import PremiumIcon from './assets/premium.svg';
 
 import { CustomizeScreen, ThemesScreen } from './KeyboardCustomization';
 import { GeneralSettingsScreen } from './GeneralSettingsScreen';
@@ -549,6 +550,34 @@ function QuickActionsToggleIcon({expanded}: {expanded: boolean}) {
   );
 }
 
+function FreeTierNotice({onOpenPremium}: {onOpenPremium: () => void}) {
+  const {isPremium, loading} = usePremium();
+
+  if (loading || isPremium) {
+    return null;
+  }
+
+  return (
+    <Pressable
+      onPress={() => {
+        void hapticTap();
+        onOpenPremium();
+      }}
+      style={styles.freeTierNotice}>
+      <View style={styles.freeTierBadge}>
+        <Text style={styles.freeTierBadgeText}>FREE</Text>
+      </View>
+      <Text style={styles.freeTierTitle}>You&apos;re on the free experience</Text>
+      <Text style={styles.freeTierBody}>
+        This version is here so you can try TypeBase — autocorrect, AI tools, and
+        plugins stay basic on the free tier. Premium unlocks the full keyboard and
+        helps fund continued development by an indie dev.
+      </Text>
+      <Text style={styles.freeTierLink}>See Premium →</Text>
+    </Pressable>
+  );
+}
+
 function LaunchpadScreen({
   onOpenAiConfig,
   onOpenLanguageLayout,
@@ -558,7 +587,7 @@ function LaunchpadScreen({
   onOpenLanguageLayout: () => void;
   onOpenPremium: () => void;
 }) {
-  const {isPremium, canUse} = usePremium();
+  const {canUse} = usePremium();
   const [quickActionsExpanded, setQuickActionsExpanded] = useState(false);
 
   return (
@@ -566,6 +595,8 @@ function LaunchpadScreen({
       <StatusBar barStyle="dark-content" backgroundColor={C.bg} />
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <Text style={styles.pageTitle}>Launchpad</Text>
+
+        <FreeTierNotice onOpenPremium={onOpenPremium} />
 
         <View style={styles.testSection}>
           <View style={styles.testInputBox}>
@@ -613,9 +644,8 @@ function LaunchpadScreen({
 
         <View style={styles.stack}>
           <LaunchpadCard
-            icon={<LanguageLayoutIcon width={HOME_ICON} height={HOME_ICON} color={C.text} />}
+            icon={<PremiumIcon width={HOME_ICON} height={HOME_ICON} color={C.text} />}
             title="Unlock TypeBase"
-            description={isPremium ? 'Premium active' : 'One-time purchase for full features'}
             titleFontFamily="FragmentMono"
             radius={18}
             onPress={onOpenPremium}
@@ -750,6 +780,48 @@ const styles = StyleSheet.create({
     fontSize: 40,
     color: C.text,
     marginBottom: 8,
+    letterSpacing: TEXT_KERNING,
+  },
+  freeTierNotice: {
+    backgroundColor: C.card,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: C.border,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    gap: 6,
+    marginBottom: 4,
+  },
+  freeTierBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: C.bg,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  freeTierBadgeText: {
+    fontFamily: 'FragmentMono',
+    fontSize: 11,
+    color: C.sub,
+    letterSpacing: 0.4,
+  },
+  freeTierTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: C.text,
+    letterSpacing: TEXT_KERNING,
+  },
+  freeTierBody: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: C.sub,
+    letterSpacing: -0.2,
+  },
+  freeTierLink: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: C.text,
+    marginTop: 2,
     letterSpacing: TEXT_KERNING,
   },
   keyboardShortcut: {

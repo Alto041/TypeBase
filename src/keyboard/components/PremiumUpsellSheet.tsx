@@ -1,90 +1,125 @@
 import React from 'react';
 import {Pressable, StyleSheet, Text, View} from 'react-native';
 
+import PremiumIcon from '../../../assets/premium.svg';
 import {openPremiumUpgradeScreen} from '../../licensing/premium';
+import {
+  PLUGIN_OUTER_RADIUS,
+  PluginPanelIcon,
+} from './pluginPanelLayout';
 import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
-import type {KeyboardTheme} from '../theme';
+import {keyboardTypefaceStyle, type KeyboardTheme} from '../theme';
 
 type PremiumUpsellSheetProps = {
   title?: string;
   body?: string;
+  placement?: 'panel' | 'keyboard';
   onDismiss: () => void;
 };
 
 export function PremiumUpsellSheet({
   title = 'Premium feature',
-  body = 'Unlock TypeBase to use plugins, themes, gestures, and full autocorrection.',
+  body = 'Unlock TypeBase in the app to use this.',
+  placement = 'keyboard',
   onDismiss,
 }: PremiumUpsellSheetProps) {
   const theme = useKeyboardTheme();
   const styles = useThemedStyles(createStyles);
+  const isPanel = placement === 'panel';
 
   return (
-    <View style={styles.overlay}>
-      <View style={[styles.card, {backgroundColor: theme.pluginCard}]}>
-        <Text style={[styles.title, {color: theme.label}]}>{title}</Text>
-        <Text style={[styles.body, {color: theme.iconMuted}]}>{body}</Text>
+    <View style={[styles.wrap, isPanel && styles.wrapPanel]} pointerEvents="box-none">
+      <Pressable style={[styles.backdrop, isPanel && styles.backdropPanel]} onPress={onDismiss} />
+      <View style={[styles.bar, {backgroundColor: theme.pluginCard}]}>
+        <PluginPanelIcon Icon={PremiumIcon} size={20} />
+        <View style={styles.copy}>
+          <Text style={[styles.title, {color: theme.label}]} numberOfLines={1}>
+            {title}
+          </Text>
+          <Text style={[styles.body, {color: theme.spaceLabel}]} numberOfLines={2}>
+            {body}
+          </Text>
+        </View>
         <Pressable
-          style={[styles.primaryBtn, {backgroundColor: '#D71921'}]}
+          style={[styles.unlockBtn, {backgroundColor: theme.label}]}
           onPress={() => {
             void openPremiumUpgradeScreen();
             onDismiss();
           }}>
-          <Text style={styles.primaryBtnText}>Unlock in app</Text>
-        </Pressable>
-        <Pressable style={styles.secondaryBtn} onPress={onDismiss}>
-          <Text style={[styles.secondaryBtnText, {color: theme.iconMuted}]}>
-            Not now
+          <Text style={[styles.unlockBtnText, {color: theme.container}]}>
+            Unlock
           </Text>
+        </Pressable>
+        <Pressable style={styles.dismissBtn} onPress={onDismiss} hitSlop={8}>
+          <Text style={[styles.dismissText, {color: theme.iconMuted}]}>Not now</Text>
         </Pressable>
       </View>
     </View>
   );
 }
 
-function createStyles(_theme: KeyboardTheme) {
+function createStyles(theme: KeyboardTheme) {
   return StyleSheet.create({
-    overlay: {
-      ...StyleSheet.absoluteFill,
-      backgroundColor: 'rgba(0,0,0,0.45)',
-      alignItems: 'center',
+    wrap: {
+      ...StyleSheet.absoluteFillObject,
       justifyContent: 'center',
-      paddingHorizontal: 24,
+      paddingHorizontal: 12,
       zIndex: 200,
     },
-    card: {
-      width: '100%',
-      borderRadius: 16,
-      padding: 20,
-      gap: 12,
+    wrapPanel: {
+      zIndex: 50,
+    },
+    backdrop: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: theme.container,
+      opacity: 0.82,
+    },
+    backdropPanel: {
+      opacity: 0.55,
+    },
+    bar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      borderRadius: PLUGIN_OUTER_RADIUS,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      gap: 10,
+      minHeight: 52,
+    },
+    copy: {
+      flex: 1,
+      minWidth: 0,
+      gap: 2,
     },
     title: {
-      fontSize: 18,
-      fontWeight: '700',
+      fontSize: 15,
+      ...keyboardTypefaceStyle(theme, '600'),
     },
     body: {
-      fontSize: 14,
-      lineHeight: 20,
+      fontSize: 12,
+      ...keyboardTypefaceStyle(theme),
+      lineHeight: 16,
     },
-    primaryBtn: {
-      marginTop: 4,
-      borderRadius: 12,
-      minHeight: 44,
+    unlockBtn: {
+      borderRadius: 8,
+      paddingHorizontal: 12,
+      minHeight: 32,
       alignItems: 'center',
       justifyContent: 'center',
     },
-    primaryBtnText: {
-      color: '#ffffff',
-      fontSize: 15,
-      fontWeight: '600',
+    unlockBtnText: {
+      fontSize: 13,
+      ...keyboardTypefaceStyle(theme, '600'),
     },
-    secondaryBtn: {
-      minHeight: 36,
+    dismissBtn: {
+      paddingHorizontal: 2,
+      minHeight: 32,
       alignItems: 'center',
       justifyContent: 'center',
     },
-    secondaryBtnText: {
-      fontSize: 14,
+    dismissText: {
+      fontSize: 12,
+      ...keyboardTypefaceStyle(theme, '500'),
     },
   });
 }

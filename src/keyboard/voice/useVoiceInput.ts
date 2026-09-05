@@ -1,4 +1,5 @@
 import {useCallback, useEffect, useRef, useState} from 'react';
+import {canUseFeature} from '../../licensing/entitlements';
 import {keyboardBridge} from '../keyboardBridge';
 import {requireSpeechmaticsApiKey} from '../settings/apiKeysStore';
 import {
@@ -16,7 +17,16 @@ import {
 } from './voiceActivationSound';
 import {SpeechmaticsVoiceService} from './speechmaticsService';
 import {getRollingPreviewWords, VOICE_PILL_PREVIEW_MAX_WORDS} from './voiceTranscriptPreview';
+import {applyVoiceHeuristicCleanup} from './voiceCleanupUtils';
 import {voiceRecorder} from './voiceRecorder';
+
+function resolveSttProvider(): VoiceSttProvider {
+  const configured = getVoiceSttProvider();
+  if (canUseFeature('voice') || configured === 'android') {
+    return configured;
+  }
+  return 'android';
+}
 
 function formatDictationInsert(text: string): string {
   const trimmed = text.trim();
@@ -184,17 +194,21 @@ export function useVoiceInput() {
 
     let textToInsert = raw;
 
-    try {
-      const {text} = await cleanupVoiceTranscript(raw, {
-        preferOnDevice: sttProvider === 'parakeet',
-        allowFillerRemoval: true,
-      });
-      textToInsert = text.trim() || raw;
-    } catch (error) {
-      if (!(error instanceof VoiceCleanupError)) {
-        throw error;
+    if (canUseFeature('voice')) {
+      try {
+        const {text} = await cleanupVoiceTranscript(raw, {
+          preferOnDevice: sttProvider === 'parakeet',
+          allowFillerRemoval: true,
+        });
+        textToInsert = text.trim() || raw;
+      } catch (error) {
+        if (!(error instanceof VoiceCleanupError)) {
+          throw error;
+        }
+        textToInsert = raw;
       }
-      textToInsert = raw;
+    } else {
+      textToInsert = applyVoiceHeuristicCleanup(raw) || raw;
     }
 
     const toInsert = formatDictationInsert(textToInsert);
@@ -417,7 +431,7 @@ export function useVoiceInput() {
     if (!isVoiceSessionActive(sessionId)) {
       return;
     }
-    const sttProvider = getVoiceSttProvider();
+    const sttProvider = resolveSttProvider();
 
     if (sttProvider === 'parakeet') {
       const started = await startParakeetListening(sessionId);

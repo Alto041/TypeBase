@@ -14,6 +14,8 @@ export type PremiumFeature =
   | 'rewrite'
   | 'format'
   | 'voice'
+  | 'stickers'
+  | 'sfx'
   | 'ai_config'
   | 'personal_typing'
   | 'layouts_custom'
@@ -32,6 +34,8 @@ const PREMIUM_FEATURES = new Set<PremiumFeature>([
   'rewrite',
   'format',
   'voice',
+  'stickers',
+  'sfx',
   'ai_config',
   'personal_typing',
   'layouts_custom',

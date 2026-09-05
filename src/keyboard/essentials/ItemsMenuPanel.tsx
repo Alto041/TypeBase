@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import ArrowIcon from '../../../assets/plugins/arrow.svg';
+import LockIcon from '../../../assets/Lock.svg';
 import ClipboardIcon from '../../../assets/plugins/clipboard.svg';
 import EssentialsIcon from '../../../assets/plugins/essentials.svg';
 import CalculatorIcon from '../../../assets/plugins/calculator.svg';
@@ -27,6 +28,7 @@ import {
   PluginScrollView,
   usePluginPanelStyles,
 } from '../components/pluginPanelLayout';
+import {PremiumUpsellSheet} from '../components/PremiumUpsellSheet';
 import {triggerKeyHaptic} from '../haptics';
 import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
 import type {KeyboardTheme} from '../theme';
@@ -43,6 +45,8 @@ type ItemsMenuPanelProps = {
   onSelectMetrics?: () => void;
   onSelectOneHand?: () => void;
   pluginsLocked?: boolean;
+  showUpsell?: boolean;
+  onDismissUpsell?: () => void;
   onLockedPluginPress?: () => void;
 };
 
@@ -69,9 +73,12 @@ function PluginTile({title, Icon, tileStyle, locked = false, onPress}: PluginTil
       style={[styles.tile, tileStyle]}>
       <PluginPanelIcon Icon={Icon} />
       <Text style={styles.tileTitle}>{title}</Text>
-      {locked ? <Text style={styles.lockLabel}>Premium</Text> : null}
       <View style={styles.tileSpacer} />
-      <ArrowIcon width={9} height={16} color={theme.iconMuted} />
+      {locked ? (
+        <LockIcon width={12} height={13} color={theme.iconMuted} />
+      ) : (
+        <ArrowIcon width={9} height={16} color={theme.iconMuted} />
+      )}
     </TouchableOpacity>
   );
 }
@@ -145,6 +152,8 @@ export function ItemsMenuPanel({
   onSelectMetrics,
   onSelectOneHand,
   pluginsLocked = false,
+  showUpsell = false,
+  onDismissUpsell,
   onLockedPluginPress,
 }: ItemsMenuPanelProps) {
   const theme = useKeyboardTheme();
@@ -180,6 +189,7 @@ export function ItemsMenuPanel({
             title={plugin.title}
             Icon={plugin.Icon}
             tileStyle={getTileStyle(index, plugins.length)}
+            locked={pluginsLocked}
             onPress={() => {
               if (pluginsLocked) {
                 onLockedPluginPress?.();
@@ -187,10 +197,12 @@ export function ItemsMenuPanel({
               }
               handlers[plugin.id]?.();
             }}
-            locked={pluginsLocked}
           />
         ))}
       </PluginScrollView>
+      {showUpsell ? (
+        <PremiumUpsellSheet placement="panel" onDismiss={onDismissUpsell ?? (() => {})} />
+      ) : null}
       <View style={styles.fade} pointerEvents="none">
         <Svg width="100%" height="100%" preserveAspectRatio="none">
           <Defs>
@@ -223,6 +235,7 @@ function createItemsMenuStyles(theme: KeyboardTheme) {
   return StyleSheet.create({
     container: {
       justifyContent: 'flex-start',
+      position: 'relative',
     },
     tile: {
       flexDirection: 'row',
@@ -241,14 +254,6 @@ function createItemsMenuStyles(theme: KeyboardTheme) {
       fontSize: 16,
       fontFamily: theme.fontFamily,
       fontWeight: '600',
-    },
-    lockLabel: {
-      color: theme.iconMuted,
-      fontSize: 11,
-      fontFamily: theme.fontFamily,
-      fontWeight: '600',
-      textTransform: 'uppercase',
-      marginLeft: 4,
     },
     tileSpacer: {
       flex: 1,

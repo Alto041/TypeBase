@@ -12,6 +12,7 @@ import {
   getPluginMenuFadeHeight,
   usePluginPanelStyles,
 } from '../components/pluginPanelLayout';
+import {PremiumUpsellSheet} from '../components/PremiumUpsellSheet';
 import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
 import {triggerKeyHaptic} from '../haptics';
 import {keyboardBridge} from '../keyboardBridge';
@@ -24,11 +25,21 @@ import {
 
 type TranslatePanelProps = {
   onResultChange?: (result: string | null) => void;
+  locked?: boolean;
+  showUpsell?: boolean;
+  onLockedPress?: () => void;
+  onDismissUpsell?: () => void;
 };
 
 const FIELD_SNIPPET_LENGTH = 600;
 
-export function TranslatePanel({onResultChange}: TranslatePanelProps) {
+export function TranslatePanel({
+  onResultChange,
+  locked = false,
+  showUpsell = false,
+  onLockedPress,
+  onDismissUpsell,
+}: TranslatePanelProps) {
   const [sourceText, setSourceText] = useState('');
   const [sourceReplaceLength, setSourceReplaceLength] = useState(0);
   const [targetCode, setTargetCode] = useState<string | null>(null);
@@ -121,6 +132,10 @@ export function TranslatePanel({onResultChange}: TranslatePanelProps) {
 
   const handleTargetSelect = useCallback(
     (language: TargetLanguage) => {
+      if (locked) {
+        onLockedPress?.();
+        return;
+      }
       triggerKeyHaptic();
       setTargetCode(language.code);
       setError(null);
@@ -129,25 +144,42 @@ export function TranslatePanel({onResultChange}: TranslatePanelProps) {
         void runTranslate(input, language.label);
       }
     },
-    [runTranslate, sourceText],
+    [locked, onLockedPress, runTranslate, sourceText],
   );
 
+  const handleRefresh = useCallback(() => {
+    if (locked) {
+      onLockedPress?.();
+      return;
+    }
+    triggerKeyHaptic();
+    void refreshAndTranslate();
+  }, [locked, onLockedPress, refreshAndTranslate]);
+
   const handleReplace = useCallback(() => {
+    if (locked) {
+      onLockedPress?.();
+      return;
+    }
     if (!translation || sourceReplaceLength <= 0) {
       return;
     }
     triggerKeyHaptic();
     keyboardBridge.replaceWordPrefix(sourceReplaceLength, translation);
     void syncSourceText();
-  }, [sourceReplaceLength, syncSourceText, translation]);
+  }, [locked, onLockedPress, sourceReplaceLength, syncSourceText, translation]);
 
   const handleInsert = useCallback(() => {
+    if (locked) {
+      onLockedPress?.();
+      return;
+    }
     if (!translation) {
       return;
     }
     triggerKeyHaptic();
     keyboardBridge.insertText(translation);
-  }, [translation]);
+  }, [locked, onLockedPress, translation]);
 
   const hasResult = Boolean(translation);
   const theme = useKeyboardTheme();
@@ -155,7 +187,7 @@ export function TranslatePanel({onResultChange}: TranslatePanelProps) {
   const styles = useThemedStyles(createTranslateStyles);
 
   return (
-    <View style={panelStyles.container} collapsable={false}>
+    <View style={[panelStyles.container, styles.container]} collapsable={false}>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
@@ -177,6 +209,7 @@ export function TranslatePanel({onResultChange}: TranslatePanelProps) {
                 style={({pressed}) => [
                   styles.languageChip,
                   selected && styles.languageChipSelected,
+                  locked && styles.languageChipLocked,
                   pressed && styles.pressed,
                 ]}>
                 <Text
@@ -192,12 +225,10 @@ export function TranslatePanel({onResultChange}: TranslatePanelProps) {
         </ScrollView>
 
         <Pressable
-          onPress={() => {
-            triggerKeyHaptic();
-            void refreshAndTranslate();
-          }}
+          onPress={handleRefresh}
           style={({pressed}) => [
             styles.sourceCard,
+            locked && styles.sourceCardLocked,
             pressed && styles.pressed,
           ]}>
           <View style={styles.sourceRow}>
@@ -261,6 +292,15 @@ export function TranslatePanel({onResultChange}: TranslatePanelProps) {
         ) : null}
       </ScrollView>
 
+      {showUpsell ? (
+        <PremiumUpsellSheet
+          placement="panel"
+          title="Translate"
+          body="Unlock TypeBase in the app to translate text."
+          onDismiss={onDismissUpsell ?? (() => {})}
+        />
+      ) : null}
+
       <View style={styles.fade} pointerEvents="none">
         <Svg width="100%" height="100%" preserveAspectRatio="none">
           <Defs>
@@ -299,6 +339,9 @@ function createTranslateStyles(theme: KeyboardTheme) {
   const fadeHeight = getPluginMenuFadeHeight(theme);
 
   return StyleSheet.create({
+    container: {
+      position: 'relative',
+    },
     scroll: {
       flex: 1,
     },
@@ -321,6 +364,9 @@ function createTranslateStyles(theme: KeyboardTheme) {
     languageChipSelected: {
       backgroundColor: theme.chipSelectedBackground,
     },
+    languageChipLocked: {
+      opacity: 0.72,
+    },
     languageChipText: {
       color: theme.spaceLabel,
       fontSize: 13,
@@ -337,6 +383,9 @@ function createTranslateStyles(theme: KeyboardTheme) {
       paddingHorizontal: 12,
       paddingVertical: 8,
       justifyContent: 'center',
+    },
+    sourceCardLocked: {
+      opacity: 0.72,
     },
     sourceRow: {
       flexDirection: 'row',

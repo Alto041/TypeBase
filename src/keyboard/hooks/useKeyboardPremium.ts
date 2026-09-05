@@ -51,6 +51,7 @@ export function useKeyboardPremium() {
 
   return {
     premiumReady,
+    isPremium,
     showUpsell,
     setShowUpsell,
     requireFeature,

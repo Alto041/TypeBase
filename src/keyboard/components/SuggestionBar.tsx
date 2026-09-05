@@ -98,6 +98,11 @@ function SuggestionBarTap({
         }
         animateSuggestionBarTap(scale, TAP_PRESS_SCALE);
         triggerKeyHaptic();
+      }}
+      onPress={() => {
+        if (disabled) {
+          return;
+        }
         onPress();
       }}
       onPressOut={() => {
@@ -132,6 +137,8 @@ function SuggestionBarTapWithPressed({
       onPressIn={() => {
         animateSuggestionBarTap(scale, TAP_PRESS_SCALE);
         triggerKeyHaptic();
+      }}
+      onPress={() => {
         onPress();
       }}
       onPressOut={() => {

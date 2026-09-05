@@ -1,5 +1,6 @@
 import React, {useMemo, useState} from 'react';
-import {Dimensions, View} from 'react-native';
+import {Dimensions, StyleSheet, View} from 'react-native';
+import {PremiumUpsellSheet} from '../components/PremiumUpsellSheet';
 import {useThemedStyles} from '../KeyboardThemeContext';
 import {EmojiCategoryGrid} from './EmojiCategoryGrid';
 import {EmojiSearchGrid} from './EmojiSearchGrid';
@@ -29,6 +30,11 @@ type EmojiPanelProps = {
   onSfxSelect: (sound: MyInstantsSound) => void;
   onSfxPreview: (sound: MyInstantsSound) => void;
   installingSfxId?: string | null;
+  stickersLocked?: boolean;
+  sfxLocked?: boolean;
+  showUpsell?: boolean;
+  onLockedPress?: () => void;
+  onDismissUpsell?: () => void;
 };
 
 export function EmojiPanel({
@@ -45,6 +51,11 @@ export function EmojiPanel({
   onSfxSelect,
   onSfxPreview,
   installingSfxId = null,
+  stickersLocked = false,
+  sfxLocked = false,
+  showUpsell = false,
+  onLockedPress,
+  onDismissUpsell,
 }: EmojiPanelProps) {
   const showEmojiSubcategories =
     panelTab === 'emojis' && emojiSearchQuery.trim().length === 0;
@@ -65,6 +76,45 @@ export function EmojiPanel({
     () => Math.max(200, panelWidth - 16),
     [panelWidth],
   );
+  const isLockedTab =
+    (panelTab === 'stickers' && stickersLocked) ||
+    (panelTab === 'sfx' && sfxLocked);
+  const upsellTitle =
+    panelTab === 'stickers'
+      ? 'Premium stickers'
+      : panelTab === 'sfx'
+        ? 'Premium sound effects'
+        : 'Premium feature';
+  const upsellBody =
+    panelTab === 'stickers'
+      ? 'Unlock TypeBase to send stickers.'
+      : panelTab === 'sfx'
+        ? 'Unlock TypeBase to send sound effects.'
+        : 'Unlock TypeBase to use this.';
+
+  const handleStickerSelect = (sticker: StickerLySticker) => {
+    if (stickersLocked) {
+      onLockedPress?.();
+      return;
+    }
+    onStickerSelect(sticker);
+  };
+
+  const handleSfxSelect = (sound: MyInstantsSound) => {
+    if (sfxLocked) {
+      onLockedPress?.();
+      return;
+    }
+    onSfxSelect(sound);
+  };
+
+  const handleSfxPreview = (sound: MyInstantsSound) => {
+    if (sfxLocked) {
+      onLockedPress?.();
+      return;
+    }
+    onSfxPreview(sound);
+  };
 
   const content =
     panelTab === 'gif' ? (
@@ -78,16 +128,17 @@ export function EmojiPanel({
       <StickerCategoryGrid
         width={contentWidth}
         height={emojiScrollHeight}
-        onSelect={onStickerSelect}
+        onSelect={handleStickerSelect}
       />
     ) : panelTab === 'sfx' ? (
       <SfxCategoryGrid
         width={contentWidth}
         height={emojiScrollHeight}
         query={sfxSearchQuery}
-        onSelect={onSfxSelect}
-        onPreview={onSfxPreview}
+        onSelect={handleSfxSelect}
+        onPreview={handleSfxPreview}
         installingId={installingSfxId}
+        locked={sfxLocked}
       />
     ) : emojiSearchQuery.trim().length > 0 ? (
       <EmojiSearchGrid
@@ -107,7 +158,7 @@ export function EmojiPanel({
 
   return (
     <View
-      style={shellStyles.outer}
+      style={[shellStyles.outer, styles.container]}
       onLayout={event => {
         const width = Math.round(event.nativeEvent.layout.width);
         if (width > 0 && width !== panelWidth) {
@@ -121,8 +172,30 @@ export function EmojiPanel({
             onSelect={onEmojiSubcategorySelect}
           />
         ) : null}
-        {content}
+        <View style={[styles.contentHost, isLockedTab && styles.lockedContent]}>
+          {content}
+        </View>
       </View>
+      {showUpsell && isLockedTab ? (
+        <PremiumUpsellSheet
+          placement="panel"
+          title={upsellTitle}
+          body={upsellBody}
+          onDismiss={onDismissUpsell ?? (() => {})}
+        />
+      ) : null}
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    position: 'relative',
+  },
+  contentHost: {
+    flex: 1,
+  },
+  lockedContent: {
+    opacity: 0.72,
+  },
+});

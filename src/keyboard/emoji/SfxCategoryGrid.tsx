@@ -33,6 +33,7 @@ type SfxCategoryGridProps = {
   onSelect: (sound: MyInstantsSound) => void;
   onPreview: (sound: MyInstantsSound) => void;
   installingId?: string | null;
+  locked?: boolean;
 };
 
 export function SfxCategoryGrid({
@@ -42,6 +43,7 @@ export function SfxCategoryGrid({
   onSelect,
   onPreview,
   installingId = null,
+  locked = false,
 }: SfxCategoryGridProps) {
   const theme = useKeyboardTheme();
   const sharedStyles = useThemedStyles(createEmojiPanelSharedStyles);
@@ -115,15 +117,19 @@ export function SfxCategoryGrid({
       if (installingId) {
         return;
       }
-      triggerKeyHaptic();
+      if (!locked) {
+        triggerKeyHaptic();
+      }
       onSelect(sound);
     },
-    [installingId, onSelect],
+    [installingId, locked, onSelect],
   );
 
   const handlePreviewPress = useCallback(
     (sound: MyInstantsSound) => {
-      triggerKeyHaptic();
+      if (!locked) {
+        triggerKeyHaptic();
+      }
       if (previewingId === sound.id) {
         setPreviewingId(null);
         stopSfxPreview();
@@ -132,7 +138,7 @@ export function SfxCategoryGrid({
         onPreview(sound);
       }
     },
-    [previewingId, onPreview],
+    [locked, previewingId, onPreview],
   );
 
   const renderSound: ListRenderItem<MyInstantsSound> = ({item: sound, index}) => {

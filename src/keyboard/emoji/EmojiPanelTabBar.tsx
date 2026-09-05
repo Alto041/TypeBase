@@ -95,6 +95,8 @@ export function EmojiPanelTabBar({selected, onSelect}: EmojiPanelTabBarProps) {
             key={id}
             onPressIn={() => {
               triggerKeyHaptic();
+            }}
+            onPress={() => {
               onSelect(id);
             }}
             style={({pressed}) => [

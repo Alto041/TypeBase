@@ -77,6 +77,7 @@ import {
 } from './essentials/essentialsTrigger';
 import type {Essential, KeyboardMode} from './essentials/types';
 import type {KeyGesturesConfig} from './components/Key';
+import {GestureTypingLayer} from './gesture/GestureTypingLayer';
 import {PremiumUpsellSheet} from './components/PremiumUpsellSheet';
 import {useKeyboardPremium} from './hooks/useKeyboardPremium';
 import {canUseFeature} from '../licensing/entitlements';
@@ -147,6 +148,7 @@ import {
   finalizeTypeLiftCorrection,
   type AiAutocorrectResult,
 } from './autocorrect/aiAutocorrectService';
+import {playTypeLiftSound} from './autocorrect/typeLiftSound';
 import {
   recordAiPreflightRequest,
   recordAiPreflightResult,
@@ -645,8 +647,10 @@ function KeyboardBody({
   const layoutContext = useKeyLayoutContext();
   const {width: viewportWidth} = useWindowDimensions();
   const styles = useThemedStyles(createKeyboardAppStyles);
-  const {showUpsell, setShowUpsell, requireFeature, isPluginPremium} =
+  const {showUpsell, setShowUpsell, requireFeature, isPluginPremium, isPremium, premiumReady} =
     useKeyboardPremium();
+  const stickersLocked = premiumReady && !isPremium;
+  const sfxLocked = premiumReady && !isPremium;
   const [mode, setMode] = useState<KeyboardMode>({type: 'typing'});
   const [layout, setLayout] = useState<KeyboardLayout>('letters');
   const [shiftOn, setShiftOn] = useState(false);
@@ -1808,23 +1812,22 @@ function KeyboardBody({
 
   const toggleTranslatePanel = useCallback(async () => {
     if (mode.type === 'translate') {
+      setShowUpsell(false);
       setMode({type: 'typing'});
       setLayout('letters');
       resetCase();
       return;
     }
-    requireFeature('translate', async () => {
-      if (isListening) {
-        await toggleListening();
-      }
-      if (mode.type !== 'typing' && mode.type !== 'emoji') {
-        closeItemsFlow();
-      }
-      setMode({type: 'translate'});
-      setLayout('letters');
-      resetCase();
-    });
-  }, [closeItemsFlow, isListening, mode.type, requireFeature, resetCase, toggleListening]);
+    if (isListening) {
+      await toggleListening();
+    }
+    if (mode.type !== 'typing' && mode.type !== 'emoji') {
+      closeItemsFlow();
+    }
+    setMode({type: 'translate'});
+    setLayout('letters');
+    resetCase();
+  }, [closeItemsFlow, isListening, mode.type, resetCase, toggleListening]);
 
   const handleSelectLauncherApp = useCallback(
     (packageName: string) => {
@@ -1853,6 +1856,7 @@ function KeyboardBody({
 
   const toggleEmojiPanel = useCallback(async () => {
     if (mode.type === 'emoji') {
+      setShowUpsell(false);
       setGifSearchQuery('');
       setGifSearchActive(false);
       setEmojiSearchQuery('');
@@ -2359,6 +2363,7 @@ function KeyboardBody({
         });
         void refreshSuggestions();
       });
+      playTypeLiftSound();
       return true;
     },
     [
@@ -4240,6 +4245,10 @@ function KeyboardBody({
   }, []);
 
   const handleStickerSelect = useCallback(async (sticker: StickerLySticker) => {
+    if (!canUseFeature('stickers')) {
+      setShowUpsell(true);
+      return;
+    }
     try {
       await insertStickerLySticker(sticker);
     } catch (error) {
@@ -4248,6 +4257,10 @@ function KeyboardBody({
   }, []);
 
   const handleSfxSelect = useCallback(async (sound: MyInstantsSound) => {
+    if (!canUseFeature('sfx')) {
+      setShowUpsell(true);
+      return;
+    }
     if (installingSfxId) {
       return;
     }
@@ -4262,6 +4275,10 @@ function KeyboardBody({
   }, [installingSfxId]);
 
   const handleSfxPreview = useCallback((sound: MyInstantsSound) => {
+    if (!canUseFeature('sfx')) {
+      setShowUpsell(true);
+      return;
+    }
     previewSfx(sound);
   }, []);
 
@@ -4773,11 +4790,7 @@ function KeyboardBody({
           }}
           aiSelected={isRewriteMode}
           onVoicePress={() => {
-            if (canUseFeature('voice')) {
-              void toggleListening();
-            } else {
-              setShowUpsell(true);
-            }
+            void toggleListening();
           }}
           itemsSelected={itemsSelected}
           emojiSelected={isEmojiMode}
@@ -4841,6 +4854,11 @@ function KeyboardBody({
             !showKeys && styles.keysPanel,
             !showKeys && styles.keysPanelPlugins,
             !showKeys ? styles.keysPanelClip : null,
+            showUpsell &&
+              mode.type !== 'items-menu' &&
+              mode.type !== 'translate' &&
+              mode.type !== 'emoji' &&
+              styles.keysPaddingOverlayHost,
             // When shrinking (negative offset in resize), reduce top padding so the keyboard
             // "shrinks and fits in" the smaller window from the top while bottom stays put.
             layout === 'letters' && (isResizeMode ? resizeLiveOffset : (theme.keyboardHeightOffset ?? 0)) < 0
@@ -4884,12 +4902,19 @@ function KeyboardBody({
               }}
               onSfxPreview={handleSfxPreview}
               installingSfxId={installingSfxId}
+              stickersLocked={stickersLocked}
+              sfxLocked={sfxLocked}
+              showUpsell={showUpsell}
+              onLockedPress={() => setShowUpsell(true)}
+              onDismissUpsell={() => setShowUpsell(false)}
             />
           ) : null}
 
           {mode.type === 'items-menu' ? (
             <ItemsMenuPanel
               pluginsLocked={!isPluginPremium}
+              showUpsell={showUpsell}
+              onDismissUpsell={() => setShowUpsell(false)}
               onLockedPluginPress={() => setShowUpsell(true)}
               onSelectFormat={() => {
                 void openFormatPanel();
@@ -4923,7 +4948,12 @@ function KeyboardBody({
           ) : null}
 
           {mode.type === 'translate' ? (
-            <TranslatePanel />
+            <TranslatePanel
+              locked={!canUseFeature('translate')}
+              showUpsell={showUpsell}
+              onLockedPress={() => setShowUpsell(true)}
+              onDismissUpsell={() => setShowUpsell(false)}
+            />
           ) : null}
 
           {mode.type === 'rewrite' ? <RewritePanel /> : null}
@@ -5038,7 +5068,10 @@ function KeyboardBody({
           {isEmojiMode && !isGifSearchMode && !isEmojiSearchMode && !isSfxSearchMode ? (
             <EmojiBottomRow
               panelTab={emojiPanelTab}
-              onPanelTabSelect={setEmojiPanelTab}
+              onPanelTabSelect={tab => {
+                setEmojiPanelTab(tab);
+                setShowUpsell(false);
+              }}
               onKeyPress={handleKeyPress}
             />
           ) : null}
@@ -5108,11 +5141,17 @@ function KeyboardBody({
                   />
             </View>
           ) : null}
+          {showUpsell &&
+          mode.type !== 'items-menu' &&
+          mode.type !== 'translate' &&
+          mode.type !== 'emoji' ? (
+            <PremiumUpsellSheet
+              placement="keyboard"
+              onDismiss={() => setShowUpsell(false)}
+            />
+          ) : null}
         </View>
         </GestureTypingLayer>
-      {showUpsell ? (
-        <PremiumUpsellSheet onDismiss={() => setShowUpsell(false)} />
-      ) : null}
     </View>
   );
 }
@@ -5305,6 +5344,9 @@ function createKeyboardAppStyles(theme: KeyboardTheme) {
     },
     keysPanelClip: {
       overflow: 'hidden',
+    },
+    keysPaddingOverlayHost: {
+      position: 'relative',
     },
     numpadKeysPadding: {
       paddingTop: theme.numpadKeysPaddingTop,
