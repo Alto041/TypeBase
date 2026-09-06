@@ -97,6 +97,7 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
 
   override fun initialize() {
     super.initialize()
+    KeyboardInputBridge.setHapticFallbackContext(reactApplicationContext)
     Thread {
           SwipeWordDictionary.ensureLoaded(reactApplicationContext)
           NativeSuggestionBarEngine.preload(reactApplicationContext)

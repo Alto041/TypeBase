@@ -16,6 +16,10 @@ function formatNativeError(error: unknown): string {
   return 'On-device AI request failed.';
 }
 
+export type GemmaGenerateOptions = {
+  temperature?: number;
+};
+
 type GemmaNativeModule = {
   isModelDownloaded: () => Promise<boolean>;
   getModelPath: () => Promise<string>;
@@ -24,7 +28,10 @@ type GemmaNativeModule = {
   loadModel: () => Promise<string>;
   isModelLoaded: () => Promise<boolean>;
   unloadModel: () => void;
-  generateResponse: (prompt: string) => Promise<string>;
+  generateResponse: (
+    prompt: string,
+    options?: GemmaGenerateOptions | null,
+  ) => Promise<string>;
 };
 
 export type GemmaRuntimeStats = {
@@ -99,13 +106,16 @@ export async function isGemmaModelLoaded(): Promise<boolean> {
   return (await GemmaModule?.isModelLoaded()) ?? false;
 }
 
-export async function askGemma(prompt: string): Promise<string> {
+export async function askGemma(
+  prompt: string,
+  options?: GemmaGenerateOptions,
+): Promise<string> {
   if (!GemmaModule) {
     throw new Error('On-device AI is only available on Android.');
   }
   const startedAt = Date.now();
   try {
-    const response = await GemmaModule.generateResponse(prompt);
+    const response = await GemmaModule.generateResponse(prompt, options ?? null);
     gemmaInferenceTimes = [
       ...gemmaInferenceTimes.slice(-99),
       Date.now() - startedAt,

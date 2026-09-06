@@ -65,6 +65,11 @@ function normalizeLayout(raw: unknown): KeyboardLayoutSettings {
       typeof obj['keyboardHeightOffset'] === 'number' && Number.isFinite(obj['keyboardHeightOffset'])
         ? clamp(Math.round(obj['keyboardHeightOffset']), -140, 220)
         : defaults.keyboardHeightOffset,
+    bottomClearanceAdjust:
+      typeof obj['bottomClearanceAdjust'] === 'number' &&
+      Number.isFinite(obj['bottomClearanceAdjust'])
+        ? clamp(Math.round(obj['bottomClearanceAdjust']), -24, 48)
+        : defaults.bottomClearanceAdjust,
     letterLayoutId: normalizeLetterLayoutId(obj['letterLayoutId']),
     customTapSoundEnabled:
       typeof obj['customTapSoundEnabled'] === 'boolean'

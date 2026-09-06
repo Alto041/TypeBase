@@ -536,7 +536,7 @@ export function AiConfigPanel() {
         {/* On-Device AI Settings */}
         {provider === 'on_device' && isOnDeviceSupported && (
           <OnDeviceModelsSection
-            showParakeet={isParakeetSupported && voiceProvider === 'parakeet'}
+            showParakeet={isParakeetSupported}
             gemmaDownloaded={isModelDownloaded}
             gemmaDownloading={isDownloading}
             gemmaProgress={downloadProgress}

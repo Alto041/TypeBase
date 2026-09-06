@@ -1,16 +1,17 @@
 import {generateOnDeviceText} from '../ai/onDeviceTextAi';
 import {GEMINI_GENERATION_CONFIG} from '../ai/generationConfig';
-import {buildGemmaAutocorrectPrompt, buildGemmaAutocorrectStrongPrompt} from '../ai/gemmaPrompts';
-import {shouldAutoCapitalize} from '../autoCapitalize';
 import {
-  applyTypeLiftHeuristicFix,
-  needsTypeLiftProofread,
-} from './typeLiftHeuristics';
+  buildGemmaTypeLiftPrompt,
+  buildGemmaTypeLiftRetryPrompt,
+} from '../ai/gemmaPrompts';
 import {
   cleanOnDeviceTypeLiftOutput,
   isDegenerateTypeLiftOutput,
   isFaithfulTypeLiftCorrection,
 } from './typeLiftFaithfulness';
+import {TYPELIFT_DEFAULT_TONE} from './typeLiftBranding';
+import {hasDictionaryWord} from './dictionaryManager';
+import {shouldAutoCapitalize} from '../autoCapitalize';
 import {getGeminiApiKeyOptional} from '../settings/apiKeysStore';
 import {ensureAiProviderLoaded, getAiProvider} from '../settings/aiProviderStore';
 import {GEMINI_API_URL} from '../translate/geminiConfig';
@@ -91,6 +92,7 @@ function stripWrappingQuotes(text: string): string {
 function sanitizeTypeLiftCorrection(text: string): string {
   return stripWrappingQuotes(
     text
+      .replace(/\\+$/g, '')
       .replace(/\\[nr]/g, ' ')
       .replace(/[\r\n]+/g, ' ')
       .replace(/\s+/g, ' ')
@@ -190,13 +192,34 @@ ${input}`;
 }
 
 function buildGeminiAutocorrectStrongPrompt(input: string): string {
-  return `This casual mobile message has grammar mistakes from fast typing.
+  return `This mobile keyboard message has spelling and grammar mistakes from fast typing.
 
 TASK:
-- Fix missing helper verbs, subject-verb agreement, and redundant words.
-- Keep slang (bro, lol, etc.) and the same meaning.
-- Return the best natural version of the same message.
+- Fix misspellings, missing helper verbs, and awkward phrasing only.
+- Keep the SAME message. Do NOT reply, apologize, summarize, or shorten it.
+- Keep every idea and sentence from the input. Do not remove clauses.
+- Keep slang (bro, lol, etc.) and the same casual tone.
 - Single line only — no line breaks.
+
+OUTPUT: Return ONLY valid JSON (no markdown):
+{"text":"<corrected text>"}
+
+TEXT:
+${input}`;
+}
+
+function buildGeminiAutocorrectContextPrompt(input: string): string {
+  return `Fix the mobile keyboard message using context. Return the SAME message with mistakes corrected.
+
+Examples (use nearby words to pick the right fix):
+- "like a piec of garbage" → "like a piece of garbage"
+- "such an acion to me" → "such an action to me"
+- "i already spend a lot" → "i already spent a lot"
+
+TASK:
+- Keep every sentence and idea. Do NOT reply, apologize, summarize, or shorten.
+- Fix spelling and grammar using context. Never replace a word with a shorter lookalike.
+- Keep slang (bro, lol, etc.). Single line only — no line breaks.
 
 OUTPUT: Return ONLY valid JSON (no markdown):
 {"text":"<corrected text>"}
@@ -221,32 +244,94 @@ TOKEN:
 ${input}`;
 }
 
+function maxTypeLiftOutputChars(input: string): number {
+  return Math.max(64, Math.min(512, Math.ceil(input.length * 2) + 32));
+}
+
 /** Same plain-text parsing voice polish uses for on-device Gemma. */
-function parseOnDeviceAutocorrectResult(raw: string, original = ''): string {
-  const cleaned = original
-    ? cleanOnDeviceTypeLiftOutput(raw, original)
-    : null;
+function stripGemmaTurnTokens(text: string): string {
+  return text
+    .replace(/<end_of_turn>/gi, '')
+    .replace(/<start_of_turn>\w*/gi, '')
+    .trim();
+}
+
+function parseOnDeviceTypeLiftResult(
+  raw: string,
+  original = '',
+  maxLen?: number,
+): string {
+  let text = stripGemmaTurnTokens(raw);
+  const cap = maxLen ?? (original ? maxTypeLiftOutputChars(original) : 256);
+
+  const stopMatch = text.match(
+    /\n(?:Draft:|Corrected:|Input:|Output:|Mode:|Broken:|Fixed:)\s*/i,
+  );
+  if (stopMatch?.index != null && stopMatch.index > 0) {
+    text = text.slice(0, stopMatch.index);
+  }
+
+  const correctedLine = text.match(/(?:^|\n)Corrected:\s*(.+)$/im);
+  if (correctedLine?.[1]) {
+    text = correctedLine[1].trim();
+  }
+
+  const outputLine = text.match(/(?:^|\n)Output:\s*(.+)$/im);
+  if (outputLine?.[1]) {
+    text = outputLine[1].trim();
+  }
+
+  const fixedLine = text.match(/(?:^|\n)Fixed:\s*(.+)$/im);
+  if (fixedLine?.[1]) {
+    text = fixedLine[1].trim();
+  }
+
+  if (text.includes('<<<')) {
+    text = text.replace(/<<<\s*[\s\S]*?\s*>>>/g, '').trim();
+  }
+
+  text =
+    text
+      .split(/\r?\n+/)
+      .map(segment => segment.trim())
+      .filter(
+        segment =>
+          segment &&
+          !/^(?:draft|corrected|broken|fixed|input|output|mode):/i.test(segment) &&
+          segment !== '<<<' &&
+          segment !== '>>>',
+      )
+      .find(Boolean) ?? text;
+
+  text = text
+    .replace(/^(?:Corrected|Draft|Output|Input|Fixed|Broken):\s*/i, '')
+    .replace(/^<<<\s*/, '')
+    .replace(/\s*>>>$/, '')
+    .replace(/\\+$/g, '')
+    .trim();
+
+  if (text.startsWith('"') && text.endsWith('"') && text.length >= 2) {
+    text = text.slice(1, -1).trim();
+  }
+
+  if (text.length > cap) {
+    text = text.slice(0, cap).trim();
+  }
+
+  const cleaned = original ? cleanOnDeviceTypeLiftOutput(text, original) : null;
   if (cleaned) {
     return normalizeWhitespace(cleaned);
   }
 
-  const trimmed = raw.trim();
-  const firstSegment =
-    trimmed
-      .split(/(?:\\n|\r?\n)+/)
-      .map(segment => segment.trim())
-      .find(Boolean) ?? trimmed;
-  const unquoted =
-    firstSegment.startsWith('"') &&
-    firstSegment.endsWith('"') &&
-    firstSegment.length >= 2
-      ? firstSegment.slice(1, -1)
-      : firstSegment;
-  const normalized = normalizeWhitespace(unquoted);
+  const normalized = normalizeWhitespace(text);
   if (isDegenerateTypeLiftOutput(normalized)) {
     return '';
   }
   return normalized;
+}
+
+function parseOnDeviceAutocorrectResult(raw: string, original = ''): string {
+  return parseOnDeviceTypeLiftResult(raw, original);
 }
 
 function parseGeminiAutocorrectResult(raw: string): string {
@@ -318,6 +403,69 @@ function levenshtein(a: string, b: string): number {
   }
 
   return prev[b.length];
+}
+
+function classifyOnDeviceTypeLiftCorrection(
+  original: string,
+  correction: string,
+): AiAutocorrectResult {
+  const normalizedOriginal = normalizeWhitespace(original);
+  const normalizedCorrection = normalizeWhitespace(correction);
+
+  if (!normalizedCorrection || normalizedCorrection === normalizedOriginal) {
+    console.log(LOG_PREFIX, 'reject: unchanged', {original: normalizedOriginal});
+    return {kind: 'none'};
+  }
+
+  if (isDegenerateTypeLiftOutput(normalizedCorrection)) {
+    console.log(LOG_PREFIX, 'reject: degenerate output', {
+      original: normalizedOriginal,
+      correction: normalizedCorrection,
+    });
+    return {kind: 'none'};
+  }
+
+  if (isCosmeticOnlyCorrection(original, correction)) {
+    console.log(LOG_PREFIX, 'reject: cosmetic only', {
+      original: normalizedOriginal,
+      correction: normalizedCorrection,
+    });
+    return {kind: 'none'};
+  }
+
+  const distance = levenshtein(
+    normalizedOriginal.toLowerCase(),
+    normalizedCorrection.toLowerCase(),
+  );
+  const autoDistanceLimit = Math.min(
+    120,
+    Math.max(24, Math.ceil(normalizedOriginal.length * 0.85)),
+  );
+
+  if (distance <= autoDistanceLimit) {
+    console.log(LOG_PREFIX, 'auto result (on-device)', {
+      original: normalizedOriginal,
+      correction: normalizedCorrection,
+      distance,
+      autoDistanceLimit,
+    });
+    return {
+      kind: 'auto',
+      original,
+      correction: normalizedCorrection,
+    };
+  }
+
+  console.log(LOG_PREFIX, 'suggestion result (on-device)', {
+    original: normalizedOriginal,
+    correction: normalizedCorrection,
+    distance,
+  });
+  return {
+    kind: 'suggest',
+    original,
+    correction: normalizedCorrection,
+  };
 }
 
 function classifyCorrection(
@@ -467,6 +615,32 @@ async function generateGeminiProofread(
   return raw;
 }
 
+async function runOnDeviceTypeLift(
+  input: string,
+  toneInstruction = TYPELIFT_DEFAULT_TONE,
+): Promise<string | null> {
+  const maxTokens = maxTypeLiftOutputChars(input);
+  const prompt = buildGemmaTypeLiftPrompt(input, toneInstruction);
+  console.log(LOG_PREFIX, 'on-device prompt', {prompt, maxTokens, toneInstruction});
+
+  const raw = await generateOnDeviceText(prompt, {temperature: 0});
+  console.log(LOG_PREFIX, 'on-device raw response', {raw});
+  const parsed = parseOnDeviceTypeLiftResult(raw, input, maxTokens);
+  if (parsed && !isCosmeticOnlyCorrection(input, parsed)) {
+    return parsed;
+  }
+
+  console.log(LOG_PREFIX, 'on-device retry: unchanged output', {
+    input,
+    parsed,
+  });
+  const retryPrompt = buildGemmaTypeLiftRetryPrompt(input, toneInstruction);
+  const retryRaw = await generateOnDeviceText(retryPrompt, {temperature: 0.2});
+  console.log(LOG_PREFIX, 'on-device retry raw response', {raw: retryRaw});
+  const retryParsed = parseOnDeviceTypeLiftResult(retryRaw, input, maxTokens);
+  return retryParsed || null;
+}
+
 async function generateProofread(
   input: string,
   promptBuilder: (value: string) => string = buildGeminiAutocorrectPrompt,
@@ -475,12 +649,13 @@ async function generateProofread(
   if (getAiProvider() === 'on_device') {
     console.log(LOG_PREFIX, 'on-device request', {input});
     const useTokenPrompt = promptBuilder === buildTokenAutocorrectPrompt;
-    const prompt = useTokenPrompt
-      ? buildTokenAutocorrectPrompt(input)
-      : buildGemmaAutocorrectPrompt(input);
-    const raw = await generateOnDeviceText(prompt);
-    console.log(LOG_PREFIX, 'on-device raw response', {raw});
-    return parseOnDeviceAutocorrectResult(raw, input);
+    if (useTokenPrompt) {
+      const raw = await generateOnDeviceText(buildTokenAutocorrectPrompt(input));
+      console.log(LOG_PREFIX, 'on-device raw response', {raw});
+      return parseOnDeviceTypeLiftResult(raw, input);
+    }
+
+    return runOnDeviceTypeLift(input);
   }
 
   const raw = await generateGeminiProofread(input, promptBuilder);
@@ -490,12 +665,191 @@ async function generateProofread(
   return parseGeminiAutocorrectResult(raw);
 }
 
+function isCollapsedRewrite(original: string, candidate: string): boolean {
+  const orig = normalizeWhitespace(original);
+  const clean = normalizeWhitespace(candidate);
+  if (!orig || !clean || clean === orig) {
+    return false;
+  }
+
+  const origWords = orig.split(/\s+/).filter(Boolean);
+  const cleanWords = clean.split(/\s+/).filter(Boolean);
+  if (origWords.length >= 8 && cleanWords.length <= Math.ceil(origWords.length * 0.72)) {
+    return true;
+  }
+
+  return clean.length < Math.max(24, Math.floor(orig.length * 0.72));
+}
+
+const CHATBOT_REPLY_PATTERNS = [
+  /^hey[,! ]+i'?m (?:so )?sorry\b/i,
+  /^i'?m (?:so )?sorry to hear\b/i,
+  /^sorry to hear that\b/i,
+  /^that sounds (?:really )?(?:tough|hard|difficult)\b/i,
+];
+
+function isChatbotReply(original: string, candidate: string): boolean {
+  const trimmedCandidate = candidate.trim();
+  if (!trimmedCandidate) {
+    return false;
+  }
+
+  if (!CHATBOT_REPLY_PATTERNS.some(pattern => pattern.test(trimmedCandidate))) {
+    return false;
+  }
+
+  const trimmedOriginal = original.trim();
+  return !CHATBOT_REPLY_PATTERNS.some(pattern => pattern.test(trimmedOriginal));
+}
+
+function isShallowDictionarySwap(originalWord: string, correctionWord: string): boolean {
+  const original = originalWord.replace(/[^\p{L}\p{M}']/gu, '');
+  const correction = correctionWord.replace(/[^\p{L}\p{M}']/gu, '');
+  if (!original || !correction) {
+    return false;
+  }
+
+  const o = original.toLowerCase();
+  const c = correction.toLowerCase();
+  if (o === c) {
+    return false;
+  }
+
+  if (hasDictionaryWord(o)) {
+    return false;
+  }
+
+  if (!hasDictionaryWord(c)) {
+    return false;
+  }
+
+  const distance = levenshtein(o, c);
+  if (distance > 2) {
+    return false;
+  }
+
+  // piec→pic, acion→acton: unknown typo became a shorter/equal valid word without context.
+  return c.length <= o.length;
+}
+
+function hasShallowWordSwaps(original: string, correction: string): boolean {
+  const origWords = original.trim().split(/\s+/).filter(Boolean);
+  const cleanWords = correction.trim().split(/\s+/).filter(Boolean);
+  if (origWords.length !== cleanWords.length) {
+    return false;
+  }
+
+  for (let index = 0; index < origWords.length; index += 1) {
+    if (isShallowDictionarySwap(origWords[index]!, cleanWords[index]!)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+const TYPOLIFT_SKIP_WORDS = new Set([
+  'bro',
+  'bruh',
+  'lol',
+  'ok',
+  'okay',
+  'im',
+  'ive',
+  'idk',
+  'omg',
+  'tbh',
+  'ngl',
+]);
+
+function isCosmeticOnlyCorrection(original: string, correction: string): boolean {
+  const normalize = (value: string) =>
+    normalizeWhitespace(value)
+      .toLowerCase()
+      .replace(/\\/g, '')
+      .replace(/[^\p{L}\p{N}\s']/gu, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+  return normalize(original) === normalize(correction);
+}
+
+/** Reject when OOV typo tokens like piec/acion/randmonly survived unchanged. */
+function leavesKnownTyposUnfixed(original: string, correction: string): boolean {
+  const words = original.match(/[\p{L}']+/gu) ?? [];
+  for (const word of words) {
+    const lower = word.toLowerCase();
+    if (lower.length < 4 || TYPOLIFT_SKIP_WORDS.has(lower)) {
+      continue;
+    }
+    if (hasDictionaryWord(lower)) {
+      continue;
+    }
+
+    const pattern = new RegExp(
+      `(?<![\\p{L}'])${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}'])`,
+      'iu',
+    );
+    if (pattern.test(correction)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 async function generateProofreadWithFallback(
   input: string,
   contextBefore = '',
 ): Promise<string | null> {
+  await ensureAiProviderLoaded();
+  const onDevice = getAiProvider() === 'on_device';
+
   const acceptCandidate = (candidate: string | null): string | null => {
     if (!candidate) {
+      return null;
+    }
+
+    if (onDevice) {
+      if (isCosmeticOnlyCorrection(input, candidate)) {
+        console.log(LOG_PREFIX, 'reject: cosmetic only', {
+          original: input,
+          candidate,
+        });
+        return null;
+      }
+      const normalized = finalizeTypeLiftCorrection(contextBefore, input, candidate);
+      if (
+        !normalized ||
+        normalized === finalizeTypeLiftCorrection(contextBefore, input, input)
+      ) {
+        return null;
+      }
+      if (isDegenerateTypeLiftOutput(normalized)) {
+        return null;
+      }
+      return normalized;
+    }
+
+    if (isCollapsedRewrite(input, candidate)) {
+      console.log(LOG_PREFIX, 'reject: collapsed rewrite', {
+        original: input,
+        candidate,
+      });
+      return null;
+    }
+    if (isChatbotReply(input, candidate)) {
+      console.log(LOG_PREFIX, 'reject: chatbot reply', {
+        original: input,
+        candidate,
+      });
+      return null;
+    }
+    if (isCosmeticOnlyCorrection(input, candidate)) {
+      console.log(LOG_PREFIX, 'reject: cosmetic only', {
+        original: input,
+        candidate,
+      });
       return null;
     }
     const normalized = finalizeTypeLiftCorrection(contextBefore, input, candidate);
@@ -505,54 +859,60 @@ async function generateProofreadWithFallback(
     ) {
       return null;
     }
+    if (hasShallowWordSwaps(input, normalized)) {
+      console.log(LOG_PREFIX, 'reject: shallow dictionary swap', {
+        original: input,
+        candidate: normalized,
+      });
+      return null;
+    }
+    if (leavesKnownTyposUnfixed(input, normalized)) {
+      console.log(LOG_PREFIX, 'reject: typos still unfixed', {
+        original: input,
+        candidate: normalized,
+      });
+      return null;
+    }
     if (!isFaithfulTypeLiftCorrection(input, normalized, 'suggest')) {
       return null;
     }
     return normalized;
   };
 
-  const first = acceptCandidate(await generateProofread(input));
+  const firstRaw = await generateProofread(input);
+  const first = acceptCandidate(firstRaw);
   if (first) {
     return first;
   }
 
-  if (!needsTypeLiftProofread(input)) {
+  await ensureAiProviderLoaded();
+  if (getAiProvider() === 'on_device') {
+    const apiKey = await getGeminiApiKeyOptional();
+    if (apiKey) {
+      console.log(LOG_PREFIX, 'cloud fallback', {input});
+      const cloudRaw = await generateGeminiProofread(
+        input,
+        buildGeminiAutocorrectContextPrompt,
+      );
+      if (cloudRaw) {
+        const cloud = acceptCandidate(parseGeminiAutocorrectResult(cloudRaw));
+        if (cloud) {
+          return cloud;
+        }
+      }
+    }
     return null;
   }
 
-  console.log(LOG_PREFIX, 'retry: unchanged but heuristics flagged issues', {
+  const strongRaw = await generateGeminiProofread(
     input,
-  });
-
-  await ensureAiProviderLoaded();
-  if (getAiProvider() === 'on_device') {
-    const raw = await generateOnDeviceText(buildGemmaAutocorrectStrongPrompt(input));
-    console.log(LOG_PREFIX, 'on-device strong raw response', {raw});
-    const strong = acceptCandidate(parseOnDeviceAutocorrectResult(raw, input));
+    buildGeminiAutocorrectStrongPrompt,
+  );
+  if (strongRaw) {
+    const strong = acceptCandidate(parseGeminiAutocorrectResult(strongRaw));
     if (strong) {
       return strong;
     }
-  } else {
-    const raw = await generateGeminiProofread(
-      input,
-      buildGeminiAutocorrectStrongPrompt,
-    );
-    if (raw) {
-      const strong = acceptCandidate(parseGeminiAutocorrectResult(raw));
-      if (strong) {
-        return strong;
-      }
-    }
-  }
-
-  const heuristic = applyTypeLiftHeuristicFix(input);
-  const heuristicAccepted = acceptCandidate(heuristic);
-  if (heuristicAccepted) {
-    console.log(LOG_PREFIX, 'heuristic fallback', {
-      input,
-      heuristic: heuristicAccepted,
-    });
-    return heuristicAccepted;
   }
 
   return null;
@@ -577,6 +937,11 @@ export async function proofreadRecentTypingContext(
 
     if (!correction) {
       return {kind: 'none'};
+    }
+
+    await ensureAiProviderLoaded();
+    if (getAiProvider() === 'on_device') {
+      return classifyOnDeviceTypeLiftCorrection(original, correction);
     }
 
     return classifyCorrection(original, correction);

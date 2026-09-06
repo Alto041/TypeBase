@@ -132,6 +132,7 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
     if (key === 'keyRowMargin') next = Math.max(0, Math.min(20, value));
     if (key === 'keyRadius') next = Math.max(0, Math.min(12, value));
     if (key === 'keyHapticPulseMs') next = Math.max(6, Math.min(24, Math.round(value)));
+    if (key === 'bottomClearanceAdjust') next = Math.max(-24, Math.min(48, Math.round(value)));
     setLayout(current => ({...current, [key]: next}));
     void updateKeyboardLayoutSetting(key, next);
   };
@@ -140,11 +141,14 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
   const keyGap = layout.keyGap;
   const rowGap = layout.keyRowMargin;
   const keyRadius = layout.keyRadius;
+  const bottomClearanceAdjust = layout.bottomClearanceAdjust ?? 0;
   const hapticPulseMs = layout.keyHapticPulseMs;
   const hapticEnabled = layout.keyHapticEnabled;
   loadingRef.current = loading;
   hapticEnabledRef.current = hapticEnabled;
   hapticPulseMsRef.current = hapticPulseMs;
+  const bottomClearanceAdjustRef = useRef(bottomClearanceAdjust);
+  bottomClearanceAdjustRef.current = bottomClearanceAdjust;
 
   const handleReset = () => {
     setLayout(DEFAULT_KEYBOARD_LAYOUT_SETTINGS);
@@ -424,6 +428,30 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
   const HAPTIC_KNOB_SIZE = 18;
   const HAPTIC_DRAG_PX = 210;
 
+  const updateHapticPulseMs = useCallback(
+    async (value: number) => {
+      if (!canUse('keyboard_customize')) {
+        Alert.alert('Premium feature', 'Unlock TypeBase to customize key sizing and sounds.');
+        return;
+      }
+      const next = Math.max(HAPTIC_MIN, Math.min(HAPTIC_MAX, Math.round(value)));
+      if (next === hapticPulseMsRef.current) {
+        return;
+      }
+      setLayout(current => ({...current, keyHapticPulseMs: next}));
+      await updateKeyboardLayoutSetting('keyHapticPulseMs', next);
+      hapticPulseMsRef.current = next;
+      if (next !== lastHapticPulseRef.current) {
+        lastHapticPulseRef.current = next;
+        keyboardBridge.performKeyHaptic();
+        void Haptics.selectionAsync().catch(() => {});
+      }
+    },
+    [canUse],
+  );
+  const updateHapticPulseMsRef = useRef(updateHapticPulseMs);
+  updateHapticPulseMsRef.current = updateHapticPulseMs;
+
   const hapticProgress = (hapticPulseMs - HAPTIC_MIN) / HAPTIC_RANGE;
   const hapticKnobLeft = hapticProgress * (HAPTIC_TRACK_W - HAPTIC_KNOB_SIZE);
 
@@ -445,16 +473,60 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
         next = Math.max(HAPTIC_MIN, Math.min(HAPTIC_MAX, next));
 
         if (next !== hapticPulseMsRef.current) {
-          if (next !== lastHapticPulseRef.current) {
-            lastHapticPulseRef.current = next;
-            keyboardBridge.performKeyHaptic();
-          }
-          update('keyHapticPulseMs', next);
-          Haptics.selectionAsync().catch(() => {});
+          void updateHapticPulseMsRef.current(next);
         }
       },
     })
   ).current;
+
+  // ==================== BOTTOM SPACE lift stack (cross-section preview) ====================
+  const BOTTOM_CLEARANCE_MIN = -24;
+  const BOTTOM_CLEARANCE_MAX = 48;
+  const BOTTOM_CLEARANCE_RANGE = BOTTOM_CLEARANCE_MAX - BOTTOM_CLEARANCE_MIN;
+  const BOTTOM_CLEARANCE_DRAG_PX = 200;
+  const LIFT_VIEWPORT_H = 128;
+  const LIFT_SYSTEM_H = 20;
+  const LIFT_KEYBOARD_H = 44;
+  const LIFT_GAP_MIN = 6;
+  const LIFT_GAP_MAX = 58;
+
+  const bottomClearanceProgress =
+    (bottomClearanceAdjust - BOTTOM_CLEARANCE_MIN) / BOTTOM_CLEARANCE_RANGE;
+  const liftGap =
+    LIFT_GAP_MIN + bottomClearanceProgress * (LIFT_GAP_MAX - LIFT_GAP_MIN);
+  const liftKeyboardTop = LIFT_VIEWPORT_H - LIFT_SYSTEM_H - liftGap - LIFT_KEYBOARD_H;
+
+  const bottomLiftDragRef = useRef({startValue: BOTTOM_CLEARANCE_MIN});
+
+  const bottomLiftPan = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => !loadingRef.current,
+      onMoveShouldSetPanResponder: () => !loadingRef.current,
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderGrant: () => {
+        bottomLiftDragRef.current.startValue = bottomClearanceAdjustRef.current;
+      },
+      onPanResponderMove: (_evt, gestureState) => {
+        const deltaValue =
+          (gestureState.dy / BOTTOM_CLEARANCE_DRAG_PX) * BOTTOM_CLEARANCE_RANGE;
+        let next = Math.round(
+          (bottomLiftDragRef.current.startValue + deltaValue) / 2,
+        ) * 2;
+        next = Math.max(
+          BOTTOM_CLEARANCE_MIN,
+          Math.min(BOTTOM_CLEARANCE_MAX, next),
+        );
+
+        if (next !== bottomClearanceAdjustRef.current) {
+          update('bottomClearanceAdjust', next);
+          Haptics.selectionAsync().catch(() => {});
+        }
+      },
+    }),
+  ).current;
+
+  const formatBottomClearance = (value: number) =>
+    value > 0 ? `+${value}` : `${value}`;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -627,11 +699,7 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
                     onChangeText={text => {
                       const n = parseInt(text.replace(/[^0-9]/g, ''), 10);
                       if (!isNaN(n)) {
-                        if (n !== lastHapticPulseRef.current) {
-                          lastHapticPulseRef.current = n;
-                          keyboardBridge.performKeyHaptic();
-                        }
-                        update('keyHapticPulseMs', n);
+                        void updateHapticPulseMs(n);
                       }
                     }}
                     keyboardType="number-pad"
@@ -647,6 +715,75 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
             </View>
             <View style={styles.hapticIconBadge}>
               <HapticIcon width={18} height={18} color={C.text} />
+            </View>
+          </View>
+
+          <View
+            style={[
+              styles.bottomLiftCard,
+              loading && styles.bottomLiftCardDisabled,
+            ]}>
+            <Text style={[styles.configLabel, styles.configLabelTopLeft]}>
+              BOTTOM SPACE
+            </Text>
+            <View style={styles.bottomLiftValueWrap}>
+              <View style={styles.bottomLiftValueRow}>
+                <View style={styles.valueBox}>
+                  <TextInput
+                    style={styles.valueInput}
+                    value={formatBottomClearance(bottomClearanceAdjust)}
+                    onChangeText={text => {
+                      const n = parseInt(text.replace(/[^0-9-]/g, ''), 10);
+                      if (!isNaN(n)) {
+                        update('bottomClearanceAdjust', n);
+                      }
+                    }}
+                    keyboardType="numbers-and-punctuation"
+                    editable={!loading}
+                  />
+                </View>
+                <Text style={styles.bottomLiftUnit}>px</Text>
+              </View>
+            </View>
+            <View style={styles.bottomLiftViewport} {...bottomLiftPan.panHandlers}>
+              <View
+                style={[
+                  styles.bottomLiftKeyboard,
+                  {top: liftKeyboardTop},
+                ]}>
+                <View style={styles.bottomLiftKeyRow}>
+                  <View style={styles.bottomLiftKeyPillWide} />
+                </View>
+                <View style={styles.bottomLiftKeyRow}>
+                  <View style={styles.bottomLiftKeyPill} />
+                  <View style={styles.bottomLiftKeyPill} />
+                  <View style={styles.bottomLiftKeyPill} />
+                </View>
+                <View style={styles.bottomLiftKeyRow}>
+                  <View style={styles.bottomLiftKeyPill} />
+                  <View style={styles.bottomLiftKeyPillWide} />
+                  <View style={styles.bottomLiftKeyPill} />
+                </View>
+              </View>
+
+              <View
+                style={[
+                  styles.bottomLiftGapZone,
+                  {
+                    top: liftKeyboardTop + LIFT_KEYBOARD_H,
+                    height: Math.max(liftGap, 4),
+                  },
+                ]}>
+                <View style={styles.bottomLiftGapTick} />
+                <View style={styles.bottomLiftGapTick} />
+                <View style={styles.bottomLiftGapTick} />
+              </View>
+
+              <View style={styles.bottomLiftSystemBar}>
+                <View style={styles.bottomLiftSystemDot} />
+                <View style={styles.bottomLiftSystemDot} />
+                <View style={styles.bottomLiftSystemDot} />
+              </View>
             </View>
           </View>
 
@@ -1285,6 +1422,102 @@ const styles = StyleSheet.create({
   // Copied container design from Launchpad (App.tsx) for customize page
   customizeSection: {
     gap: 8,
+  },
+  bottomLiftCard: {
+    backgroundColor: C.card,
+    borderRadius: CARD_R,
+    height: 156,
+    position: 'relative',
+  },
+  bottomLiftCardDisabled: {
+    opacity: 0.45,
+  },
+  bottomLiftValueWrap: {
+    position: 'absolute',
+    left: 14,
+    bottom: 14,
+  },
+  bottomLiftValueRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 6,
+  },
+  bottomLiftUnit: {
+    fontFamily: 'FragmentMono',
+    fontSize: 13,
+    color: C.sub,
+    letterSpacing: TEXT_KERNING,
+  },
+  bottomLiftViewport: {
+    position: 'absolute',
+    right: 14,
+    top: 14,
+    width: 118,
+    height: 128,
+    borderRadius: 16,
+    backgroundColor: '#F2F2F2',
+    overflow: 'hidden',
+  },
+  bottomLiftKeyboard: {
+    position: 'absolute',
+    left: 10,
+    right: 10,
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    gap: 4,
+    justifyContent: 'center',
+  },
+  bottomLiftKeyRow: {
+    flexDirection: 'row',
+    gap: 4,
+    alignItems: 'center',
+  },
+  bottomLiftKeyPill: {
+    flex: 1,
+    height: 7,
+    borderRadius: 3,
+    backgroundColor: '#DDDCDC',
+  },
+  bottomLiftKeyPillWide: {
+    flex: 2,
+    height: 7,
+    borderRadius: 3,
+    backgroundColor: '#DDDCDC',
+  },
+  bottomLiftGapZone: {
+    position: 'absolute',
+    left: 18,
+    right: 18,
+    alignItems: 'center',
+    justifyContent: 'space-evenly',
+  },
+  bottomLiftGapTick: {
+    width: 14,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: '#C8C8C8',
+  },
+  bottomLiftSystemBar: {
+    position: 'absolute',
+    left: 10,
+    right: 10,
+    bottom: 6,
+    height: 20,
+    borderRadius: 8,
+    backgroundColor: '#DDDCDC',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-evenly',
+    paddingHorizontal: 10,
+  },
+  bottomLiftSystemDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#AEAEAE',
   },
   hapticCard: {
     backgroundColor: C.card,

@@ -496,7 +496,7 @@ export function AiConfigScreen({
                   )}
                 </View>
 
-                {isParakeetSupported && voiceProvider === 'parakeet' ? (
+                {isParakeetSupported ? (
                   <View style={[styles.modelCard, styles.modelCardDivider]}>
                     <View style={styles.modelInfo}>
                       <Text style={styles.modelTitle}>Parakeet TDT 0.6B v3</Text>

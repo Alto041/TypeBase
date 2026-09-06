@@ -94,32 +94,82 @@ export function buildGemmaParakeetCleanupPrompt(transcript: string): string {
 "${transcript}"`);
 }
 
+/** Single on-device TypeLift prompt — correct draft, apply tone. No few-shot examples (270M copies them). */
+export function buildGemmaTypeLiftPrompt(
+  text: string,
+  toneInstruction: string,
+): string {
+  return wrapGemmaPrompt(
+    `Task: correct the draft. Tone: ${toneInstruction}.
+
+Hard rules:
+- Rewrite the draft only.
+- Fix spelling, grammar, wording.
+- Same meaning. Same language.
+- Keep names, numbers, URLs, @handles, emoji.
+- Never apologize, comfort, chat, or explain.
+- Never reuse words from examples unless they appear in the draft.
+- Output one corrected message. Nothing else.
+
+Draft:
+<<<
+${text}
+>>>
+
+Corrected:`,
+  );
+}
+
+/** Shorter retry when the model echoes the draft unchanged. */
+export function buildGemmaTypeLiftRetryPrompt(
+  text: string,
+  toneInstruction: string,
+): string {
+  return wrapGemmaPrompt(
+    `Task: correct the draft. Tone: ${toneInstruction}.
+Rewrite the draft only. Fix spelling and grammar. Same meaning. No apology or chat.
+Output one corrected message. Nothing else.
+
+Draft:
+<<<
+${text}
+>>>
+
+Corrected:`,
+  );
+}
+
 export function buildGemmaAutocorrectPrompt(text: string): string {
   return wrapGemmaPrompt(`Fix spelling, grammar, and awkward mobile-typing mistakes in the message below.
 
 Rules:
+- Keep the SAME message. Do NOT reply, summarize, apologize, shorten, or rephrase.
+- Keep every sentence and idea from the input. Do not delete clauses.
 - Keep slang and casual tone (bro, lol, gonna, etc.).
 - You MAY insert small missing words (are, is, am, a, the, to) when grammar clearly needs them.
-- Fix redundant wording (example: "today night this day" → "tonight").
-- Light punctuation and capitalization fixes are OK.
+- Fix misspellings and redundant wording only.
 - Do not change the meaning or add new information.
-- Never invent new phrases or answer the message — only fix what was typed.
 - Single line only — no line breaks.
 
-Return only the corrected text and nothing else.
+Return only the corrected message and nothing else.
 
-Text:
+Message:
 "${text}"`);
 }
 
 export function buildGemmaAutocorrectStrongPrompt(text: string): string {
-  return wrapGemmaPrompt(`This mobile message has grammar mistakes from fast typing. Fix missing helper verbs, awkward phrasing, and redundant words.
+  return wrapGemmaPrompt(`Fix the mobile keyboard message below. Output the SAME message with spelling and grammar fixes only.
 
-Keep the same casual vibe and slang. You may insert short words like "are" or "is" when clearly missing.
-Single line only — no line breaks.
+CRITICAL:
+- Do NOT reply to the writer, apologize, summarize, or shorten the message.
+- Keep every idea and sentence from the input. Do not remove clauses.
+- Keep slang (bro, lol, etc.) and the same casual tone.
+- Fix misspellings using the surrounding words. Never swap in a shorter unrelated word.
+- Same language. Similar length (only add/remove a few small grammar words).
 
-Return only the corrected text and nothing else.
+Return only the corrected message — no quotes, no explanation.
 
-Text:
+Message:
 "${text}"`);
 }
+

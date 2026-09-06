@@ -635,9 +635,13 @@ function LaunchpadScreen({
         <View style={styles.stack}>
           <LaunchpadCard
             icon={<PremiumIcon width={HOME_ICON} height={HOME_ICON} color={C.text} />}
-            title="Unlock TypeBase"
+            title={!loading && isPremium ? 'Typebase Premium' : 'Unlock TypeBase'}
             description={
-              !loading && !isPremium ? 'Full keyboard · supports indie dev' : undefined
+              !loading && isPremium
+                ? 'Active on this device'
+                : !loading && !isPremium
+                  ? 'Full keyboard · supports indie dev'
+                  : undefined
             }
             titleFontFamily="FragmentMono"
             radius={18}

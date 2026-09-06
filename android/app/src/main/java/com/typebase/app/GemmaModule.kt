@@ -6,6 +6,7 @@ import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
+import com.facebook.react.bridge.ReadableMap
 import com.facebook.react.bridge.UiThreadUtil
 import com.facebook.react.modules.core.DeviceEventManagerModule
 import com.google.mediapipe.tasks.genai.llminference.LlmInference
@@ -186,7 +187,7 @@ class GemmaModule(private val reactContext: ReactApplicationContext) :
   }
 
   @ReactMethod
-  fun generateResponse(prompt: String, promise: Promise) {
+  fun generateResponse(prompt: String, options: ReadableMap?, promise: Promise) {
     executor.execute {
       try {
         val inference = llmInference
@@ -199,7 +200,7 @@ class GemmaModule(private val reactContext: ReactApplicationContext) :
           return@execute
         }
 
-        val sessionOptions = createSessionOptions()
+        val sessionOptions = createSessionOptions(options)
         LlmInferenceSession.createFromOptions(inference, sessionOptions).use { session ->
           session.addQueryChunk(prompt)
           val result = session.generateResponse()
@@ -226,12 +227,22 @@ class GemmaModule(private val reactContext: ReactApplicationContext) :
     super.invalidate()
   }
 
-  private fun createSessionOptions(): LlmInferenceSession.LlmInferenceSessionOptions =
-      LlmInferenceSession.LlmInferenceSessionOptions.builder()
-          .setTemperature(MODEL_TEMPERATURE)
-          .setTopK(MODEL_TOP_K)
-          .setTopP(MODEL_TOP_P)
-          .build()
+  private fun createSessionOptions(
+      options: ReadableMap? = null,
+  ): LlmInferenceSession.LlmInferenceSessionOptions {
+    val temperature =
+        if (options != null && options.hasKey("temperature") && !options.isNull("temperature")) {
+          options.getDouble("temperature").toFloat()
+        } else {
+          MODEL_TEMPERATURE
+        }
+
+    return LlmInferenceSession.LlmInferenceSessionOptions.builder()
+        .setTemperature(temperature)
+        .setTopK(MODEL_TOP_K)
+        .setTopP(MODEL_TOP_P)
+        .build()
+  }
 
   private fun emitDownloadProgress(progress: Double) {
     if (!reactContext.hasActiveReactInstance()) {

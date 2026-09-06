@@ -2,12 +2,17 @@ import {
   getAiProvider,
   isOnDeviceAiProvider,
 } from '../settings/aiProviderStore';
-import {askGemma} from './gemmaBridge';
+import {askGemma, type GemmaGenerateOptions} from './gemmaBridge';
 import {ensureGemmaModelLoaded} from './gemmaModelManager';
 
-export async function generateOnDeviceText(prompt: string): Promise<string> {
+export type OnDeviceTextOptions = GemmaGenerateOptions;
+
+export async function generateOnDeviceText(
+  prompt: string,
+  options?: OnDeviceTextOptions,
+): Promise<string> {
   await ensureGemmaModelLoaded();
-  const raw = await askGemma(prompt);
+  const raw = await askGemma(prompt, options);
   return raw.trim();
 }
 

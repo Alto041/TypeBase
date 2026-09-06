@@ -46,6 +46,10 @@ object KeyboardInputBridge {
   private var keyHapticEnabled: Boolean = true
   @Volatile private var keyHapticPulseMs: Int = 12
 
+  /** Used for haptic preview when the IME service is not attached (e.g. Customize screen). */
+  @Volatile
+  private var hapticFallbackContext: Context? = null
+
   @Volatile
   private var currentEditorInfo: EditorInfo? = null
 
@@ -304,6 +308,10 @@ object KeyboardInputBridge {
 
   fun isKeyHapticEnabled(): Boolean = keyHapticEnabled
 
+  fun setHapticFallbackContext(context: Context) {
+    hapticFallbackContext = context.applicationContext
+  }
+
   fun syncLayoutSettings(json: String) {
     try {
       val layout = JSONObject(json)
@@ -349,6 +357,11 @@ object KeyboardInputBridge {
 
   /** Collapse duplicate JS haptics in the same frame only — never throttle touch-down pulses. */
   private const val JS_HAPTIC_DEBOUNCE_MS = 8L
+
+  private const val DEFAULT_HAPTIC_PULSE_MS = 12
+
+  /** Cached one-shot effects for custom intensity slider values (6–24 ms). */
+  private val configuredPulseEffects = HashMap<Int, VibrationEffect>()
 
   /**
    * IME touch-down haptic — synchronous on ACTION_DOWN before React. Never debounced.
@@ -511,16 +524,18 @@ object KeyboardInputBridge {
     lightHapticEngineFallback()
   }
 
-  /** Gboard-style KEYBOARD_TAP when the IME view is available; vibrator only as fallback. */
+  /** Intensity slider maps to vibrator duration + amplitude; default uses fast KEYBOARD_TAP. */
   private fun fireConfiguredKeyHapticPulse() {
-    val view = inputService?.keyboardViewForFeedback
-    if (view != null) {
-      if (Looper.myLooper() == Looper.getMainLooper()) {
-        performViewFastKeyHaptic(view)
-      } else {
-        mainHandler.post { performViewFastKeyHaptic(view) }
+    if (keyHapticPulseMs == DEFAULT_HAPTIC_PULSE_MS) {
+      val view = inputService?.keyboardViewForFeedback
+      if (view != null) {
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+          performViewFastKeyHaptic(view)
+        } else {
+          mainHandler.post { performViewFastKeyHaptic(view) }
+        }
+        return
       }
-      return
     }
     val durationMs = keyHapticPulseMs.toLong()
     pulseVibrator(durationMs, hapticAmplitudeForPulseMs(keyHapticPulseMs))
@@ -530,8 +545,12 @@ object KeyboardInputBridge {
     return ((ms - 6) * 9 + 44).coerceIn(44, 200)
   }
 
+  private fun hapticContext(): Context? {
+    return inputService?.applicationContext ?: hapticFallbackContext
+  }
+
   private fun pulseVibrator(durationMs: Long, amplitude: Int) {
-    val ctx = inputService?.applicationContext ?: return
+    val ctx = hapticContext() ?: return
     val vib =
         vibrator
             ?: (ctx.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator)?.also { vibrator = it }
@@ -539,16 +558,19 @@ object KeyboardInputBridge {
     if (!vib.hasVibrator()) {
       return
     }
+    val clampedMs = durationMs.coerceIn(6L, 24L).toInt()
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-      vib.vibrate(
-          VibrationEffect.createOneShot(
-              durationMs.coerceIn(6L, 24L),
-              amplitude.coerceIn(1, 255),
-          ),
-      )
+      val effect =
+          configuredPulseEffects.getOrPut(clampedMs) {
+            VibrationEffect.createOneShot(
+                clampedMs.toLong(),
+                hapticAmplitudeForPulseMs(clampedMs),
+            )
+          }
+      vib.vibrate(effect)
     } else {
       @Suppress("DEPRECATION")
-      vib.vibrate(durationMs.coerceIn(6L, 24L))
+      vib.vibrate(clampedMs.toLong())
     }
   }
 

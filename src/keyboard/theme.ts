@@ -48,6 +48,11 @@ export type KeyboardLayoutSettings = {
    * negative = shorter). Applied on top of the computed base height for letters view.
    */
   keyboardHeightOffset: number;
+  /**
+   * Extra clearance above the system IME strip (hide keyboard, nav, language).
+   * Positive lifts keys away from the bottom bar; negative tucks them closer.
+   */
+  bottomClearanceAdjust: number;
   /** When true, play the imported custom tap sound on key press. */
   customTapSoundEnabled: boolean;
   /** File name under keyboard_tap_sounds/ (e.g. custom_tap.mp3). */
@@ -82,6 +87,7 @@ export const DEFAULT_KEYBOARD_LAYOUT_SETTINGS: KeyboardLayoutSettings = {
   letterSymbolAlternatesEnabled: true,
   numberRowEnabled: false,
   keyboardHeightOffset: 0,
+  bottomClearanceAdjust: 0,
   customTapSoundEnabled: true,
   customTapSoundFile: '1.mp3',
   keyHapticEnabled: true,
@@ -794,7 +800,14 @@ export function createKeyboardTheme(
   const numpadKeyHeight = Math.max(36, layout.keyHeight - 6);
   const suggestionBarHeight = isLandscape ? 42 : 48;
   const keysPaddingTop = isLandscape ? 4 : KEYS_PADDING_TOP;
-  const imeStripClearance = isLandscape ? 28 : IME_STRIP_CLEARANCE;
+  const baseImeStripClearance = isLandscape ? 28 : IME_STRIP_CLEARANCE;
+  const imeStripClearance = Math.round(
+    clamp(
+      baseImeStripClearance + (layout.bottomClearanceAdjust ?? 0),
+      isLandscape ? 16 : 22,
+      isLandscape ? 64 : 96,
+    ),
+  );
   const essentialsPanelHeight = isLandscape ? 112 : 136;
   const keyboardHeightBuffer = isLandscape ? 4 : KEYBOARD_HEIGHT_BUFFER;
   const numberRowHeight =

@@ -28,7 +28,9 @@ export function useKeyboardPremium() {
     const unsubscribe = initPremiumListener(next => {
       setPremiumCached(next);
       setIsPremium(next);
-      void applyFreeTierDefaults();
+      if (!next) {
+        void applyFreeTierDefaults();
+      }
     });
     return () => {
       active = false;

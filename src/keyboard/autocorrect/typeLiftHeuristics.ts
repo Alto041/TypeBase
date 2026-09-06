@@ -1,6 +1,36 @@
+import {getAutocorrectPreview} from './autocorrectEngine';
+import {hasDictionaryWord} from './dictionaryManager';
+
 function normalizeForCheck(text: string): string {
   return text.replace(/\s+/g, ' ').trim();
 }
+
+const CASUAL_WORDS = new Set([
+  'lol',
+  'lmao',
+  'btw',
+  'idk',
+  'imo',
+  'gonna',
+  'wanna',
+  'gotta',
+  'kinda',
+  'yeah',
+  'yep',
+  'nope',
+  'bro',
+  'bruh',
+  'omg',
+  'tbh',
+  'ngl',
+  'smh',
+  'rn',
+  'pls',
+  'thx',
+  'ty',
+  'ok',
+  'okay',
+]);
 
 const PRONOUN_ADJ_PATTERN =
   /\b(?:you|we|they|he|she|it|i)\s+(?:available|going|coming|busy|free|ready|here|there|late|early|ok|okay|fine|good|bad|wrong|right|done|home|back|awake|asleep|online|offline)\b/i;
@@ -50,6 +80,53 @@ export function needsTypeLiftProofread(text: string): boolean {
   }
 
   return false;
+}
+
+/** Unknown or dictionary-fixable tokens — model may have skipped real typos. */
+export function hasLikelyUnknownWords(text: string): boolean {
+  const words = text.match(/[\p{L}']+/gu) ?? [];
+  for (const word of words) {
+    const lower = word.toLowerCase();
+    if (lower.length < 4 || CASUAL_WORDS.has(lower)) {
+      continue;
+    }
+    if (!hasDictionaryWord(lower)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function snippetHasDictionaryTypoCandidates(text: string): boolean {
+  const words = text.match(/[A-Za-z']+/g) ?? [];
+  for (const word of words) {
+    if (word.length < 4 || CASUAL_WORDS.has(word.toLowerCase())) {
+      continue;
+    }
+    const preview = getAutocorrectPreview(word);
+    if (preview && preview.toLowerCase() !== word.toLowerCase()) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function shouldRetryTypeLiftProofread(
+  input: string,
+  firstRaw: string | null,
+): boolean {
+  if (
+    needsTypeLiftProofread(input) ||
+    hasLikelyUnknownWords(input) ||
+    snippetHasDictionaryTypoCandidates(input)
+  ) {
+    return true;
+  }
+
+  const normalizedInput = normalizeForCheck(input);
+  const normalizedFirst = firstRaw ? normalizeForCheck(firstRaw) : '';
+  // Model echoed the input unchanged — still try one stronger pass.
+  return !normalizedFirst || normalizedFirst === normalizedInput;
 }
 
 /** Fast local fixes when the model returns unchanged broken grammar. */
