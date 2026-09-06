@@ -1,5 +1,5 @@
 import type {KeyDefinition} from './qwerty';
-import {buildLetterLayout} from './buildLetterLayout';
+import {buildLetterLayout, buildMiddleLetterRow} from './buildLetterLayout';
 import {BOTTOM_ROW, SIDE_KEY_FLEX} from './sharedRows';
 
 export type LetterLayoutId =
@@ -85,11 +85,7 @@ function buildArabicLayout(): KeyDefinition[][] {
 
   return [
     row1,
-    [
-      {id: 'ar-stagger-start', label: '', type: 'spacer', flex: 0.5},
-      ...row2,
-      {id: 'ar-stagger-end', label: '', type: 'spacer', flex: 0.5},
-    ],
+    buildMiddleLetterRow(row2),
     [
       {id: 'shift', label: '⇧', type: 'shift', flex: SIDE_KEY_FLEX},
       ...row3,
@@ -106,11 +102,9 @@ function buildRussianLayout(): KeyDefinition[][] {
   const row3 = 'ячсмитьбю';
   return [
     [...row1].map(c => ({id: c, label: c, value: c})),
-    [
-      {id: 'ru-stagger-start', label: '', type: 'spacer', flex: 0.5},
-      ...[...row2].map(c => ({id: c, label: c, value: c})),
-      {id: 'ru-stagger-end', label: '', type: 'spacer', flex: 0.5},
-    ],
+    buildMiddleLetterRow(
+      [...row2].map(c => ({id: c, label: c, value: c})),
+    ),
     [
       {id: 'shift', label: '⇧', type: 'shift', flex: SIDE_KEY_FLEX},
       ...[...row3].map(c => ({id: c, label: c, value: c})),
@@ -135,11 +129,7 @@ function buildTurkishLayout(): KeyDefinition[][] {
   }));
   return [
     row1,
-    [
-      {id: 'tr-stagger-start', label: '', type: 'spacer', flex: 0.5},
-      ...row2,
-      {id: 'tr-stagger-end', label: '', type: 'spacer', flex: 0.5},
-    ],
+    buildMiddleLetterRow(row2),
     [
       {id: 'shift', label: '⇧', type: 'shift', flex: SIDE_KEY_FLEX},
       ...row3,

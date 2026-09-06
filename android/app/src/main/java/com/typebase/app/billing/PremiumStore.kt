@@ -20,6 +20,8 @@ object PremiumStore {
             .putLong(KEY_LAST_VERIFIED_AT, System.currentTimeMillis())
     if (purchaseToken != null) {
       editor.putString(KEY_PURCHASE_TOKEN, purchaseToken)
+    } else if (!premium) {
+      editor.remove(KEY_PURCHASE_TOKEN)
     }
     editor.apply()
   }
@@ -27,6 +29,15 @@ object PremiumStore {
   @JvmStatic
   fun isPremium(context: Context): Boolean {
     return prefs(context).getBoolean(KEY_PREMIUM, false)
+  }
+
+  @JvmStatic
+  fun isPremiumWithToken(context: Context): Boolean {
+    if (!isPremium(context)) {
+      return false
+    }
+    val token = getPurchaseToken(context)
+    return !token.isNullOrBlank()
   }
 
   @JvmStatic

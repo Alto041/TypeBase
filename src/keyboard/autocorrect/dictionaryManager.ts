@@ -12,6 +12,7 @@ import {scheduleEnglishPrefixIndexBuild} from './englishPrefixIndex';
 import italianWords from './data/italianWords.json';
 import germanWords from './data/de_words.json';
 import frenchWords from './data/french_words.json';
+import spanishWords from './data/spanishWords.json';
 import {
   buildHinglishCombinedTokenList,
   getHinglishPhrases,
@@ -34,6 +35,7 @@ import {getKeyboardLayoutSettings} from '../settings/layoutStore';
  * - 'hi-en' lazily seeded: English + Hinglish
  * - 'fr-en' (Franglais) lazily seeded: french_words.json + SymSpell English
  *   for the French AZERTY layout. English stays usable while seed runs.
+ * - 'es-en' lazily seeded: spanishWords.json + SymSpell English for Spanish layout.
  */
 
 type Candidate = {
@@ -51,13 +53,15 @@ const inFlightSeeds = new Map<string, Promise<SymSpell>>();
  * to English for these — doing so would surface English corrections on, e.g., German
  * text during the brief window before the (lazily seeded) dictionary finishes loading.
  */
-const DEDICATED_DICTIONARY_LANGS = new Set(['en', 'it', 'de', 'hi-en', 'fr-en']);
+const DEDICATED_DICTIONARY_LANGS = new Set(['en', 'it', 'de', 'hi-en', 'fr-en', 'es-en']);
 
 let italianBase: string[] | null = null;
 let germanBase: string[] | null = null;
 let frenchBase: string[] | null = null;
+let spanishBase: string[] | null = null;
 let hinglishCombinedBase: string[] | null = null;
 let franglaisCombinedBase: string[] | null = null;
+let spanishEnglishCombinedBase: string[] | null = null;
 
 /** The SymSpell we can use synchronously right now (populated eagerly for 'en'). */
 let readySymSpell: SymSpell | null = null;
@@ -125,6 +129,38 @@ function getHinglishCombinedBase(): string[] {
     ]);
   }
   return hinglishCombinedBase;
+}
+
+function getSpanishBase(): string[] {
+  if (!spanishBase) {
+    const seen = new Set<string>();
+    spanishBase = (spanishWords as string[]).filter(w => {
+      const k = w.toLowerCase();
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+  }
+  return spanishBase;
+}
+
+/** Spanish-first then English — suggestions + membership for Español layout. */
+function getSpanishEnglishCombinedBase(): string[] {
+  if (spanishEnglishCombinedBase) {
+    return spanishEnglishCombinedBase;
+  }
+  const es = getSpanishBase();
+  const seen = new Set<string>(es);
+  const combined = es.slice();
+  for (const word of getEnglishBase()) {
+    if (seen.has(word)) {
+      continue;
+    }
+    seen.add(word);
+    combined.push(word);
+  }
+  spanishEnglishCombinedBase = combined;
+  return spanishEnglishCombinedBase;
 }
 
 /** French-first then English — Franglais suggestions + membership. */
@@ -259,6 +295,9 @@ function getLangBase(lang: string): string[] {
   } else if (lang === 'fr-en') {
     // Franglais: French first, then English.
     list = getFranglaisCombinedBase();
+  } else if (lang === 'es-en') {
+    // Spanish + English for bilingual typing on the Español layout.
+    list = getSpanishEnglishCombinedBase();
   } else if (lang === 'ru' || lang === 'ar') {
     // No base list yet for these scripts; only learned words.
     list = [];
@@ -294,6 +333,15 @@ async function seedSymSpell(lang: string, ss: SymSpell): Promise<void> {
     const enSet = new Set(getEnglishBase());
     seedEnglishWordsIntoSymSpell(ss);
     getFrenchBase().forEach((w, i) => {
+      if (enSet.has(w)) {
+        return;
+      }
+      ss.CreateDictionaryEntry(w, Math.max(1, 90_000 - Math.floor(i * 4)));
+    });
+  } else if (lang === 'es-en') {
+    const enSet = new Set(getEnglishBase());
+    seedEnglishWordsIntoSymSpell(ss);
+    getSpanishBase().forEach((w, i) => {
       if (enSet.has(w)) {
         return;
       }
@@ -387,7 +435,7 @@ export function hasDictionaryWord(word: string): boolean {
     return false;
   }
   const lang = getActiveLanguage();
-  if (lang === 'en' || lang === 'hi-en' || lang === 'fr-en') {
+  if (lang === 'en' || lang === 'hi-en' || lang === 'fr-en' || lang === 'es-en') {
     if (isEnglishDictionaryWord(lower)) {
       return true;
     }
@@ -429,7 +477,7 @@ function resolveSymSpellForLanguage(): SymSpell | null {
   const lang = getActiveLanguage();
   let ss = ssCache.get(lang) || null;
 
-  if (!ss && (lang === 'hi-en' || lang === 'fr-en')) {
+  if (!ss && (lang === 'hi-en' || lang === 'fr-en' || lang === 'es-en')) {
     // Kick off combined bilingual seed; use English immediately so typing
     // stays fast until the full dictionary is ready.
     void ensureSymSpell(lang);
@@ -532,7 +580,7 @@ export function lookupCompoundSync(
   const lang = getActiveLanguage();
   let ss = ssCache.get(lang) || null;
 
-  if (!ss && (lang === 'hi-en' || lang === 'fr-en')) {
+  if (!ss && (lang === 'hi-en' || lang === 'fr-en' || lang === 'es-en')) {
     void ensureSymSpell(lang);
     ss = readySymSpell ?? ssCache.get('en') ?? null;
   } else if (!ss && lang !== 'en' && DEDICATED_DICTIONARY_LANGS.has(lang)) {
@@ -582,6 +630,9 @@ export function getPrefixIndexWordList(lang?: string): readonly string[] {
   if (l === 'fr-en') {
     return getFranglaisCombinedBase();
   }
+  if (l === 'es-en') {
+    return getSpanishEnglishCombinedBase();
+  }
   return getLangBase(l);
 }
 
@@ -603,7 +654,9 @@ export function __resetDictionaryManagerForTests() {
   italianBase = null;
   germanBase = null;
   frenchBase = null;
+  spanishBase = null;
   hinglishCombinedBase = null;
   franglaisCombinedBase = null;
+  spanishEnglishCombinedBase = null;
   __resetHinglishLexiconForTests();
 }

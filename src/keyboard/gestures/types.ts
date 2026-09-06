@@ -46,8 +46,9 @@ export const GESTURE_FEATURES: GestureFeature[] = [
   },
   {
     key: 'commaLauncher',
-    title: 'Period launcher',
-    description: 'Hold . to arm the launcher key, then tap the rocket to open an app.',
+    title: 'Comma & period shortcuts',
+    description:
+      'Hold , for AI rewrite. Hold . to arm the launcher, then tap the rocket to open an app.',
   },
   {
     key: 'undoRedo',

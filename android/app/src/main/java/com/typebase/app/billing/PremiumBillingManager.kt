@@ -20,7 +20,6 @@ import com.android.billingclient.api.QueryPurchasesParams
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.modules.core.DeviceEventManagerModule
 import com.typebase.app.MainActivity
-import com.typebase.app.licensing.PlayLicenseStore
 
 object PremiumBillingManager : PurchasesUpdatedListener {
   const val EVENT_PREMIUM_CHANGED = "premiumStatusChanged"
@@ -35,10 +34,7 @@ object PremiumBillingManager : PurchasesUpdatedListener {
 
   fun isPremiumCached(context: Context): Boolean {
     val appContext = context.applicationContext
-    if (PremiumStore.isPremium(appContext)) {
-      return true
-    }
-    return PlayLicenseStore.isLicensed(appContext)
+    return PremiumStore.isPremiumWithToken(appContext)
   }
 
   fun attachReactContext(context: ReactApplicationContext) {
@@ -48,16 +44,9 @@ object PremiumBillingManager : PurchasesUpdatedListener {
   fun refreshEntitlement(context: Context, callback: ((Boolean) -> Unit)? = null) {
     val appContext = context.applicationContext
 
-    if (PlayLicenseStore.isLicensed(appContext)) {
-      PremiumStore.setPremium(appContext, true)
-      emitPremiumChanged(true)
-      callback?.let { deliver(it, true) }
-      return
-    }
-
     ensureBillingClient(appContext) { ready ->
       if (!ready) {
-        val cached = PremiumStore.isPremium(appContext)
+        val cached = isPremiumCached(appContext)
         callback?.let { deliver(it, cached) }
         return@ensureBillingClient
       }
@@ -138,13 +127,6 @@ object PremiumBillingManager : PurchasesUpdatedListener {
   fun restorePurchases(context: Context, callback: (Boolean, String?) -> Unit) {
     val appContext = context.applicationContext
     pendingRestoreCallback = callback
-
-    if (PlayLicenseStore.isLicensed(appContext)) {
-      PremiumStore.setPremium(appContext, true)
-      emitPremiumChanged(true)
-      finishRestore(true, null)
-      return
-    }
 
     ensureBillingClient(appContext) { ready ->
       if (!ready) {
@@ -234,7 +216,7 @@ object PremiumBillingManager : PurchasesUpdatedListener {
   private fun queryOwnedPurchases(context: Context, callback: (Boolean) -> Unit) {
     val client = billingClient
     if (client == null || !client.isReady) {
-      deliver(callback, PremiumStore.isPremium(context))
+      deliver(callback, isPremiumCached(context))
       return
     }
     val params =
@@ -243,7 +225,7 @@ object PremiumBillingManager : PurchasesUpdatedListener {
             .build()
     client.queryPurchasesAsync(params) { result, purchases ->
       if (result.responseCode != BillingClient.BillingResponseCode.OK) {
-        deliver(callback, PremiumStore.isPremium(context))
+        deliver(callback, isPremiumCached(context))
         return@queryPurchasesAsync
       }
       var owned = false

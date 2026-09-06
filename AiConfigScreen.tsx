@@ -50,6 +50,7 @@ import {
   isOnDeviceAiSupported,
 } from './src/keyboard/ai/gemmaModelManager';
 import {playSwitchOffSound, playSwitchOnSound} from './src/app/switchSound';
+import {usePremium} from './src/licensing/PremiumContext';
 
 const C = {
   bg: '#f2f2f4',
@@ -83,6 +84,8 @@ export function AiConfigScreen({
   variant?: 'standalone' | 'wizard';
   onContinue?: () => void;
 }) {
+  const {canUse} = usePremium();
+  const aiConfigLocked = !canUse('ai_config');
   const [provider, setProvider] = useState<AiProvider>('on_device');
   const [voiceProvider, setVoiceProviderState] =
     useState<VoiceSttProvider>('android');
@@ -170,6 +173,9 @@ export function AiConfigScreen({
   }, [onBack, variant]);
 
   const handleProviderChange = async (newProvider: AiProvider) => {
+    if (aiConfigLocked) {
+      return;
+    }
     void Haptics.selectionAsync().catch(() => {});
     playSwitchOnSound();
     setProvider(newProvider);
@@ -192,6 +198,9 @@ export function AiConfigScreen({
   };
 
   const handleVoiceProviderChange = async (newProvider: VoiceSttProvider) => {
+    if (aiConfigLocked) {
+      return;
+    }
     void Haptics.selectionAsync().catch(() => {});
     if (newProvider === 'android') playSwitchOnSound();
     else playSwitchOffSound();
@@ -207,6 +216,9 @@ export function AiConfigScreen({
   };
 
   const handleEditGeminiApiKey = async () => {
+    if (aiConfigLocked) {
+      return;
+    }
     if (provider !== 'gemini') {
       await handleProviderChange('gemini');
     }
@@ -222,18 +234,27 @@ export function AiConfigScreen({
   };
 
   const handleGeminiKeyChange = async (value: string) => {
+    if (aiConfigLocked) {
+      return;
+    }
     const newKeys = { ...apiKeys, geminiApiKey: value };
     setApiKeysState(newKeys);
     await setApiKeys({ geminiApiKey: value });
   };
 
   const handleSpeechmaticsKeyChange = async (value: string) => {
+    if (aiConfigLocked) {
+      return;
+    }
     const newKeys = { ...apiKeys, speechmaticsApiKey: value };
     setApiKeysState(newKeys);
     await setApiKeys({ speechmaticsApiKey: value });
   };
 
   const handleDownloadModel = async () => {
+    if (aiConfigLocked) {
+      return;
+    }
     void Haptics.selectionAsync().catch(() => {});
     setIsDownloading(true);
     setDownloadProgress(0);
@@ -251,6 +272,9 @@ export function AiConfigScreen({
   };
 
   const handleDownloadParakeetModel = async () => {
+    if (aiConfigLocked) {
+      return;
+    }
     void Haptics.selectionAsync().catch(() => {});
     setIsParakeetDownloading(true);
     setParakeetDownloadProgress(0);
@@ -308,9 +332,11 @@ export function AiConfigScreen({
               <View style={styles.configProviderControls}>
                 <Pressable
                   onPress={() => handleProviderChange('gemini')}
+                  disabled={aiConfigLocked}
                   style={[
                     styles.configProviderIcon,
                     provider === 'gemini' && styles.configProviderIconSelected,
+                    aiConfigLocked && styles.configProviderIconDisabled,
                   ]}
                   hitSlop={6}
                 >
@@ -321,15 +347,19 @@ export function AiConfigScreen({
                 </Pressable>
                 <Pressable
                   onPress={() => {
+                    if (aiConfigLocked) {
+                      return;
+                    }
                     if (isOnDeviceSupported) {
                       void handleProviderChange('on_device');
                     }
                   }}
+                  disabled={aiConfigLocked || !isOnDeviceSupported}
                   style={[
                     styles.configProviderIcon,
                     styles.configProviderIconDevice,
                     provider === 'on_device' && styles.configProviderIconSelected,
-                    !isOnDeviceSupported && styles.configProviderIconDisabled,
+                    (!isOnDeviceSupported || aiConfigLocked) && styles.configProviderIconDisabled,
                   ]}
                   hitSlop={6}
                 >
@@ -351,6 +381,9 @@ export function AiConfigScreen({
             {provider === 'on_device' ? (
               <Pressable
                 onPress={() => {
+                  if (aiConfigLocked) {
+                    return;
+                  }
                   void Haptics.selectionAsync().catch(() => {});
                   if (!isOnDeviceSupported) return;
                   void handleDownloadModel();
@@ -358,9 +391,9 @@ export function AiConfigScreen({
                 style={[
                   styles.configCard,
                   styles.configCardRight,
-                  !isOnDeviceSupported && styles.configCardDisabled,
+                  (!isOnDeviceSupported || aiConfigLocked) && styles.configCardDisabled,
                 ]}
-                disabled={!isOnDeviceSupported}
+                disabled={!isOnDeviceSupported || aiConfigLocked}
               >
                 <Text style={styles.configActionTitle}>DOWNLOAD</Text>
                 <View style={styles.configActionIconCenter}>
@@ -370,10 +403,18 @@ export function AiConfigScreen({
             ) : (
               <Pressable
                 onPress={() => {
+                  if (aiConfigLocked) {
+                    return;
+                  }
                   void Haptics.selectionAsync().catch(() => {});
                   void handleEditGeminiApiKey();
                 }}
-                style={[styles.configCard, styles.configCardRight]}
+                style={[
+                  styles.configCard,
+                  styles.configCardRight,
+                  aiConfigLocked && styles.configCardDisabled,
+                ]}
+                disabled={aiConfigLocked}
               >
                 <Text style={styles.configActionTitle}>API KEY</Text>
                 <View style={styles.configActionIconCenter}>
@@ -401,6 +442,7 @@ export function AiConfigScreen({
                   placeholderTextColor={C.sub}
                   value={apiKeys.geminiApiKey}
                   onChangeText={handleGeminiKeyChange}
+                  editable={!aiConfigLocked}
                   ref={geminiApiKeyInputRef}
                   secureTextEntry
                   autoCapitalize="none"
@@ -445,7 +487,8 @@ export function AiConfigScreen({
                   ) : (
                     <Pressable
                       onPress={handleDownloadModel}
-                      style={styles.downloadButton}
+                      disabled={aiConfigLocked}
+                      style={[styles.downloadButton, aiConfigLocked && styles.downloadButtonDisabled]}
                     >
                       <DownloadIcon width={18} height={18} />
                       <Text style={styles.downloadButtonText}>Download</Text>
@@ -481,7 +524,8 @@ export function AiConfigScreen({
                     ) : (
                       <Pressable
                         onPress={handleDownloadParakeetModel}
-                        style={styles.downloadButton}
+                        disabled={aiConfigLocked}
+                        style={[styles.downloadButton, aiConfigLocked && styles.downloadButtonDisabled]}
                       >
                         <DownloadIcon width={18} height={18} />
                         <Text style={styles.downloadButtonText}>Download</Text>
@@ -502,9 +546,11 @@ export function AiConfigScreen({
                 <View style={styles.toggleWrap}>
                   <Pressable
                     onPress={toggleAndroidStt}
+                    disabled={aiConfigLocked}
                     style={[
                       styles.toggleTrack,
                       voiceProvider === 'android' && styles.toggleTrackOn,
+                      aiConfigLocked && styles.toggleTrackDisabled,
                     ]}>
                     <Animated.View
                       style={[
@@ -548,6 +594,7 @@ export function AiConfigScreen({
                 placeholderTextColor={C.sub}
                 value={apiKeys.speechmaticsApiKey}
                 onChangeText={handleSpeechmaticsKeyChange}
+                editable={!aiConfigLocked}
                 secureTextEntry
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -563,6 +610,11 @@ export function AiConfigScreen({
               <Text style={styles.infoText}>
                 Keys stay on this device.
               </Text>
+              {aiConfigLocked ? (
+                <Text style={styles.inputHint}>
+                  Read-only on free plan. Upgrade to edit AI settings.
+                </Text>
+              ) : null}
             </View>
           ) : null}
         </ScrollView>
@@ -964,6 +1016,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 10,
+  },
+  downloadButtonDisabled: {
+    opacity: 0.5,
+  },
+  toggleTrackDisabled: {
+    opacity: 0.55,
   },
   downloadButtonText: {
     fontSize: 14,

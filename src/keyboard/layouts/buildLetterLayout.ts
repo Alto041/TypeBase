@@ -13,6 +13,18 @@ function charKey(char: string): KeyDefinition {
   return {id, label: lower, value: lower};
 }
 
+/** Gboard-style ASDF inset for 9-key rows; 10+ keys span the full row width. */
+export function buildMiddleLetterRow(keys: KeyDefinition[]): KeyDefinition[] {
+  if (keys.length >= 10) {
+    return keys;
+  }
+  return [
+    {id: 'row2-stagger-start', label: '', type: 'spacer', flex: STAGGER_FLEX},
+    ...keys,
+    {id: 'row2-stagger-end', label: '', type: 'spacer', flex: STAGGER_FLEX},
+  ];
+}
+
 /** Build the 3 alpha rows + shared bottom row from plain letter strings. */
 export function buildLetterLayout(
   row1: string,
@@ -21,11 +33,7 @@ export function buildLetterLayout(
 ): KeyDefinition[][] {
   return [
     [...row1].map(charKey),
-    [
-      {id: 'row2-stagger-start', label: '', type: 'spacer', flex: STAGGER_FLEX},
-      ...[...row2].map(charKey),
-      {id: 'row2-stagger-end', label: '', type: 'spacer', flex: STAGGER_FLEX},
-    ],
+    buildMiddleLetterRow([...row2].map(charKey)),
     [
       {id: 'shift', label: '⇧', type: 'shift', flex: SIDE_KEY_FLEX},
       ...[...row3].map(charKey),

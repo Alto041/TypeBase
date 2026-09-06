@@ -23,10 +23,10 @@ type CacheEntry = {
 const suggestionCache = new Map<string, CacheEntry>();
 const SUGGESTION_CACHE_TTL_MS = 200;
 
-/** Frequent French words for empty-prefix suggestion chips. */
-function getFranglaisStarters(limit: number): string[] {
+/** Frequent bilingual words for empty-prefix suggestion chips. */
+function getBilingualStarters(lang: string, limit: number): string[] {
   const out: string[] = [];
-  for (const word of getBaseWords('fr-en')) {
+  for (const word of getBaseWords(lang)) {
     if (word.length < 3 || !/^[\p{L}\p{M}]+$/u.test(word)) {
       continue;
     }
@@ -81,6 +81,9 @@ function scorePrefixCandidate(
   if (lang === 'fr-en') {
     return baseRank(word, lang) + extraLengthPenalty - learnedUses * LEARNED_SCORE_BOOST;
   }
+  if (lang === 'es-en') {
+    return baseRank(word, lang) + extraLengthPenalty - learnedUses * LEARNED_SCORE_BOOST;
+  }
   const staticRank = getEnglishStaticRank(word) ?? 50_000;
   return staticRank + extraLengthPenalty - learnedUses * LEARNED_SCORE_BOOST;
 }
@@ -98,7 +101,7 @@ function scoreFuzzyCandidate(
   const staticRank =
     lang === 'hi-en'
       ? 8_000
-      : lang === 'fr-en'
+      : lang === 'fr-en' || lang === 'es-en'
         ? baseRank(word, lang)
         : (getEnglishStaticRank(word) ?? 50_000);
   return (
@@ -127,7 +130,7 @@ function collectPrefixCandidates(
     candidates.push(word);
   };
 
-  if (lang === 'en' || lang === 'hi-en' || lang === 'fr-en') {
+  if (lang === 'en' || lang === 'hi-en' || lang === 'fr-en' || lang === 'es-en') {
     for (const word of getPrefixCompletions(lower, poolLimit)) {
       push(word);
       if (candidates.length >= poolLimit) {
@@ -145,7 +148,7 @@ function collectPrefixCandidates(
     }
   }
 
-  if ((lang === 'fr-en' || lang === 'hi-en') && candidates.length < poolLimit) {
+  if ((lang === 'fr-en' || lang === 'es-en' || lang === 'hi-en') && candidates.length < poolLimit) {
     let scanned = 0;
     for (const word of getBaseWords(lang)) {
       if (word.length < 2 || !/^[\p{L}\p{M}]+$/u.test(word)) {
@@ -200,7 +203,10 @@ export function getWordSuggestions(
     return getHinglishSuggestions('', cap);
   }
   if (lang === 'fr-en' && (!prefix || prefix.length < 1)) {
-    return getFranglaisStarters(cap);
+    return getBilingualStarters('fr-en', cap);
+  }
+  if (lang === 'es-en' && (!prefix || prefix.length < 1)) {
+    return getBilingualStarters('es-en', cap);
   }
 
   if (!prefix || prefix.length < 1) {

@@ -53,11 +53,10 @@ function PunctuationKeyComponent({
 
   const isPeriod = keyDef.type === 'period';
   const isComma = keyDef.type === 'comma';
-  const launcherOnPeriod = Boolean(keyGestures?.commaLauncher);
-  const isLauncherKey =
-    (isPeriod && launcherOnPeriod) || (isComma && !launcherOnPeriod);
-  const isRewriteKey =
-    (isComma && launcherOnPeriod) || (isPeriod && !launcherOnPeriod);
+  const launcherEnabled = Boolean(keyGestures?.commaLauncher);
+  const rewriteEnabled = Boolean(keyGestures?.periodRewrite);
+  const isLauncherKey = isPeriod && launcherEnabled;
+  const isRewriteKey = isComma && rewriteEnabled;
 
   const showLauncher =
     isLauncherKey && Boolean(keyGestures?.commaLauncherActive);

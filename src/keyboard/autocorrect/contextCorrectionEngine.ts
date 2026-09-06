@@ -99,7 +99,7 @@ function maxEditDistance(length: number): number {
 }
 
 function isEnglishLikeLang(lang: string): boolean {
-  return lang === 'en' || lang === 'hi-en' || lang === 'fr-en';
+  return lang === 'en' || lang === 'hi-en' || lang === 'fr-en' || lang === 'es-en';
 }
 
 function buildTrailingWords(

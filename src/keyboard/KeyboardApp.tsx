@@ -2233,7 +2233,11 @@ function KeyboardBody({
           lastFlushedSuggestionsRef.current = [];
           lastFlushedAutocorrectRef.current = null;
           // Hinglish / Franglais: keep preferred-language starters visible between words.
-          if (getActiveLanguage() === 'hi-en' || getActiveLanguage() === 'fr-en') {
+          if (
+            getActiveLanguage() === 'hi-en' ||
+            getActiveLanguage() === 'fr-en' ||
+            getActiveLanguage() === 'es-en'
+          ) {
             const barState = computeTypingSuggestionBar('', {fast: true});
             setSuggestions(barState.suggestions);
             lastFlushedSuggestionsRef.current = barState.suggestions;
@@ -4536,7 +4540,10 @@ function KeyboardBody({
         setCommaLauncherActive(false);
         void setCommaLauncherArmed(false);
       },
-      periodRewrite: !zeroLatencyMode && theme.design !== 'apple',
+      periodRewrite:
+        !zeroLatencyMode &&
+        theme.design !== 'apple' &&
+        gestureSettings.commaLauncher,
       periodRewriteActive,
       onPeriodLongPress: () => {
         setPeriodRewriteActive(true);

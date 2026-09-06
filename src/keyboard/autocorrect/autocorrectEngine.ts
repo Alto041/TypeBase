@@ -265,7 +265,7 @@ function isKnownEnglishWord(word: string): boolean {
  */
 /** English + bilingual Latin layouts that should fuzzy-correct OOV typos. */
 function isEnglishLikeLang(lang = getActiveLanguage()): boolean {
-  return lang === 'en' || lang === 'hi-en' || lang === 'fr-en';
+  return lang === 'en' || lang === 'hi-en' || lang === 'fr-en' || lang === 'es-en';
 }
 
 function getEffectiveMinAutoConfidence(learnedUses: number, fromExactFix: boolean): number {
@@ -971,7 +971,7 @@ function isProtectedWord(word: string, learnedUses: number): boolean {
     const rank = wordRank(word);
     if (rank < COMMON_WORD_RANK) return true;
     if (rank < 99_999 && learnedUses >= 1) return true;
-  } else if (lang === 'hi-en' || lang === 'fr-en') {
+  } else if (lang === 'hi-en' || lang === 'fr-en' || lang === 'es-en') {
     const enRank = wordRank(word);
     if (enRank < COMMON_WORD_RANK) return true;
     const base = getBaseWords(lang);

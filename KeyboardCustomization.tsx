@@ -819,7 +819,11 @@ export function ThemesScreen({onBack}: {onBack: () => void}) {
   };
 
   const select = (which: 'typebase' | 'quivox' | 'macintosh' | 'apple') => {
-    if (which !== 'typebase' && !canUse('themes_premium')) {
+    if (
+      which !== 'typebase' &&
+      which !== 'quivox' &&
+      !canUse('themes_premium')
+    ) {
       Alert.alert('Premium feature', 'Unlock TypeBase to use this theme.');
       return;
     }

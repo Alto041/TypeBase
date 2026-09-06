@@ -41,7 +41,11 @@ export async function applyFreeTierDefaults(): Promise<void> {
   }
 
   const design = await keyboardBridge.getKeyboardDesign();
-  if (design !== 'typebase') {
+  if (
+    design === 'macintosh' ||
+    design === 'apple' ||
+    design === 'custom'
+  ) {
     await setKeyboardDesign('typebase');
   }
 

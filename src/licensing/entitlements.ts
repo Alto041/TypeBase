@@ -18,7 +18,6 @@ export type PremiumFeature =
   | 'sfx'
   | 'ai_config'
   | 'personal_typing'
-  | 'layouts_custom'
   | 'keyboard_customize'
   | 'autocorrect_full'
   | 'number_row'
@@ -38,7 +37,6 @@ const PREMIUM_FEATURES = new Set<PremiumFeature>([
   'sfx',
   'ai_config',
   'personal_typing',
-  'layouts_custom',
   'keyboard_customize',
   'autocorrect_full',
   'number_row',
@@ -69,7 +67,7 @@ export async function ensurePremiumLoaded(): Promise<boolean> {
 }
 
 export function getPremiumCached(): boolean {
-  return cachedPremium ?? true;
+  return cachedPremium ?? false;
 }
 
 export function setPremiumCached(isPremium: boolean): void {
@@ -96,7 +94,7 @@ export function canUseFeature(feature: PremiumFeature): boolean {
 }
 
 export function isPremiumDesign(design: string): boolean {
-  return design !== 'typebase';
+  return design === 'macintosh' || design === 'apple' || design === 'custom';
 }
 
 export function initPremiumListener(): () => void {

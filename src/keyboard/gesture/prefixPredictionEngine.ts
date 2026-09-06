@@ -43,7 +43,7 @@ function wordListRank(word: string, lang: string): number {
 function wordFrequencyWeight(word: string, lang: string): number {
   const learnedUses = getLearnedWordMap().get(word) ?? 0;
   const rank =
-    lang === 'en' || lang === 'hi-en' || lang === 'fr-en'
+    lang === 'en' || lang === 'hi-en' || lang === 'fr-en' || lang === 'es-en'
       ? (getEnglishStaticRank(word) ?? wordListRank(word, lang))
       : wordListRank(word, lang);
   const frequency = 1 / (1 + rank * 0.00012);

@@ -1,5 +1,6 @@
 import type {KeyDefinition} from './qwerty';
-import {BOTTOM_ROW, SIDE_KEY_FLEX, STAGGER_FLEX} from './sharedRows';
+import {buildMiddleLetterRow} from './buildLetterLayout';
+import {BOTTOM_ROW, SIDE_KEY_FLEX} from './sharedRows';
 import type {ParsedKlc} from './parseKlc';
 
 const ROW1_VKS = ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'] as const;
@@ -79,11 +80,7 @@ export function klcToLetterRows(parsed: ParsedKlc): KeyDefinition[][] {
 
   return [
     row1,
-    [
-      {id: 'row2-stagger-start', label: '', type: 'spacer', flex: STAGGER_FLEX},
-      ...row2,
-      {id: 'row2-stagger-end', label: '', type: 'spacer', flex: STAGGER_FLEX},
-    ],
+    buildMiddleLetterRow(row2),
     [
       {id: 'shift', label: '⇧', type: 'shift', flex: SIDE_KEY_FLEX},
       ...row3,

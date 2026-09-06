@@ -40,7 +40,7 @@ export function getAutocorrectLanguage(layoutId: LetterLayoutId): string {
     case 'de-de':
       return 'de';
     case 'es-es':
-      return 'es';
+      return 'es-en';
     case 'it-it':
       return 'it';
     case 'pt-pt':

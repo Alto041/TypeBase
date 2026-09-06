@@ -550,7 +550,7 @@ function QuickActionsToggleIcon({expanded}: {expanded: boolean}) {
   );
 }
 
-function FreeTierNotice({onOpenPremium}: {onOpenPremium: () => void}) {
+function FreeTierFootnote({onOpenPremium}: {onOpenPremium: () => void}) {
   const {isPremium, loading} = usePremium();
 
   if (loading || isPremium) {
@@ -563,17 +563,13 @@ function FreeTierNotice({onOpenPremium}: {onOpenPremium: () => void}) {
         void hapticTap();
         onOpenPremium();
       }}
-      style={styles.freeTierNotice}>
-      <View style={styles.freeTierBadge}>
-        <Text style={styles.freeTierBadgeText}>FREE</Text>
-      </View>
-      <Text style={styles.freeTierTitle}>You&apos;re on the free experience</Text>
-      <Text style={styles.freeTierBody}>
-        This version is here so you can try TypeBase — autocorrect, AI tools, and
-        plugins stay basic on the free tier. Premium unlocks the full keyboard and
-        helps fund continued development by an indie dev.
+      hitSlop={8}
+      style={styles.freeTierFootnote}>
+      <Text style={styles.freeTierFootnoteText}>
+        Free experience — autocorrect and smart features stay basic.{' '}
+        <Text style={styles.freeTierFootnoteEmphasis}>Premium</Text> unlocks
+        everything and supports indie development.
       </Text>
-      <Text style={styles.freeTierLink}>See Premium →</Text>
     </Pressable>
   );
 }
@@ -587,7 +583,7 @@ function LaunchpadScreen({
   onOpenLanguageLayout: () => void;
   onOpenPremium: () => void;
 }) {
-  const {canUse} = usePremium();
+  const {isPremium, loading} = usePremium();
   const [quickActionsExpanded, setQuickActionsExpanded] = useState(false);
 
   return (
@@ -595,8 +591,6 @@ function LaunchpadScreen({
       <StatusBar barStyle="dark-content" backgroundColor={C.bg} />
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <Text style={styles.pageTitle}>Launchpad</Text>
-
-        <FreeTierNotice onOpenPremium={onOpenPremium} />
 
         <View style={styles.testSection}>
           <View style={styles.testInputBox}>
@@ -611,10 +605,6 @@ function LaunchpadScreen({
           <View style={styles.configRow}>
             <Pressable
               onPress={() => {
-                if (!canUse('ai_config')) {
-                  onOpenPremium();
-                  return;
-                }
                 onOpenAiConfig();
               }}
               style={[styles.configCard, styles.configCardLeft]}
@@ -646,6 +636,9 @@ function LaunchpadScreen({
           <LaunchpadCard
             icon={<PremiumIcon width={HOME_ICON} height={HOME_ICON} color={C.text} />}
             title="Unlock TypeBase"
+            description={
+              !loading && !isPremium ? 'Full keyboard · supports indie dev' : undefined
+            }
             titleFontFamily="FragmentMono"
             radius={18}
             onPress={onOpenPremium}
@@ -654,6 +647,7 @@ function LaunchpadScreen({
           <LaunchpadCard
             icon={<LanguageLayoutIcon width={HOME_ICON} height={HOME_ICON} color={C.text} />}
             title="Language & layout"
+            description="Typing language · layouts"
             titleFontFamily="FragmentMono"
             radius={18}
             onPress={onOpenLanguageLayout}
@@ -696,6 +690,8 @@ function LaunchpadScreen({
             ) : null}
           </Reanimated.View>
         </View>
+
+        <FreeTierFootnote onOpenPremium={onOpenPremium} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -782,47 +778,20 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     letterSpacing: TEXT_KERNING,
   },
-  freeTierNotice: {
-    backgroundColor: C.card,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: C.border,
-    paddingHorizontal: 14,
-    paddingVertical: 13,
-    gap: 6,
-    marginBottom: 4,
-  },
-  freeTierBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: C.bg,
+  freeTierFootnote: {
     paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
+    paddingTop: 18,
   },
-  freeTierBadgeText: {
-    fontFamily: 'FragmentMono',
-    fontSize: 11,
+  freeTierFootnoteText: {
+    fontSize: 12,
+    lineHeight: 17,
     color: C.sub,
-    letterSpacing: 0.4,
+    textAlign: 'center',
+    letterSpacing: -0.1,
   },
-  freeTierTitle: {
-    fontSize: 15,
-    fontWeight: '600',
+  freeTierFootnoteEmphasis: {
     color: C.text,
-    letterSpacing: TEXT_KERNING,
-  },
-  freeTierBody: {
-    fontSize: 13,
-    lineHeight: 19,
-    color: C.sub,
-    letterSpacing: -0.2,
-  },
-  freeTierLink: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: C.text,
-    marginTop: 2,
-    letterSpacing: TEXT_KERNING,
+    fontWeight: '500',
   },
   keyboardShortcut: {
     flexDirection: 'row',

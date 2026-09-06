@@ -206,7 +206,7 @@ export function GeneralSettingsScreen({
 
         {!isPremium ? (
           <Pressable
-            style={[styles.rowCard, styles.firstSettingCard, {marginBottom: ROW_GAP}]}
+            style={[styles.rowCard, styles.unlockCard, {marginBottom: ROW_GAP}]}
             onPress={() => onOpenPremium?.()}>
             <View style={styles.rowInner}>
               <Text style={styles.rowTitle}>Unlock TypeBase Premium</Text>
@@ -538,6 +538,9 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 20,
     borderBottomLeftRadius: 8,
     borderBottomRightRadius: 8,
+  },
+  unlockCard: {
+    borderRadius: 20,
   },
   lastSettingCard: {
     borderBottomLeftRadius: 20,
