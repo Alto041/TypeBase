@@ -50,7 +50,7 @@ android {
         applicationId "com.typebase.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 31
+        versionCode 32
         versionName "2.0.0-beta.2"
 
         manifestPlaceholders = [usesCleartextTraffic: "true"]

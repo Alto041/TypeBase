@@ -5,7 +5,7 @@
  */
 import {readJsonResponse} from '../../../lib/safeFetchJson';
 
-const STICKERLY_API_ROOT = 'http://api.sticker.ly/v3.1';
+const STICKERLY_API_ROOT = 'https://api.sticker.ly/v3.1';
 const STICKERLY_USER_AGENT =
   'androidapp.stickerly/1.13.3 (G011A; U; Android 22; pt-BR; br;)';
 
@@ -60,6 +60,11 @@ export type StickerLyPack = {
 
 export const STICKERLY_RECOMMEND_PAGE_SIZE = 40;
 
+/** Play/release builds block cleartext HTTP; API CDN prefixes may still return http://. */
+function ensureHttpsUrl(url: string): string {
+  return url.replace(/^http:\/\//i, 'https://');
+}
+
 async function fetchStickerLyJson<T>(path: string): Promise<T> {
   const response = await fetch(`${STICKERLY_API_ROOT}${path}`, {
     headers: STICKERLY_HEADERS,
@@ -81,7 +86,7 @@ async function fetchStickerLyJson<T>(path: string): Promise<T> {
 
 function normalizePack(pack: StickerLyPackApi): StickerLyPack | null {
   const packId = pack.packId?.trim().toUpperCase();
-  const resourceUrlPrefix = pack.resourceUrlPrefix?.trim();
+  const resourceUrlPrefix = ensureHttpsUrl(pack.resourceUrlPrefix?.trim() ?? '');
   if (!packId || !resourceUrlPrefix) {
     return null;
   }
@@ -103,7 +108,9 @@ function normalizePack(pack: StickerLyPackApi): StickerLyPack | null {
       ? resourceUrlPrefix
       : `${resourceUrlPrefix}/`,
     resourceFiles,
-    shareUrl: pack.shareUrl?.trim() || `https://sticker.ly/s/${packId}`,
+    shareUrl: ensureHttpsUrl(
+      pack.shareUrl?.trim() || `https://sticker.ly/s/${packId}`,
+    ),
     isAnimated: Boolean(pack.isAnimated || pack.animated),
   };
 }
