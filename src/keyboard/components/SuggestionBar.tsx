@@ -286,6 +286,7 @@ type SuggestionBarProps = {
   centerTitle?: string;
   clipboardPasteSuggestion?: ClipboardPasteSuggestion | null;
   onClipboardPasteSelect?: () => void;
+  onClipboardPasteDismiss?: () => void;
   aiAutocorrectSuggestion?: AiAutocorrectSuggestionBarItem | null;
   onAiAutocorrectSelect?: () => void;
   isAiAutocorrectProcessing?: boolean;
@@ -332,6 +333,7 @@ function SuggestionBarComponent({
   centerTitle,
   clipboardPasteSuggestion = null,
   onClipboardPasteSelect,
+  onClipboardPasteDismiss,
   aiAutocorrectSuggestion = null,
   onAiAutocorrectSelect,
   isAiAutocorrectProcessing = false,
@@ -603,38 +605,47 @@ function SuggestionBarComponent({
           </View>
         ) : hasClipboardPaste && clipboardPasteSuggestion ? (
           <View style={styles.clipboardPasteContainer}>
-            <SuggestionBarTapWithPressed
-              onPress={() => onClipboardPasteSelect?.()}
-              style={({pressed}) => [
+            <View
+              style={[
                 styles.clipboardPastePill,
                 isMacintosh && styles.clipboardPastePillDepth,
-                isMacintosh && keyboardKeyChromeStyle(theme, pressed),
               ]}>
-              {({pressed}) => (
-                <>
-                  {isMacintosh ? <MacintoshKeyBevels pressed={pressed} /> : null}
+              {isMacintosh ? <MacintoshKeyBevels pressed={false} /> : null}
+              <SuggestionBarTap
+                onPress={() => onClipboardPasteSelect?.()}
+                style={styles.clipboardPasteTap}
+                contentStyle={styles.clipboardPasteRow}>
+                <View style={styles.clipboardPasteIconWrap}>
                   <ClipboardIcon
                     width={16}
                     height={16}
                     color={theme.icon}
                   />
-                  {clipboardPasteSuggestion.kind === 'image' &&
-                  clipboardPasteSuggestion.imageUri ? (
-                    <Image
-                      source={{uri: clipboardPasteSuggestion.imageUri}}
-                      style={styles.clipboardPasteImage}
-                      resizeMode="cover"
-                    />
-                  ) : (
-                    <Text style={styles.clipboardPasteText} numberOfLines={1}>
-                      {clipboardPastePreviewText(
-                        clipboardPasteSuggestion.text ?? '',
-                      )}
-                    </Text>
-                  )}
-                </>
-              )}
-            </SuggestionBarTapWithPressed>
+                </View>
+                {clipboardPasteSuggestion.kind === 'image' &&
+                clipboardPasteSuggestion.imageUri ? (
+                  <Image
+                    source={{uri: clipboardPasteSuggestion.imageUri}}
+                    style={styles.clipboardPasteImage}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <Text style={styles.clipboardPasteText} numberOfLines={1}>
+                    {clipboardPastePreviewText(
+                      clipboardPasteSuggestion.text ?? '',
+                    )}
+                  </Text>
+                )}
+              </SuggestionBarTap>
+              {onClipboardPasteDismiss ? (
+                <SuggestionBarTap
+                  onPress={() => onClipboardPasteDismiss()}
+                  style={styles.clipboardPasteDismiss}
+                  hitSlop={8}>
+                  <Text style={styles.clipboardPasteDismissText}>×</Text>
+                </SuggestionBarTap>
+              ) : null}
+            </View>
           </View>
         ) : showEssentials ? (
           <View style={styles.row}>
@@ -1124,24 +1135,51 @@ function createSuggestionBarStyles(theme: KeyboardTheme) {
   clipboardPastePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingLeft: 12,
-    paddingRight: 14,
-    paddingVertical: 7,
     borderRadius: 999,
     backgroundColor: theme.letterKey,
     maxWidth: '88%',
+    overflow: 'hidden',
   },
   clipboardPastePillDepth: {
     borderRadius: theme.keyRadius,
   },
-  clipboardPastePillPressed: {
-    backgroundColor: theme.letterKeyPressed,
+  clipboardPasteTap: {
+    flexShrink: 1,
+    minWidth: 0,
+  },
+  clipboardPasteRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingLeft: 12,
+    paddingRight: 6,
+    paddingVertical: 7,
+  },
+  clipboardPasteIconWrap: {
+    width: 18,
+    height: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  clipboardPasteDismiss: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 2,
+  },
+  clipboardPasteDismissText: {
+    color: theme.spaceLabel,
+    fontSize: 22,
+    lineHeight: 22,
+    marginTop: -1,
+    ...keyboardTypefaceStyle(theme, '400'),
   },
   clipboardPasteText: {
     flexShrink: 1,
     color: theme.label,
     fontSize: 15,
+    lineHeight: 18,
     ...keyboardTypefaceStyle(theme, '500'),
   },
   aiAutocorrectPill: {

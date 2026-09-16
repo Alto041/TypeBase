@@ -263,6 +263,8 @@ function createClipboardSwipeStyles(theme: KeyboardTheme) {
   return StyleSheet.create({
     rowOuter: {
       overflow: 'hidden',
+      alignSelf: 'stretch',
+      width: '100%',
     },
     slidingRow: {
       flexDirection: 'row',

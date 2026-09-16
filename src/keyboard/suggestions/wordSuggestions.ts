@@ -1,5 +1,5 @@
 import {getEnglishStaticRank} from '../autocorrect/englishFrequencyDictionary';
-import {getPrefixCompletions} from '../autocorrect/englishPrefixIndex';
+import {getLanguagePrefixCompletions} from '../autocorrect/languagePrefixIndex';
 import {getSimilarWordSuggestions} from '../autocorrect/autocorrectEngine';
 import {getLearnedCounts} from './learnedDictionary';
 import {getBaseWords, getActiveLanguage} from '../autocorrect/dictionaryManager';
@@ -11,7 +11,6 @@ const FUZZY_EDIT_WEIGHT = 650;
 const PREFIX_CANDIDATE_POOL = 14;
 const LEARNED_PREFIX_SCAN_CAP = 96;
 const LEARNED_PREFIX_MAX = 6;
-const BILINGUAL_BASE_SCAN_MAX = 12;
 const HINGLISH_PREFIX_MAX = 10;
 
 /** Simple LRU cache for word suggestions with 200ms TTL. */
@@ -81,7 +80,7 @@ function scorePrefixCandidate(
   if (lang === 'fr-en') {
     return baseRank(word, lang) + extraLengthPenalty - learnedUses * LEARNED_SCORE_BOOST;
   }
-  if (lang === 'es-en') {
+  if (lang === 'es-en' || lang === 'it' || lang === 'de') {
     return baseRank(word, lang) + extraLengthPenalty - learnedUses * LEARNED_SCORE_BOOST;
   }
   const staticRank = getEnglishStaticRank(word) ?? 50_000;
@@ -101,7 +100,10 @@ function scoreFuzzyCandidate(
   const staticRank =
     lang === 'hi-en'
       ? 8_000
-      : lang === 'fr-en' || lang === 'es-en'
+      : lang === 'fr-en' ||
+          lang === 'es-en' ||
+          lang === 'it' ||
+          lang === 'de'
         ? baseRank(word, lang)
         : (getEnglishStaticRank(word) ?? 50_000);
   return (
@@ -130,12 +132,10 @@ function collectPrefixCandidates(
     candidates.push(word);
   };
 
-  if (lang === 'en' || lang === 'hi-en' || lang === 'fr-en' || lang === 'es-en') {
-    for (const word of getPrefixCompletions(lower, poolLimit)) {
-      push(word);
-      if (candidates.length >= poolLimit) {
-        break;
-      }
+  for (const word of getLanguagePrefixCompletions(lower, poolLimit, lang)) {
+    push(word);
+    if (candidates.length >= poolLimit) {
+      break;
     }
   }
 
@@ -143,23 +143,6 @@ function collectPrefixCandidates(
     for (const word of getHinglishSuggestions(lower, HINGLISH_PREFIX_MAX)) {
       push(word);
       if (candidates.length >= poolLimit) {
-        break;
-      }
-    }
-  }
-
-  if ((lang === 'fr-en' || lang === 'es-en' || lang === 'hi-en') && candidates.length < poolLimit) {
-    let scanned = 0;
-    for (const word of getBaseWords(lang)) {
-      if (word.length < 2 || !/^[\p{L}\p{M}]+$/u.test(word)) {
-        continue;
-      }
-      if (!word.startsWith(lower) || word.toLowerCase() === lower) {
-        continue;
-      }
-      push(word);
-      scanned += 1;
-      if (scanned >= BILINGUAL_BASE_SCAN_MAX || candidates.length >= poolLimit) {
         break;
       }
     }
@@ -208,6 +191,12 @@ export function getWordSuggestions(
   if (lang === 'es-en' && (!prefix || prefix.length < 1)) {
     return getBilingualStarters('es-en', cap);
   }
+  if (lang === 'it' && (!prefix || prefix.length < 1)) {
+    return getBilingualStarters('it', cap);
+  }
+  if (lang === 'de' && (!prefix || prefix.length < 1)) {
+    return getBilingualStarters('de', cap);
+  }
 
   if (!prefix || prefix.length < 1) {
     return [];
@@ -237,7 +226,12 @@ export function getWordSuggestions(
     taken.add(word.replace(/\s+/g, '').toLowerCase());
   }
 
-  const fuzzyBudget = options?.skipFuzzy ? 0 : Math.min(2, cap);
+  const fuzzyBudget =
+    options?.skipFuzzy
+      ? 0
+      : lang === 'it' || lang === 'de' || lang === 'es-en' || lang === 'fr-en'
+        ? Math.min(3, cap)
+        : Math.min(2, cap);
   const fuzzyMatches =
     fuzzyBudget > 0
       ? getSimilarWordSuggestions(lower, fuzzyBudget, taken, {

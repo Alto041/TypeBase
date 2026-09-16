@@ -374,14 +374,18 @@ export function getLearnedPhraseMap(): ReadonlyMap<string, number> {
 export function isLearnedWordInsisted(word: string): boolean {
   const normalized = normalizeLearnedWord(word);
   const uses = wordUsesCache.get(normalized) ?? 0;
-  if (uses >= 2) {
-    return true;
-  }
-  if (uses === 0) {
+  if (uses < 2) {
     return false;
   }
   const entry = profile.words[normalized];
-  return entry?.source === 'kept' || (entry?.confidence ?? 0) >= 0.38;
+  // A single keep/undo must not permanently block corrections.
+  if (entry?.source === 'kept' && uses >= 2) {
+    return true;
+  }
+  if (uses >= 4) {
+    return true;
+  }
+  return (entry?.confidence ?? 0) >= 0.55 && uses >= 3;
 }
 
 export function shouldPersonallyOfferKeepTyped(word: string): boolean {

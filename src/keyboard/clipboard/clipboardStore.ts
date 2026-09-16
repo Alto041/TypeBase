@@ -4,8 +4,34 @@ import type {ClipboardItem} from './types';
 const MAX_HISTORY = 50;
 
 const items = new Map<string, ClipboardItem>();
+/** Deleted/dismissed clips — block captureSystemClipboard from re-importing them. */
+const suppressedTextFingerprints = new Set<string>();
+const suppressedImageHashes = new Set<string>();
 
 let loadPromise: Promise<void> | null = null;
+
+function textFingerprint(text: string): string {
+  return text.trim().toLowerCase();
+}
+
+function suppressClipboardItem(item: ClipboardItem): void {
+  if (item.kind === 'text' && item.text) {
+    suppressedTextFingerprints.add(textFingerprint(item.text));
+  } else if (item.kind === 'image' && item.imageHash) {
+    suppressedImageHashes.add(item.imageHash);
+  }
+}
+
+export function isClipboardContentSuppressed(
+  content:
+    | {kind: 'text'; text: string}
+    | {kind: 'image'; imageHash: string},
+): boolean {
+  if (content.kind === 'text') {
+    return suppressedTextFingerprints.has(textFingerprint(content.text));
+  }
+  return suppressedImageHashes.has(content.imageHash);
+}
 
 function createId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -128,9 +154,15 @@ export async function ensureMediaPermissionForClipboard(): Promise<void> {
 export async function captureSystemClipboard(): Promise<ClipboardItem | null> {
   const content = await keyboardBridge.getClipboardContent();
   if (content.kind === 'text') {
+    if (isClipboardContentSuppressed(content)) {
+      return null;
+    }
     return addClipboardText(content.text);
   }
   if (content.kind === 'image') {
+    if (isClipboardContentSuppressed(content)) {
+      return null;
+    }
     return addClipboardImage(content.imagePath, content.imageHash, content.mimeType);
   }
   return null;
@@ -204,6 +236,9 @@ export async function importRecentScreenshots(
 
 export async function deleteClipboardItem(itemId: string): Promise<void> {
   const item = items.get(itemId);
+  if (item) {
+    suppressClipboardItem(item);
+  }
   const imageUri = item?.kind === 'image' ? item.imageUri : undefined;
   items.delete(itemId);
   if (imageUri) {

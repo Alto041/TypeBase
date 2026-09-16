@@ -97,10 +97,17 @@ import {
 } from './nativeSuggestionBar';
 import {KeyLayoutProvider, useKeyLayoutContext} from './gesture/KeyLayoutContext';
 import {
+  clearWordLetterTapsForTapMap,
   getTouchIntelligenceNativeConfig,
+  getWordLetterTapsForTapMap,
   setTouchIntelligenceTypingContextProvider,
   syncTouchIntelligenceToNative,
 } from './gesture/touchIntelligence';
+import {
+  hydrateTapMapFromStorage,
+  learnTapMapFromWordCorrection,
+  setTapMapLayoutProvider,
+} from './gesture/tapMap';
 import {updatePredictiveHitboxes} from './gesture/predictiveHitboxes';
 import {installTouchIntelligenceNativeTelemetry} from './gesture/touchIntelligenceNativeBridge';
 import {hydrateTouchIntelligenceHitsFromStorage} from './gesture/touchIntelligenceTelemetry';
@@ -597,8 +604,9 @@ function computeTypingSuggestionBar(
       ? []
       : getPhraseSuggestions(options.context, 2);
   // Prefix completions (trie) plus a small high-confidence fuzzy pass while typing.
+  const autocorrectLang = getActiveLanguage();
   const nativeSuggestions =
-    Platform.OS === 'android' && fast
+    Platform.OS === 'android' && fast && autocorrectLang === 'en'
       ? getFreshNativeSuggestions(prefix)
       : null;
   let wordSuggestions =
@@ -883,6 +891,19 @@ function KeyboardBody({
     syncTouchIntelligenceToNative();
   }, [layoutContext, syncTouchIntelligenceToNative, theme.predictiveHitboxesEnabled]);
 
+  useEffect(() => {
+    if (!layoutContext) {
+      setTapMapLayoutProvider(null);
+      return () => {
+        setTapMapLayoutProvider(null);
+      };
+    }
+    setTapMapLayoutProvider(() => layoutContext.getLayouts());
+    return () => {
+      setTapMapLayoutProvider(null);
+    };
+  }, [layoutContext]);
+
   /** Uppercase at most one letter per shift tap — uses refs so fast typing can't double-cap. */
   const consumeLetterCommitText = useCallback((keyValue: string): string => {
     if (layoutRef.current !== 'letters' || !keyValue) {
@@ -1053,6 +1074,7 @@ function KeyboardBody({
 
   useEffect(() => {
     void hydrateTouchIntelligenceHitsFromStorage();
+    void hydrateTapMapFromStorage();
   }, []);
 
   useEffect(() => {
@@ -2302,6 +2324,13 @@ function KeyboardBody({
       if (!edit.original || edit.original === edit.correction) {
         return;
       }
+      learnTapMapFromWordCorrection(
+        edit.original,
+        edit.correction,
+        getWordLetterTapsForTapMap(),
+        layoutContext?.getLayouts(),
+      );
+      clearWordLetterTapsForTapMap();
       autocorrectUndoStackRef.current = [
         ...autocorrectUndoStackRef.current.slice(-9),
         edit,
@@ -2309,7 +2338,7 @@ function KeyboardBody({
       autocorrectRedoStackRef.current = [];
       recordAutocorrectCorrection(edit.original, edit.correction);
     },
-    [],
+    [layoutContext],
   );
 
   const applyAiAutocorrectEdit = useCallback(
@@ -2863,6 +2892,13 @@ function KeyboardBody({
           candidate = null;
         }
         if (shouldAutoApply(candidate, typedWord)) {
+          learnTapMapFromWordCorrection(
+            typedWord,
+            candidate!.correction,
+            getWordLetterTapsForTapMap(),
+            layoutContext?.getLayouts(),
+          );
+          clearWordLetterTapsForTapMap();
           keyboardBridge.replaceWordPrefix(
             typedWord.length + boundaryLength,
             candidate!.correction + boundaryText,
@@ -2907,6 +2943,7 @@ function KeyboardBody({
         if (isDictionaryWord(lower) || (getLearnedCounts().get(lower) ?? 0) > 0) {
           recordLearnedWord(typedWord, 'typed');
         }
+        clearWordLetterTapsForTapMap();
         recordWordCommitted();
       }
       if (boundary && /[^\w\s]/.test(boundary)) {
@@ -3276,6 +3313,32 @@ function KeyboardBody({
     clipboardPasteSuggestion,
     markTyping,
     scheduleRefreshSuggestions,
+  ]);
+
+  const handleClipboardPasteDismiss = useCallback(() => {
+    const item = clipboardPasteSuggestion;
+    if (!item) {
+      return;
+    }
+    clearClipboardPasteSuggestion(item.fingerprint);
+    const match = getClipboardItems().find(entry => {
+      if (item.kind === 'image' && entry.kind === 'image') {
+        return entry.imageUri === item.imageUri;
+      }
+      if (item.kind === 'text' && entry.kind === 'text') {
+        return entry.text === item.text;
+      }
+      return false;
+    });
+    if (match) {
+      void deleteClipboardItem(match.id).then(reloadClipboard);
+      return;
+    }
+    void reloadClipboard();
+  }, [
+    clearClipboardPasteSuggestion,
+    clipboardPasteSuggestion,
+    reloadClipboard,
   ]);
 
   const handleClipboardSelect = useCallback((item: ClipboardItem) => {
@@ -4696,6 +4759,7 @@ function KeyboardBody({
           onSelect={handleSuggestionSelect}
           clipboardPasteSuggestion={clipboardPasteSuggestion}
           onClipboardPasteSelect={handleClipboardPasteSelect}
+          onClipboardPasteDismiss={handleClipboardPasteDismiss}
           aiAutocorrectSuggestion={aiAutocorrectSuggestion}
           onAiAutocorrectSelect={handleAiAutocorrectSelect}
           isAiAutocorrectProcessing={isAiAutocorrectProcessing}

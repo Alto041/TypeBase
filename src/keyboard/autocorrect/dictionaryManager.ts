@@ -640,6 +640,11 @@ export function getPrefixIndexWordList(lang?: string): readonly string[] {
 export async function preloadActiveDictionary(): Promise<void> {
   const lang = getActiveLanguage();
   await getSymSpell(lang);
+  const words = getPrefixIndexWordList(lang);
+  if (words.length > 0) {
+    const {getOrCreatePrefixIndex} = await import('../gesture/prefixIndex');
+    getOrCreatePrefixIndex(lang, words);
+  }
 }
 
 /** Primarily for tests / reset in dev. */

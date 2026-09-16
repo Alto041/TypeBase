@@ -1,5 +1,10 @@
 import type {LearningSource} from '../personalTyping/types';
-import {addLearnedWord} from '../autocorrect/dictionaryManager';
+import {
+  addLearnedWord,
+  getActiveLanguage,
+  getBaseWords,
+} from '../autocorrect/dictionaryManager';
+import {isEnglishDictionaryWord} from '../autocorrect/englishFrequencyDictionary';
 import {
   ensurePersonalTypingLoaded,
   getLearnedWordMap,
@@ -19,7 +24,23 @@ export {isLearnableWord, normalizeLearnedWord};
 const pendingSymSpellWords = new Set<string>();
 let symSpellFlushTimer: ReturnType<typeof setTimeout> | null = null;
 
+function isSafeToBoostInSymSpell(word: string): boolean {
+  const lower = word.trim().toLowerCase();
+  if (!lower) {
+    return false;
+  }
+  const lang = getActiveLanguage();
+  if (lang === 'en') {
+    return isEnglishDictionaryWord(lower);
+  }
+  return getBaseWords(lang).includes(lower);
+}
+
 function queueSymSpellLearn(word: string): void {
+  // Never boost OOV typos into SymSpell — that poisons future corrections.
+  if (!isSafeToBoostInSymSpell(word)) {
+    return;
+  }
   pendingSymSpellWords.add(word);
   if (symSpellFlushTimer) {
     return;

@@ -34,6 +34,8 @@ import {
   subscribeTouchIntelligenceTelemetry,
 } from './src/keyboard/gesture/touchIntelligenceTelemetry';
 import {TouchIntelligenceHitsScreen} from './TouchIntelligenceHitsScreen';
+import {TapMapScreen} from './TapMapScreen';
+import {getTapMapSnapshot, hydrateTapMapFromStorage} from './src/keyboard/gesture/tapMap';
 
 const DEFAULT_SNAPSHOT = {
   autocorrectLang: 'en',
@@ -179,6 +181,8 @@ function formatMs(value: number | null): string {
 export function EngineStatsScreen({onBack}: {onBack: () => void}) {
   const [snap, setSnap] = useState(DEFAULT_SNAPSHOT);
   const [showTouchHits, setShowTouchHits] = useState(false);
+  const [showTapMap, setShowTapMap] = useState(false);
+  const [tapMapSummary, setTapMapSummary] = useState(() => getTapMapSnapshot());
   const [touchSummary, setTouchSummary] = useState(() =>
     getTouchIntelligenceTelemetrySummary(),
   );
@@ -189,6 +193,12 @@ export function EngineStatsScreen({onBack}: {onBack: () => void}) {
     };
     refreshTouchSummary();
     return subscribeTouchIntelligenceTelemetry(refreshTouchSummary);
+  }, []);
+
+  useEffect(() => {
+    void hydrateTapMapFromStorage().then(() => {
+      setTapMapSummary(getTapMapSnapshot());
+    });
   }, []);
 
   useEffect(() => {
@@ -307,6 +317,10 @@ export function EngineStatsScreen({onBack}: {onBack: () => void}) {
       cancelled = true;
     };
   }, []);
+
+  if (showTapMap) {
+    return <TapMapScreen onBack={() => setShowTapMap(false)} />;
+  }
 
   if (showTouchHits) {
     return <TouchIntelligenceHitsScreen onBack={() => setShowTouchHits(false)} />;
@@ -455,6 +469,20 @@ export function EngineStatsScreen({onBack}: {onBack: () => void}) {
             value={snap.swipeTyping ? 'On' : 'Off'}
           />
         </SectionCard>
+
+        <Pressable style={styles.navCard} onPress={() => setShowTapMap(true)}>
+          <View style={styles.navCardInner}>
+            <View style={styles.navTextBlock}>
+              <Text style={styles.navTitle}>Your Tap Map</Text>
+              <Text style={styles.navHint}>
+                {tapMapSummary.totalSamples > 0
+                  ? `${tapMapSummary.totalSamples} taps learned`
+                  : 'Personalized touch targets'}
+              </Text>
+            </View>
+            <ArrowForwardIcon width={14} height={14} color={C.muted} />
+          </View>
+        </Pressable>
 
         <Pressable
           style={styles.navCard}

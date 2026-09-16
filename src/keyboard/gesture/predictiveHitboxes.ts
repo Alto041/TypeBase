@@ -1,4 +1,5 @@
 import {KEY_HIT_SLOP, PREDICTIVE_HITBOX_EXPANSION} from '../theme';
+import {getTapMapOffset} from './tapMap';
 import type {KeyBounds} from './types';
 import {
   getNextLetterDistribution,
@@ -223,27 +224,51 @@ export function getLetterHitPriority(letter: string | null): number {
   return activeState.probabilities.get(letter.toLowerCase()) ?? 0;
 }
 
+function applyTapMapShift(
+  bounds: {left: number; right: number; top: number; bottom: number},
+  letter: string | null,
+): {left: number; right: number; top: number; bottom: number} {
+  if (!letter) {
+    return bounds;
+  }
+  const {dx, dy} = getTapMapOffset(letter);
+  if (dx === 0 && dy === 0) {
+    return bounds;
+  }
+  return {
+    left: bounds.left + dx,
+    right: bounds.right + dx,
+    top: bounds.top + dy,
+    bottom: bounds.bottom + dy,
+  };
+}
+
 export function expandedKeyBounds(
   layout: KeyBounds,
   fallbackSlop?: {horizontal: number; vertical: number},
 ): {left: number; right: number; top: number; bottom: number} {
+  const letter = keyLetter(layout);
   const slop = activeState.expansions.get(layout.id);
   if (slop) {
+    const tap = letter ? getTapMapOffset(letter) : {dx: 0, dy: 0};
     return {
-      left: layout.x - slop.left,
-      right: layout.x + layout.width + slop.right,
-      top: layout.y - slop.top,
-      bottom: layout.y + layout.height + slop.bottom,
+      left: layout.x - slop.left + tap.dx * 0.5,
+      right: layout.x + layout.width + slop.right + tap.dx * 0.5,
+      top: layout.y - slop.top + tap.dy * 0.5,
+      bottom: layout.y + layout.height + slop.bottom + tap.dy * 0.5,
     };
   }
   const horizontal = fallbackSlop?.horizontal ?? KEY_HIT_SLOP.horizontal;
   const vertical = fallbackSlop?.vertical ?? KEY_HIT_SLOP.vertical;
-  return {
-    left: layout.x - horizontal,
-    right: layout.x + layout.width + horizontal,
-    top: layout.y - vertical,
-    bottom: layout.y + layout.height + vertical,
-  };
+  return applyTapMapShift(
+    {
+      left: layout.x - horizontal,
+      right: layout.x + layout.width + horizontal,
+      top: layout.y - vertical,
+      bottom: layout.y + layout.height + vertical,
+    },
+    letter,
+  );
 }
 
 export function serializeKeyExpansionsForNative(): Array<{
@@ -264,12 +289,13 @@ export function serializeKeyExpansionsForNative(): Array<{
   }> = [];
   for (const [keyId, slop] of activeState.expansions) {
     const letter = activeState.keyLetters.get(keyId) ?? '';
+    const tap = letter ? getTapMapOffset(letter) : {dx: 0, dy: 0};
     out.push({
       keyId,
-      left: slop.left,
-      right: slop.right,
-      top: slop.top,
-      bottom: slop.bottom,
+      left: Math.max(0, slop.left - tap.dx * 0.5),
+      right: Math.max(0, slop.right + tap.dx * 0.5),
+      top: Math.max(0, slop.top - tap.dy * 0.5),
+      bottom: Math.max(0, slop.bottom + tap.dy * 0.5),
       probability: activeState.probabilities.get(letter) ?? 0,
     });
   }

@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {getPredictiveHitboxState} from './predictiveHitboxes';
+import {learnTapMapFromMismatch} from './tapMap';
 
 export type TouchIntelligenceHitRecord = {
   id: string;
@@ -266,6 +267,17 @@ export function annotateLastTouchIntelligenceCommit(
   record.committedLetter =
     normalized.length === 1 ? normalized : committedLetter;
   record.source = source;
+
+  const geometric = record.geometricLetter?.toLowerCase() ?? null;
+  if (
+    geometric &&
+    normalized.length === 1 &&
+    geometric !== normalized &&
+    localX != null &&
+    localY != null
+  ) {
+    learnTapMapFromMismatch(normalized, localX, localY);
+  }
 
   void persistTouchIntelligenceRecord(record);
   notify();

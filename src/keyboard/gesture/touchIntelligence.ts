@@ -55,6 +55,7 @@ const MIN_RERANK_MARGIN = 0.002;
 
 let typingContextProvider: (() => TouchIntelligenceTypingContext) | null = null;
 let lastTap: LastTapRecord | null = null;
+const wordLetterTaps: Array<{letter: string; x: number; y: number}> = [];
 let neighborCacheKey = '';
 let neighborCache = new Map<string, Set<string>>();
 let lastNativeContextPayload = '';
@@ -90,6 +91,22 @@ export function recordTouchIntelligenceTap(
     letter: normalized,
     timestampMs,
   };
+  wordLetterTaps.push({letter: normalized, x: localX, y: localY});
+  if (wordLetterTaps.length > 32) {
+    wordLetterTaps.shift();
+  }
+}
+
+export function getWordLetterTapsForTapMap(): ReadonlyArray<{
+  letter: string;
+  x: number;
+  y: number;
+}> {
+  return wordLetterTaps;
+}
+
+export function clearWordLetterTapsForTapMap(): void {
+  wordLetterTaps.length = 0;
 }
 
 export function getTouchIntelligenceNativeConfig(): TouchIntelligenceNativeConfig {

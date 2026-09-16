@@ -71,8 +71,12 @@ const MIN_AUTO_CONFIDENCE = 0.55;
 const MIN_SUGGESTION_BAR_CONFIDENCE = 0.51;
 /** Only consider the top N SymSpell hits — quality over quantity. */
 const HIGH_ACCURACY_SYMSPELL_LIMIT = 5;
+/** On space/punctuation commit, search deeper for long-word typos (everyibe → everyone). */
+const BOUNDARY_SYMSPELL_LIMIT = 15;
 const LIGHTWEIGHT_SYMSPELL_LIMIT = 6; // Enough hits for long-word typo fixes while typing
 const COMMON_WORD_RANK = 4000;
+/** Dictionary headwords rarer than this can still be autocorrected (e.g. beng → being). */
+const OBSCURE_WORD_RANK_THRESHOLD = 20_000;
 /** Skip fuzzy autocorrect for long random key-mash tokens (perf + no useful fix). */
 export const MAX_LIVE_AUTOCORRECT_LENGTH = 28;
 
@@ -260,6 +264,26 @@ function isKnownEnglishWord(word: string): boolean {
   return isEnglishSymSpellReady() && hasDictionaryWord(lower);
 }
 
+/** True when the typed token is a real word common enough to skip fuzzy correction. */
+function blocksAutocorrectAsKnownWord(word: string): boolean {
+  const lower = word.toLowerCase();
+  const lang = getActiveLanguage();
+
+  if (isEnglishLikeLang(lang)) {
+    if (!isKnownEnglishWord(lower)) {
+      return false;
+    }
+    return wordRank(lower) < OBSCURE_WORD_RANK_THRESHOLD;
+  }
+
+  const base = getBaseWords(lang);
+  const idx = base.indexOf(lower);
+  if (idx < 0) {
+    return false;
+  }
+  return idx < 8_000;
+}
+
 /** For non-English languages we are a bit more conservative on pure fuzzy auto-apply
  * unless the user has already learned the word or we have a very strong exact fix.
  */
@@ -393,17 +417,33 @@ function isLikelyIncompleteWord(typed: string): boolean {
   return hasLongerPrefixMatch(typed);
 }
 
+/** Adjacent-key slips like everyibe → everyone (…ibe → …one). */
+function tryIbToOneSuffixFix(lower: string): string | null {
+  if (!lower.endsWith('ibe') || lower.length < 5) {
+    return null;
+  }
+  const candidate = `${lower.slice(0, -3)}one`;
+  if (!isKnownEnglishWord(candidate)) {
+    return null;
+  }
+  if (wordRank(candidate) >= COMMON_WORD_RANK) {
+    return null;
+  }
+  return candidate;
+}
+
 /** Best single-word SymSpell fix for a typo (e.g. wheather → weather). */
 function findBestSingleWordCorrection(
   typed: string,
   maxEdits = 2,
   previousWord = '',
+  symLimit = HIGH_ACCURACY_SYMSPELL_LIMIT,
 ): {word: string; edits: number; staticRank: number} | null {
   if (!isSymSpellLookupReady()) {
     return null;
   }
 
-  const matches = lookupCandidatesSync(typed, maxEdits, HIGH_ACCURACY_SYMSPELL_LIMIT);
+  const matches = lookupCandidatesSync(typed, maxEdits, symLimit);
   let best: {
     word: string;
     edits: number;
@@ -419,8 +459,12 @@ function findBestSingleWordCorrection(
       continue;
     }
     const staticRank = wordRank(match.word);
+    const prefixBonus = sharedPrefixLength(typed, match.word) * 800;
     const score =
-      staticRank + match.edits * 2_000 + contextFollowBias(previousWord, match.word);
+      staticRank +
+      match.edits * 2_000 +
+      contextFollowBias(previousWord, match.word) -
+      prefixBonus;
     if (
       !best ||
       match.edits < best.edits ||
@@ -585,6 +629,8 @@ type CollectOptions = {
   skipFrequentScan?: boolean;
   /** Lighter candidate search for live typing — avoids scanning huge buckets. */
   lightweight?: boolean;
+  /** Space/punctuation commit — deeper SymSpell search. */
+  boundary?: boolean;
 };
 
 export type AutocorrectLookupOptions = CollectOptions & {
@@ -848,7 +894,7 @@ export function getFastAutocorrectPreview(
     return leetFix;
   }
 
-  if (isKnownEnglishWord(lower)) {
+  if (blocksAutocorrectAsKnownWord(lower)) {
     return null;
   }
 
@@ -990,7 +1036,7 @@ function isProtectedWord(word: string, learnedUses: number): boolean {
   if (isLearnedWordInsisted(word)) {
     return true;
   }
-  return learnedUses >= 1;
+  return learnedUses >= 3;
 }
 
 function hasIntentionalCasing(word: string): boolean {
@@ -1504,7 +1550,11 @@ function collectCandidates(
   }
 
   // In lightweight mode (suggestion bar), limit SymSpell calls further
-  const symLimit = options?.lightweight ? LIGHTWEIGHT_SYMSPELL_LIMIT : HIGH_ACCURACY_SYMSPELL_LIMIT;
+  const symLimit = options?.lightweight
+    ? LIGHTWEIGHT_SYMSPELL_LIMIT
+    : options?.boundary === true
+      ? BOUNDARY_SYMSPELL_LIMIT
+      : HIGH_ACCURACY_SYMSPELL_LIMIT;
   const symCands = lookupCandidatesSync(typed, maxEdits, symLimit);
   for (const sc of symCands) {
     const lu = learned.get(sc.word) ?? 0;
@@ -1628,7 +1678,7 @@ export function getTypoSuggestionPreview(
     return leetFix;
   }
 
-  if (isKnownEnglishWord(lower)) {
+  if (blocksAutocorrectAsKnownWord(lower)) {
     return null;
   }
 
@@ -1752,7 +1802,7 @@ export function getAutocorrectCandidate(
   }
 
   // Valid dictionary word — never fuzzy-shrink or neighbor-mutate (all → al).
-  if (isKnownEnglishWord(lower)) {
+  if (blocksAutocorrectAsKnownWord(lower)) {
     return null;
   }
 
@@ -1821,11 +1871,24 @@ export function getAutocorrectCandidate(
     }
   }
 
+  const ibOneFix = tryIbToOneSuffixFix(lower);
+  if (ibOneFix) {
+    return {
+      correction: applyCaseToWord(ibOneFix, typed),
+      confidence: 0.94,
+    };
+  }
+
   const previousWord = options?.previousWord ?? '';
+  const symLimit =
+    options?.boundary === true
+      ? BOUNDARY_SYMSPELL_LIMIT
+      : HIGH_ACCURACY_SYMSPELL_LIMIT;
   const symFix = findBestSingleWordCorrection(
     lower,
     maxEditDistance(lower.length),
     previousWord,
+    symLimit,
   );
   if (symFix) {
     const maxEdits = allowedFuzzyEdits(lower.length);
@@ -1914,6 +1977,7 @@ export function getAutocorrectCandidate(
   const candidates = collectCandidates(lower, maxEditDistance(lower.length), {
     skipFrequentScan: options?.skipFrequentScan ?? options?.lightweight,
     lightweight: options?.lightweight,
+    boundary: options?.boundary,
   });
   if (candidates.length === 0) {
     return null;
@@ -2072,7 +2136,7 @@ export function getSuggestionBarAutocorrect(
     return result;
   }
 
-  if (isKnownEnglishWord(lower)) {
+  if (blocksAutocorrectAsKnownWord(lower)) {
     return {keepTyped: null, correction: null};
   }
 
