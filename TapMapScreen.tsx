@@ -22,11 +22,15 @@ const C = {
   card: '#ffffff',
   text: '#111111',
   sub: '#6b6b6b',
-  bubble: '#2B7FE0',
-  bubbleMuted: '#8CB8E8',
+  border: '#e8e8ea',
+  green: '#2CC642',
   muted: '#b0b0b5',
-  red: '#D71921',
 } as const;
+
+const CARD_R = 14;
+const ROW_GAP = 8;
+const TEXT_KERNING = -0.7;
+const MIN_SAMPLES = 3;
 
 const ROWS = [
   ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'],
@@ -35,10 +39,10 @@ const ROWS = [
   ['z', 'x', 'c', 'v', 'b', 'n', 'm'],
 ] as const;
 
-const KEY_W = 28;
-const KEY_H = 34;
-const KEY_GAP = 5;
-const OFFSET_SCALE = 0.55;
+const KEY_W = 30;
+const KEY_H = 36;
+const KEY_GAP = 6;
+const OFFSET_SCALE = 0.65;
 
 function KeyBubble({
   letter,
@@ -47,22 +51,23 @@ function KeyBubble({
   letter: string;
   entry?: TapMapEntry;
 }) {
-  const learned = entry != null && entry.samples >= 3;
+  const learned = entry != null && entry.samples >= MIN_SAMPLES;
   const dx = (entry?.dx ?? 0) * OFFSET_SCALE;
   const dy = (entry?.dy ?? 0) * OFFSET_SCALE;
 
   return (
     <View style={styles.keySlot}>
+      <View style={styles.keyGhost} />
       <View
         style={[
           styles.bubble,
-          {
-            transform: [{translateX: dx}, {translateY: dy}],
-            backgroundColor: learned ? C.bubble : C.bubbleMuted,
-            opacity: learned ? 1 : 0.55,
-          },
+          learned ? styles.bubbleLearned : styles.bubbleNeutral,
+          {transform: [{translateX: dx}, {translateY: dy}]},
         ]}>
-        <Text style={styles.bubbleText}>{letter}</Text>
+        <Text
+          style={[styles.bubbleText, learned ? styles.bubbleTextLearned : null]}>
+          {letter}
+        </Text>
       </View>
     </View>
   );
@@ -70,6 +75,7 @@ function KeyBubble({
 
 export function TapMapScreen({onBack}: {onBack: () => void}) {
   const [snapshot, setSnapshot] = useState(() => getTapMapSnapshot());
+  const [resetting, setResetting] = useState(false);
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -93,9 +99,20 @@ export function TapMapScreen({onBack}: {onBack: () => void}) {
 
   const learnedCount = useMemo(
     () =>
-      Object.values(snapshot.letters).filter(entry => entry.samples >= 3).length,
+      Object.values(snapshot.letters).filter(entry => entry.samples >= MIN_SAMPLES)
+        .length,
     [snapshot.letters],
   );
+
+  const handleReset = () => {
+    if (resetting) {
+      return;
+    }
+    setResetting(true);
+    void clearTapMap()
+      .then(() => setSnapshot(getTapMapSnapshot()))
+      .finally(() => setResetting(false));
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -103,55 +120,62 @@ export function TapMapScreen({onBack}: {onBack: () => void}) {
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}>
-        <View style={styles.headerRow}>
-          <Pressable onPress={onBack} hitSlop={12}>
-            <Text style={styles.back}>←</Text>
-          </Pressable>
-          <Text style={styles.title}>Your Tap Map</Text>
-          <Pressable
-            onPress={() => {
-              void clearTapMap().then(() => setSnapshot(getTapMapSnapshot()));
-            }}
-            hitSlop={12}>
-            <Text style={styles.reset}>Reset</Text>
-          </Pressable>
-        </View>
+        <Text style={styles.pageTitle}>Tap map</Text>
 
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Adjusted hit zones</Text>
-          <Text style={styles.cardSub}>
-            Keys stay where you see them — invisible touch targets shift to match
-            how you actually tap.
-          </Text>
-
-          <View style={styles.keyboard}>
-            {ROWS.map((row, rowIndex) => (
-              <View
-                key={`row-${rowIndex}`}
-                style={[
-                  styles.row,
-                  rowIndex === 1 ? styles.rowInsetSmall : null,
-                  rowIndex >= 2 ? styles.rowInsetLarge : null,
-                ]}>
-                {row.map(letter => (
-                  <KeyBubble
-                    key={letter}
-                    letter={letter}
-                    entry={snapshot.letters[letter]}
-                  />
-                ))}
-              </View>
-            ))}
+        <View style={styles.cardStack}>
+          <View style={[styles.rowCard, styles.firstSettingCard]}>
+            <View style={styles.rowInner}>
+              <Text style={styles.rowSubLabel}>Keys learned</Text>
+              <Text style={styles.rowValue}>{learnedCount}</Text>
+            </View>
           </View>
-
-          <Text style={styles.footer}>
-            {learnedCount > 0
-              ? `${learnedCount} keys personalized · ${snapshot.totalSamples} taps learned`
-              : 'Keep typing — Tap Map learns from consistent mis-taps and autocorrect fixes.'}
-          </Text>
+          <View style={[styles.rowCard, styles.lastSettingCard]}>
+            <View style={styles.rowInner}>
+              <Text style={styles.rowSubLabel}>Total taps</Text>
+              <Text style={styles.rowValue}>{snapshot.totalSamples}</Text>
+            </View>
+          </View>
         </View>
 
-        <Text style={styles.brand}>TypeBase Keyboard</Text>
+        <View style={[styles.rowCard, styles.keyboardCard]}>
+          {learnedCount === 0 ? (
+            <Text style={styles.keyboardEmpty}>
+              Type normally for a few minutes. Green keys appear as offsets are
+              learned.
+            </Text>
+          ) : (
+            <View style={styles.keyboardTray}>
+              {ROWS.map((row, rowIndex) => (
+                <View
+                  key={`row-${rowIndex}`}
+                  style={[
+                    styles.keyboardRow,
+                    rowIndex === 1 ? styles.rowInsetSmall : null,
+                    rowIndex >= 2 ? styles.rowInsetLarge : null,
+                  ]}>
+                  {row.map(letter => (
+                    <KeyBubble
+                      key={letter}
+                      letter={letter}
+                      entry={snapshot.letters[letter]}
+                    />
+                  ))}
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+
+        <Pressable
+          onPress={handleReset}
+          disabled={resetting}
+          style={[styles.rowCard, styles.resetCard]}>
+          <View style={styles.rowInner}>
+            <Text style={[styles.rowTitle, styles.resetLabel]}>
+              {resetting ? 'Resetting…' : 'Reset tap map'}
+            </Text>
+          </View>
+        </Pressable>
       </ScrollView>
     </SafeAreaView>
   );
@@ -164,62 +188,96 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 18,
-    paddingTop: 12,
+    paddingTop: 72,
     paddingBottom: 110,
-    gap: 16,
+    gap: 10,
   },
-  headerRow: {
+  pageTitle: {
+    fontSize: 40,
+    color: C.text,
+    marginBottom: 8,
+    letterSpacing: -2.5,
+    fontFamily: 'FragmentMono',
+  },
+  cardStack: {
+    gap: 4,
+    marginBottom: ROW_GAP,
+  },
+  rowCard: {
+    backgroundColor: C.card,
+    borderRadius: CARD_R,
+    paddingHorizontal: 14,
+    paddingVertical: 4,
+  },
+  firstSettingCard: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderBottomLeftRadius: 8,
+    borderBottomRightRadius: 8,
+  },
+  lastSettingCard: {
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+  },
+  rowInner: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    minHeight: 44,
+    gap: 14,
+    minHeight: 52,
   },
-  back: {
-    fontSize: 22,
+  rowTitle: {
     color: C.text,
-    width: 44,
+    fontSize: 16,
+    fontFamily: 'FragmentMono',
+    textTransform: 'uppercase',
+    letterSpacing: TEXT_KERNING,
   },
-  title: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: C.text,
-  },
-  reset: {
-    fontSize: 13,
-    color: C.red,
-    width: 44,
-    textAlign: 'right',
-  },
-  card: {
-    backgroundColor: C.card,
-    borderRadius: 16,
-    padding: 18,
-    gap: 12,
-  },
-  cardTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: C.text,
-  },
-  cardSub: {
-    fontSize: 13,
-    lineHeight: 19,
+  rowSubLabel: {
     color: C.sub,
+    fontSize: 14,
+    fontFamily: 'FragmentMono',
+    letterSpacing: TEXT_KERNING,
   },
-  keyboard: {
-    marginTop: 8,
+  rowValue: {
+    color: C.text,
+    fontSize: 14,
+    fontFamily: 'FragmentMono',
+    marginLeft: 'auto',
+    letterSpacing: TEXT_KERNING,
+  },
+  keyboardCard: {
+    borderRadius: 20,
+    paddingVertical: 12,
+    paddingBottom: 14,
+  },
+  keyboardEmpty: {
+    fontSize: 13,
+    color: C.sub,
+    fontFamily: 'FragmentMono',
+    lineHeight: 20,
+    letterSpacing: TEXT_KERNING,
+  },
+  keyboardTray: {
+    backgroundColor: C.bg,
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
     gap: KEY_GAP,
     alignItems: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: C.border,
   },
-  row: {
+  keyboardRow: {
     flexDirection: 'row',
     gap: KEY_GAP,
   },
   rowInsetSmall: {
-    paddingLeft: 8,
+    paddingLeft: 10,
   },
   rowInsetLarge: {
-    paddingLeft: 16,
+    paddingLeft: 18,
   },
   keySlot: {
     width: KEY_W,
@@ -227,28 +285,48 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  keyGhost: {
+    position: 'absolute',
+    width: KEY_W - 4,
+    height: KEY_H - 6,
+    borderRadius: 9,
+    backgroundColor: C.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: C.border,
+  },
   bubble: {
-    minWidth: KEY_W - 2,
-    minHeight: KEY_H - 4,
-    borderRadius: 10,
+    minWidth: KEY_W - 4,
+    minHeight: KEY_H - 6,
+    borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 4,
   },
+  bubbleLearned: {
+    backgroundColor: C.green,
+  },
+  bubbleNeutral: {
+    backgroundColor: C.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: C.border,
+    opacity: 0.72,
+  },
   bubbleText: {
-    color: '#fff',
     fontSize: 12,
+    fontFamily: 'FragmentMono',
+    color: C.sub,
+    textTransform: 'uppercase',
+  },
+  bubbleTextLearned: {
+    color: '#ffffff',
     fontWeight: '600',
   },
-  footer: {
-    fontSize: 12,
-    lineHeight: 18,
-    color: C.sub,
-    marginTop: 4,
+  resetCard: {
+    borderRadius: 20,
+    marginTop: 2,
   },
-  brand: {
-    textAlign: 'center',
-    fontSize: 12,
+  resetLabel: {
     color: C.muted,
+    fontSize: 14,
   },
 });

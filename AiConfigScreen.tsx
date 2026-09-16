@@ -326,7 +326,7 @@ export function AiConfigScreen({
                   {provider === 'on_device' ? 'ON DEVICE' : 'CLOUD AI'}
                 </Text>
                 <Text style={styles.configSubtitle}>
-                  {provider === 'on_device' ? 'Gemma 3' : 'Gemini 2.5'}
+                  {provider === 'on_device' ? 'Gemma 3' : 'Gemini 3'}
                 </Text>
               </View>
               <View style={styles.configProviderControls}>

@@ -91,6 +91,7 @@ export function isEnglishWordSetReady(): boolean {
 }
 
 export function isEnglishDictionaryWord(word: string): boolean {
+  ensureEnglishAccuracyBootstrap();
   const lower = word.toLowerCase();
   if (wordSet) {
     return wordSet.has(lower);
@@ -147,6 +148,7 @@ export function scheduleEnglishRankMapBuild(): void {
 
 /** Lower rank = more common. Available for bootstrapped words before the full map is ready. */
 export function getEnglishStaticRank(word: string): number | undefined {
+  ensureEnglishAccuracyBootstrap();
   if (!rankByWord) {
     return undefined;
   }

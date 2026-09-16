@@ -70,7 +70,7 @@ const MIN_AUTO_CONFIDENCE = 0.55;
 /** Show a bar correction only when confidence is at least this (may still block auto-apply). */
 const MIN_SUGGESTION_BAR_CONFIDENCE = 0.51;
 /** Only consider the top N SymSpell hits — quality over quantity. */
-const HIGH_ACCURACY_SYMSPELL_LIMIT = 5;
+const HIGH_ACCURACY_SYMSPELL_LIMIT = 8;
 /** On space/punctuation commit, search deeper for long-word typos (everyibe → everyone). */
 const BOUNDARY_SYMSPELL_LIMIT = 15;
 const LIGHTWEIGHT_SYMSPELL_LIMIT = 6; // Enough hits for long-word typo fixes while typing
@@ -781,7 +781,12 @@ function findQuickTypoFixes(
     return null;
   }
 
+  const kindPriority = {collapse: 0, transpose: 1, neighbor: 2} as const;
   candidates.sort((left, right) => {
+    const kindDelta = kindPriority[left.kind] - kindPriority[right.kind];
+    if (kindDelta !== 0) {
+      return kindDelta;
+    }
     const leftScore = scoreQuickTypoCandidate(
       typed,
       left.word,
@@ -798,6 +803,26 @@ function findQuickTypoFixes(
   });
 
   return candidates[0]!.word;
+}
+
+/** Double-letter collapse and adjacent swaps — runs before fuzzy SymSpell. */
+function findStructuralTypoFix(lower: string): string | null {
+  if (shouldSkipAutocorrectForToken(lower)) {
+    return null;
+  }
+
+  const collapsed = findRepeatedLetterCollapse(lower);
+  if (collapsed && wordRank(collapsed) < COMMON_WORD_RANK) {
+    return collapsed;
+  }
+
+  for (const swapped of collectTranspositionNeighbors(lower)) {
+    if (wordRank(swapped) < COMMON_WORD_RANK) {
+      return swapped;
+    }
+  }
+
+  return null;
 }
 
 function pickBestSymSpellTypoFix(
@@ -892,6 +917,13 @@ export function getFastAutocorrectPreview(
   const leetFix = tryLeetDigitSlipCorrection(typed, lower);
   if (leetFix && leetFix.toLowerCase() !== typed.toLowerCase()) {
     return leetFix;
+  }
+
+  if (isEnglishLikeLang()) {
+    const structural = findStructuralTypoFix(lower);
+    if (structural && structural !== lower) {
+      return applyCaseToWord(structural, typed);
+    }
   }
 
   if (blocksAutocorrectAsKnownWord(lower)) {
@@ -1801,6 +1833,16 @@ export function getAutocorrectCandidate(
     };
   }
 
+  if (isEnglishLikeLang()) {
+    const structural = findStructuralTypoFix(lower);
+    if (structural && structural !== lower) {
+      return {
+        correction: applyCaseToWord(structural, typed),
+        confidence: 0.95,
+      };
+    }
+  }
+
   // Valid dictionary word — never fuzzy-shrink or neighbor-mutate (all → al).
   if (blocksAutocorrectAsKnownWord(lower)) {
     return null;
@@ -2197,6 +2239,21 @@ export function getSuggestionBarAutocorrect(
       const result = {
         keepTyped: offerKeepTyped ? typed : null,
         correction: preview,
+      };
+      if (suggestionBarAutocorrectCache.size > 512) {
+        suggestionBarAutocorrectCache.clear();
+      }
+      suggestionBarAutocorrectCache.set(cacheKey, {result, time: now});
+      return result;
+    }
+  }
+
+  if (isEnglishLikeLang()) {
+    const structural = findStructuralTypoFix(lower);
+    if (structural && structural !== lower) {
+      const result = {
+        keepTyped: offerKeepTyped ? typed : null,
+        correction: applyCaseToWord(structural, typed),
       };
       if (suggestionBarAutocorrectCache.size > 512) {
         suggestionBarAutocorrectCache.clear();

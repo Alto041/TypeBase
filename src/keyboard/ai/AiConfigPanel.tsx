@@ -62,7 +62,7 @@ const PROVIDER_OPTIONS: ProviderOption[] = [
   {
     id: 'gemini',
     title: 'Cloud AI (Gemini)',
-    subtitle: 'Google Gemini 2.5 Flash Lite',
+    subtitle: 'Google Gemini 3.1 Flash Lite',
   },
   {
     id: 'on_device',
