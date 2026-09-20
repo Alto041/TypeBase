@@ -21,7 +21,7 @@ import QuivoxIcon from '../../../assets/quivox.svg';
 import NextLineIcon from '../../../assets/next_line.svg';
 import NumbersIcon from '../../../assets/123.svg';
 import SymbolsIcon from '../../../assets/symbols.svg';
-import RocketLaunchIcon from '../../../assets/rocket_launch.svg';
+import ClipboardQuickIcon from '../../../assets/plugins/clipboard.svg';
 import EmojiIcon from '../../../assets/emoji.svg';
 import ArtificialIcon from '../../../assets/Artificial.svg';
 import AppleIcon from '../../../assets/apple.svg';
@@ -34,7 +34,12 @@ import {
 } from '../gesture/multiTouchKeys';
 import {shouldSkipKeyPreviewEffects, shouldSkipKeyPressEffects} from '../zeroLatencyMode';
 import {gestureSwipeActiveRef} from '../gesture/gestureState';
-import {hideKeyPreview, showKeyPreview} from '../KeyPreview';
+import {
+  getKeyPreviewStyle,
+  hideKeyPreview,
+  showKeyDoodleAt,
+  showKeyPreview,
+} from '../KeyPreview';
 import {registerKeyReactTag, unregisterKeyReactTag} from '../keyReactTags';
 import {triggerKeyHaptic} from '../haptics';
 import {keyboardBridge} from '../keyboardBridge';
@@ -43,6 +48,7 @@ import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
 import type {KeyDefinition} from '../layouts/qwerty';
 import type {KeyboardTheme} from '../theme';
 import {
+  KEYBOARD_AI_ICON_COLOR,
   keyboardKeyChromeStyle,
   keyboardKeyPressMotionStyle,
   keyboardGeistTypefaceStyle,
@@ -81,6 +87,9 @@ export type KeyGesturesConfig = {
   onPeriodRewritePress: () => void;
   onPeriodRewriteDisarm: () => void;
   swipeTyping: boolean;
+  shiftEditorShortcuts?: boolean;
+  onShiftEditorPressIn?: () => void;
+  onShiftEditorPressOut?: () => void;
 };
 
 export type KeyVariant = 'numpad';
@@ -90,6 +99,7 @@ type KeyProps = {
   isUppercase: boolean;
   isShiftOn: boolean;
   isCapsLocked: boolean;
+  isShiftEditorHeld?: boolean;
   onPress: (keyDef: KeyDefinition) => void;
   keyGestures?: KeyGesturesConfig;
   keyHeight?: number;
@@ -105,6 +115,7 @@ function KeyComponent({
   isUppercase,
   isShiftOn,
   isCapsLocked,
+  isShiftEditorHeld = false,
   onPress,
   keyGestures,
   keyHeight: keyHeightProp,
@@ -264,12 +275,24 @@ function KeyComponent({
         if (gestureSwipeActiveRef.current && pressed) {
           return;
         }
+        const previewStyle = getKeyPreviewStyle();
+        if (previewStyle === 'subtle' || previewStyle === 'doodle') {
+          if (!pressed) {
+            animateMultiTouchPress(false);
+          } else if (!shouldSkipKeyPressEffects()) {
+            animateMultiTouchPress(true);
+          }
+        }
         const tag = reactTagRef.current ?? findNodeHandle(keyRef.current);
         if (tag) {
           reactTagRef.current = tag;
           if (!pressed) {
             hideKeyPreview(tag);
-          } else if (!shouldSkipKeyPreviewEffects()) {
+          } else if (
+            previewStyle === 'popup' &&
+            !shouldSkipKeyPreviewEffects() &&
+            !options?.nativeCommitted
+          ) {
             const raw = keyDef.value ?? keyDef.label ?? '';
             const label =
               /^[a-z]$/i.test(raw) && isUppercase
@@ -297,6 +320,8 @@ function KeyComponent({
     keyDef.value,
     isUppercase,
     isSpaceKey,
+    subtlePreviewEnabled,
+    doodlePressEnabled,
     usesMultiTouchDispatch,
     usesMultiTouchRouter,
   ]);
@@ -395,12 +420,7 @@ function KeyComponent({
     isSpaceKey;
   const keyIconColor = isEnterAction ? theme.iconOnEnter : theme.icon;
   const featureIconColor =
-    theme.design === 'macintosh' && (showLauncher || showRewrite)
-      ? theme.icon
-      : theme.design === 'quivox' && showRewrite
-        ? // White rewrite cap — keep the Artificial icon black.
-          theme.iconOnEnter
-        : keyIconColor;
+    theme.design === 'macintosh' && showLauncher ? theme.icon : keyIconColor;
   const ShiftStateIcon = isCapsLocked
     ? ShiftLockIcon
     : isShiftOn
@@ -450,9 +470,9 @@ function KeyComponent({
       </View>
     )
   ) : showLauncher ? (
-    <RocketLaunchIcon width={20} height={20} color={featureIconColor} />
+    <ClipboardQuickIcon width={22} height={22} color={featureIconColor} />
   ) : showRewrite ? (
-    <ArtificialIcon width={18} height={17} color={featureIconColor} />
+    <ArtificialIcon width={18} height={17} color={KEYBOARD_AI_ICON_COLOR} />
   ) : keyDef.type === 'emoji' ? (
     <EmojiIcon width={22} height={22} color={theme.icon} />
   ) : isSpaceKey && theme.design === 'typebase' ? (
@@ -524,17 +544,32 @@ function KeyComponent({
       triggerKeyHaptic(pointerId);
       return;
     }
+    if (isShift && keyGestures?.shiftEditorShortcuts) {
+      triggerKeyHaptic(pointerId);
+      keyGestures.onShiftEditorPressIn?.();
+      return;
+    }
     const nativeCommitted =
       pointerId != null &&
       keyboardBridge.consumeNativeFastPathPointer(pointerId);
+    if (
+      Platform.OS !== 'android' &&
+      getKeyPreviewStyle() === 'doodle'
+    ) {
+      showKeyDoodleAt(event.nativeEvent.pageX, event.nativeEvent.pageY);
+    }
     triggerKeyHaptic(pointerId, {nativeCommitted});
     if (!nativeCommitted) {
       onPress(keyDef);
     }
-  }, [keyDef, onPress, isEnterAction]);
+  }, [isEnterAction, isShift, keyDef, keyGestures, onPress]);
 
   const isSpaceGesture =
     keyDef.type === 'space' && keyGestures?.spaceCursorSwipe;
+  const previewStyle = getKeyPreviewStyle();
+  const subtlePreviewEnabled = previewStyle === 'subtle';
+  const doodlePressEnabled = previewStyle === 'doodle';
+  const softPressPreviewEnabled = subtlePreviewEnabled || doodlePressEnabled;
   const handleLauncherPressIn = useCallback(() => {
     clearLauncherHold();
     launcherDidHoldRef.current = false;
@@ -794,12 +829,15 @@ function KeyComponent({
             },
             isSpaceKey && styles.spaceKey,
             keyPressed &&
-              !usesMultiTouchRouter &&
+              (!usesMultiTouchRouter || softPressPreviewEnabled) &&
+              (subtlePreviewEnabled || doodlePressEnabled) &&
               (isSpaceKey ? styles.spaceKeyPressed : styles.letterKeyPressed),
             keyboardKeyChromeStyle(theme, isMacintosh && keyPressed),
-            keyboardKeyPressMotionStyle(theme, isQuivox && keyPressed, {
-              subtle: isSpaceKey,
-            }),
+            keyboardKeyPressMotionStyle(
+              theme,
+              keyPressed && (isQuivox || subtlePreviewEnabled),
+              {subtle: isSpaceKey, keyPreviewSubtle: subtlePreviewEnabled},
+            ),
           ]}>
           {isMacintosh ? (
             <MacintoshKeyBevels
@@ -809,6 +847,12 @@ function KeyComponent({
           ) : null}
           {showZeroLatencyRipple ? (
             <ZeroLatencyRipple color={theme.essentialsAccent} size={keyHeight} />
+          ) : null}
+          {subtlePreviewEnabled && keyPressed ? (
+            <View pointerEvents="none" style={styles.subtlePressOverlay} />
+          ) : null}
+          {doodlePressEnabled && keyPressed ? (
+            <View pointerEvents="none" style={styles.doodlePressOverlay} />
           ) : null}
           {renderedKeyContent}
         </View>
@@ -861,9 +905,11 @@ function KeyComponent({
               ? handleLauncherPressOut
               : isRewriteGesture
                 ? handleRewritePressOut
-                : isSpaceGesture
-                  ? undefined
-                  : handlePressOut
+                : isShift && keyGestures?.shiftEditorShortcuts
+                  ? () => keyGestures.onShiftEditorPressOut?.()
+                  : isSpaceGesture
+                    ? undefined
+                    : handlePressOut
           }
           onLongPress={isEnterAction ? handleEnterLongPress : undefined}
           delayLongPress={380}
@@ -877,13 +923,22 @@ function KeyComponent({
             isShift && styles.shiftKey,
             isSpaceKey && styles.spaceKey,
             isModifierKey && styles.modifierKey,
-            isShift && isShiftOn && !isCapsLocked && styles.shiftKeyActive,
+            isShift &&
+              isShiftEditorHeld &&
+              styles.shiftKeyEditorHeld,
+            isShift &&
+              isShiftOn &&
+              !isCapsLocked &&
+              !isShiftEditorHeld &&
+              styles.shiftKeyActive,
             isShift && isCapsLocked && styles.shiftKeyLocked,
             isEnterAction && styles.enterKey,
             keyboardKeyChromeStyle(theme, pressed),
-            keyboardKeyPressMotionStyle(theme, isQuivox && pressed, {
-              subtle: isSpaceKey,
-            }),
+            keyboardKeyPressMotionStyle(
+              theme,
+              pressed && (isQuivox || subtlePreviewEnabled),
+              {subtle: isSpaceKey, keyPreviewSubtle: subtlePreviewEnabled},
+            ),
             pressed &&
               !showLauncher &&
               !showRewrite &&
@@ -914,6 +969,12 @@ function KeyComponent({
             {showZeroLatencyRipple ? (
               <ZeroLatencyRipple color={theme.essentialsAccent} size={keyHeight} />
             ) : null}
+            {subtlePreviewEnabled && pressed ? (
+              <View pointerEvents="none" style={styles.subtlePressOverlay} />
+            ) : null}
+            {doodlePressEnabled && pressed ? (
+              <View pointerEvents="none" style={styles.doodlePressOverlay} />
+            ) : null}
             {renderedKeyContent}
           </>
         )}
@@ -928,6 +989,7 @@ function keyPropsAreEqual(prev: KeyProps, next: KeyProps): boolean {
     prev.isUppercase === next.isUppercase &&
     prev.isShiftOn === next.isShiftOn &&
     prev.isCapsLocked === next.isCapsLocked &&
+    prev.isShiftEditorHeld === next.isShiftEditorHeld &&
     prev.onPress === next.onPress &&
     prev.keyGestures === next.keyGestures &&
     prev.keyHeight === next.keyHeight &&
@@ -1008,6 +1070,9 @@ function createKeyStyles(theme: KeyboardTheme) {
     shiftKeyActive: {
       backgroundColor: theme.modifierKeyPressed,
     },
+    shiftKeyEditorHeld: {
+      backgroundColor: theme.essentialsAccent,
+    },
     shiftKeyLocked: {
       backgroundColor: theme.modifierKey,
     },
@@ -1034,6 +1099,16 @@ function createKeyStyles(theme: KeyboardTheme) {
     },
     symbolKeyPressedFade: {
       opacity: 0.82,
+    },
+    subtlePressOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor:
+        theme.scheme === 'dark' ? 'rgba(255, 255, 255, 0.22)' : 'rgba(0, 0, 0, 0.12)',
+    },
+    doodlePressOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor:
+        theme.scheme === 'dark' ? 'rgba(255, 255, 255, 0.14)' : 'rgba(0, 0, 0, 0.07)',
     },
     keyLabel: {
       color: theme.label,

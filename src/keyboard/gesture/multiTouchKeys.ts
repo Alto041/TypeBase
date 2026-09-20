@@ -1,5 +1,12 @@
+import {Platform} from 'react-native';
 import {isBackspaceKeyType} from '../components/keyboardRowLayout';
-import {hideAllKeyPreviews, hideKeyPressed, showKeyPressed} from '../KeyPreview';
+import {
+  getKeyPreviewStyle,
+  hideAllKeyPreviews,
+  hideKeyPressed,
+  showKeyDoodleAt,
+  showKeyPressed,
+} from '../KeyPreview';
 import {getKeyReactTag} from '../keyReactTags';
 import {
   computeAlternatePopupGeometry,
@@ -377,8 +384,13 @@ export function setMultiTouchKeyPressed(
     }
   }
 
-  // Always deliver release so keys never stay visually stuck.
-  if (!pressed || !shouldSkipKeyPressEffects()) {
+  // Native fast path already drives preview + pressed overlay on letter keys,
+  // except subtle/doodle where JS animates the key cap directly.
+  const softPressPreviewMode =
+    getKeyPreviewStyle() === 'subtle' || getKeyPreviewStyle() === 'doodle';
+  const skipJsPressVisual =
+    pressed && options?.nativeCommitted === true && !softPressPreviewMode;
+  if (!skipJsPressVisual && (!pressed || !shouldSkipKeyPressEffects())) {
     pressVisualHandlers.get(id)?.(pressed, options);
   }
 }
@@ -579,6 +591,9 @@ export function dispatchMultiTouchStart(
       continue;
     }
 
+    const doodlePreview =
+      Platform.OS !== 'android' && getKeyPreviewStyle() === 'doodle';
+
     if (isMultiTouchSpaceKey(hit.keyDef)) {
       pointerToKeyId.set(pid, hit.id);
       const session: MultiTouchSession = {
@@ -596,6 +611,9 @@ export function dispatchMultiTouchStart(
         startPageY: touch.pageY,
       };
       setMultiTouchKeyPressed(hit.id, true);
+      if (doodlePreview && !nativeTypingActive) {
+        showKeyDoodleAt(touch.pageX, touch.pageY);
+      }
       triggerKeyHaptic();
       options.onKeyCommit(hit.keyDef, ' ');
       markSwipeTypingTapCommitted(pid);
@@ -626,6 +644,9 @@ export function dispatchMultiTouchStart(
 
     if (!nativeCommitted) {
       setMultiTouchKeyPressed(resolvedHit.id, true);
+      if (doodlePreview && !nativeTypingActive) {
+        showKeyDoodleAt(touch.pageX, touch.pageY);
+      }
       triggerKeyHaptic(pid, {nativeCommitted: false});
       options.onKeyCommit(resolvedHit.keyDef, defaultCommit);
       if (!shouldSkipTouchIntelligenceWork()) {

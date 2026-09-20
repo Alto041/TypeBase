@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from 'react';
+import React, {useEffect, useMemo, useState} from 'react';
 import {
   BackHandler,
   Pressable,
@@ -10,7 +10,6 @@ import {
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 
-import StatsIcon from './assets/stats.svg';
 import ArrowForwardIcon from './assets/arrow_forward_ios.svg';
 import {keyboardBridge} from './src/keyboard/keyboardBridge';
 import {ensurePersonalTypingLoaded} from './src/keyboard/personalTyping/personalTypingEngine';
@@ -47,22 +46,11 @@ const DEFAULT_SNAPSHOT = {
   aiProvider: 'on_device',
   gemmaDownloaded: false,
   gemmaLoaded: false,
-  gemmaLoadMs: null as number | null,
-  gemmaLastMs: null as number | null,
   gemmaP50Ms: null as number | null,
   voiceStt: 'android',
-  voiceCleanup: 'on_device',
   fastPath: false,
-  zeroLatency: false,
   swipeTyping: true,
-  session: {
-    exactFix: 0,
-    symSpell: 0,
-    missingSpace: 0,
-    hinglish: 0,
-    ai: 0,
-    avgBoundaryMs: 0,
-  },
+  sessionCorrections: 0,
   typing: {
     characters: 0,
     words: 0,
@@ -71,14 +59,7 @@ const DEFAULT_SNAPSHOT = {
   aiPreflight: {
     requests: 0,
     accepted: 0,
-    stale: 0,
     p50Ms: null as number | null,
-  },
-  dictionary: {
-    bootstrapWords: 0,
-    targetWords: 0,
-    cachedLangs: ['en'],
-    seeding: false,
   },
 };
 
@@ -88,35 +69,17 @@ const C = {
   text: '#111111',
   sub: '#6b6b6b',
   border: '#e8e8ea',
-  green: '#2CC642',
-  amber: '#E5A000',
   muted: '#b0b0b5',
 } as const;
 
 const CARD_R = 14;
-const HERO_R = 20;
 const TEXT_KERNING = -0.7;
 
-function StatTile({
-  label,
-  value,
-  unit,
-  hint,
-}: {
-  label: string;
-  value: string;
-  unit?: string;
-  hint?: string;
-}) {
+function StatTile({label, value, hint}: {label: string; value: string; hint?: string}) {
   return (
     <View style={styles.statTile}>
       <Text style={styles.statLabel}>{label}</Text>
-      <View style={styles.statValueRow}>
-        <Text style={styles.statValue} numberOfLines={1}>
-          {value}
-        </Text>
-        {unit ? <Text style={styles.statUnit}>{unit}</Text> : null}
-      </View>
+      <Text style={styles.statValue} numberOfLines={1}>{value}</Text>
       {hint ? <Text style={styles.statHint}>{hint}</Text> : null}
     </View>
   );
@@ -137,24 +100,32 @@ function SectionCard({
   );
 }
 
-function SectionRow({
-  label,
-  value,
-  mono = false,
-}: {
-  label: string;
-  value: string;
-  mono?: boolean;
-}) {
+function SectionRow({label, value}: {label: string; value: string}) {
   return (
     <View style={styles.sectionRow}>
       <Text style={styles.sectionRowLabel}>{label}</Text>
-      <Text
-        style={[styles.sectionRowValue, mono && styles.sectionRowValueMono]}
-        numberOfLines={1}>
-        {value}
-      </Text>
+      <Text style={styles.sectionRowValue} numberOfLines={2}>{value}</Text>
     </View>
+  );
+}
+
+function NavRow({
+  title,
+  hint,
+  onPress,
+}: {
+  title: string;
+  hint: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable style={styles.navRow} onPress={onPress}>
+      <View style={styles.navTextBlock}>
+        <Text style={styles.navTitle}>{title}</Text>
+        <Text style={styles.navHint}>{hint}</Text>
+      </View>
+      <ArrowForwardIcon width={14} height={14} color={C.muted} />
+    </Pressable>
   );
 }
 
@@ -175,7 +146,26 @@ function formatMs(value: number | null): string {
   if (value >= 1000) {
     return `${(value / 1000).toFixed(1)}s`;
   }
-  return `${Math.round(value)}ms`;
+  return `${Math.round(value)} ms`;
+}
+
+function voiceSttLabel(
+  voiceStt: string,
+): string {
+  if (voiceStt === 'parakeet') {
+    return 'Parakeet';
+  }
+  if (voiceStt === 'speechmatics') {
+    return 'Speechmatics';
+  }
+  return 'Android';
+}
+
+function gemmaStatusLabel(downloaded: boolean, loaded: boolean): string {
+  if (!downloaded) {
+    return 'Not on device';
+  }
+  return loaded ? 'Ready in memory' : 'On device, unloaded';
 }
 
 export function EngineStatsScreen({onBack}: {onBack: () => void}) {
@@ -186,6 +176,15 @@ export function EngineStatsScreen({onBack}: {onBack: () => void}) {
   const [touchSummary, setTouchSummary] = useState(() =>
     getTouchIntelligenceTelemetrySummary(),
   );
+
+  const headerLine = useMemo(() => {
+    const parts = [snap.autocorrectLang.toUpperCase()];
+    if (snap.symSpellWords > 0) {
+      parts.push(`${formatCount(snap.symSpellWords)} word index`);
+    }
+    parts.push(snap.symSpellReady ? 'SymSpell on' : 'SymSpell off');
+    return parts.join(' · ');
+  }, [snap.autocorrectLang, snap.symSpellReady, snap.symSpellWords]);
 
   useEffect(() => {
     const refreshTouchSummary = () => {
@@ -219,13 +218,7 @@ export function EngineStatsScreen({onBack}: {onBack: () => void}) {
         isGemmaModelDownloaded().catch(() => false),
         isGemmaModelLoaded().catch(() => false),
       ]);
-      const [
-        autocorrectRaw,
-        gestureRaw,
-        aiProvider,
-        voiceStt,
-        metrics,
-      ] =
+      const [autocorrectRaw, gestureRaw, aiProvider, voiceStt, metrics] =
         await Promise.all([
           keyboardBridge.getAutocorrectSettings().catch(() => '{}'),
           keyboardBridge.getGestureSettings().catch(() => '{}'),
@@ -255,6 +248,8 @@ export function EngineStatsScreen({onBack}: {onBack: () => void}) {
       const learnedWords = getLearnedCounts().size;
       const learnedPhrases = getLearnedPhraseCounts().size;
       const aiTelemetry = getAiAutocorrectTelemetry();
+      const gemmaStats = getGemmaRuntimeStats();
+
       setSnap(current => ({
         ...current,
         learnedWords,
@@ -266,9 +261,7 @@ export function EngineStatsScreen({onBack}: {onBack: () => void}) {
           language === 'en' ? isEnglishPrefixIndexReady() : false,
         gemmaDownloaded: gemmaState[0],
         gemmaLoaded: gemmaState[1],
-        gemmaLoadMs: getGemmaRuntimeStats().lastLoadMs,
-        gemmaLastMs: getGemmaRuntimeStats().lastInferenceMs,
-        gemmaP50Ms: getGemmaRuntimeStats().p50InferenceMs,
+        gemmaP50Ms: gemmaStats.p50InferenceMs,
         aiProvider: aiProvider === 'on_device' ? 'on_device' : 'cloud',
         voiceStt:
           voiceStt === 'android'
@@ -284,20 +277,8 @@ export function EngineStatsScreen({onBack}: {onBack: () => void}) {
           }
         })(),
         swipeTyping: gestures.swipeTyping ?? current.swipeTyping,
-        dictionary: {
-          ...current.dictionary,
-          bootstrapWords: language === 'en' ? englishWordCount : 0,
-          targetWords: language === 'en' ? englishWordCount : 0,
-          cachedLangs: [language],
-        },
-        session: {
-          ...current.session,
-          exactFix: autocorrect.enabled === false ? 0 : metrics.today.corrections,
-          symSpell: 0,
-          missingSpace: 0,
-          hinglish: 0,
-          ai: 0,
-        },
+        sessionCorrections:
+          autocorrect.enabled === false ? 0 : metrics.today.corrections,
         typing: {
           characters: metrics.today.characters,
           words: metrics.today.words,
@@ -306,7 +287,6 @@ export function EngineStatsScreen({onBack}: {onBack: () => void}) {
         aiPreflight: {
           requests: aiTelemetry.preflightRequests,
           accepted: aiTelemetry.preflightAccepted,
-          stale: aiTelemetry.staleResults,
           p50Ms: aiTelemetry.p50PreflightMs,
         },
       }));
@@ -326,182 +306,107 @@ export function EngineStatsScreen({onBack}: {onBack: () => void}) {
     return <TouchIntelligenceHitsScreen onBack={() => setShowTouchHits(false)} />;
   }
 
+  const preflightLabel =
+    snap.aiPreflight.requests > 0
+      ? `${snap.aiPreflight.accepted} of ${snap.aiPreflight.requests}`
+      : 'No requests yet';
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={C.bg} />
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}>
-        <View style={styles.titleRow}>
-          <View style={styles.titleBlock}>
-            <Text style={styles.pageTitle}>Engine</Text>
-            <Text style={styles.pageSubtitle}>On-device runtime</Text>
-          </View>
-        </View>
-
-        <View style={styles.heroCard}>
-          <View style={styles.heroTop}>
-            <View style={styles.heroIconWrap}>
-              <StatsIcon width={18} height={18} color={C.text} />
-            </View>
-            <View style={styles.heroText}>
-              <Text style={styles.heroTitle}>LOCAL STACK</Text>
-              <Text style={styles.heroSub}>
-                SymSpell · dictionaries · Gemma
-              </Text>
-            </View>
-          </View>
+        <View style={styles.header}>
+          <Text style={styles.pageTitle}>Engine</Text>
+          <Text style={styles.pageSummary}>{headerLine}</Text>
         </View>
 
         <View style={styles.statGrid}>
           <StatTile
-            label="Language"
-            value={snap.autocorrectLang}
-            hint="autocorrect"
+            label="Corrections"
+            value={String(snap.sessionCorrections)}
+            hint="today"
           />
           <StatTile
-            label="Dictionary"
-            value={formatCount(snap.symSpellWords)}
-            hint="indexed words"
+            label="Words typed"
+            value={String(snap.typing.words)}
+            hint="today"
           />
           <StatTile
             label="Learned"
-            value={`${snap.learnedWords}w`}
+            value={String(snap.learnedWords)}
             hint={`${snap.learnedPhrases} phrases`}
           />
           <StatTile
-            label="Boundary"
-            value={String(snap.session.avgBoundaryMs)}
-            unit="ms"
-            hint="avg space-bar"
+            label="Chars saved"
+            value={String(snap.typing.charsSaved)}
+            hint={`${snap.typing.characters} typed`}
           />
         </View>
 
-        <SectionCard title="Typing · today">
-          <SectionRow
-            label="Corrections"
-            value={String(snap.session.exactFix)}
-          />
-          <SectionRow
-            label="Characters"
-            value={String(snap.typing.characters)}
-          />
-          <SectionRow label="Words" value={String(snap.typing.words)} />
-          <SectionRow
-            label="Characters saved"
-            value={String(snap.typing.charsSaved)}
-          />
-          <SectionRow
-            label="AI preflight"
-            value={`${snap.aiPreflight.accepted}/${snap.aiPreflight.requests}`}
-          />
-          <SectionRow
-            label="AI p50"
-            value={formatMs(snap.aiPreflight.p50Ms)}
-          />
-        </SectionCard>
-
-        <SectionCard title="Gemma">
+        <SectionCard title="AI">
           <SectionRow
             label="Provider"
             value={snap.aiProvider === 'on_device' ? 'On-device' : 'Cloud'}
           />
           <SectionRow
-            label="Model"
-            value={snap.gemmaDownloaded ? 'Downloaded' : 'Not downloaded'}
+            label="Gemma"
+            value={gemmaStatusLabel(snap.gemmaDownloaded, snap.gemmaLoaded)}
           />
+          <SectionRow label="Preflight" value={preflightLabel} />
           <SectionRow
-            label="RAM"
-            value={snap.gemmaLoaded ? 'Loaded' : 'Unloaded'}
+            label="Latency"
+            value={`AI ${formatMs(snap.aiPreflight.p50Ms)} · Gemma ${formatMs(snap.gemmaP50Ms)}`}
           />
-          <SectionRow label="Load time" value={formatMs(snap.gemmaLoadMs)} />
-          <SectionRow label="Last inference" value={formatMs(snap.gemmaLastMs)} />
-          <SectionRow label="p50 latency" value={formatMs(snap.gemmaP50Ms)} />
         </SectionCard>
 
         <SectionCard title="Dictionary">
-          <SectionRow
-            label="Bootstrap"
-            value={`${formatCount(snap.dictionary.bootstrapWords)} / ${formatCount(snap.dictionary.targetWords)}`}
-          />
           <SectionRow
             label="Prefix index"
             value={snap.prefixIndexReady ? 'Ready' : 'Building'}
           />
           <SectionRow
-            label="SymSpell langs"
-            value={snap.dictionary.cachedLangs.join(', ')}
-          />
-          <SectionRow
-            label="Background seed"
-            value={snap.dictionary.seeding ? 'In progress' : 'Idle'}
+            label="Personal entries"
+            value={`${snap.learnedWords} words · ${snap.learnedPhrases} phrases`}
           />
         </SectionCard>
 
-        <SectionCard title="Voice">
-          <SectionRow
-            label="STT"
-            value={
-              snap.voiceStt === 'android'
-                ? 'Android'
-                : snap.voiceStt === 'parakeet'
-                  ? 'Parakeet'
-                  : 'Speechmatics'
-            }
-          />
-          <SectionRow
-            label="Cleanup"
-            value={snap.voiceCleanup === 'on_device' ? 'On-device' : 'Cloud'}
-          />
-        </SectionCard>
-
-        <SectionCard title="Input path">
+        <SectionCard title="Input">
           <SectionRow
             label="Native fast path"
             value={snap.fastPath ? 'On' : 'Off'}
           />
           <SectionRow
-            label="Zero latency"
-            value={snap.zeroLatency ? 'Active' : 'Off'}
-          />
-          <SectionRow
             label="Swipe typing"
             value={snap.swipeTyping ? 'On' : 'Off'}
           />
+          <SectionRow label="Voice input" value={voiceSttLabel(snap.voiceStt)} />
         </SectionCard>
 
-        <Pressable style={styles.navCard} onPress={() => setShowTapMap(true)}>
-          <View style={styles.navCardInner}>
-            <View style={styles.navTextBlock}>
-              <Text style={styles.navTitle}>Your Tap Map</Text>
-              <Text style={styles.navHint}>
-                {tapMapSummary.totalSamples > 0
-                  ? `${tapMapSummary.totalSamples} taps learned`
-                  : 'Personalized touch targets'}
-              </Text>
-            </View>
-            <ArrowForwardIcon width={14} height={14} color={C.muted} />
-          </View>
-        </Pressable>
-
-        <Pressable
-          style={styles.navCard}
-          onPress={() => setShowTouchHits(true)}>
-          <View style={styles.navCardInner}>
-            <View style={styles.navTextBlock}>
-              <Text style={styles.navTitle}>Touch hits</Text>
-              <Text style={styles.navHint}>
-                {touchSummary.totalHits > 0
-                  ? `${touchSummary.totalHits} recorded`
-                  : 'View key corrections'}
-              </Text>
-            </View>
-            <ArrowForwardIcon width={14} height={14} color={C.muted} />
-          </View>
-        </Pressable>
+        <SectionCard title="Touch">
+          <NavRow
+            title="Tap map"
+            hint={
+              tapMapSummary.totalSamples > 0
+                ? `${tapMapSummary.totalSamples} taps learned`
+                : 'Per-key touch offsets'
+            }
+            onPress={() => setShowTapMap(true)}
+          />
+          <NavRow
+            title="Touch hits"
+            hint={
+              touchSummary.totalHits > 0
+                ? `${touchSummary.totalHits} corrections logged`
+                : 'Key correction history'
+            }
+            onPress={() => setShowTouchHits(true)}
+          />
+        </SectionCard>
 
         <Text style={styles.footerNote}>
-          Settings and learned-data values are read from this device.
+          Values reflect this device only.
         </Text>
       </ScrollView>
     </SafeAreaView>
@@ -517,64 +422,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingTop: 72,
     paddingBottom: 110,
-    gap: 10,
+    gap: 12,
   },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
+  header: {
+    gap: 6,
     marginBottom: 4,
   },
-  titleBlock: {
-    flex: 1,
-    gap: 4,
-  },
   pageTitle: {
-    fontSize: 40,
+    fontSize: 32,
     color: C.text,
-    letterSpacing: -2.5,
+    letterSpacing: -1.5,
     fontFamily: 'FragmentMono',
   },
-  pageSubtitle: {
+  pageSummary: {
     fontSize: 13,
     color: C.sub,
     letterSpacing: TEXT_KERNING,
     fontFamily: 'FragmentMono',
-    textTransform: 'uppercase',
-  },
-  heroCard: {
-    backgroundColor: C.card,
-    borderRadius: HERO_R,
-    padding: 16,
-    gap: 14,
-  },
-  heroTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  heroIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: C.bg,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  heroText: {
-    flex: 1,
-    gap: 2,
-  },
-  heroTitle: {
-    fontSize: 12,
-    color: C.text,
-    fontFamily: 'FragmentMono',
-    letterSpacing: 0.6,
-  },
-  heroSub: {
-    fontSize: 12,
-    color: C.sub,
-    letterSpacing: TEXT_KERNING,
   },
   statGrid: {
     flexDirection: 'row',
@@ -588,69 +452,57 @@ const styles = StyleSheet.create({
     borderRadius: CARD_R,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    gap: 4,
+    gap: 2,
     minWidth: 140,
   },
   statLabel: {
-    fontSize: 10,
+    fontSize: 11,
     color: C.sub,
     fontFamily: 'FragmentMono',
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-  },
-  statValueRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 4,
+    letterSpacing: TEXT_KERNING,
   },
   statValue: {
-    fontSize: 24,
+    fontSize: 26,
     color: C.text,
     fontFamily: 'FragmentMono',
     letterSpacing: -1,
-  },
-  statUnit: {
-    fontSize: 12,
-    color: C.sub,
-    fontFamily: 'FragmentMono',
+    marginTop: 2,
   },
   statHint: {
     fontSize: 11,
     color: C.muted,
     letterSpacing: TEXT_KERNING,
+    marginTop: 2,
   },
   sectionCard: {
     backgroundColor: C.card,
     borderRadius: CARD_R,
     paddingHorizontal: 14,
     paddingTop: 12,
-    paddingBottom: 6,
-    gap: 2,
+    paddingBottom: 4,
   },
   sectionTitle: {
-    fontSize: 10,
+    fontSize: 11,
     color: C.sub,
     fontFamily: 'FragmentMono',
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
-    marginBottom: 6,
+    letterSpacing: 0.4,
+    marginBottom: 4,
   },
   sectionRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
-    minHeight: 40,
+    minHeight: 44,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: C.border,
   },
   sectionRowLabel: {
     flex: 1,
-    fontSize: 14,
+    fontSize: 15,
     color: C.text,
     fontFamily: 'FragmentMono',
     letterSpacing: TEXT_KERNING,
-    textTransform: 'uppercase',
   },
   sectionRowValue: {
     fontSize: 14,
@@ -658,31 +510,26 @@ const styles = StyleSheet.create({
     fontFamily: 'FragmentMono',
     letterSpacing: TEXT_KERNING,
     textAlign: 'right',
-    maxWidth: '52%',
+    maxWidth: '58%',
   },
-  sectionRowValueMono: {
-    fontSize: 12,
-  },
-  navCard: {
-    backgroundColor: C.card,
-    borderRadius: CARD_R,
-    padding: 14,
-  },
-  navCardInner: {
+  navRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    minHeight: 52,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: C.border,
+    paddingVertical: 8,
   },
   navTextBlock: {
     flex: 1,
-    gap: 3,
+    gap: 2,
   },
   navTitle: {
-    fontSize: 14,
+    fontSize: 15,
     color: C.text,
     fontFamily: 'FragmentMono',
     letterSpacing: TEXT_KERNING,
-    textTransform: 'uppercase',
   },
   navHint: {
     fontSize: 12,
@@ -695,7 +542,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: C.muted,
     letterSpacing: TEXT_KERNING,
-    paddingHorizontal: 12,
-    paddingTop: 4,
+    paddingTop: 2,
   },
 });

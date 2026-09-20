@@ -46,6 +46,19 @@ export function stickersFromAllPacks(
   return merged;
 }
 
+export function shuffledStickers(
+  stickers: readonly StickerLySticker[],
+): StickerLySticker[] {
+  const out = [...stickers];
+  for (let index = out.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    const current = out[index]!;
+    out[index] = out[swapIndex]!;
+    out[swapIndex] = current;
+  }
+  return out;
+}
+
 export function chunkStickers(
   stickers: readonly StickerLySticker[],
   columns = STICKER_COLUMNS,

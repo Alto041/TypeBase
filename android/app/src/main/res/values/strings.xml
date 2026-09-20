@@ -3,4 +3,18 @@
     <string name="keyboard_name">TypeBase Keyboard</string>
     <string name="license_keyboard_title">Purchase TypeBase on Google Play</string>
     <string name="license_keyboard_body">This keyboard is not licensed. Install TypeBase from Google Play to continue.</string>
+    <string name="screen_grab_hint">Drag to select text on screen</string>
+    <string name="screen_grab_capturing">Capturing screen…</string>
+    <string name="screen_grab_reading">Reading text…</string>
+    <string name="screen_grab_denied">Screen capture permission required</string>
+    <string name="screen_grab_capture_failed">Could not capture screen</string>
+    <string name="screen_grab_region_too_small">Select a larger area</string>
+    <string name="screen_grab_no_text">No text found in that area</string>
+    <string name="screen_grab_ocr_failed">Could not read text</string>
+    <string name="screen_grab_copied">Copied %1$d characters</string>
+    <string name="screen_grab_notification_channel">Screen Grab</string>
+    <string name="screen_grab_notification_title">Screen Grab active</string>
+    <string name="screen_grab_notification_body">Capturing screen for text recognition</string>
+    <string name="screen_grab_a11y_description">Read on-screen text for Screen Grab from the TypeBase keyboard (no screen recording).</string>
+    <string name="screen_grab_enable_a11y">Turn on TypeBase in Accessibility settings for Screen Grab without screen recording.</string>
 </resources>

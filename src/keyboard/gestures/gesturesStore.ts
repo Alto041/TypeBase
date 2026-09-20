@@ -30,6 +30,7 @@ function clampGesturesForTier(settings: GestureSettings): GestureSettings {
     backspaceWordSwipe: false,
     backspaceSentenceHold: false,
     commaLauncher: false,
+    shiftEditorShortcuts: false,
     undoRedo: false,
     trackpadMode: false,
   };
@@ -48,6 +49,8 @@ function normalizeSettings(raw: PersistedGestureData): GestureSettings {
       raw.commaLauncher ??
       raw.commaHoldOpenApp ??
       DEFAULT_GESTURE_SETTINGS.commaLauncher,
+    shiftEditorShortcuts:
+      raw.shiftEditorShortcuts ?? DEFAULT_GESTURE_SETTINGS.shiftEditorShortcuts,
     undoRedo: raw.undoRedo ?? DEFAULT_GESTURE_SETTINGS.undoRedo,
     trackpadMode: raw.trackpadMode ?? DEFAULT_GESTURE_SETTINGS.trackpadMode,
   });

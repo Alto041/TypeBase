@@ -115,6 +115,7 @@ import {
   destroyKeyPreview,
   hideAllKeyPreviews,
   initKeyPreview,
+  setKeyPreviewStyle,
   setKeyPreviewTheme,
 } from './KeyPreview';
 import {AutocorrectPanel} from './autocorrect/AutocorrectPanel';
@@ -139,6 +140,7 @@ import {
   getSuggestionBarAutocorrect,
   isDictionaryWord,
   shouldAutoApply,
+  shouldLearnAutocorrectPair,
   shouldSkipAutocorrectForToken,
 } from './autocorrect/autocorrectEngine';
 import {
@@ -193,15 +195,18 @@ import {
 import {
   getCommaLauncherArmed,
   getGestureSettings,
-  getLauncherAppPackage,
   getPeriodRewriteArmed,
   reloadGesturesFromStorage,
   setCommaLauncherArmed,
   setGestureSetting,
-  setLauncherAppPackage,
   setPeriodRewriteArmed,
 } from './gestures/gesturesStore';
-import type {GestureSettings, LaunchableApp} from './gestures/types';
+import type {GestureSettings} from './gestures/types';
+import {
+  executeShiftEditorShortcut,
+  isShiftEditorShortcutEligible,
+  tryShiftEditorShortcut,
+} from './editor/shiftEditorShortcuts';
 import {deferKeyboardSideEffect, triggerKeyHaptic} from './haptics';
 import {keyboardBridge} from './keyboardBridge';
 import {getKeyReactTag, subscribeKeyReactTags} from './keyReactTags';
@@ -231,6 +236,7 @@ import {shouldAutoCapitalizeShift} from './autoCapitalize';
 import {
   getLearnedCounts,
   recordLearnedWord,
+  undoLearnedWord,
 } from './suggestions/learnedDictionary';
 import {
   extractCurrentWord,
@@ -267,7 +273,6 @@ import type {
 } from './theme';
 import {DEFAULT_KEYBOARD_LAYOUT_SETTINGS, getNonLettersKeyboardHeightDp, getNumberRowLayoutBoost, keyboardOpaqueKeyFill} from './theme';
 import {
-  isLandscapeOrientation,
   layoutSettingsForOrientation,
 } from './orientation';
 import {useVoiceInput} from './voice/useVoiceInput';
@@ -314,6 +319,8 @@ const AI_PROOFREAD_DELAY_MS = 2_200;
 const AI_PROOFREAD_MIN_IDLE_MS = 600;
 const AI_PREFLIGHT_MIN_TOKEN_LENGTH = 4;
 const AI_PREFLIGHT_CACHE_LIMIT = 12;
+const AI_AUTO_APPLY_MAX_REPLACE_LENGTH = 72;
+const AI_AUTO_APPLY_MAX_WORDS = 12;
 const NATIVE_FAST_PATH_MIN_KEYS = 20;
 const NATIVE_FAST_PATH_ENABLED = true;
 const AI_AUTOCORRECT_LOG_PREFIX = '[AiAutocorrect]';
@@ -332,10 +339,18 @@ type AutocorrectHistoryEdit = {
   boundary: string;
 };
 
+type TypedWordLearnUndo = {
+  word: string;
+  boundary: string;
+  at: number;
+};
+
 type AiAutocorrectSuggestion = Extract<
   AiAutocorrectResult,
   {kind: 'suggest'}
 >;
+
+const TYPED_WORD_UNDO_WINDOW_MS = 2600;
 
 function getAiAutocorrectContextMatch(
   context: string,
@@ -355,6 +370,17 @@ function getAiAutocorrectContextMatch(
     replaceLength: original.length + trailingWhitespace.length,
     replacementSuffix: trailingWhitespace,
   };
+}
+
+function canAutoApplyAiAutocorrect(original: string): boolean {
+  const trimmed = original.trim();
+  if (!trimmed) {
+    return false;
+  }
+  if (trimmed.length > AI_AUTO_APPLY_MAX_REPLACE_LENGTH) {
+    return false;
+  }
+  return trimmed.split(/\s+/).length <= AI_AUTO_APPLY_MAX_WORDS;
 }
 
 type ControllerFocus = {row: number; col: number};
@@ -459,6 +485,7 @@ type LetterKeyboardRowsProps = {
   getLetterCommitText?: (keyValue: string) => string;
   shiftOn: boolean;
   capsLocked: boolean;
+  isShiftEditorHeld?: boolean;
   onKeyPress: (keyDef: KeyDefinition) => void;
   onMultiTouchKeyCommit: (keyDef: KeyDefinition, text: string) => void;
   isNativeTypingCommitActive?: () => boolean;
@@ -485,6 +512,7 @@ const LetterKeyboardRows = React.memo(function LetterKeyboardRows({
   getLetterCommitText,
   shiftOn,
   capsLocked,
+  isShiftEditorHeld,
   onKeyPress,
   onMultiTouchKeyCommit,
   isNativeTypingCommitActive,
@@ -533,6 +561,7 @@ const LetterKeyboardRows = React.memo(function LetterKeyboardRows({
           isUppercase={layout === 'letters' && isUppercase}
           isShiftOn={layout === 'letters' && shiftOn}
           isCapsLocked={capsLocked}
+          isShiftEditorHeld={isShiftEditorHeld}
           onKeyPress={onKeyPress}
           keyGestures={keyGestures}
           keyHeight={
@@ -645,11 +674,13 @@ function computeTypingSuggestionBar(
 type KeyboardBodyProps = {
   controllerConnected: boolean;
   controllerSettings: ControllerSettings;
+  keyPreviewStyle: KeyboardLayoutSettings['keyPreviewStyle'];
 };
 
 function KeyboardBody({
   controllerConnected,
   controllerSettings,
+  keyPreviewStyle,
 }: KeyboardBodyProps) {
   const theme = useKeyboardTheme();
   const layoutContext = useKeyLayoutContext();
@@ -706,6 +737,7 @@ function KeyboardBody({
   const backspaceSyncSeqRef = useRef(0);
   const autocorrectUndoStackRef = useRef<AutocorrectHistoryEdit[]>([]);
   const autocorrectRedoStackRef = useRef<AutocorrectHistoryEdit[]>([]);
+  const typedWordLearnUndoRef = useRef<TypedWordLearnUndo[]>([]);
   const lastTypingAtRef = useRef(0);
   const typingIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [stoppedTyping, setStoppedTyping] = useState(true);
@@ -764,6 +796,12 @@ function KeyboardBody({
   const [gestureSettings, setGestureSettings] = useState<GestureSettings>(
     getGestureSettings(),
   );
+  const gestureSettingsRef = useRef<GestureSettings>(gestureSettings);
+  const [shiftEditorHeld, setShiftEditorHeld] = useState(false);
+  const shiftEditorHeldRef = useRef(false);
+  const shiftEditorPressStartedAtRef = useRef(0);
+  const shiftEditorChordUsedRef = useRef(false);
+  const SHIFT_EDITOR_QUICK_TAP_MS = 280;
   const [autocorrectSettings, setAutocorrectSettings] =
     useState<AutocorrectSettings>(getAutocorrectSettings());
   const [oneHandSettings, setOneHandSettings] = useState<OneHandSettings>(
@@ -779,11 +817,6 @@ function KeyboardBody({
     useState<AiAutocorrectSuggestion | null>(null);
   const [isAiAutocorrectProcessing, setIsAiAutocorrectProcessing] =
     useState(false);
-  const [launcherAppPackage, setLauncherAppPackageState] = useState(
-    getLauncherAppPackage(),
-  );
-  const [launchableApps, setLaunchableApps] = useState<LaunchableApp[]>([]);
-  const [launchableAppsLoading, setLaunchableAppsLoading] = useState(false);
   const [commaLauncherActive, setCommaLauncherActive] = useState(false);
   const [periodRewriteActive, setPeriodRewriteActive] = useState(false);
   const [calculatorDisplay, setCalculatorDisplay] = useState('0');
@@ -860,6 +893,10 @@ function KeyboardBody({
     setShiftOn(false);
     syncNativeFastPathCaseState();
   }, [syncNativeFastPathCaseState]);
+
+  useEffect(() => {
+    gestureSettingsRef.current = gestureSettings;
+  }, [gestureSettings]);
 
   const shouldConsumeShiftForCommit = useCallback((text: string): boolean => {
     if (layoutRef.current !== 'letters' || text.length !== 1) {
@@ -1139,6 +1176,12 @@ function KeyboardBody({
   ]);
 
   useEffect(() => {
+    setKeyPreviewStyle(keyPreviewStyle);
+    hideAllKeyPreviews();
+    keyboardBridge.setKeyPreviewDoodleEnabled(keyPreviewStyle === 'doodle');
+  }, [keyPreviewStyle]);
+
+  useEffect(() => {
     void keyboardBridge.getPrefersNumpad().then(setPrefersNumpad);
     const subscription = DeviceEventEmitter.addListener(
       'keyboardPrefersNumpad',
@@ -1374,6 +1417,7 @@ function KeyboardBody({
 
     autocorrectUndoStackRef.current = [];
     autocorrectRedoStackRef.current = [];
+    typedWordLearnUndoRef.current = [];
     userChoseLettersRef.current = false;
     hasTypedInFieldRef.current = false;
     emptyContextTrustworthyRef.current = true;
@@ -1506,7 +1550,6 @@ function KeyboardBody({
   const reloadGestures = useCallback(async () => {
     await reloadGesturesFromStorage();
     setGestureSettings(getGestureSettings());
-    setLauncherAppPackageState(getLauncherAppPackage());
     setCommaLauncherActive(getCommaLauncherArmed());
     setPeriodRewriteActive(getPeriodRewriteArmed());
   }, []);
@@ -1617,16 +1660,6 @@ function KeyboardBody({
     });
   }, [reloadEssentials, requireFeature, resetCase]);
 
-  const loadLaunchableApps = useCallback(async () => {
-    setLaunchableAppsLoading(true);
-    try {
-      const apps = await keyboardBridge.getLaunchableApps();
-      setLaunchableApps(apps);
-    } finally {
-      setLaunchableAppsLoading(false);
-    }
-  }, []);
-
   const reloadAutocorrect = useCallback(async () => {
     await reloadAutocorrectFromStorage();
     await Promise.all([
@@ -1714,9 +1747,8 @@ function KeyboardBody({
       setLayout('letters');
       resetCase();
       void reloadGestures();
-      void loadLaunchableApps();
     });
-  }, [loadLaunchableApps, reloadGestures, requireFeature, resetCase]);
+  }, [reloadGestures, requireFeature, resetCase]);
 
   const openCalculator = useCallback(() => {
     requireFeature('plugins', () => {
@@ -1850,15 +1882,6 @@ function KeyboardBody({
     setLayout('letters');
     resetCase();
   }, [closeItemsFlow, isListening, mode.type, resetCase, toggleListening]);
-
-  const handleSelectLauncherApp = useCallback(
-    (packageName: string) => {
-      void setLauncherAppPackage(packageName).then(() => {
-        setLauncherAppPackageState(getLauncherAppPackage());
-      });
-    },
-    [],
-  );
 
   const openClipboard = useCallback(() => {
     requireFeature('plugins', () => {
@@ -2319,6 +2342,21 @@ function KeyboardBody({
     applyInstantSuggestionBar(livePrefixRef.current);
   }, [applyInstantSuggestionBar, flushPendingNativeSuggestions]);
 
+  const recordTypedWordLearnUndo = useCallback((word: string, boundary: string) => {
+    const normalized = word.trim().toLowerCase();
+    if (!normalized) {
+      return;
+    }
+    typedWordLearnUndoRef.current = [
+      ...typedWordLearnUndoRef.current.slice(-9),
+      {
+        word: normalized,
+        boundary,
+        at: Date.now(),
+      },
+    ];
+  }, []);
+
   const recordAutocorrectHistory = useCallback(
     (edit: AutocorrectHistoryEdit) => {
       if (!edit.original || edit.original === edit.correction) {
@@ -2583,6 +2621,19 @@ function KeyboardBody({
                 original: result.original,
                 correction: result.correction,
               });
+              if (!canAutoApplyAiAutocorrect(result.original)) {
+                console.log(AI_AUTOCORRECT_LOG_PREFIX, 'auto deferred: large correction', {
+                  originalLength: result.original.length,
+                  wordCount: result.original.trim().split(/\s+/).length,
+                });
+                setAiAutocorrectSuggestion({
+                  kind: 'suggest',
+                  original: result.original,
+                  correction: result.correction,
+                });
+                lastAiProofreadOriginalRef.current = result.original;
+                return;
+              }
               await applyAiAutocorrectEdit(result);
               return;
             }
@@ -2641,6 +2692,34 @@ function KeyboardBody({
     }, debounceMs);
   },
   [applyInstantSuggestionBar, refreshSuggestions],
+  );
+
+  const applyShiftEditorChordSideEffects = useCallback(() => {
+    shiftEditorChordUsedRef.current = true;
+    triggerKeyHaptic();
+    if (clipboardPasteSuggestionRef.current) {
+      clearClipboardPasteSuggestion();
+    }
+    scheduleRefreshSuggestions();
+  }, [clearClipboardPasteSuggestion, scheduleRefreshSuggestions]);
+
+  const attemptShiftEditorChord = useCallback(
+    (letter: string): boolean => {
+      if (
+        !tryShiftEditorShortcut({
+          enabled: gestureSettingsRef.current.shiftEditorShortcuts,
+          shiftEditorHeld: shiftEditorHeldRef.current,
+          capsLocked: capsLockedRef.current,
+          layout: layoutRef.current,
+          letter,
+        })
+      ) {
+        return false;
+      }
+      applyShiftEditorChordSideEffects();
+      return true;
+    },
+    [applyShiftEditorChordSideEffects],
   );
 
   const cancelPendingInstantSuggestionBar = useCallback(() => {
@@ -2768,6 +2847,7 @@ function KeyboardBody({
           const lower = typedWord.toLowerCase();
           if (isDictionaryWord(lower) || (getLearnedCounts().get(lower) ?? 0) > 0) {
             recordLearnedWord(typedWord, 'typed');
+            recordTypedWordLearnUndo(typedWord, boundaryText || boundary);
           }
           recordWordCommitted();
           previousWordRef.current = lower;
@@ -2826,15 +2906,23 @@ function KeyboardBody({
         const preflight = aiPreflightCacheRef.current.get(typedWord);
         aiPreflightCacheRef.current.delete(typedWord);
         if (preflight?.kind === 'auto') {
-          const applied = await applyAiAutocorrectEdit(preflight);
-          if (applied) {
-            applyBoundary();
-            if (!zeroLatency) {
-              requestAnimationFrame(() => {
-                void refreshSuggestions();
-              });
+          if (!canAutoApplyAiAutocorrect(preflight.original)) {
+            setAiAutocorrectSuggestion({
+              kind: 'suggest',
+              original: preflight.original,
+              correction: preflight.correction,
+            });
+          } else {
+            const applied = await applyAiAutocorrectEdit(preflight);
+            if (applied) {
+              applyBoundary();
+              if (!zeroLatency) {
+                requestAnimationFrame(() => {
+                  void refreshSuggestions();
+                });
+              }
+              return;
             }
-            return;
           }
         }
 
@@ -2874,8 +2962,9 @@ function KeyboardBody({
           return;
         }
 
+        const premiumAutocorrect = canUseFeature('autocorrect_full');
         let candidate = getAutocorrectCandidate(typedWord, {
-          lightweight: false,
+          lightweight: !premiumAutocorrect,
           boundary: true,
           context,
           previousWord: extractPreviousWordFromContext(
@@ -2906,7 +2995,9 @@ function KeyboardBody({
           const correctedTail =
             candidate!.correction.split(/\s+/).pop() ?? typedWord;
           previousWordRef.current = correctedTail.toLowerCase();
-          observeCorrectionAccepted(typedWord, candidate!.correction);
+          if (shouldLearnAutocorrectPair(typedWord, candidate!.correction)) {
+            observeCorrectionAccepted(typedWord, candidate!.correction);
+          }
           const correctionParts = candidate!.correction.split(/\s+/);
           for (const part of correctionParts) {
             recordLearnedWord(part, 'corrected');
@@ -2942,6 +3033,7 @@ function KeyboardBody({
         const lower = typedWord.toLowerCase();
         if (isDictionaryWord(lower) || (getLearnedCounts().get(lower) ?? 0) > 0) {
           recordLearnedWord(typedWord, 'typed');
+          recordTypedWordLearnUndo(typedWord, boundaryText || boundary);
         }
         clearWordLetterTapsForTapMap();
         recordWordCommitted();
@@ -2964,6 +3056,7 @@ function KeyboardBody({
       openRewritePanel,
       applyAiAutocorrectEdit,
       recordAutocorrectHistory,
+      recordTypedWordLearnUndo,
       refreshSuggestions,
       scheduleAiProofread,
       syncTypingCompositorFromEditor,
@@ -3063,6 +3156,14 @@ function KeyboardBody({
   ]);
 
   useEffect(() => {
+    const timer = setTimeout(() => {
+      layoutContext?.requestRemeasure();
+      void refreshSuggestions();
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [layoutContext, refreshSuggestions, theme.isLandscape]);
+
+  useEffect(() => {
     const finalHeight =
       layout === 'letters'
         ? computeResizedKeyboardHeightDp(
@@ -3106,6 +3207,8 @@ function KeyboardBody({
     const subscription = DeviceEventEmitter.addListener(
       'keyboardOrientationChange',
       () => {
+        hideAllKeyPreviews();
+        initKeyPreview();
         if (!gamePerformanceModeRef.current) {
           setNativeFastPathLayoutHold(true);
           nativeFastPathActiveRef.current = false;
@@ -3114,6 +3217,7 @@ function KeyboardBody({
           );
         }
         layoutContext?.requestRemeasure();
+        void refreshSuggestions();
         void keyboardBridge.isCurrentEditorGame().then(isGame => {
           if (isGame && modeRef.current.type === 'typing') {
             activateGamePerformanceMode();
@@ -3122,7 +3226,7 @@ function KeyboardBody({
       },
     );
     return () => subscription.remove();
-  }, [activateGamePerformanceMode, layoutContext]);
+  }, [activateGamePerformanceMode, layoutContext, refreshSuggestions]);
 
   useEffect(() => {
     if (!nativeFastPathLayoutHold) {
@@ -3130,9 +3234,9 @@ function KeyboardBody({
     }
     const timer = setTimeout(() => {
       setNativeFastPathLayoutHold(false);
-    }, 80);
+    }, 200);
     return () => clearTimeout(timer);
-  }, [nativeFastPathLayoutHold, layoutContext?.layoutEpoch, theme.isLandscape]);
+  }, [nativeFastPathLayoutHold, layoutContext?.layoutEpoch]);
 
   useEffect(() => {
     setControllerFocus(current => normalizeControllerFocus(rows, current));
@@ -3166,6 +3270,27 @@ function KeyboardBody({
     setFormValue(current => current.slice(0, -1));
   }, [mode]);
 
+  const handleShiftEditorPressIn = useCallback(() => {
+    shiftEditorPressStartedAtRef.current = Date.now();
+    shiftEditorChordUsedRef.current = false;
+    shiftEditorHeldRef.current = true;
+    setShiftEditorHeld(true);
+  }, []);
+
+  const handleShiftEditorPressOut = useCallback(() => {
+    const elapsed = Date.now() - shiftEditorPressStartedAtRef.current;
+    shiftEditorHeldRef.current = false;
+    setShiftEditorHeld(false);
+    if (
+      elapsed < SHIFT_EDITOR_QUICK_TAP_MS &&
+      !shiftEditorChordUsedRef.current
+    ) {
+      handleShiftPressRef.current();
+    }
+  }, []);
+
+  const handleShiftPressRef = useRef<() => void>(() => {});
+
   const handleShiftPress = useCallback(() => {
     const now = Date.now();
     const isDoubleTap = now - lastShiftTapRef.current < DOUBLE_TAP_MS;
@@ -3198,6 +3323,10 @@ function KeyboardBody({
     syncNativeFastPathCaseState();
   }, [syncNativeFastPathCaseState]);
 
+  useEffect(() => {
+    handleShiftPressRef.current = handleShiftPress;
+  }, [handleShiftPress]);
+
   const handleEssentialSuggestionSelect = useCallback(
     (essential: {value: string}) => {
       markTyping();
@@ -3228,7 +3357,9 @@ function KeyboardBody({
         if (isAutocorrectCorrection && currentPrefix) {
           // Autocorrect corrections (including ones with punctuation like "i guess," or
           // multi-word like "i don't know,") always replace the current typed letters only.
-          observeCorrectionAccepted(currentPrefix, word);
+          if (shouldLearnAutocorrectPair(currentPrefix, word)) {
+            observeCorrectionAccepted(currentPrefix, word);
+          }
           if (word.includes(' ')) {
             recordLearnedPhrase(word, 'corrected');
             for (const part of word.split(' ')) {
@@ -3362,6 +3493,34 @@ function KeyboardBody({
     void toggleClipboardPin(item.id).then(reloadClipboard);
   }, [reloadClipboard]);
 
+  const handleTypedWordLearningBackspace = useCallback((): boolean => {
+    const entry = typedWordLearnUndoRef.current.at(-1);
+    if (!entry) {
+      return false;
+    }
+    // Only treat as "undo learned word" when user has not started typing next token.
+    if (livePrefixRef.current.length > 0) {
+      return false;
+    }
+    if (Date.now() - entry.at > TYPED_WORD_UNDO_WINDOW_MS) {
+      typedWordLearnUndoRef.current = typedWordLearnUndoRef.current.slice(0, -1);
+      return false;
+    }
+    typedWordLearnUndoRef.current = typedWordLearnUndoRef.current.slice(0, -1);
+    undoLearnedWord(entry.word, 'typed');
+    keyboardBridge.deleteBackward();
+    livePrefixRef.current = '';
+    refreshTouchIntelligenceFromLivePrefix();
+    lastTypingAtRef.current = Date.now();
+    scheduleBackspaceBarFlush();
+    scheduleRefreshSuggestions();
+    return true;
+  }, [
+    refreshTouchIntelligenceFromLivePrefix,
+    scheduleBackspaceBarFlush,
+    scheduleRefreshSuggestions,
+  ]);
+
   const handleAutocorrectBackspace = useCallback((): boolean => {
     const edit = autocorrectUndoStackRef.current.at(-1);
     if (!edit) {
@@ -3413,7 +3572,10 @@ function KeyboardBody({
 
       if (mode.type === 'typing' && zeroLatencyModeRef.current) {
         if (keyDef.type === 'backspace' || keyDef.type === 'numpad-back') {
-          if (keyDef.type === 'backspace' && handleAutocorrectBackspace()) {
+          if (
+            keyDef.type === 'backspace' &&
+            (handleAutocorrectBackspace() || handleTypedWordLearningBackspace())
+          ) {
             return;
           }
           keyboardBridge.deleteBackward();
@@ -3428,6 +3590,12 @@ function KeyboardBody({
           keyDef.type !== 'enter' &&
           keyDef.value
         ) {
+          if (
+            layout === 'letters' &&
+            attemptShiftEditorChord(keyDef.value)
+          ) {
+            return;
+          }
           const text =
             layout === 'letters'
               ? consumeLetterCommitText(keyDef.value)
@@ -3594,7 +3762,7 @@ function KeyboardBody({
 
       switch (keyDef.type) {
         case 'backspace':
-          if (handleAutocorrectBackspace()) {
+          if (handleAutocorrectBackspace() || handleTypedWordLearningBackspace()) {
             return;
           }
           keyboardBridge.deleteBackward();
@@ -3630,6 +3798,7 @@ function KeyboardBody({
                 (getLearnedCounts().get(lower) ?? 0) > 0
               ) {
                 recordLearnedWord(typedFallback.trim(), 'typed');
+                recordTypedWordLearnUndo(typedFallback.trim(), ' ');
               }
               recordWordCommitted();
             }
@@ -3678,6 +3847,7 @@ function KeyboardBody({
                 (getLearnedCounts().get(lower) ?? 0) > 0
               ) {
                 recordLearnedWord(typedFallback.trim(), 'typed');
+                recordTypedWordLearnUndo(typedFallback.trim(), '');
               }
               recordWordCommitted();
             }
@@ -3727,6 +3897,13 @@ function KeyboardBody({
           return;
         default:
           if (keyDef.value) {
+            if (
+              layout === 'letters' &&
+              mode.type === 'typing' &&
+              attemptShiftEditorChord(keyDef.value)
+            ) {
+              return;
+            }
             const text =
               layout === 'letters'
                 ? consumeLetterCommitText(keyDef.value)
@@ -3748,12 +3925,14 @@ function KeyboardBody({
     [
       appendToFormField,
       applyInstantSuggestionBar,
+      attemptShiftEditorChord,
       backspaceFormField,
       clearClipboardPasteSuggestion,
       clearSuggestionBarForPrefix,
       commitTypedWordBoundary,
       consumeLetterCommitText,
       handleAutocorrectBackspace,
+      handleTypedWordLearningBackspace,
       handleFormConfirm,
       handleShiftPress,
       refreshTouchIntelligenceFromLivePrefix,
@@ -4034,12 +4213,23 @@ function KeyboardBody({
         return;
       }
 
+      if (
+        modeRef.current.type === 'typing' &&
+        layoutRef.current === 'letters' &&
+        keyDef.value &&
+        attemptShiftEditorChord(keyDef.value)
+      ) {
+        markTyping();
+        return;
+      }
+
       keyboardBridge.insertKeyText(text);
       applyCommittedKeyTextSideEffects(text);
     },
     [
       appendToFormField,
       applyCommittedKeyTextSideEffects,
+      attemptShiftEditorChord,
       markTyping,
     ],
   );
@@ -4047,6 +4237,21 @@ function KeyboardBody({
   const handleNativeFastPathLetterCommit = useCallback(
     (text: string) => {
       if (!text || modeRef.current.type !== 'typing') {
+        return;
+      }
+      if (
+        layoutRef.current === 'letters' &&
+        isShiftEditorShortcutEligible({
+          enabled: gestureSettingsRef.current.shiftEditorShortcuts,
+          shiftEditorHeld: shiftEditorHeldRef.current,
+          capsLocked: capsLockedRef.current,
+          layout: 'letters',
+          letter: text,
+        })
+      ) {
+        keyboardBridge.deleteBackward();
+        void executeShiftEditorShortcut(text);
+        applyShiftEditorChordSideEffects();
         return;
       }
       nativeSideEffectDedupRef.current = {text, at: Date.now()};
@@ -4062,6 +4267,7 @@ function KeyboardBody({
       }
     },
     [
+      applyShiftEditorChordSideEffects,
       applyCommittedKeyTextSideEffects,
       clearClipboardPasteSuggestion,
       syncTouchIntelligenceToNative,
@@ -4132,6 +4338,27 @@ function KeyboardBody({
     shouldSkipAsyncNativeSideEffect,
     syncNativeShiftConsumed,
   ]);
+
+  useEffect(() => {
+    const subscription = DeviceEventEmitter.addListener(
+      'keyboardEditorShortcut',
+      (payload: {action?: string; shiftConsumed?: boolean}) => {
+        if (modeRef.current.type !== 'typing') {
+          return;
+        }
+        if (payload?.shiftConsumed) {
+          syncNativeShiftConsumed();
+        }
+        if (clipboardPasteSuggestionRef.current) {
+          clearClipboardPasteSuggestion();
+        }
+        if (payload?.action === 'paste') {
+          scheduleRefreshSuggestions();
+        }
+      },
+    );
+    return () => subscription.remove();
+  }, [clearClipboardPasteSuggestion, scheduleRefreshSuggestions, syncNativeShiftConsumed]);
 
   useEffect(() => {
     if (Platform.OS !== 'android') {
@@ -4417,16 +4644,27 @@ function KeyboardBody({
         lastPublishedFastPathLayoutEpochRef.current = layoutEpoch;
       }
       const touchIntelligence = getTouchIntelligenceNativeConfig();
+      const previewPopupEnabled = keyPreviewStyle === 'popup';
+      const previewPressedEnabled =
+        keyPreviewStyle === 'popup' || keyPreviewStyle === 'subtle';
+      const previewDoodleEnabled = keyPreviewStyle === 'doodle';
       keyboardBridge.setNativeKeyFastPathConfig(
         JSON.stringify({
           enabled: true,
           commitOnDown: true,
+          shiftEditorShortcuts: gestureSettingsRef.current.shiftEditorShortcuts,
+          shiftEditorHeld: shiftEditorHeldRef.current,
+          shiftOn: shiftOnRef.current,
+          capsLocked: capsLockedRef.current,
           zeroLatency: zeroLatencyModeRef.current,
           gamePerformance: gamePerformanceModeRef.current,
           areaPageX: origin.pageX,
           areaPageY: origin.pageY,
           hitSlopHorizontal: theme.keyHitSlop.horizontal,
           hitSlopVertical: theme.keyHitSlop.vertical,
+          previewPopupEnabled,
+          previewPressedEnabled,
+          previewDoodleEnabled,
           layout,
           touchIntelligence,
           keyExpansions: touchIntelligence.keyExpansions,
@@ -4480,6 +4718,10 @@ function KeyboardBody({
     mode.type,
     nativeFastPathEligible,
     gestureEnabled,
+    gestureSettings.shiftEditorShortcuts,
+    shiftEditorHeld,
+    shiftOn,
+    capsLocked,
     theme.keyHitSlop.horizontal,
     theme.keyHitSlop.vertical,
     theme.predictiveHitboxesEnabled,
@@ -4487,6 +4729,7 @@ function KeyboardBody({
     nativeFastPathLayoutHold,
     theme.isLandscape,
     gamePerformanceActive,
+    keyPreviewStyle,
     syncNativeFastPathCaseState,
   ]);
 
@@ -4597,7 +4840,9 @@ function KeyboardBody({
         void setCommaLauncherArmed(true);
       },
       onCommaLauncherPress: () => {
-        void keyboardBridge.launchApp(launcherAppPackage);
+        setCommaLauncherActive(false);
+        void setCommaLauncherArmed(false);
+        openClipboard();
       },
       onCommaLauncherDisarm: () => {
         setCommaLauncherActive(false);
@@ -4619,14 +4864,19 @@ function KeyboardBody({
         setPeriodRewriteActive(false);
         void setPeriodRewriteArmed(false);
       },
+      shiftEditorShortcuts: gestureSettings.shiftEditorShortcuts,
+      onShiftEditorPressIn: handleShiftEditorPressIn,
+      onShiftEditorPressOut: handleShiftEditorPressOut,
     };
   }, [
     clearSuggestionBarForPrefix,
     commaLauncherActive,
     gestureSettings,
+    openClipboard,
+    handleShiftEditorPressIn,
+    handleShiftEditorPressOut,
     keyGesturesActive,
     layout,
-    launcherAppPackage,
     openRewritePanel,
     periodRewriteActive,
     scheduleBackspaceBarFlush,
@@ -5078,11 +5328,7 @@ function KeyboardBody({
           {mode.type === 'gestures' ? (
             <GesturesPanel
               settings={gestureSettings}
-              launcherAppPackage={launcherAppPackage}
-              launchableApps={launchableApps}
-              appsLoading={launchableAppsLoading}
               onToggle={handleGestureToggle}
-              onSelectLauncherApp={handleSelectLauncherApp}
             />
           ) : null}
 
@@ -5172,6 +5418,7 @@ function KeyboardBody({
                     getLetterCommitText={consumeLetterCommitText}
                     shiftOn={shiftOn}
                     capsLocked={capsLocked}
+                    isShiftEditorHeld={shiftEditorHeld}
                     onKeyPress={handleKeyPress}
                     onMultiTouchKeyCommit={handleMultiTouchKeyCommit}
                     isNativeTypingCommitActive={() =>
@@ -5229,8 +5476,9 @@ function KeyboardBody({
 
 
 export default function KeyboardApp() {
-  const {width, height} = useWindowDimensions();
-  const isLandscape = isLandscapeOrientation(width, height);
+  const [deviceLandscape, setDeviceLandscape] = useState(() =>
+    keyboardBridge.isDeviceLandscapeSync(),
+  );
   const [fontsLoaded] = useFonts({
     Geist: require('../../assets/Geist-VariableFont_wght.ttf'),
     Chicago: require('../../assets/Chicago.ttf'),
@@ -5250,9 +5498,19 @@ export default function KeyboardApp() {
   const [customUserFontFamily, setCustomUserFontFamily] = useState<string | null>(null);
 
   const effectiveLayoutSettings = useMemo(
-    () => layoutSettingsForOrientation(layoutSettings, isLandscape),
-    [isLandscape, layoutSettings],
+    () => layoutSettingsForOrientation(layoutSettings, deviceLandscape),
+    [deviceLandscape, layoutSettings],
   );
+
+  useEffect(() => {
+    const orientationSubscription = DeviceEventEmitter.addListener(
+      'keyboardOrientationChange',
+      (landscape: boolean) => {
+        setDeviceLandscape(landscape === true);
+      },
+    );
+    return () => orientationSubscription.remove();
+  }, []);
 
   useEffect(() => {
     void Promise.all([
@@ -5370,13 +5628,14 @@ export default function KeyboardApp() {
       customThemeJson={customThemeJson}
       layoutSettings={effectiveLayoutSettings}
       customFontLoaded={fontsLoaded}
-      isLandscape={isLandscape}
+      isLandscape={deviceLandscape}
       customUserFontFamily={customUserFontFamily}
     >
       <KeyLayoutProvider layoutSettings={effectiveLayoutSettings}>
         <KeyboardBody
           controllerConnected={controllerConnected}
           controllerSettings={layoutSettings.controller}
+          keyPreviewStyle={layoutSettings.keyPreviewStyle}
         />
       </KeyLayoutProvider>
     </KeyboardThemeProvider>

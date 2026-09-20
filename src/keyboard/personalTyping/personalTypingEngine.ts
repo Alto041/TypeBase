@@ -1,5 +1,6 @@
 import {InteractionManager} from 'react-native';
 import {canUseFeature} from '../../licensing/entitlements';
+import {hasDictionaryWord} from '../autocorrect/dictionaryManager';
 import {keyboardBridge} from '../keyboardBridge';
 import {
   isLearnablePhrase,
@@ -425,7 +426,10 @@ export function queryPersonalContextCorrections(
     if (entry.rejections > entry.accepts * 2) {
       continue;
     }
-    if (entry.confidence < 0.25) {
+    const minConfidence =
+      hasDictionaryWord(from) && from.length <= 4 ? 0.52 : 0.25;
+    const minAccepts = hasDictionaryWord(from) ? 2 : 1;
+    if (entry.confidence < minConfidence || entry.accepts < minAccepts) {
       continue;
     }
     results.push({to: entry.to, confidence: entry.confidence});
@@ -579,6 +583,32 @@ export function observeWordCommitted(
 ): number {
   const entry = upsertWord(word, source);
   return entry?.uses ?? 0;
+}
+
+export function observeWordCommitUndone(
+  word: string,
+  source: LearningSource = 'typed',
+): number {
+  const normalized = normalizeLearnedWord(word);
+  const entry = profile.words[normalized];
+  if (!entry) {
+    return 0;
+  }
+
+  const nextUses = Math.max(0, entry.uses - 1);
+  if (nextUses <= 0) {
+    delete profile.words[normalized];
+    wordUsesCache.delete(normalized);
+    schedulePersist();
+    return 0;
+  }
+
+  entry.uses = nextUses;
+  entry.confidence = decayConfidence(entry.confidence, CONFIRM_GAIN[source]);
+  entry.lastUsed = Date.now();
+  wordUsesCache.set(normalized, entry.uses);
+  schedulePersist();
+  return entry.uses;
 }
 
 export function observePhraseCommitted(

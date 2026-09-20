@@ -136,13 +136,16 @@ class KeyPreviewManager(private val fallbackContext: Context) {
      */
     fun hide(reactTag: Int) {
         runOnMainThread {
+            showSeq[reactTag] = (showSeq[reactTag] ?: 0) + 1
+            cancelPendingLayoutShow(reactTag)
             cancelDismiss(reactTag)
-            hideRequested.add(reactTag)
             val tv = activePreviews[reactTag]
             if (tv == null) {
-                // Show still in flight; dismiss as soon as it appears.
+                // Preview not visible yet — cancel async layout only; don't block the next show.
+                hideRequested.remove(reactTag)
                 return@runOnMainThread
             }
+            hideRequested.add(reactTag)
             scheduleFadeDismiss(reactTag, tv)
         }
     }
@@ -362,6 +365,10 @@ class KeyPreviewManager(private val fallbackContext: Context) {
 
         cancelPendingLayoutShow(reactTag)
         cancelDismiss(reactTag)
+
+        if (hideRequested.contains(reactTag)) {
+            return
+        }
 
         val tv = obtainPreviewView(container, reactTag)
         tv.animate().cancel()

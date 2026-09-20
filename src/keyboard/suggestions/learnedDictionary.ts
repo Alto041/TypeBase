@@ -8,6 +8,7 @@ import {isEnglishDictionaryWord} from '../autocorrect/englishFrequencyDictionary
 import {
   ensurePersonalTypingLoaded,
   getLearnedWordMap,
+  observeWordCommitUndone,
   observeWordCommitted,
   reloadPersonalTypingFromStorage,
   resetPersonalTypingCache,
@@ -89,6 +90,18 @@ export function recordLearnedWord(
   const normalized = normalizeLearnedWord(word);
   observeWordCommitted(normalized, source);
   queueSymSpellLearn(normalized);
+}
+
+export function undoLearnedWord(
+  word: string,
+  source: LearningSource = 'typed',
+): void {
+  if (!isLearnableWord(word)) {
+    return;
+  }
+  const normalized = normalizeLearnedWord(word);
+  observeWordCommitUndone(normalized, source);
+  pendingSymSpellWords.delete(normalized);
 }
 
 /** Lower swipe score is better; small nudge for words the user has typed before. */

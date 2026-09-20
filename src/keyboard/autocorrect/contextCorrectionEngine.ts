@@ -1,7 +1,13 @@
 import {
   getActiveLanguage,
+  getBaseWords,
+  hasDictionaryWord,
   lookupCandidatesSync,
 } from './dictionaryManager';
+import {
+  getEnglishStaticRank,
+  isEnglishDictionaryWord,
+} from './englishFrequencyDictionary';
 import {getBigramFollowScore, getTopBigramFollowers} from './contextBigrams';
 import {extractTrailingWords} from './learnedPhrases';
 import {
@@ -100,6 +106,20 @@ function maxEditDistance(length: number): number {
 
 function isEnglishLikeLang(lang: string): boolean {
   return lang === 'en' || lang === 'hi-en' || lang === 'fr-en' || lang === 'es-en';
+}
+
+function isProtectedKnownWord(lower: string): boolean {
+  const lang = getActiveLanguage();
+  if (isEnglishLikeLang(lang)) {
+    if (isEnglishDictionaryWord(lower)) {
+      const rank = getEnglishStaticRank(lower);
+      return rank == null || rank < 20_000;
+    }
+    return hasDictionaryWord(lower);
+  }
+  const base = getBaseWords(lang);
+  const idx = base.indexOf(lower);
+  return idx >= 0 && idx < 8_000;
 }
 
 function buildTrailingWords(
@@ -328,6 +348,9 @@ export function getContextCorrectionCandidate(
     return null;
   }
   if (isLearnedWordInsisted(typedLower)) {
+    return null;
+  }
+  if (isProtectedKnownWord(typedLower)) {
     return null;
   }
 

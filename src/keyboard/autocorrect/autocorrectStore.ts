@@ -11,10 +11,11 @@ function clampAutocorrectForTier(
   if (canUseFeature('autocorrect_full')) {
     return settings;
   }
+  // Free tier keeps core autocorrect; only advanced context/AI stays premium.
   return {
     ...settings,
     enabled: settings.enabled,
-    autoApplyOnSpace: false,
+    autoApplyOnSpace: settings.autoApplyOnSpace,
     aiAutoCorrectEnabled: false,
     contextCorrectionEnabled: false,
   };

@@ -12,6 +12,7 @@ type SharedRowProps = {
   isUppercase: boolean;
   isShiftOn: boolean;
   isCapsLocked: boolean;
+  isShiftEditorHeld?: boolean;
   onKeyPress: (keyDef: KeyDefinition) => void;
   keyGestures?: KeyGesturesConfig;
   keyHeight?: number;
@@ -65,6 +66,7 @@ function renderRowKey(
       isUppercase={props.isUppercase}
       isShiftOn={props.isShiftOn}
       isCapsLocked={props.isCapsLocked}
+      isShiftEditorHeld={props.isShiftEditorHeld}
       onPress={props.onKeyPress}
       keyGestures={props.keyGestures}
       keyHeight={props.keyHeight}

@@ -54,12 +54,22 @@ class NativeKeyFastPath {
   private var zeroLatency = false
   @Volatile
   private var gamePerformance = false
+  @Volatile
+  private var previewPopupEnabled = true
+  @Volatile
+  private var previewPressedEnabled = true
+  @Volatile
+  private var previewDoodleEnabled = false
   private var areaPageX = 0f
   private var areaPageY = 0f
   private var hitSlopHorizontal = 0f
   private var hitSlopVertical = 0f
   @Volatile
   private var blockAutoShiftReenable = false
+  @Volatile
+  private var shiftEditorShortcuts = true
+  @Volatile
+  private var shiftEditorHeld = false
   private var keyboardLayout = "letters"
   private var uppercase = false
   private var shiftOn = false
@@ -84,13 +94,25 @@ class NativeKeyFastPath {
       commitOnDown = obj.optBoolean("commitOnDown", true)
       zeroLatency = obj.optBoolean("zeroLatency", false)
       gamePerformance = obj.optBoolean("gamePerformance", false)
+      previewPopupEnabled = obj.optBoolean("previewPopupEnabled", true)
+      previewPressedEnabled = obj.optBoolean("previewPressedEnabled", true)
+      previewDoodleEnabled = obj.optBoolean("previewDoodleEnabled", false)
       areaPageX = obj.optDouble("areaPageX", 0.0).toFloat()
       areaPageY = obj.optDouble("areaPageY", 0.0).toFloat()
       hitSlopHorizontal = obj.optDouble("hitSlopHorizontal", 0.0).toFloat()
       hitSlopVertical = obj.optDouble("hitSlopVertical", 0.0).toFloat()
       keyboardLayout = obj.optString("layout", "letters")
-      // Case state is owned by updateCaseState() only. Republishing layout config
-      // must not reset shift after a native letter commit during fast typing.
+      shiftEditorShortcuts = obj.optBoolean("shiftEditorShortcuts", true)
+      if (obj.has("shiftEditorHeld")) {
+        shiftEditorHeld = obj.optBoolean("shiftEditorHeld", false)
+      }
+      if (obj.has("shiftOn") && obj.has("capsLocked")) {
+        updateCaseState(
+            obj.optBoolean("shiftOn", false),
+            obj.optBoolean("capsLocked", false),
+            obj.optBoolean("shiftOn", false) || obj.optBoolean("capsLocked", false),
+        )
+      }
       keys = parseKeys(obj.optJSONArray("keys") ?: JSONArray())
       keyById = keys.associateBy { it.id }
       touchIntelligence.updateConfig(
@@ -102,6 +124,8 @@ class NativeKeyFastPath {
       if (!enabled) {
         zeroLatency = false
         gamePerformance = false
+        previewPopupEnabled = true
+        previewPressedEnabled = true
         sessions.clear()
         synchronized(pendingJsCommitsLock) { pendingJsCommits.clear() }
       }
@@ -110,6 +134,9 @@ class NativeKeyFastPath {
       enabled = false
       zeroLatency = false
       gamePerformance = false
+      previewPopupEnabled = true
+      previewPressedEnabled = true
+      previewDoodleEnabled = false
       keys = emptyList()
       keyById = emptyMap()
       lastConfigJson = ""
@@ -122,6 +149,9 @@ class NativeKeyFastPath {
     enabled = false
     zeroLatency = false
     gamePerformance = false
+    previewPopupEnabled = true
+    previewPressedEnabled = true
+    previewDoodleEnabled = false
     keys = emptyList()
     keyById = emptyMap()
     lastConfigJson = ""
@@ -245,6 +275,20 @@ class NativeKeyFastPath {
         }
 
         val text = resolveCommitText(key.value)
+        if (shouldRunShiftEditorChord(text)) {
+          KeyboardInputBridge.tryPerformShiftEditorShortcut(text[0])
+          shiftOn = false
+          uppercase = false
+          blockAutoShiftReenable = true
+          if (zeroLatency) {
+            KeyboardInputBridge.performSubtleKeyHapticForPointer(pointerId)
+          } else if (gamePerformance) {
+            KeyboardInputBridge.performLightKeyHapticForPointer(pointerId)
+          } else {
+            KeyboardInputBridge.performKeyHapticForPointer(pointerId)
+          }
+          return false
+        }
         val shiftConsumed =
             keyboardLayout == "letters" &&
                 shiftOn &&
@@ -279,10 +323,19 @@ class NativeKeyFastPath {
           KeyboardInputBridge.performKeyHapticForPointer(pointerId)
         }
 
-        if (!zeroLatency && !gamePerformance && key.reactTag > 0) {
-          KeyboardInputBridge.showKeyPressed(key.reactTag)
-          KeyboardInputBridge.showKeyPreview(key.reactTag, text)
-          previewHandler.post { KeyboardInputBridge.playKeyTapSound() }
+        if (key.reactTag > 0) {
+          val reactTag = key.reactTag
+          val previewLabel = text
+          // Touch dispatch is already on the main looper — show preview immediately.
+          if (!zeroLatency && !gamePerformance && previewPressedEnabled) {
+            KeyboardInputBridge.showKeyPressed(reactTag)
+          }
+          if (!zeroLatency && !gamePerformance && previewPopupEnabled) {
+            KeyboardInputBridge.showKeyPreview(reactTag, previewLabel)
+          }
+          if (!zeroLatency && !gamePerformance) {
+            previewHandler.post { KeyboardInputBridge.playKeyTapSound() }
+          }
         }
         false
       }
@@ -291,9 +344,12 @@ class NativeKeyFastPath {
       MotionEvent.ACTION_POINTER_UP -> {
         val pointerId = event.getPointerId(event.actionIndex)
         if (!zeroLatency && !gamePerformance) {
-          sessions[pointerId]?.key?.reactTag?.let { reactTag ->
-            if (reactTag > 0) {
+          val reactTag = sessions[pointerId]?.key?.reactTag ?: 0
+          if (reactTag > 0) {
+            if (previewPressedEnabled) {
               KeyboardInputBridge.hideKeyPressed(reactTag)
+            }
+            if (previewPopupEnabled) {
               KeyboardInputBridge.hideKeyPreview(reactTag)
             }
           }
@@ -307,8 +363,12 @@ class NativeKeyFastPath {
       MotionEvent.ACTION_CANCEL -> {
         for (session in sessions.values) {
           if (session.key.reactTag > 0) {
-            KeyboardInputBridge.hideKeyPressed(session.key.reactTag)
-            KeyboardInputBridge.hideKeyPreview(session.key.reactTag)
+            if (previewPressedEnabled) {
+              KeyboardInputBridge.hideKeyPressed(session.key.reactTag)
+            }
+            if (previewPopupEnabled) {
+              KeyboardInputBridge.hideKeyPreview(session.key.reactTag)
+            }
           }
         }
         sessions.clear()
@@ -395,6 +455,21 @@ class NativeKeyFastPath {
     }
 
     return true
+  }
+
+  private fun shouldRunShiftEditorChord(text: String): Boolean {
+    if (
+        !shiftEditorShortcuts ||
+            keyboardLayout != "letters" ||
+            capsLocked ||
+            text.length != 1
+    ) {
+      return false
+    }
+    if (EditorSelectionActions.actionForShiftLetter(text[0]) == null) {
+      return false
+    }
+    return shiftEditorHeld
   }
 
   private fun resolveCommitText(value: String): String {

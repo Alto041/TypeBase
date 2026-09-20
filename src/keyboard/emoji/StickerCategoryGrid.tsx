@@ -26,6 +26,7 @@ import {
   ALL_STICKER_PACK_ID,
   chunkStickers,
   STICKER_COLUMNS,
+  shuffledStickers,
   stickersFromAllPacks,
   stickersFromPack,
   type StickerLySticker,
@@ -153,9 +154,9 @@ export function StickerCategoryGrid({
 
   const stickers = useMemo(() => {
     if (selectedPackId === ALL_STICKER_PACK_ID) {
-      return stickersFromAllPacks(resolvedPacks);
+      return shuffledStickers(stickersFromAllPacks(resolvedPacks));
     }
-    return selectedPack ? stickersFromPack(selectedPack) : [];
+    return selectedPack ? shuffledStickers(stickersFromPack(selectedPack)) : [];
   }, [resolvedPacks, selectedPack, selectedPackId]);
 
   const rows = useMemo(() => chunkStickers(stickers, STICKER_COLUMNS), [stickers]);
@@ -227,7 +228,7 @@ export function StickerCategoryGrid({
               contentContainerStyle={styles.packBar}
               keyboardShouldPersistTaps="handled">
               <Pressable
-                accessibilityLabel="All sticker packs"
+                accessibilityLabel="Fav sticker packs"
                 onPress={handleAllPress}
                 style={({pressed}) => [
                   styles.allChip,
@@ -241,7 +242,7 @@ export function StickerCategoryGrid({
                     selectedPackId === ALL_STICKER_PACK_ID &&
                       styles.allChipLabelSelected,
                   ]}>
-                  All
+                  Fav
                 </Text>
               </Pressable>
               {packs.map(pack => {

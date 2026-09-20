@@ -34,7 +34,11 @@ import {triggerKeyHaptic} from '../haptics';
 import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
 import {applyCaseToWord} from '../suggestions/wordSuggestions';
 import type {KeyboardTheme} from '../theme';
-import {keyboardKeyChromeStyle, keyboardTypefaceStyle} from '../theme';
+import {
+  KEYBOARD_AI_ICON_COLOR,
+  keyboardKeyChromeStyle,
+  keyboardTypefaceStyle,
+} from '../theme';
 import {MacintoshKeyBevels} from './MacintoshKeyBevels';
 
 export type EssentialSuggestion = {
@@ -473,7 +477,6 @@ function SuggestionBarComponent({
     ? toolbarIconActive
     : toolbarIconMuted;
   const emojiIconColor = emojiSelected ? toolbarIconActive : toolbarIconMuted;
-  const aiIconColor = aiSelected ? toolbarIconActive : toolbarIconMuted;
   const voiceActive = isListening || isVoiceConnecting;
   const voiceIconColor = voiceActive ? toolbarIconActive : toolbarIconMuted;
   const showUndoRedoButtons = showUndoRedo && !isFormMode && !centerTitle;
@@ -749,7 +752,7 @@ function SuggestionBarComponent({
               <ArtificialIcon
                 width={toolbarIconSize}
                 height={toolbarIconSize}
-                color={aiIconColor}
+                color={KEYBOARD_AI_ICON_COLOR}
               />
             ) : (
               <EmojiIcon

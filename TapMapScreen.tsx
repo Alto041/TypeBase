@@ -41,27 +41,66 @@ const ROWS = [
 
 const KEY_W = 30;
 const KEY_H = 36;
-const KEY_GAP = 6;
+const KEY_MIN_W = 24;
+const KEY_MAX_W = 30;
+const KEY_GAP = 5;
 const OFFSET_SCALE = 0.65;
+const MAX_VISUAL_SAMPLES = 14;
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+function learnedStrength(samples: number): number {
+  if (samples < MIN_SAMPLES) {
+    return 0;
+  }
+  return clamp((samples - MIN_SAMPLES) / (MAX_VISUAL_SAMPLES - MIN_SAMPLES), 0, 1);
+}
 
 function KeyBubble({
   letter,
   entry,
+  keyWidth,
+  keyHeight,
 }: {
   letter: string;
   entry?: TapMapEntry;
+  keyWidth: number;
+  keyHeight: number;
 }) {
   const learned = entry != null && entry.samples >= MIN_SAMPLES;
+  const strength = learnedStrength(entry?.samples ?? 0);
   const dx = (entry?.dx ?? 0) * OFFSET_SCALE;
   const dy = (entry?.dy ?? 0) * OFFSET_SCALE;
+  const keyRadius = Math.round(keyHeight * 0.28);
 
   return (
-    <View style={styles.keySlot}>
-      <View style={styles.keyGhost} />
+    <View style={[styles.keySlot, {width: keyWidth, height: keyHeight}]}>
+      <View
+        style={[
+          styles.keyGhost,
+          {
+            width: keyWidth - 4,
+            height: keyHeight - 6,
+            borderRadius: keyRadius,
+          },
+        ]}
+      />
       <View
         style={[
           styles.bubble,
           learned ? styles.bubbleLearned : styles.bubbleNeutral,
+          learned
+            ? {
+                opacity: 0.82 + strength * 0.18,
+              }
+            : null,
+          {
+            minWidth: keyWidth - 4,
+            minHeight: keyHeight - 6,
+            borderRadius: keyRadius,
+          },
           {transform: [{translateX: dx}, {translateY: dy}]},
         ]}>
         <Text
@@ -76,6 +115,7 @@ function KeyBubble({
 export function TapMapScreen({onBack}: {onBack: () => void}) {
   const [snapshot, setSnapshot] = useState(() => getTapMapSnapshot());
   const [resetting, setResetting] = useState(false);
+  const [trayWidth, setTrayWidth] = useState(0);
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -114,6 +154,17 @@ export function TapMapScreen({onBack}: {onBack: () => void}) {
       .finally(() => setResetting(false));
   };
 
+  const keyMetrics = useMemo(() => {
+    if (trayWidth <= 0) {
+      return {width: KEY_W, height: KEY_H};
+    }
+    const trayInnerWidth = Math.max(160, trayWidth - 24);
+    const usableRowWidth = trayInnerWidth - KEY_GAP * 9;
+    const keyWidth = clamp(Math.floor(usableRowWidth / 10), KEY_MIN_W, KEY_MAX_W);
+    const keyHeight = clamp(Math.round(keyWidth * 1.16), 30, KEY_H);
+    return {width: keyWidth, height: keyHeight};
+  }, [trayWidth]);
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={C.bg} />
@@ -138,26 +189,37 @@ export function TapMapScreen({onBack}: {onBack: () => void}) {
         </View>
 
         <View style={[styles.rowCard, styles.keyboardCard]}>
+          <View style={styles.keyboardHeader}>
+            <Text style={styles.keyboardTitle}>Keyboard keys</Text>
+            <Text style={styles.keyboardHint}>
+              Green keys are calibrated from your typing.
+            </Text>
+          </View>
           {learnedCount === 0 ? (
             <Text style={styles.keyboardEmpty}>
               Type normally for a few minutes. Green keys appear as offsets are
               learned.
             </Text>
           ) : (
-            <View style={styles.keyboardTray}>
+            <View
+              style={styles.keyboardTray}
+              onLayout={event => {
+                const width = Math.round(event.nativeEvent.layout.width);
+                if (width > 0 && width !== trayWidth) {
+                  setTrayWidth(width);
+                }
+              }}>
               {ROWS.map((row, rowIndex) => (
                 <View
                   key={`row-${rowIndex}`}
-                  style={[
-                    styles.keyboardRow,
-                    rowIndex === 1 ? styles.rowInsetSmall : null,
-                    rowIndex >= 2 ? styles.rowInsetLarge : null,
-                  ]}>
+                  style={styles.keyboardRow}>
                   {row.map(letter => (
                     <KeyBubble
                       key={letter}
                       letter={letter}
                       entry={snapshot.letters[letter]}
+                      keyWidth={keyMetrics.width}
+                      keyHeight={keyMetrics.height}
                     />
                   ))}
                 </View>
@@ -249,8 +311,26 @@ const styles = StyleSheet.create({
   },
   keyboardCard: {
     borderRadius: 20,
-    paddingVertical: 12,
+    paddingVertical: 10,
     paddingBottom: 14,
+    gap: 8,
+  },
+  keyboardHeader: {
+    paddingHorizontal: 2,
+    gap: 2,
+  },
+  keyboardTitle: {
+    fontSize: 14,
+    color: C.text,
+    fontFamily: 'FragmentMono',
+    letterSpacing: TEXT_KERNING,
+    textTransform: 'uppercase',
+  },
+  keyboardHint: {
+    fontSize: 12,
+    color: C.sub,
+    fontFamily: 'FragmentMono',
+    letterSpacing: TEXT_KERNING,
   },
   keyboardEmpty: {
     fontSize: 13,
@@ -260,10 +340,11 @@ const styles = StyleSheet.create({
     letterSpacing: TEXT_KERNING,
   },
   keyboardTray: {
+    width: '100%',
     backgroundColor: C.bg,
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 8,
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
     gap: KEY_GAP,
     alignItems: 'center',
     borderWidth: StyleSheet.hairlineWidth,
@@ -273,31 +354,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: KEY_GAP,
   },
-  rowInsetSmall: {
-    paddingLeft: 10,
-  },
-  rowInsetLarge: {
-    paddingLeft: 18,
-  },
   keySlot: {
-    width: KEY_W,
-    height: KEY_H,
     alignItems: 'center',
     justifyContent: 'center',
   },
   keyGhost: {
     position: 'absolute',
-    width: KEY_W - 4,
-    height: KEY_H - 6,
-    borderRadius: 9,
     backgroundColor: C.card,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: C.border,
   },
   bubble: {
-    minWidth: KEY_W - 4,
-    minHeight: KEY_H - 6,
-    borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 4,

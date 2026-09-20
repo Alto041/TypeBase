@@ -4,6 +4,7 @@ export type GestureSettingKey =
   | 'backspaceWordSwipe'
   | 'backspaceSentenceHold'
   | 'commaLauncher'
+  | 'shiftEditorShortcuts'
   | 'undoRedo'
   | 'trackpadMode';
 
@@ -48,7 +49,13 @@ export const GESTURE_FEATURES: GestureFeature[] = [
     key: 'commaLauncher',
     title: 'Comma & period shortcuts',
     description:
-      'Hold , for AI rewrite. Hold . to arm the launcher, then tap the rocket to open an app.',
+      'Hold , for AI rewrite. Hold . to arm clipboard, then tap to open the clipboard panel.',
+  },
+  {
+    key: 'shiftEditorShortcuts',
+    title: 'Shift editor shortcuts',
+    description:
+      'Hold Shift, then tap A/C/V/X for select all, copy, paste, or cut.',
   },
   {
     key: 'undoRedo',
@@ -69,6 +76,7 @@ export const DEFAULT_GESTURE_SETTINGS: GestureSettings = {
   backspaceWordSwipe: true,
   backspaceSentenceHold: false,
   commaLauncher: true,
+  shiftEditorShortcuts: true,
   undoRedo: false,
   trackpadMode: true,
 };

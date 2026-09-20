@@ -43,6 +43,8 @@ type KeyboardModuleType = {
   getInputSupportsNewline: () => Promise<boolean>;
   getInputInitialCapsMode: () => Promise<boolean>;
   isCurrentEditorGame: () => Promise<boolean>;
+  isDeviceLandscape: () => Promise<boolean>;
+  isDeviceLandscapeSync: () => boolean;
   getAutoCapitalizeAtCursor: () => boolean;
   getClipboardText: () => Promise<string>;
   getClipboardContent: () => Promise<ClipboardContent>;
@@ -77,6 +79,7 @@ type KeyboardModuleType = {
   setKeyboardHeight: (heightDp: number) => void;
   setTouchpadGestureConsuming: (active: boolean) => void;
   setNativeKeyFastPathConfig: (json: string) => void;
+  setKeyPreviewDoodleEnabled: (enabled: boolean) => void;
   updateTouchIntelligenceContext: (json: string) => void;
   setNativeZeroLatencyMode: (enabled: boolean) => void;
   setGamePerformanceMode: (enabled: boolean) => void;
@@ -117,6 +120,8 @@ type KeyboardModuleType = {
   ) => Promise<boolean>;
   copySelection: () => Promise<boolean>;
   cutSelection: () => Promise<boolean>;
+  pasteClipboard: () => Promise<boolean>;
+  selectAll: () => Promise<boolean>;
   processTouchpadGesture: (eventJson: string, selectMode: boolean) => Promise<boolean>;
   pollTouchpadMoves: (shouldFireHaptic: boolean) => Promise<string>;
   setTouchpadSelectMode: (active: boolean) => Promise<boolean>;
@@ -343,6 +348,18 @@ export const keyboardBridge: KeyboardModuleType = {
     }
     return Promise.resolve(false);
   },
+  isDeviceLandscape: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.isDeviceLandscape) {
+      return KeyboardModule.isDeviceLandscape() as Promise<boolean>;
+    }
+    return Promise.resolve(false);
+  },
+  isDeviceLandscapeSync: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.isDeviceLandscapeSync) {
+      return KeyboardModule.isDeviceLandscapeSync() as boolean;
+    }
+    return false;
+  },
   getAutoCapitalizeAtCursor: () => {
     if (Platform.OS === 'android' && KeyboardModule?.getAutoCapitalizeAtCursor) {
       return KeyboardModule.getAutoCapitalizeAtCursor() as boolean;
@@ -545,6 +562,11 @@ export const keyboardBridge: KeyboardModuleType = {
       KeyboardModule.setNativeKeyFastPathConfig(json);
     }
   },
+  setKeyPreviewDoodleEnabled: (enabled: boolean) => {
+    if (Platform.OS === 'android' && KeyboardModule?.setKeyPreviewDoodleEnabled) {
+      KeyboardModule.setKeyPreviewDoodleEnabled(enabled);
+    }
+  },
   updateTouchIntelligenceContext: (json: string) => {
     if (Platform.OS === 'android' && KeyboardModule?.updateTouchIntelligenceContext) {
       KeyboardModule.updateTouchIntelligenceContext(json);
@@ -742,6 +764,18 @@ export const keyboardBridge: KeyboardModuleType = {
     }
     return Promise.resolve(false);
   },
+  pasteClipboard: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.pasteClipboard) {
+      return KeyboardModule.pasteClipboard() as Promise<boolean>;
+    }
+    return Promise.resolve(false);
+  },
+  selectAll: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.selectAll) {
+      return KeyboardModule.selectAll() as Promise<boolean>;
+    }
+    return Promise.resolve(false);
+  },
   processTouchpadGesture: (eventJson: string, selectMode: boolean) => {
     if (Platform.OS === 'android' && KeyboardModule?.processTouchpadGesture) {
       return KeyboardModule.processTouchpadGesture(eventJson, selectMode) as Promise<boolean>;
@@ -863,7 +897,7 @@ export const keyboardBridge: KeyboardModuleType = {
       return KeyboardModule.getKeyboardLayoutSettings() as Promise<string>;
     }
     return Promise.resolve(
-      '{"keyHeight":47,"keyGap":5,"keyRowMargin":12,"keyRadius":6,"enterKeyPreviewEnabled":true,"developerEyeEnabled":false,"letterSymbolAlternatesEnabled":true,"letterLayoutId":"en-us","keyHapticEnabled":true,"autoCapitalizeEnabled":true}',
+      '{"keyHeight":47,"keyGap":5,"keyRowMargin":12,"keyRadius":6,"enterKeyPreviewEnabled":true,"developerEyeEnabled":false,"letterSymbolAlternatesEnabled":true,"letterLayoutId":"en-us","keyHapticEnabled":true,"autoCapitalizeEnabled":true,"keyPreviewStyle":"popup"}',
     );
   },
   setKeyboardLayoutSettings: (json: string) => {

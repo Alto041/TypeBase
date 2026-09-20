@@ -1,6 +1,7 @@
 package com.typebase.app
 
 import android.content.Context
+import android.content.res.Configuration
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -10,6 +11,7 @@ import android.os.Vibrator
 import android.view.HapticFeedbackConstants
 import android.view.KeyEvent
 import android.view.View
+import android.widget.FrameLayout
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.text.InputType
@@ -20,6 +22,10 @@ import org.json.JSONObject
 object KeyboardInputBridge {
   @Volatile
   var inputService: TypeBaseInputService? = null
+
+  /** Doodle dots at touch — independent of native fast-path letter commit. */
+  @Volatile
+  private var keyPreviewDoodleEnabledFlag: Boolean = false
 
   /** Google app search bar: always show submit enter, never newline. */
   private const val GOOGLE_QUICK_SEARCH_BOX = "com.google.android.googlequicksearchbox"
@@ -62,6 +68,7 @@ object KeyboardInputBridge {
   private val initialCapsModeListeners = CopyOnWriteArrayList<(Boolean) -> Unit>()
   private val nativeFastPathKeyListeners =
       CopyOnWriteArrayList<(String, String, String, String, Boolean) -> Unit>()
+  private val editorShortcutListeners = CopyOnWriteArrayList<(String) -> Unit>()
   private val touchIntelligenceHitListeners =
       CopyOnWriteArrayList<(TouchIntelligence.HitAnalysis) -> Unit>()
   private val nativeSuggestionsListeners =
@@ -70,6 +77,8 @@ object KeyboardInputBridge {
   private var hideKeyPreviewFn: ((Int) -> Unit)? = null
   private var showKeyPressedFn: ((Int) -> Unit)? = null
   private var hideKeyPressedFn: ((Int) -> Unit)? = null
+  private var showKeyDoodleDotFn: ((Int, Float, Float) -> Unit)? = null
+  private var showKeyDoodleAtScreenFn: ((Float, Float) -> Unit)? = null
   private val previewContainerChangedListeners = CopyOnWriteArrayList<() -> Unit>()
   private val controllerInputListeners = CopyOnWriteArrayList<(String) -> Unit>()
   private val controllerConnectionListeners = CopyOnWriteArrayList<(Boolean) -> Unit>()
@@ -279,6 +288,12 @@ object KeyboardInputBridge {
     inputService?.setNativeKeyFastPathConfig(json)
   }
 
+  fun setKeyPreviewDoodleEnabled(enabled: Boolean) {
+    keyPreviewDoodleEnabledFlag = enabled
+  }
+
+  fun isKeyPreviewDoodleEnabled(): Boolean = keyPreviewDoodleEnabledFlag
+
   fun updateTouchIntelligenceContext(json: String) {
     inputService?.updateTouchIntelligenceContext(json)
   }
@@ -348,6 +363,9 @@ object KeyboardInputBridge {
   @Volatile
   private var lastPointerHapticMs = 0L
 
+  @Volatile
+  private var lastTapSoundMs = 0L
+
   /** Gaps below this use the snappier KEYBOARD_TAP primitive (Gboard-style bursts). */
   private const val FAST_TYPING_GAP_MS = 95L
 
@@ -357,6 +375,9 @@ object KeyboardInputBridge {
 
   /** Collapse duplicate JS haptics in the same frame only — never throttle touch-down pulses. */
   private const val JS_HAPTIC_DEBOUNCE_MS = 8L
+
+  /** One tap sound per physical key press (native fast path + JS can both fire). */
+  private const val TAP_SOUND_DEBOUNCE_MS = 40L
 
   private const val DEFAULT_HAPTIC_PULSE_MS = 12
 
@@ -727,6 +748,11 @@ object KeyboardInputBridge {
     if (!KeyTapSoundPlayer.isEnabled()) {
       return
     }
+    val now = SystemClock.uptimeMillis()
+    if (now - lastTapSoundMs < TAP_SOUND_DEBOUNCE_MS) {
+      return
+    }
+    lastTapSoundMs = now
     val ctx = inputService?.applicationContext ?: return
     mainHandler.post { KeyTapSoundPlayer.play(ctx) }
   }
@@ -780,6 +806,12 @@ object KeyboardInputBridge {
     return { editorContextListeners.remove(listener) }
   }
 
+  fun isDeviceLandscape(fallbackContext: Context? = null): Boolean {
+    val context = inputService ?: fallbackContext ?: return false
+    return context.resources.configuration.orientation ==
+        Configuration.ORIENTATION_LANDSCAPE
+  }
+
   fun notifyOrientationChanged(landscape: Boolean) {
     orientationChangeListeners.forEach { listener -> listener(landscape) }
   }
@@ -806,6 +838,31 @@ object KeyboardInputBridge {
   ): () -> Unit {
     nativeFastPathKeyListeners.add(listener)
     return { nativeFastPathKeyListeners.remove(listener) }
+  }
+
+  fun notifyEditorShortcut(action: String) {
+    editorShortcutListeners.forEach { listener -> listener(action) }
+  }
+
+  fun addEditorShortcutListener(listener: (String) -> Unit): () -> Unit {
+    editorShortcutListeners.add(listener)
+    return { editorShortcutListeners.remove(listener) }
+  }
+
+  fun tryPerformShiftEditorShortcut(letter: Char): Boolean {
+    val action = EditorSelectionActions.actionForShiftLetter(letter) ?: return false
+    val ctx = hapticContext() ?: return false
+    val connection = getInputConnection() ?: return false
+    EditorSelectionActions.perform(ctx, connection, action)
+    val actionName =
+        when (action) {
+          EditorSelectionActions.Action.SELECT_ALL -> "selectAll"
+          EditorSelectionActions.Action.COPY -> "copy"
+          EditorSelectionActions.Action.PASTE -> "paste"
+          EditorSelectionActions.Action.CUT -> "cut"
+        }
+    notifyEditorShortcut(actionName)
+    return true
   }
 
   fun notifyTouchIntelligenceHit(analysis: TouchIntelligence.HitAnalysis) {
@@ -835,11 +892,15 @@ object KeyboardInputBridge {
       hide: (Int) -> Unit,
       showPressed: (Int) -> Unit,
       hidePressed: (Int) -> Unit,
+      showDoodleDot: (Int, Float, Float) -> Unit,
+      showDoodleAtScreen: (Float, Float) -> Unit,
   ) {
     showKeyPreviewFn = show
     hideKeyPreviewFn = hide
     showKeyPressedFn = showPressed
     hideKeyPressedFn = hidePressed
+    showKeyDoodleDotFn = showDoodleDot
+    showKeyDoodleAtScreenFn = showDoodleAtScreen
   }
 
   fun clearKeyPreviewCallbacks() {
@@ -847,6 +908,8 @@ object KeyboardInputBridge {
     hideKeyPreviewFn = null
     showKeyPressedFn = null
     hideKeyPressedFn = null
+    showKeyDoodleDotFn = null
+    showKeyDoodleAtScreenFn = null
   }
 
   fun showKeyPreview(reactTag: Int, label: String) {
@@ -867,6 +930,22 @@ object KeyboardInputBridge {
     if (reactTag > 0) {
       hideKeyPressedFn?.invoke(reactTag)
     }
+  }
+
+  fun showKeyDoodleDot(reactTag: Int, xInKey: Float, yInKey: Float) {
+    if (reactTag > 0) {
+      showKeyDoodleDotFn?.invoke(reactTag, xInKey, yInKey)
+    }
+  }
+
+  fun showKeyDoodleAtScreen(pageX: Float, pageY: Float) {
+    val fn = showKeyDoodleAtScreenFn
+    if (fn != null) {
+      fn.invoke(pageX, pageY)
+      return
+    }
+    val ctx = inputService?.applicationContext ?: return
+    KeyPressOverlayManager.shared(ctx).showDotAtScreen(pageX, pageY)
   }
 
   fun consumeNativeFastPathPointer(pointerId: Int): Boolean =
@@ -993,6 +1072,8 @@ object KeyboardInputBridge {
   }
 
   fun getPopupAnchorView(): View? = inputService?.popupAnchorView
+
+  fun peekPreviewOverlay(): FrameLayout? = inputService?.peekPreviewOverlay()
 
   fun getKeyboardCoordinateView(): View? = inputService?.keyboardCoordinateView
 

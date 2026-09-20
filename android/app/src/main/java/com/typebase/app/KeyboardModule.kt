@@ -53,6 +53,7 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   private var removeInitialCapsModeListener: (() -> Unit)? = null
   private var removeEditorContextListener: (() -> Unit)? = null
   private var removeNativeFastPathKeyListener: (() -> Unit)? = null
+  private var removeEditorShortcutListener: (() -> Unit)? = null
   private var removeNativeSuggestionsListener: (() -> Unit)? = null
   private var removeTouchIntelligenceHitListener: (() -> Unit)? = null
   private var removeControllerInputListener: (() -> Unit)? = null
@@ -114,19 +115,31 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     removeKeyboardVisibilityListener =
         KeyboardInputBridge.addKeyboardVisibilityListener { shown ->
           if (reactApplicationContext.hasActiveReactInstance()) {
+            val emitter =
+                reactApplicationContext
+                    .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
             val event = if (shown) "keyboardShown" else "keyboardHidden"
-            reactApplicationContext
-                .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-                .emit(event, null)
+            emitter.emit(event, null)
+            if (shown) {
+              emitter.emit(
+                  "keyboardOrientationChange",
+                  KeyboardInputBridge.isDeviceLandscape(reactApplicationContext),
+              )
+            }
           }
         }
 
     removeKeyboardSessionStartListener =
         KeyboardInputBridge.addKeyboardSessionStartListener {
           if (reactApplicationContext.hasActiveReactInstance()) {
-            reactApplicationContext
-                .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-                .emit("keyboardSessionStart", null)
+            val emitter =
+                reactApplicationContext
+                    .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+            emitter.emit("keyboardSessionStart", null)
+            emitter.emit(
+                "keyboardOrientationChange",
+                KeyboardInputBridge.isDeviceLandscape(reactApplicationContext),
+            )
           }
         }
 
@@ -177,6 +190,17 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
             reactApplicationContext
                 .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
                 .emit("keyboardNativeFastPathKey", event)
+          }
+        }
+    removeEditorShortcutListener =
+        KeyboardInputBridge.addEditorShortcutListener { action ->
+          if (reactApplicationContext.hasActiveReactInstance()) {
+            val event = Arguments.createMap()
+            event.putString("action", action)
+            event.putBoolean("shiftConsumed", true)
+            reactApplicationContext
+                .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                .emit("keyboardEditorShortcut", event)
           }
         }
     removeNativeSuggestionsListener =
@@ -286,6 +310,8 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     removeEditorContextListener = null
     removeNativeFastPathKeyListener?.invoke()
     removeNativeFastPathKeyListener = null
+    removeEditorShortcutListener?.invoke()
+    removeEditorShortcutListener = null
     removeNativeSuggestionsListener?.invoke()
     removeNativeSuggestionsListener = null
     removeTouchIntelligenceHitListener?.invoke()
@@ -331,6 +357,20 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     } catch (error: Exception) {
       promise.resolve(false)
     }
+  }
+
+  @ReactMethod
+  fun isDeviceLandscape(promise: Promise) {
+    try {
+      promise.resolve(KeyboardInputBridge.isDeviceLandscape(reactApplicationContext))
+    } catch (error: Exception) {
+      promise.resolve(false)
+    }
+  }
+
+  @ReactMethod(isBlockingSynchronousMethod = true)
+  fun isDeviceLandscapeSync(): Boolean {
+    return KeyboardInputBridge.isDeviceLandscape(reactApplicationContext)
   }
 
   @ReactMethod(isBlockingSynchronousMethod = true)
@@ -820,6 +860,11 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   @ReactMethod
   fun setNativeKeyFastPathConfig(json: String) {
     KeyboardInputBridge.setNativeKeyFastPathConfig(json)
+  }
+
+  @ReactMethod
+  fun setKeyPreviewDoodleEnabled(enabled: Boolean) {
+    KeyboardInputBridge.setKeyPreviewDoodleEnabled(enabled)
   }
 
   @ReactMethod
@@ -1736,16 +1781,9 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
           promise.resolve(false)
           return@runOnUiThread
         }
-        val selected = connection.getSelectedText(0)?.toString().orEmpty()
-        if (selected.isEmpty()) {
-          promise.resolve(false)
-          return@runOnUiThread
-        }
-        val manager =
-            reactApplicationContext.getSystemService(Context.CLIPBOARD_SERVICE) as
-                ClipboardManager
-        manager.setPrimaryClip(ClipData.newPlainText("text", selected))
-        promise.resolve(true)
+        promise.resolve(
+            EditorSelectionActions.copySelection(reactApplicationContext, connection),
+        )
       } catch (error: Exception) {
         promise.reject("COPY_SELECTION_FAILED", error)
       }
@@ -1761,19 +1799,45 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
           promise.resolve(false)
           return@runOnUiThread
         }
-        val selected = connection.getSelectedText(0)?.toString().orEmpty()
-        if (selected.isEmpty()) {
+        promise.resolve(
+            EditorSelectionActions.cutSelection(reactApplicationContext, connection),
+        )
+      } catch (error: Exception) {
+        promise.reject("CUT_SELECTION_FAILED", error)
+      }
+    }
+  }
+
+  @ReactMethod
+  fun pasteClipboard(promise: Promise) {
+    UiThreadUtil.runOnUiThread {
+      try {
+        val connection = KeyboardInputBridge.getInputConnection()
+        if (connection == null) {
           promise.resolve(false)
           return@runOnUiThread
         }
-        val manager =
-            reactApplicationContext.getSystemService(Context.CLIPBOARD_SERVICE) as
-                ClipboardManager
-        manager.setPrimaryClip(ClipData.newPlainText("text", selected))
-        connection.commitText("", 1)
-        promise.resolve(true)
+        promise.resolve(
+            EditorSelectionActions.pasteClipboard(reactApplicationContext, connection),
+        )
       } catch (error: Exception) {
-        promise.reject("CUT_SELECTION_FAILED", error)
+        promise.reject("PASTE_CLIPBOARD_FAILED", error)
+      }
+    }
+  }
+
+  @ReactMethod
+  fun selectAll(promise: Promise) {
+    UiThreadUtil.runOnUiThread {
+      try {
+        val connection = KeyboardInputBridge.getInputConnection()
+        if (connection == null) {
+          promise.resolve(false)
+          return@runOnUiThread
+        }
+        promise.resolve(EditorSelectionActions.selectAll(connection))
+      } catch (error: Exception) {
+        promise.reject("SELECT_ALL_FAILED", error)
       }
     }
   }
@@ -2221,11 +2285,11 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     private const val KEYBOARD_LAYOUT_KEY = "keyboard_layout"
     private const val CUSTOM_LETTER_LAYOUTS_KEY = "custom_letter_layouts"
     private const val DEFAULT_KEYBOARD_LAYOUT =
-        """{"keyHeight":47,"keyGap":5,"keyRowMargin":12,"keyRadius":6,"enterKeyPreviewEnabled":true,"developerEyeEnabled":false,"letterSymbolAlternatesEnabled":true,"letterLayoutId":"en-us","keyHapticEnabled":true,"autoCapitalizeEnabled":true,"customTapSoundEnabled":true,"customTapSoundFile":"1.mp3","customFontEnabled":false,"customFontFile":null}"""
+        """{"keyHeight":47,"keyGap":5,"keyRowMargin":12,"keyRadius":6,"enterKeyPreviewEnabled":true,"developerEyeEnabled":false,"letterSymbolAlternatesEnabled":true,"letterLayoutId":"en-us","keyHapticEnabled":true,"autoCapitalizeEnabled":true,"customTapSoundEnabled":true,"customTapSoundFile":"typebase_keytap_soft.wav","customFontEnabled":false,"customFontFile":null,"keyPreviewStyle":"popup"}"""
     private const val DEFAULT_API_KEYS =
         """{"geminiApiKey":"","speechmaticsApiKey":""}"""
     private const val DEFAULT_GESTURE_SETTINGS =
-        """{"swipeTyping":true,"spaceCursorSwipe":true,"backspaceWordSwipe":true,"backspaceSentenceHold":false,"commaLauncher":true,"trackpadMode":true,"launcherAppPackage":"com.typebase.app"}"""
+        """{"swipeTyping":true,"spaceCursorSwipe":true,"backspaceWordSwipe":true,"backspaceSentenceHold":false,"commaLauncher":true,"shiftEditorShortcuts":true,"trackpadMode":true,"launcherAppPackage":"com.typebase.app"}"""
     private const val DEFAULT_AUTOCORRECT_SETTINGS =
         """{"enabled":true,"autoApplyOnSpace":true}"""
   }

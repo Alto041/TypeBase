@@ -105,6 +105,12 @@ function normalizeLayout(raw: unknown): KeyboardLayoutSettings {
       typeof obj['predictiveHitboxesEnabled'] === 'boolean'
         ? obj['predictiveHitboxesEnabled']
         : defaults.predictiveHitboxesEnabled,
+    keyPreviewStyle:
+      obj['keyPreviewStyle'] === 'popup' || obj['keyPreviewStyle'] === 'subtle'
+        ? obj['keyPreviewStyle']
+        : obj['keyPreviewStyle'] === 'doodle' || obj['keyPreviewStyle'] === 'none'
+          ? 'doodle'
+          : defaults.keyPreviewStyle,
   };
 }
 
@@ -136,24 +142,30 @@ async function loadFromStorage(): Promise<void> {
       // Ignore; the native guard also refuses to play `myinstants_*` files.
     }
   }
-  // Migrate the previous bundled default to the new bundled touch sound.
-  if (
+  const needsDefaultTapMigration =
     cachedLayout.customTapSoundEnabled &&
     (!storedLayout?.customTapSoundFile ||
-      cachedLayout.customTapSoundFile === 'haptic.wav')
-  ) {
+      cachedLayout.customTapSoundFile === 'haptic.wav' ||
+      cachedLayout.customTapSoundFile === '1.mp3' ||
+      cachedLayout.customTapSoundFile === 'typebase_keytap_soft.mp3');
+  // Migrate older bundled defaults to the current soft key tap sound (WAV).
+  if (needsDefaultTapMigration) {
     try {
       await setKeyboardLayoutSettings({
         ...cachedLayout,
         customTapSoundFile: DEFAULT_TAP_SOUND_FILE,
         customTapSoundEnabled: true,
       });
+      cachedLayout = {
+        ...cachedLayout,
+        customTapSoundFile: DEFAULT_TAP_SOUND_FILE,
+      };
     } catch {
       // Keep the in-memory settings; the bundled asset install below is best-effort.
     }
   }
   try {
-    await ensureBundledDefaultTapSound();
+    await ensureBundledDefaultTapSound(needsDefaultTapMigration);
     keyboardBridge.syncCustomTapSound?.();
   } catch {
     // Tap sound install is optional; typing still works without it.

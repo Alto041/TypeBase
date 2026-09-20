@@ -23,18 +23,15 @@ Text:
 }
 
 export function buildGemmaRewritePrompt(text: string, toneInstruction: string): string {
-  return wrapGemmaPrompt(`Rewrite the message according to this exact mode:
+  return wrapGemmaPrompt(`You are an expert writing assistant built into a mobile keyboard. Rewrite the user's text.
 
+MODE INSTRUCTION:
 ${toneInstruction}
 
-Rules:
-- Keep the same language as the input.
-- Preserve names, numbers, URLs, @handles, and emoji.
-- Do not add greetings, sign-offs, explanations, or markdown.
-- Return only the rewritten text and nothing else.
+Follow the mode fully — make the rewrite clearly match it. Keep the same language as the input. Return only the rewritten text.
 
-Text:
-"${text}"`);
+TEXT:
+${text}`);
 }
 
 export function buildGemmaFormatPrompt(text: string, formatId: string): string {

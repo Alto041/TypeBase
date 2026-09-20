@@ -1,7 +1,6 @@
 import {
   ensureAutocorrectLoaded,
   getAutocorrectSettings,
-  setAutoApplyOnSpace,
 } from '../keyboard/autocorrect/autocorrectStore';
 import {setGestureSetting} from '../keyboard/gestures/gesturesStore';
 import {DEFAULT_GESTURE_SETTINGS} from '../keyboard/gestures/types';
@@ -24,16 +23,14 @@ export async function applyFreeTierDefaults(): Promise<void> {
   await ensureAutocorrectLoaded();
   const settings = getAutocorrectSettings();
   if (
-    settings.autoApplyOnSpace ||
     settings.contextCorrectionEnabled ||
     settings.aiAutoCorrectEnabled
   ) {
-    await setAutoApplyOnSpace(false);
     await keyboardBridge.setAutocorrectSettings(
       JSON.stringify({
         ...settings,
         enabled: true,
-        autoApplyOnSpace: false,
+        autoApplyOnSpace: settings.autoApplyOnSpace,
         contextCorrectionEnabled: false,
         aiAutoCorrectEnabled: false,
       }),
@@ -98,14 +95,13 @@ export async function clampAutocorrectForTier(): Promise<void> {
   await ensureAutocorrectLoaded();
   const settings = getAutocorrectSettings();
   if (
-    settings.autoApplyOnSpace ||
     settings.contextCorrectionEnabled ||
     settings.aiAutoCorrectEnabled
   ) {
     await keyboardBridge.setAutocorrectSettings(
       JSON.stringify({
         ...settings,
-        autoApplyOnSpace: false,
+        autoApplyOnSpace: settings.autoApplyOnSpace,
         contextCorrectionEnabled: false,
         aiAutoCorrectEnabled: false,
       }),

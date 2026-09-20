@@ -1,32 +1,19 @@
-import React, {useMemo, useRef, useState} from 'react';
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-  type ViewStyle,
-} from 'react-native';
-import ArrowIcon from '../../../assets/plugins/arrow.svg';
+import React from 'react';
+import {Pressable, StyleSheet, Text, View, type ViewStyle} from 'react-native';
 import {
   PLUGIN_INNER_RADIUS,
   PLUGIN_OUTER_RADIUS,
   PluginScrollView,
   usePluginPanelStyles,
 } from '../components/pluginPanelLayout';
-import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
+import {useThemedStyles} from '../KeyboardThemeContext';
 import {triggerKeyHaptic} from '../haptics';
 import type {KeyboardTheme} from '../theme';
-import {GESTURE_FEATURES, type GestureSettings, type LaunchableApp} from './types';
+import {GESTURE_FEATURES, type GestureSettings} from './types';
 
 type GesturesPanelProps = {
   settings: GestureSettings;
-  launcherAppPackage: string;
-  launchableApps: LaunchableApp[];
-  appsLoading: boolean;
   onToggle: (key: keyof GestureSettings, enabled: boolean) => void;
-  onSelectLauncherApp: (packageName: string) => void;
 };
 
 type FeatureToggleProps = {
@@ -88,97 +75,9 @@ function getTileStyle(index: number, total: number): ViewStyle {
   };
 }
 
-export function GesturesPanel({
-  settings,
-  launcherAppPackage,
-  launchableApps,
-  appsLoading,
-  onToggle,
-  onSelectLauncherApp,
-}: GesturesPanelProps) {
-  const theme = useKeyboardTheme();
+export function GesturesPanel({settings, onToggle}: GesturesPanelProps) {
   const panelStyles = usePluginPanelStyles();
   const styles = useThemedStyles(createGesturesStyles);
-  const [showAppPicker, setShowAppPicker] = useState(false);
-  const listDraggingRef = useRef(false);
-
-  const selectedAppLabel = useMemo(() => {
-    const match = launchableApps.find(app => app.packageName === launcherAppPackage);
-    return match?.label ?? launcherAppPackage;
-  }, [launchableApps, launcherAppPackage]);
-
-  const markListScroll = () => {
-    listDraggingRef.current = true;
-  };
-
-  const clearListScroll = () => {
-    setTimeout(() => {
-      listDraggingRef.current = false;
-    }, 120);
-  };
-
-  const handleSelectApp = (packageName: string) => {
-    if (listDraggingRef.current) {
-      return;
-    }
-    triggerKeyHaptic();
-    onSelectLauncherApp(packageName);
-    setShowAppPicker(false);
-  };
-
-  if (showAppPicker) {
-    return (
-      <View style={panelStyles.container}>
-        <Pressable
-          onPress={() => {
-            triggerKeyHaptic();
-            setShowAppPicker(false);
-          }}
-          style={styles.pickerBackRow}>
-          <Text style={styles.pickerBackLabel}>← Gestures</Text>
-        </Pressable>
-        <ScrollView
-          style={panelStyles.list}
-          contentContainerStyle={panelStyles.listContent}
-          keyboardShouldPersistTaps="always"
-          nestedScrollEnabled
-          showsVerticalScrollIndicator={false}
-          onScrollBeginDrag={markListScroll}
-          onScrollEndDrag={clearListScroll}
-          onMomentumScrollEnd={clearListScroll}>
-          {appsLoading ? (
-            <View style={styles.loadingRow}>
-              <ActivityIndicator color={theme.label} size="small" />
-            </View>
-          ) : launchableApps.length === 0 ? (
-            <Text style={styles.emptyAppsText}>No launchable apps found.</Text>
-          ) : (
-            launchableApps.map((app, index) => {
-              const selected = app.packageName === launcherAppPackage;
-              return (
-                <Pressable
-                  key={app.packageName}
-                  onPress={() => handleSelectApp(app.packageName)}
-                  delayPressIn={80}
-                  style={[
-                    styles.row,
-                    getTileStyle(index, launchableApps.length),
-                    selected && styles.appRowSelected,
-                  ]}>
-                  <Text
-                    style={[styles.rowTitle, selected && styles.appRowLabelSelected]}
-                    numberOfLines={1}>
-                    {app.label}
-                  </Text>
-                  {selected ? <Text style={styles.selectedMark}>✓</Text> : null}
-                </Pressable>
-              );
-            })
-          )}
-        </ScrollView>
-      </View>
-    );
-  }
 
   return (
     <View style={panelStyles.container}>
@@ -187,28 +86,20 @@ export function GesturesPanel({
           <View
             key={feature.key}
             style={[styles.row, getTileStyle(index, GESTURE_FEATURES.length)]}>
-            <Text style={styles.rowTitle}>{feature.title}</Text>
+            <View style={styles.rowTextCol}>
+              <Text style={styles.rowTitle}>{feature.title}</Text>
+              {feature.key === 'commaLauncher' && settings.commaLauncher ? (
+                <Text style={styles.rowHint}>
+                  Hold . → clipboard · Hold , → AI rewrite
+                </Text>
+              ) : null}
+            </View>
             <FeatureToggle
               enabled={settings[feature.key]}
               onToggle={() => onToggle(feature.key, !settings[feature.key])}
             />
           </View>
         ))}
-
-        {settings.commaLauncher ? (
-          <Pressable
-            onPress={() => {
-              triggerKeyHaptic();
-              setShowAppPicker(true);
-            }}
-            style={[styles.row, styles.launcherRow]}>
-            <Text style={styles.launcherTitle}>Launch app</Text>
-            <Text style={styles.launcherValue} numberOfLines={1}>
-              {appsLoading ? '…' : selectedAppLabel}
-            </Text>
-            <ArrowIcon width={9} height={16} color={theme.iconMuted} />
-          </Pressable>
-        ) : null}
       </PluginScrollView>
     </View>
   );
@@ -227,62 +118,21 @@ function createGesturesStyles(theme: KeyboardTheme) {
       gap: 10,
       minHeight: 44,
     },
+    rowTextCol: {
+      flex: 1,
+      gap: 3,
+    },
     rowTitle: {
-      flex: 1,
       color: theme.label,
       fontSize: 16,
       fontFamily: theme.fontFamily,
       fontWeight: '600',
     },
-    launcherRow: {
-      borderRadius: PLUGIN_OUTER_RADIUS,
-      marginTop: 2,
-    },
-    launcherTitle: {
-      color: theme.label,
-      fontSize: 16,
-      fontFamily: theme.fontFamily,
-      fontWeight: '600',
-    },
-    launcherValue: {
-      flex: 1,
+    rowHint: {
       color: theme.spaceLabel,
-      fontSize: 14,
+      fontSize: 12,
       fontFamily: theme.fontFamily,
-      textAlign: 'right',
-    },
-    pickerBackRow: {
-      paddingHorizontal: 16,
-      paddingTop: 6,
-      paddingBottom: 4,
-    },
-    pickerBackLabel: {
-      color: theme.spaceLabel,
-      fontSize: 14,
-      fontFamily: theme.fontFamily,
-      fontWeight: '600',
-    },
-    appRowSelected: {
-      backgroundColor: theme.pluginCardSecondary,
-    },
-    appRowLabelSelected: {
-      fontWeight: '600',
-    },
-    selectedMark: {
-      color: TOGGLE_ON_COLOR,
-      fontSize: 16,
-      fontWeight: '700',
-    },
-    loadingRow: {
-      paddingVertical: 16,
-      alignItems: 'center',
-    },
-    emptyAppsText: {
-      color: theme.spaceLabel,
-      fontSize: 14,
-      fontFamily: theme.fontFamily,
-      paddingHorizontal: 4,
-      paddingVertical: 8,
+      lineHeight: 16,
     },
     toggleTrack: {
       width: 44,

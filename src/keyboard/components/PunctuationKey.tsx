@@ -8,13 +8,17 @@ import {
   type ViewStyle,
 } from 'react-native';
 import ArtificialIcon from '../../../assets/Artificial.svg';
-import RocketLaunchIcon from '../../../assets/rocket_launch.svg';
+import ClipboardQuickIcon from '../../../assets/plugins/clipboard.svg';
 import {useKeyLayoutContext} from '../gesture/KeyLayoutContext';
 import {triggerKeyHaptic} from '../haptics';
 import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
 import type {KeyDefinition} from '../layouts/qwerty';
 import type {KeyboardTheme} from '../theme';
-import {keyboardKeyChromeStyle, keyboardKeyPressMotionStyle} from '../theme';
+import {
+  KEYBOARD_AI_ICON_COLOR,
+  keyboardKeyChromeStyle,
+  keyboardKeyPressMotionStyle,
+} from '../theme';
 import type {KeyGesturesConfig} from './Key';
 import {MacintoshKeyBevels} from './MacintoshKeyBevels';
 
@@ -256,15 +260,12 @@ function PunctuationKeyComponent({
   );
 
   const label = keyDef.label;
-  const featureIconColor =
-    theme.design === 'quivox' && showRewrite
-      ? theme.iconOnEnter
-      : theme.icon;
+  const featureIconColor = theme.icon;
   const isQuivox = theme.design === 'quivox';
   const content = showLauncher ? (
-    <RocketLaunchIcon width={20} height={20} color={featureIconColor} />
+    <ClipboardQuickIcon width={22} height={22} color={featureIconColor} />
   ) : showRewrite ? (
-    <ArtificialIcon width={18} height={17} color={featureIconColor} />
+    <ArtificialIcon width={18} height={17} color={KEYBOARD_AI_ICON_COLOR} />
   ) : (
     <Text style={styles.keyLabel}>{label ?? ''}</Text>
   );

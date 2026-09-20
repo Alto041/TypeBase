@@ -31,7 +31,7 @@ import {
 import {PremiumUpsellSheet} from '../components/PremiumUpsellSheet';
 import {triggerKeyHaptic} from '../haptics';
 import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
-import type {KeyboardTheme} from '../theme';
+import {KEYBOARD_AI_ICON_COLOR, type KeyboardTheme} from '../theme';
 
 type ItemsMenuPanelProps = {
   onSelectFormat: () => void;
@@ -53,12 +53,20 @@ type ItemsMenuPanelProps = {
 type PluginTileProps = {
   title: string;
   Icon: FC<{width?: number; height?: number; color?: string}>;
+  iconColor?: string;
   tileStyle?: StyleProp<ViewStyle>;
   locked?: boolean;
   onPress: () => void;
 };
 
-function PluginTile({title, Icon, tileStyle, locked = false, onPress}: PluginTileProps) {
+function PluginTile({
+  title,
+  Icon,
+  iconColor,
+  tileStyle,
+  locked = false,
+  onPress,
+}: PluginTileProps) {
   const theme = useKeyboardTheme();
   const styles = useThemedStyles(createItemsMenuStyles);
 
@@ -71,7 +79,7 @@ function PluginTile({title, Icon, tileStyle, locked = false, onPress}: PluginTil
         onPress();
       }}
       style={[styles.tile, tileStyle]}>
-      <PluginPanelIcon Icon={Icon} />
+      <PluginPanelIcon Icon={Icon} color={iconColor} />
       <Text style={styles.tileTitle}>{title}</Text>
       <View style={styles.tileSpacer} />
       {locked ? (
@@ -188,6 +196,9 @@ export function ItemsMenuPanel({
             key={plugin.id}
             title={plugin.title}
             Icon={plugin.Icon}
+            iconColor={
+              plugin.id === 'format' ? KEYBOARD_AI_ICON_COLOR : undefined
+            }
             tileStyle={getTileStyle(index, plugins.length)}
             locked={pluginsLocked}
             onPress={() => {

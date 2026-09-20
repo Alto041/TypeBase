@@ -6,10 +6,10 @@ import {keyboardBridge} from '../keyboardBridge';
 import {updateKeyboardLayoutSetting} from './layoutStore';
 
 export const TAP_SOUND_DIR_NAME = 'keyboard_tap_sounds';
-export const DEFAULT_TAP_SOUND_FILE = '1.mp3';
+export const DEFAULT_TAP_SOUND_FILE = 'typebase_keytap_soft.wav';
 const TAP_SOUND_BASENAME = 'custom_tap';
 
-const DEFAULT_TAP_SOUND_ASSET = require('../../../assets/HapticsSound/1.mp3');
+const DEFAULT_TAP_SOUND_ASSET = require('../../../assets/sounds/Key/typebase_keytap_soft.wav');
 
 const AUDIO_MIME_TYPES = [
   'audio/*',
@@ -82,8 +82,8 @@ export function resolveCustomTapSoundPath(fileName: string | null | undefined): 
   return `${tapSoundDir()}/${fileName}`;
 }
 
-/** Copies the bundled HapticsSound/1.mp3 into keyboard storage if needed. */
-export async function ensureBundledDefaultTapSound(): Promise<void> {
+/** Copies the bundled default key tap sound into keyboard storage if needed. */
+export async function ensureBundledDefaultTapSound(force = false): Promise<void> {
   if (Platform.OS !== 'android' || !FileSystem.documentDirectory) {
     return;
   }
@@ -91,8 +91,11 @@ export async function ensureBundledDefaultTapSound(): Promise<void> {
   await ensureTapSoundDir();
   const destination = `${tapSoundDir()}/${DEFAULT_TAP_SOUND_FILE}`;
   const info = await FileSystem.getInfoAsync(destination);
-  if (info.exists) {
+  if (info.exists && !force) {
     return;
+  }
+  if (info.exists) {
+    await FileSystem.deleteAsync(destination, {idempotent: true});
   }
 
   const bundledUri = Image.resolveAssetSource(DEFAULT_TAP_SOUND_ASSET)?.uri;

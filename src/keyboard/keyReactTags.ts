@@ -1,3 +1,5 @@
+import {primeKeyPreviewAnchor} from './KeyPreview';
+
 const reactTagsByKeyId = new Map<string, number>();
 const listeners = new Set<() => void>();
 
@@ -10,6 +12,7 @@ export function registerKeyReactTag(keyId: string, reactTag: number): void {
     return;
   }
   reactTagsByKeyId.set(keyId, reactTag);
+  primeKeyPreviewAnchor(reactTag);
   notifyListeners();
 }
 

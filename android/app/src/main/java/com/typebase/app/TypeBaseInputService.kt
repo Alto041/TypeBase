@@ -193,6 +193,11 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
     super.onConfigurationChanged(newConfig)
     val landscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
     KeyboardInputBridge.notifyOrientationChanged(landscape)
+    mainHandler.post {
+      applyKeyboardSurfaceLayout()
+      ensurePreviewOverlay()
+      KeyboardInputBridge.notifyPreviewContainerChanged()
+    }
   }
 
   override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
@@ -287,11 +292,25 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
     }
   }
 
+  private var ensuringPreviewOverlay = false
+
   private fun ensurePreviewOverlay() {
     if (Looper.myLooper() != Looper.getMainLooper()) {
       mainHandler.post { ensurePreviewOverlay() }
       return
     }
+    if (ensuringPreviewOverlay) {
+      return
+    }
+    ensuringPreviewOverlay = true
+    try {
+      ensurePreviewOverlayOnMainThread()
+    } finally {
+      ensuringPreviewOverlay = false
+    }
+  }
+
+  private fun ensurePreviewOverlayOnMainThread() {
     val frame = container ?: return
     val keyboard = keyboardView ?: return
 
@@ -321,6 +340,9 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
 
     syncPreviewOverlayLayout()
   }
+
+  /** Preview overlay frame without creating it — avoids re-entrancy from overlay managers. */
+  fun peekPreviewOverlay(): FrameLayout? = previewOverlay
 
   private fun syncPreviewOverlayLayout() {
     if (Looper.myLooper() != Looper.getMainLooper()) {
@@ -370,6 +392,17 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
   }
 
   fun setNativeKeyFastPathConfig(json: String) {
+    try {
+      val obj = org.json.JSONObject(json)
+      KeyboardInputBridge.setKeyPreviewDoodleEnabled(
+          obj.optBoolean(
+              "previewDoodleEnabled",
+              KeyboardInputBridge.isKeyPreviewDoodleEnabled(),
+          ),
+      )
+    } catch (_: Exception) {
+      // Fast-path config parse handles invalid JSON.
+    }
     nativeKeyFastPath.updateConfig(json)
   }
 
@@ -833,6 +866,16 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
       nativeKeyFastPath.onTouchEvent(event)
 
       when (event.actionMasked) {
+        MotionEvent.ACTION_DOWN,
+        MotionEvent.ACTION_POINTER_DOWN -> {
+          if (KeyboardInputBridge.isKeyPreviewDoodleEnabled()) {
+            val index = event.actionIndex
+            KeyboardInputBridge.showKeyDoodleAtScreen(
+                event.getRawX(index),
+                event.getRawY(index),
+            )
+          }
+        }
         MotionEvent.ACTION_UP,
         MotionEvent.ACTION_POINTER_UP -> {
           KeyboardInputBridge.releaseHapticPointer(event.getPointerId(event.actionIndex))

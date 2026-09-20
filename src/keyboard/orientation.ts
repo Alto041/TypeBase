@@ -4,13 +4,6 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
-export function isLandscapeOrientation(
-  width: number,
-  height: number,
-): boolean {
-  return width > height;
-}
-
 /** Shorter keys and tighter rows so the keyboard fits in landscape. */
 export function landscapeLayoutSettings(
   layout: KeyboardLayoutSettings,

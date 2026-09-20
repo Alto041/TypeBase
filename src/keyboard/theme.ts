@@ -22,6 +22,9 @@ const KEY_ROW_MARGIN = 12;
 const KEY_GAP = 5;
 const KEY_RADIUS = 6;
 
+/** AI spark icon — always black on keyboard UI, every theme. */
+export const KEYBOARD_AI_ICON_COLOR = '#000000';
+
 export type KeyboardLayoutSettings = {
   keyHeight: number;
   keyGap: number;
@@ -74,6 +77,8 @@ export type KeyboardLayoutSettings = {
   controller: ControllerSettings;
   /** When true, expand key hit regions based on predicted next letters. */
   predictiveHitboxesEnabled: boolean;
+  /** Key preview behavior while typing. */
+  keyPreviewStyle: 'popup' | 'subtle' | 'doodle';
 };
 
 export const DEFAULT_KEYBOARD_LAYOUT_SETTINGS: KeyboardLayoutSettings = {
@@ -89,7 +94,7 @@ export const DEFAULT_KEYBOARD_LAYOUT_SETTINGS: KeyboardLayoutSettings = {
   keyboardHeightOffset: 0,
   bottomClearanceAdjust: 0,
   customTapSoundEnabled: true,
-  customTapSoundFile: '1.mp3',
+  customTapSoundFile: 'typebase_keytap_soft.wav',
   keyHapticEnabled: true,
   keyHapticPulseMs: 12,
   autoCapitalizeEnabled: true,
@@ -97,6 +102,7 @@ export const DEFAULT_KEYBOARD_LAYOUT_SETTINGS: KeyboardLayoutSettings = {
   customFontFile: null,
   controller: DEFAULT_CONTROLLER_SETTINGS,
   predictiveHitboxesEnabled: true,
+  keyPreviewStyle: 'popup',
 };
 
 /** Touch slop into gaps — horizontal fills keyGap; vertical reaches row gaps without full overlap. */
@@ -523,6 +529,9 @@ const QUIVOX_LIGHT_PALETTE: KeyboardPalette = {
 export const QUIVOX_KEY_PRESS_SCALE = 1.08;
 /** Space is wide — keep the grow subtler so it doesn't balloon. */
 export const QUIVOX_SPACE_PRESS_SCALE = 1.03;
+/** Subtle key-preview mode — slight cap grow (non-Quivox themes). */
+export const SUBTLE_KEY_PREVIEW_PRESS_SCALE = 1.05;
+export const SUBTLE_SPACE_PREVIEW_PRESS_SCALE = 1.02;
 
 /**
  * Macintosh — classic beige keyboard caps with warm off-white keys.
@@ -632,8 +641,18 @@ export function keyboardAlternatePopupRadii(
 export function keyboardKeyPressMotionStyle(
   theme: KeyboardTheme,
   pressed = false,
-  options?: {subtle?: boolean},
+  options?: {subtle?: boolean; keyPreviewSubtle?: boolean},
 ): ViewStyle {
+  if (options?.keyPreviewSubtle && pressed && theme.design !== 'quivox') {
+    const scale = options.subtle
+      ? SUBTLE_SPACE_PREVIEW_PRESS_SCALE
+      : SUBTLE_KEY_PREVIEW_PRESS_SCALE;
+    return {
+      transform: [{scale}],
+      zIndex: 2,
+    };
+  }
+
   if (theme.design !== 'quivox') {
     return {};
   }
@@ -902,6 +921,7 @@ export function createKeyboardTheme(
     keyboardHeightOffset: layout.keyboardHeightOffset ?? 0,
     developerEyeEnabled: layout.developerEyeEnabled,
     predictiveHitboxesEnabled: layout.predictiveHitboxesEnabled,
+    keyPreviewStyle: layout.keyPreviewStyle,
     keyHitSlop: {
       horizontal: layout.keyGap,
       vertical: Math.ceil(layout.keyRowMargin / 2) + layout.keyGap,

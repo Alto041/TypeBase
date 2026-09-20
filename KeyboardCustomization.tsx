@@ -26,7 +26,7 @@ import ThemeIcon from './assets/theme.svg';
 import GraphicEqIcon from './assets/graphic_eq.svg';
 import UploadIcon from './assets/file-upload.svg';
 import FontIcon from './assets/font.svg';
-
+import AnimationIcon from './assets/animation.svg';
 import {playSwitchOffSound, playSwitchOnSound} from './src/app/switchSound';
 import {formatDocumentPickerError} from './lib/pickDocumentAsync';
 
@@ -76,6 +76,111 @@ const C = {
 
 const CARD_R = 25;
 const TEXT_KERNING = -0.7;
+const SETTINGS_ROW_GAP = 8;
+const SETTINGS_ROW_ICON = 20;
+const KEY_PREVIEW_ICON_SIZE = 28;
+const SETTINGS_CARD_R = 14;
+
+const KEY_PREVIEW_SEGMENT_PADDING = 4;
+
+const KEY_PREVIEW_STYLES: ReadonlyArray<{
+  id: KeyboardLayoutSettings['keyPreviewStyle'];
+  label: string;
+}> = [
+  {id: 'popup', label: 'Popup'},
+  {id: 'subtle', label: 'Subtle'},
+  {id: 'doodle', label: 'Doodle'},
+];
+
+function keyPreviewStyleIndex(
+  style: KeyboardLayoutSettings['keyPreviewStyle'],
+): number {
+  if (style === 'subtle') {
+    return 1;
+  }
+  if (style === 'doodle') {
+    return 2;
+  }
+  return 0;
+}
+
+function KeyPreviewSegmentBar({
+  value,
+  loading,
+  onChange,
+}: {
+  value: KeyboardLayoutSettings['keyPreviewStyle'];
+  loading: boolean;
+  onChange: (style: KeyboardLayoutSettings['keyPreviewStyle']) => void;
+}) {
+  const slideAnim = useRef(
+    new Animated.Value(keyPreviewStyleIndex(value)),
+  ).current;
+  const [slotWidth, setSlotWidth] = useState(0);
+  const index = keyPreviewStyleIndex(value);
+
+  useEffect(() => {
+    Animated.spring(slideAnim, {
+      toValue: index,
+      useNativeDriver: true,
+      stiffness: 520,
+      damping: 32,
+      mass: 0.8,
+    }).start();
+  }, [index, slideAnim]);
+
+  return (
+    <View
+      style={styles.previewSegment}
+      onLayout={event => {
+        const width = event.nativeEvent.layout.width;
+        if (width > 0) {
+          const inset = KEY_PREVIEW_SEGMENT_PADDING * 2;
+          setSlotWidth((width - inset) / KEY_PREVIEW_STYLES.length);
+        }
+      }}>
+      {slotWidth > 0 ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.previewSegmentPill,
+            {
+              width: slotWidth,
+              transform: [
+                {
+                  translateX: slideAnim.interpolate({
+                    inputRange: [0, 1, 2],
+                    outputRange: [0, slotWidth, slotWidth * 2],
+                  }),
+                },
+              ],
+            },
+          ]}
+        />
+      ) : null}
+      {KEY_PREVIEW_STYLES.map(option => {
+        const selected = value === option.id;
+        return (
+          <Pressable
+            key={option.id}
+            onPress={() => onChange(option.id)}
+            disabled={loading}
+            accessibilityRole="radio"
+            accessibilityState={{selected, disabled: loading}}
+            style={styles.previewSegmentItem}>
+            <Text
+              style={[
+                styles.previewSegmentText,
+                selected && styles.previewSegmentTextOn,
+              ]}>
+              {option.label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
 
 export function CustomizeScreen({onBack}: {onBack: () => void}) {
   const {canUse} = usePremium();
@@ -882,6 +987,8 @@ export function ThemesScreen({onBack}: {onBack: () => void}) {
   const {canUse} = usePremium();
   const [design, setDesign] = useState<'typebase' | 'quivox' | 'macintosh' | 'apple'>('typebase');
   const [isDark, setIsDark] = useState(false);
+  const [keyPreviewStyle, setKeyPreviewStyle] =
+    useState<KeyboardLayoutSettings['keyPreviewStyle']>('popup');
   const [loading, setLoading] = useState(true);
   const [themeJson, setThemeJson] = useState(() => formatCustomThemeJsonForEditor('{}'));
   const [jsonError, setJsonError] = useState<string | null>(null);
@@ -921,6 +1028,7 @@ export function ThemesScreen({onBack}: {onBack: () => void}) {
       const fontOn = !!ls.customFontEnabled;
       setCustomFontEnabled(fontOn);
       fontToggleAnim.setValue(fontOn ? 1 : 0);
+      setKeyPreviewStyle(ls.keyPreviewStyle ?? 'popup');
     });
 
     const layoutSubscription = DeviceEventEmitter.addListener(
@@ -931,6 +1039,7 @@ export function ThemesScreen({onBack}: {onBack: () => void}) {
         const fontOn = !!parsed.customFontEnabled;
         setCustomFontEnabled(fontOn);
         fontToggleAnim.setValue(fontOn ? 1 : 0);
+        setKeyPreviewStyle(parsed.keyPreviewStyle ?? 'popup');
       },
     );
 
@@ -1060,6 +1169,21 @@ export function ThemesScreen({onBack}: {onBack: () => void}) {
     void Haptics.selectionAsync().catch(() => {});
   };
 
+  const setPreviewStyle = (
+    style: KeyboardLayoutSettings['keyPreviewStyle'],
+  ) => {
+    if (!canUse('keyboard_customize')) {
+      Alert.alert('Premium feature', 'Unlock TypeBase to customize key preview style.');
+      return;
+    }
+    if (loading || style === keyPreviewStyle) {
+      return;
+    }
+    setKeyPreviewStyle(style);
+    void updateKeyboardLayoutSetting('keyPreviewStyle', style);
+    void Haptics.selectionAsync().catch(() => {});
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={C.bg} />
@@ -1182,91 +1306,113 @@ export function ThemesScreen({onBack}: {onBack: () => void}) {
           </View>
         </View>
 
-        {/* Light / Dark theme toggle row (same container style as reset) */}
-        <View style={styles.themeToggleContainer}>
-          <ThemeIcon width={20} height={20} color={C.text} />
-          <Text style={styles.themeToggleLabel}>Light / Dark Theme</Text>
-          <View style={{flex: 1}} />
-          <Pressable
-            onPress={toggleDark}
-            style={[styles.toggleTrack, isDark && styles.toggleTrackOn]}
-            disabled={loading}
-          >
-            <Animated.View
-              style={[
-                styles.toggleThumb,
-                {
-                  transform: [
-                    {
-                      translateX: toggleAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0, 18],
-                      }),
-                    },
-                  ],
-                },
-              ]}
-            />
-          </Pressable>
-        </View>
-
-        {/* Keyboard Font — same row style as Custom Tap Sound in Customize */}
-        <View style={styles.themeToggleContainer}>
-          <FontIcon width={20} height={20} color={C.text} />
-          <View style={styles.tapSoundTextCol}>
-            <Text style={styles.tapSoundTitle}>Keyboard Font</Text>
-            {customFontFile ? (
-              <Text style={styles.tapSoundFileName} numberOfLines={1}>
-                {customFontFile}
+        <View style={styles.themesSettingsStack}>
+          <View style={[styles.settingRowCard, styles.firstSettingCard]}>
+            <View style={styles.settingRowInner}>
+              <ThemeIcon width={SETTINGS_ROW_ICON} height={SETTINGS_ROW_ICON} color={C.text} />
+              <Text style={[styles.settingRowTitle, styles.settingRowTitleFill]}>
+                Dark Theme
               </Text>
-            ) : (
-              <Text style={styles.tapSoundHint}>
-                Upload .ttf / .otf for the whole keyboard
-              </Text>
-            )}
+              <View style={styles.settingToggleWrap}>
+                <Pressable
+                  onPress={toggleDark}
+                  style={[styles.toggleTrack, isDark && styles.toggleTrackOn]}
+                  disabled={loading}>
+                  <Animated.View
+                    style={[
+                      styles.toggleThumb,
+                      {
+                        transform: [
+                          {
+                            translateX: toggleAnim.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [0, 18],
+                            }),
+                          },
+                        ],
+                      },
+                    ]}
+                  />
+                </Pressable>
+              </View>
+            </View>
           </View>
+
+          <View style={[styles.settingRowCard, styles.middleSettingCard]}>
+            <View style={styles.keyPreviewHeaderRow}>
+              <AnimationIcon
+                width={KEY_PREVIEW_ICON_SIZE}
+                height={KEY_PREVIEW_ICON_SIZE}
+                color={C.text}
+              />
+              <Text style={styles.settingRowTitle}>Key Preview</Text>
+            </View>
+            <View style={styles.keyPreviewSegmentWrap}>
+              <KeyPreviewSegmentBar
+                value={keyPreviewStyle}
+                loading={loading}
+                onChange={setPreviewStyle}
+              />
+            </View>
+          </View>
+
+          <View style={[styles.settingRowCard, styles.middleSettingCard]}>
+            <View style={styles.settingRowInner}>
+              <FontIcon width={SETTINGS_ROW_ICON} height={SETTINGS_ROW_ICON} color={C.text} />
+              <Text style={[styles.settingRowTitle, styles.settingRowTitleFill]}>
+                Keyboard Font
+              </Text>
+              <Pressable
+                onPress={() => void handleImportKeyboardFont()}
+                disabled={loading || importingFont}
+                style={styles.tapSoundUploadBtn}
+                hitSlop={8}>
+                {importingFont ? (
+                  <ActivityIndicator color={C.text} size="small" />
+                ) : (
+                  <UploadIcon width={18} height={18} />
+                )}
+              </Pressable>
+              <View style={styles.settingToggleWrap}>
+                <Pressable
+                  onPress={toggleCustomFont}
+                  style={[styles.toggleTrack, customFontEnabled && styles.toggleTrackOn]}
+                  disabled={loading || !customFontFile}>
+                  <Animated.View
+                    style={[
+                      styles.toggleThumb,
+                      {
+                        transform: [
+                          {
+                            translateX: fontToggleAnim.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [0, 18],
+                            }),
+                          },
+                        ],
+                      },
+                    ]}
+                  />
+                </Pressable>
+              </View>
+            </View>
+          </View>
+
           <Pressable
-            onPress={() => void handleImportKeyboardFont()}
-            disabled={loading || importingFont}
-            style={styles.tapSoundUploadBtn}
-            hitSlop={8}>
-            {importingFont ? (
-              <ActivityIndicator color={C.text} size="small" />
-            ) : (
-              <UploadIcon width={18} height={18} />
-            )}
-          </Pressable>
-          <Pressable
-            onPress={toggleCustomFont}
-            style={[styles.toggleTrack, customFontEnabled && styles.toggleTrackOn]}
-            disabled={loading || !customFontFile}>
-            <Animated.View
-              style={[
-                styles.toggleThumb,
-                {
-                  transform: [
-                    {
-                      translateX: fontToggleAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0, 18],
-                      }),
-                    },
-                  ],
-                },
-              ]}
-            />
+            style={[styles.settingRowCard, styles.lastSettingCard]}
+            onPress={() => setThemeJsonExpanded(expanded => !expanded)}
+            disabled={loading}>
+            <View style={styles.settingRowInner}>
+              <ThemeIcon width={SETTINGS_ROW_ICON} height={SETTINGS_ROW_ICON} color={C.text} />
+              <Text style={[styles.settingRowTitle, styles.settingRowTitleFill]}>
+                Custom Theme JSON
+              </Text>
+              <Text style={styles.settingRowValue}>
+                {themeJsonExpanded ? '−' : '+'}
+              </Text>
+            </View>
           </Pressable>
         </View>
-
-        <Pressable
-          style={styles.themeToggleContainer}
-          onPress={() => setThemeJsonExpanded(expanded => !expanded)}
-          disabled={loading}>
-          <ThemeIcon width={20} height={20} color={C.text} />
-          <Text style={styles.themeToggleLabel}>Custom theme JSON</Text>
-          <View style={{flex: 1}} />
-          <Text style={styles.themeJsonChevron}>{themeJsonExpanded ? '−' : '+'}</Text>
-        </Pressable>
 
         {themeJsonExpanded ? (
           <View style={styles.jsonCard}>
@@ -1905,7 +2051,70 @@ const styles = StyleSheet.create({
     letterSpacing: TEXT_KERNING,
   },
 
-  // Toggle row under theme cards (styled like the reset container)
+  // Themes options — matches GeneralSettingsScreen row stack
+  themesSettingsStack: {
+    gap: 4,
+    marginTop: 4,
+    marginBottom: SETTINGS_ROW_GAP,
+  },
+  settingRowCard: {
+    backgroundColor: C.card,
+    borderRadius: SETTINGS_CARD_R,
+    paddingHorizontal: 14,
+    paddingVertical: 4,
+  },
+  firstSettingCard: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderBottomLeftRadius: 8,
+    borderBottomRightRadius: 8,
+  },
+  middleSettingCard: {
+    borderRadius: 10,
+  },
+  lastSettingCard: {
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+  },
+  settingRowInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    minHeight: 56,
+  },
+  settingRowTitle: {
+    color: C.text,
+    fontSize: 16,
+    fontFamily: 'FragmentMono',
+    textTransform: 'uppercase',
+    letterSpacing: TEXT_KERNING,
+  },
+  settingRowTitleFill: {
+    flex: 1,
+  },
+  settingRowValue: {
+    color: C.text,
+    fontSize: 14,
+    fontFamily: 'FragmentMono',
+    marginLeft: 'auto',
+    letterSpacing: TEXT_KERNING,
+  },
+  settingToggleWrap: {
+    marginLeft: 'auto',
+  },
+  keyPreviewHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    minHeight: 48,
+    paddingTop: 4,
+  },
+  keyPreviewSegmentWrap: {
+    paddingBottom: 12,
+  },
+  // Toggle row under theme cards (Customize screen)
   themeToggleContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1960,6 +2169,39 @@ const styles = StyleSheet.create({
     color: C.sub,
     width: 24,
     textAlign: 'center',
+  },
+  previewSegment: {
+    flexDirection: 'row',
+    backgroundColor: '#ECECEE',
+    borderRadius: 16,
+    padding: KEY_PREVIEW_SEGMENT_PADDING,
+    position: 'relative',
+    overflow: 'hidden',
+    minHeight: 30,
+  },
+  previewSegmentPill: {
+    position: 'absolute',
+    left: KEY_PREVIEW_SEGMENT_PADDING,
+    top: KEY_PREVIEW_SEGMENT_PADDING,
+    bottom: KEY_PREVIEW_SEGMENT_PADDING,
+    borderRadius: 14,
+    backgroundColor: '#111111',
+  },
+  previewSegmentItem: {
+    flex: 1,
+    paddingVertical: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1,
+  },
+  previewSegmentText: {
+    fontFamily: 'FragmentMono',
+    fontSize: 12,
+    color: C.text,
+    letterSpacing: TEXT_KERNING,
+  },
+  previewSegmentTextOn: {
+    color: '#FFFFFF',
   },
 
   jsonCard: {

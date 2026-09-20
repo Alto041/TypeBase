@@ -98,6 +98,7 @@ export async function rewriteText(
   if (getAiProvider() === 'on_device') {
     const raw = await generateOnDeviceText(
       buildGemmaRewritePrompt(input, getToneInstruction(toneId)),
+      {temperature: 0.85},
     );
     return parseOnDeviceRewriteResult(raw);
   }

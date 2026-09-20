@@ -72,8 +72,9 @@ const MIN_SUGGESTION_BAR_CONFIDENCE = 0.51;
 /** Only consider the top N SymSpell hits — quality over quantity. */
 const HIGH_ACCURACY_SYMSPELL_LIMIT = 8;
 /** On space/punctuation commit, search deeper for long-word typos (everyibe → everyone). */
-const BOUNDARY_SYMSPELL_LIMIT = 15;
+const BOUNDARY_SYMSPELL_LIMIT = 24;
 const LIGHTWEIGHT_SYMSPELL_LIMIT = 6; // Enough hits for long-word typo fixes while typing
+const BASIC_BOUNDARY_SYMSPELL_LIMIT = 18; // Free-tier boundary typo recovery without heavy scans
 const COMMON_WORD_RANK = 4000;
 /** Dictionary headwords rarer than this can still be autocorrected (e.g. beng → being). */
 const OBSCURE_WORD_RANK_THRESHOLD = 20_000;
@@ -695,6 +696,14 @@ function allowedFuzzyEdits(wordLength: number): number {
   return maxEditDistance(wordLength);
 }
 
+function boundaryFuzzyEdits(wordLength: number): number {
+  const base = maxEditDistance(wordLength);
+  if (wordLength >= 8) {
+    return Math.min(3, base + 1);
+  }
+  return base;
+}
+
 /** Single adjacent-key substitution that yields a common dictionary word. */
 function collectKeyboardNeighborFixes(typed: string): string[] {
   if (typed.length < 2) {
@@ -750,6 +759,9 @@ function findQuickTypoFixes(
   options?: {includeNeighbors?: boolean},
 ): string | null {
   if (shouldSkipAutocorrectForToken(typed)) {
+    return null;
+  }
+  if (blocksAutocorrectAsKnownWord(typed)) {
     return null;
   }
 
@@ -808,6 +820,9 @@ function findQuickTypoFixes(
 /** Double-letter collapse and adjacent swaps — runs before fuzzy SymSpell. */
 function findStructuralTypoFix(lower: string): string | null {
   if (shouldSkipAutocorrectForToken(lower)) {
+    return null;
+  }
+  if (blocksAutocorrectAsKnownWord(lower)) {
     return null;
   }
 
@@ -919,15 +934,15 @@ export function getFastAutocorrectPreview(
     return leetFix;
   }
 
+  if (blocksAutocorrectAsKnownWord(lower)) {
+    return null;
+  }
+
   if (isEnglishLikeLang()) {
     const structural = findStructuralTypoFix(lower);
     if (structural && structural !== lower) {
       return applyCaseToWord(structural, typed);
     }
-  }
-
-  if (blocksAutocorrectAsKnownWord(lower)) {
-    return null;
   }
 
   if (isEnglishLikeLang()) {
@@ -954,6 +969,9 @@ export function getFastAutocorrectPreview(
 
 /** Adjacent letter swaps (teh → the, waht → what) count as 1-edit typos. */
 function collectTranspositionNeighbors(typed: string): string[] {
+  if (blocksAutocorrectAsKnownWord(typed)) {
+    return [];
+  }
   const neighbors: string[] = [];
   for (let index = 0; index < typed.length - 1; index += 1) {
     if (typed[index] === typed[index + 1]) {
@@ -1152,6 +1170,9 @@ function isPlausibleTypo(
   edits: number,
   staticRank: number,
 ): boolean {
+  if (blocksAutocorrectAsKnownWord(typed)) {
+    return false;
+  }
   if (edits <= 1) {
     if (typed[0] === candidate[0]) {
       return true;
@@ -1833,6 +1854,11 @@ export function getAutocorrectCandidate(
     };
   }
 
+  // Valid dictionary word — never transpose/neighbor/fuzzy mutate (on → no).
+  if (blocksAutocorrectAsKnownWord(lower)) {
+    return null;
+  }
+
   if (isEnglishLikeLang()) {
     const structural = findStructuralTypoFix(lower);
     if (structural && structural !== lower) {
@@ -1841,11 +1867,6 @@ export function getAutocorrectCandidate(
         confidence: 0.95,
       };
     }
-  }
-
-  // Valid dictionary word — never fuzzy-shrink or neighbor-mutate (all → al).
-  if (blocksAutocorrectAsKnownWord(lower)) {
-    return null;
   }
 
   // Punctuation correction (contractions, apostrophes)
@@ -1863,7 +1884,12 @@ export function getAutocorrectCandidate(
     }
   }
 
-  if (options?.context || options?.previousWord || options?.trailingWords?.length) {
+  const premiumAutocorrect = canUseFeature('autocorrect_full');
+  const basicTierAutocorrect = !premiumAutocorrect;
+  if (
+    premiumAutocorrect &&
+    (options?.context || options?.previousWord || options?.trailingWords?.length)
+  ) {
     const shouldRunContext =
       options.boundary === true ||
       options.lightweight !== true ||
@@ -1922,18 +1948,26 @@ export function getAutocorrectCandidate(
   }
 
   const previousWord = options?.previousWord ?? '';
+  const boundaryLookup = options?.boundary === true;
+  const editBudget = boundaryLookup
+    ? boundaryFuzzyEdits(lower.length)
+    : maxEditDistance(lower.length);
   const symLimit =
-    options?.boundary === true
+    basicTierAutocorrect
+      ? boundaryLookup
+        ? BASIC_BOUNDARY_SYMSPELL_LIMIT
+        : LIGHTWEIGHT_SYMSPELL_LIMIT
+      : boundaryLookup
       ? BOUNDARY_SYMSPELL_LIMIT
       : HIGH_ACCURACY_SYMSPELL_LIMIT;
   const symFix = findBestSingleWordCorrection(
     lower,
-    maxEditDistance(lower.length),
+    editBudget,
     previousWord,
     symLimit,
   );
   if (symFix) {
-    const maxEdits = allowedFuzzyEdits(lower.length);
+    const maxEdits = editBudget;
     if (
       symFix.edits <= maxEdits &&
       !shouldRejectFuzzyCorrection(
@@ -1952,13 +1986,26 @@ export function getAutocorrectCandidate(
         learnedUses,
         symFix.staticRank,
       );
-      if (confidence >= MIN_AUTO_CONFIDENCE) {
+      const minConfidence = basicTierAutocorrect
+        ? boundaryLookup && lower.length >= 8
+          ? Math.max(MIN_AUTO_CONFIDENCE, 0.53)
+          : Math.max(MIN_AUTO_CONFIDENCE, 0.57)
+        : boundaryLookup && lower.length >= 8
+          ? 0.52
+          : MIN_AUTO_CONFIDENCE;
+      if (confidence >= minConfidence) {
         return {
           correction: applyCaseToWord(symFix.word, typed),
           confidence,
         };
       }
     }
+  }
+
+  // Free/basic tier keeps corrections responsive by avoiding the heavier split/compound
+  // and broad candidate-ranking passes on every boundary commit.
+  if (basicTierAutocorrect) {
+    return null;
   }
 
   // Missing-space / run-on: run before the proper-noun guard. Sentence-start
@@ -2095,6 +2142,25 @@ export function getAutocorrectCandidate(
   return null;
 }
 
+/** Avoid cementing bad swaps between two valid short words (on → no) into personal learning. */
+export function shouldLearnAutocorrectPair(from: string, to: string): boolean {
+  const fromLower = from.trim().toLowerCase();
+  const toLower = to.trim().toLowerCase().split(/\s+/).pop() ?? '';
+  if (!fromLower || !toLower || fromLower === toLower) {
+    return false;
+  }
+  if (!blocksAutocorrectAsKnownWord(fromLower)) {
+    return true;
+  }
+  if (
+    levenshtein(fromLower, toLower) <= 1 &&
+    blocksAutocorrectAsKnownWord(toLower)
+  ) {
+    return false;
+  }
+  return true;
+}
+
 /** True when the word is in the active language dictionary (safe to auto-learn on space). */
 export function isDictionaryWord(word: string): boolean {
   const lower = word.trim().toLowerCase();
@@ -2102,10 +2168,6 @@ export function isDictionaryWord(word: string): boolean {
     return false;
   }
   return isKnownEnglishWord(lower) || getBaseWords(getActiveLanguage()).includes(lower);
-}
-
-function isInActiveDictionary(lower: string): boolean {
-  return isDictionaryWord(lower);
 }
 
 export function getAutocorrectPreview(typedWord: string): string | null {
@@ -2332,9 +2394,6 @@ export function shouldAutoApply(
   candidate: AutocorrectCandidate | null,
   typedWord: string,
 ): boolean {
-  if (!canUseFeature('autocorrect_full')) {
-    return false;
-  }
   if (!getAutocorrectSettings().autoApplyOnSpace) {
     return false;
   }

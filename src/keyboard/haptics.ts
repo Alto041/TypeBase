@@ -22,16 +22,9 @@ export function triggerKeyHaptic(
     if (isZeroLatencyModeActive()) {
       keyboardBridge.performSubtleKeyHaptic();
     } else {
+      // performKeyHaptic also schedules the custom tap sound (when enabled).
       keyboardBridge.performKeyHaptic();
     }
-  }
-
-  if (
-    !isZeroLatencyModeActive() &&
-    !frameHapticHandled &&
-    !options?.nativeCommitted
-  ) {
-    keyboardBridge.playKeyTapSound();
   }
 }
 
