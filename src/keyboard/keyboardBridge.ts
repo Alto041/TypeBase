@@ -39,6 +39,9 @@ type KeyboardModuleType = {
   commitSwipeWord: (word: string) => void;
   getEssentials: () => Promise<string>;
   setEssentials: (json: string) => Promise<boolean>;
+  getMyRowUsage: () => Promise<string>;
+  setMyRowUsage: (json: string) => Promise<boolean>;
+  recordMyRowSymbol: (symbol: string) => Promise<boolean>;
   getPrefersNumpad: () => Promise<boolean>;
   getInputSupportsNewline: () => Promise<boolean>;
   getInputInitialCapsMode: () => Promise<boolean>;
@@ -321,6 +324,24 @@ export const keyboardBridge: KeyboardModuleType = {
   setEssentials: (json: string) => {
     if (Platform.OS === 'android' && KeyboardModule?.setEssentials) {
       return KeyboardModule.setEssentials(json) as Promise<boolean>;
+    }
+    return Promise.resolve(false);
+  },
+  getMyRowUsage: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.getMyRowUsage) {
+      return KeyboardModule.getMyRowUsage() as Promise<string>;
+    }
+    return Promise.resolve('{}');
+  },
+  setMyRowUsage: (json: string) => {
+    if (Platform.OS === 'android' && KeyboardModule?.setMyRowUsage) {
+      return KeyboardModule.setMyRowUsage(json) as Promise<boolean>;
+    }
+    return Promise.resolve(false);
+  },
+  recordMyRowSymbol: (symbol: string) => {
+    if (Platform.OS === 'android' && KeyboardModule?.recordMyRowSymbol) {
+      return KeyboardModule.recordMyRowSymbol(symbol) as Promise<boolean>;
     }
     return Promise.resolve(false);
   },

@@ -56,6 +56,9 @@ export async function applyFreeTierDefaults(): Promise<void> {
     if (layout.numberRowEnabled) {
       await updateKeyboardLayoutSetting('numberRowEnabled', false);
     }
+    if (layout.myRowEnabled) {
+      await updateKeyboardLayoutSetting('myRowEnabled', false);
+    }
     if (layout.letterSymbolAlternatesEnabled) {
       await updateKeyboardLayoutSetting('letterSymbolAlternatesEnabled', false);
     }

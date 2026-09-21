@@ -9,11 +9,6 @@ export type KeyboardMode =
   | {type: 'emoji'}
   | {type: 'items-menu'}
   | {type: 'essentials-list'}
-  | {
-      type: 'essentials-form';
-      essentialId?: string;
-      focusField: 'keyword' | 'value';
-    }
   | {type: 'clipboard'}
   | {type: 'gestures'}
   | {type: 'autocorrect'}

@@ -46,6 +46,16 @@ export type KeyboardLayoutSettings = {
   letterSymbolAlternatesEnabled: boolean;
   /** When true, show a dedicated number row (1 2 … 0) above the letter rows. */
   numberRowEnabled: boolean;
+  /** Premium: adaptive symbol row learned from how you type (replaces number row). */
+  myRowEnabled: boolean;
+  /** Pinned symbols always included in My Row (max 10 total slots). */
+  myRowPins: string[];
+  /** When My Row is on, Shift/Caps shows the number row instead of symbol row. */
+  myRowShiftNumbersEnabled: boolean;
+  /** When false, ;essential expansion and built-in ;date etc. are disabled while typing. */
+  essentialsEnabled: boolean;
+  /** When true, ;keyword must match saved keyword casing exactly. */
+  essentialsMatchCaseEnabled: boolean;
   /**
    * User-controlled height adjustment in dp (positive = taller keyboard,
    * negative = shorter). Applied on top of the computed base height for letters view.
@@ -91,6 +101,11 @@ export const DEFAULT_KEYBOARD_LAYOUT_SETTINGS: KeyboardLayoutSettings = {
   letterLayoutId: DEFAULT_LETTER_LAYOUT_ID,
   letterSymbolAlternatesEnabled: true,
   numberRowEnabled: false,
+  myRowEnabled: false,
+  myRowPins: [],
+  myRowShiftNumbersEnabled: true,
+  essentialsEnabled: true,
+  essentialsMatchCaseEnabled: false,
   keyboardHeightOffset: 0,
   bottomClearanceAdjust: 0,
   customTapSoundEnabled: true,
@@ -830,7 +845,7 @@ export function createKeyboardTheme(
   const essentialsPanelHeight = isLandscape ? 112 : 136;
   const keyboardHeightBuffer = isLandscape ? 4 : KEYBOARD_HEIGHT_BUFFER;
   const numberRowHeight =
-    layout.numberRowEnabled
+    layout.numberRowEnabled || layout.myRowEnabled
       ? layout.keyHeight + layout.keyRowMargin
       : 0;
   const baseKeyboardHeightDp =
@@ -917,6 +932,11 @@ export function createKeyboardTheme(
     letterSymbolAlternatesEnabled: layout.letterSymbolAlternatesEnabled,
     letterLayoutId: layout.letterLayoutId,
     numberRowEnabled: layout.numberRowEnabled,
+    myRowEnabled: layout.myRowEnabled,
+    myRowPins: layout.myRowPins,
+    myRowShiftNumbersEnabled: layout.myRowShiftNumbersEnabled,
+    essentialsEnabled: layout.essentialsEnabled,
+    essentialsMatchCaseEnabled: layout.essentialsMatchCaseEnabled,
     autoCapitalizeEnabled: layout.autoCapitalizeEnabled,
     keyboardHeightOffset: layout.keyboardHeightOffset ?? 0,
     developerEyeEnabled: layout.developerEyeEnabled,
@@ -965,15 +985,21 @@ export type NumberRowLayoutBoost = {
  * When the dedicated number row is on, letters gain a fifth row. Numbers/symbols
  * keep four rows — boost key size and gaps so overall keyboard height stays aligned.
  */
+export function layoutHasExtraTopRow(
+  layout: Pick<KeyboardLayoutSettings, 'numberRowEnabled' | 'myRowEnabled'>,
+): boolean {
+  return layout.numberRowEnabled || layout.myRowEnabled;
+}
+
 export function getNumberRowLayoutBoost(
   layout: KeyboardLayout,
   theme: Pick<
     KeyboardTheme,
-    'numberRowEnabled' | 'keyHeight' | 'keyRowMargin' | 'keyGap'
+    'numberRowEnabled' | 'myRowEnabled' | 'keyHeight' | 'keyRowMargin' | 'keyGap'
   >,
 ): NumberRowLayoutBoost | null {
   if (
-    !theme.numberRowEnabled ||
+    !layoutHasExtraTopRow(theme) ||
     (layout !== 'numbers' && layout !== 'symbols')
   ) {
     return null;
@@ -998,7 +1024,7 @@ export function getNonLettersKeyboardHeightDp(
     return theme.numpadKeyboardHeightDp;
   }
   if (
-    theme.numberRowEnabled &&
+    layoutHasExtraTopRow(theme) &&
     (layout === 'numbers' || layout === 'symbols')
   ) {
     return Math.round(lettersBaseHeightDp);

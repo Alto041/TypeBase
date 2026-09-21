@@ -1,5 +1,5 @@
 import React from 'react';
-import {Text, View, type ViewStyle} from 'react-native';
+import {StyleSheet, Text, View, type ViewStyle} from 'react-native';
 import {
   PLUGIN_INNER_RADIUS,
   PLUGIN_OUTER_RADIUS,
@@ -11,6 +11,7 @@ import type {Essential} from './types';
 
 type EssentialsListPanelProps = {
   essentials: Essential[];
+  isPremium?: boolean;
   onSelect: (essential: Essential) => void;
   onDelete: (essential: Essential) => void;
 };
@@ -56,19 +57,21 @@ function getTileStyle(index: number, total: number): ViewStyle {
 
 export function EssentialsListPanel({
   essentials,
+  isPremium = false,
   onSelect,
   onDelete,
 }: EssentialsListPanelProps) {
   const panelStyles = usePluginPanelStyles();
 
   return (
-    <View style={panelStyles.container}>
-      <PluginScrollView>
+    <View style={styles.container}>
+      <PluginScrollView fadeScrollInset>
         {essentials.length === 0 ? (
           <View style={panelStyles.emptyState}>
-            <Text style={panelStyles.emptyTitle}>No essentials yet</Text>
+            <Text style={panelStyles.emptyTitle}>No essentials</Text>
             <Text style={panelStyles.emptyHint}>
-              Tap + to save a shortcut, then type @@keyword to insert it.
+              Launchpad → Essentials. Type ;keyword + space. Built-ins: ;date ;time
+              ;clipboard ;cursor.
             </Text>
           </View>
         ) : (
@@ -76,6 +79,7 @@ export function EssentialsListPanel({
             <EssentialsSwipeRow
               key={essential.id}
               essential={essential}
+              isPremium={isPremium}
               tileStyle={getTileStyle(index, essentials.length)}
               onSelect={onSelect}
               onDelete={onDelete}
@@ -86,3 +90,9 @@ export function EssentialsListPanel({
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+});

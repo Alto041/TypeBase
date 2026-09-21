@@ -21,6 +21,7 @@ export type PremiumFeature =
   | 'keyboard_customize'
   | 'autocorrect_full'
   | 'number_row'
+  | 'my_row'
   | 'extended_characters'
   | 'autocorrect_panel';
 
@@ -40,6 +41,7 @@ const PREMIUM_FEATURES = new Set<PremiumFeature>([
   'keyboard_customize',
   'autocorrect_full',
   'number_row',
+  'my_row',
   'extended_characters',
   'autocorrect_panel',
 ]);

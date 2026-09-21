@@ -1,4 +1,10 @@
+import {getPremiumCached} from '../../licensing/entitlements';
 import {keyboardBridge} from '../keyboardBridge';
+import {containsSnippetPlaceholders, resolveSnippetInsertValue} from './snippetExpand';
+import {
+  FREE_SNIPPET_LIMIT,
+  type SaveEssentialFailureReason,
+} from './snippetTier';
 import type {Essential} from './types';
 
 const essentials = new Map<string, Essential>();
@@ -8,13 +14,65 @@ function createId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-export function normalizeEssentialKeyword(keyword: string): string {
-  return keyword.trim().toLowerCase().replace(/^@+/, '');
+export function stripEssentialTriggerPrefix(keyword: string): string {
+  return keyword.trim().replace(/^@+/, '');
 }
 
-export function isValidEssentialKeyword(keyword: string): boolean {
-  const normalized = normalizeEssentialKeyword(keyword);
-  return normalized.length >= 1 && /^[a-z0-9_]+$/.test(normalized);
+export function normalizeEssentialKeyword(keyword: string): string {
+  return stripEssentialTriggerPrefix(keyword).toLowerCase();
+}
+
+export function keywordForEssentialStorage(
+  keyword: string,
+  matchCase: boolean,
+): string {
+  const stripped = stripEssentialTriggerPrefix(keyword);
+  return matchCase ? stripped : stripped.toLowerCase();
+}
+
+export function isValidEssentialKeyword(
+  keyword: string,
+  matchCase: boolean,
+): boolean {
+  const stored = keywordForEssentialStorage(keyword, matchCase);
+  if (stored.length < 1) {
+    return false;
+  }
+  return matchCase
+    ? /^[a-zA-Z0-9_]+$/.test(stored)
+    : /^[a-z0-9_]+$/.test(stored);
+}
+
+function validateSnippetSave(
+  keyword: string,
+  value: string,
+  essentialId: string | undefined,
+  isPremium: boolean,
+  matchCase: boolean,
+): SaveEssentialFailureReason | null {
+  const stored = keywordForEssentialStorage(keyword, matchCase);
+  if (!isValidEssentialKeyword(keyword, matchCase)) {
+    return 'invalid_keyword';
+  }
+
+  const list = getEssentialsList();
+  const duplicate = list.find(
+    item => item.keyword === stored && item.id !== essentialId,
+  );
+  if (duplicate) {
+    return 'duplicate';
+  }
+
+  if (!isPremium && containsSnippetPlaceholders(value)) {
+    return 'placeholders';
+  }
+
+  const isNew = !essentialId;
+  if (!isPremium && isNew && list.length >= FREE_SNIPPET_LIMIT) {
+    return 'limit';
+  }
+
+  return null;
 }
 
 async function persistEssentials(): Promise<void> {
@@ -37,7 +95,7 @@ export async function ensureEssentialsLoaded(): Promise<void> {
           if (item?.id && item?.keyword) {
             essentials.set(item.id, {
               id: item.id,
-              keyword: normalizeEssentialKeyword(item.keyword),
+              keyword: stripEssentialTriggerPrefix(item.keyword),
               value: item.value ?? '',
             });
           }
@@ -57,37 +115,51 @@ export function getEssentialsList(): Essential[] {
   );
 }
 
-export function getEssentialByKeyword(keyword: string): Essential | undefined {
-  const normalized = normalizeEssentialKeyword(keyword);
-  return getEssentialsList().find(item => item.keyword === normalized);
+export function getEssentialByKeyword(
+  keyword: string,
+  matchCase = false,
+): Essential | undefined {
+  const stripped = stripEssentialTriggerPrefix(keyword);
+  const list = getEssentialsList();
+  if (matchCase) {
+    return list.find(item => item.keyword === stripped);
+  }
+  const lower = stripped.toLowerCase();
+  return list.find(item => item.keyword.toLowerCase() === lower);
 }
+
+export type SaveEssentialResult =
+  | {ok: true; essential: Essential}
+  | {ok: false; reason: SaveEssentialFailureReason};
 
 export async function saveEssential(
   keyword: string,
   value: string,
   essentialId?: string,
-): Promise<Essential | null> {
-  const normalized = normalizeEssentialKeyword(keyword);
-  if (!isValidEssentialKeyword(normalized)) {
-    return null;
-  }
-
-  const duplicate = getEssentialsList().find(
-    item => item.keyword === normalized && item.id !== essentialId,
+  isPremium: boolean = getPremiumCached(),
+  matchCase = false,
+): Promise<SaveEssentialResult> {
+  const stored = keywordForEssentialStorage(keyword, matchCase);
+  const failure = validateSnippetSave(
+    keyword,
+    value,
+    essentialId,
+    isPremium,
+    matchCase,
   );
-  if (duplicate) {
-    return null;
+  if (failure) {
+    return {ok: false, reason: failure};
   }
 
   const essential: Essential = {
     id: essentialId ?? createId(),
-    keyword: normalized,
+    keyword: stored,
     value,
   };
 
   essentials.set(essential.id, essential);
   await persistEssentials();
-  return essential;
+  return {ok: true, essential};
 }
 
 export async function deleteEssential(essentialId: string): Promise<void> {
@@ -95,13 +167,30 @@ export async function deleteEssential(essentialId: string): Promise<void> {
   await persistEssentials();
 }
 
-export function matchEssentialSuggestions(query: string, limit = 3): Essential[] {
-  const normalized = normalizeEssentialKeyword(query);
+export function matchEssentialSuggestions(
+  query: string,
+  limit = 3,
+  matchCase = false,
+): Essential[] {
+  const stripped = stripEssentialTriggerPrefix(query);
+  const needle = matchCase ? stripped : stripped.toLowerCase();
   const list = getEssentialsList();
-  if (!normalized) {
+  if (!needle) {
     return list.slice(0, limit);
   }
   return list
-    .filter(item => item.keyword.startsWith(normalized))
+    .filter(item =>
+      matchCase
+        ? item.keyword.startsWith(needle)
+        : item.keyword.toLowerCase().startsWith(needle),
+    )
     .slice(0, limit);
+}
+
+export function formatSnippetTriggerLabel(keyword: string): string {
+  return `;${keyword}`;
+}
+
+export function expandEssentialForInsert(essential: Essential): string {
+  return resolveSnippetInsertValue(essential.value);
 }

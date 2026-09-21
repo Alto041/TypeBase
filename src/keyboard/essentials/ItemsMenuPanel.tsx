@@ -31,7 +31,7 @@ import {
 import {PremiumUpsellSheet} from '../components/PremiumUpsellSheet';
 import {triggerKeyHaptic} from '../haptics';
 import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
-import {KEYBOARD_AI_ICON_COLOR, type KeyboardTheme} from '../theme';
+import type {KeyboardTheme} from '../theme';
 
 type ItemsMenuPanelProps = {
   onSelectFormat: () => void;
@@ -196,9 +196,6 @@ export function ItemsMenuPanel({
             key={plugin.id}
             title={plugin.title}
             Icon={plugin.Icon}
-            iconColor={
-              plugin.id === 'format' ? KEYBOARD_AI_ICON_COLOR : undefined
-            }
             tileStyle={getTileStyle(index, plugins.length)}
             locked={pluginsLocked}
             onPress={() => {

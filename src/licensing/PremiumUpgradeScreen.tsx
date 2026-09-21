@@ -55,8 +55,8 @@ const BENEFITS = [
   },
   {
     icon: PersonalIcon,
-    title: 'Smart autocorrect',
-    hint: 'Learning and auto-apply',
+    title: 'My Row & essentials',
+    hint: 'Adaptive symbols · ;shortcuts',
   },
   {
     icon: AiConfigBlackIcon,

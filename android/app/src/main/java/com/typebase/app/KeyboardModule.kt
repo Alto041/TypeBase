@@ -437,6 +437,49 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   }
 
   @ReactMethod
+  fun getMyRowUsage(promise: Promise) {
+    try {
+      val raw = learnedWordsPrefs().getString(MY_ROW_USAGE_KEY, "{}") ?: "{}"
+      promise.resolve(raw)
+    } catch (error: Exception) {
+      promise.reject("GET_MY_ROW_USAGE_FAILED", error)
+    }
+  }
+
+  @ReactMethod
+  fun setMyRowUsage(json: String, promise: Promise) {
+    try {
+      learnedWordsPrefs().edit().putString(MY_ROW_USAGE_KEY, json).apply()
+      promise.resolve(true)
+    } catch (error: Exception) {
+      promise.reject("SET_MY_ROW_USAGE_FAILED", error)
+    }
+  }
+
+  @ReactMethod
+  fun recordMyRowSymbol(symbol: String, promise: Promise) {
+    try {
+      if (symbol.length != 1) {
+        promise.resolve(false)
+        return
+      }
+      val ch = symbol.substring(0, 1)
+      if (ch[0].isLetterOrDigit() || ch[0].isWhitespace()) {
+        promise.resolve(false)
+        return
+      }
+      val prefs = learnedWordsPrefs()
+      val raw = prefs.getString(MY_ROW_USAGE_KEY, "{}") ?: "{}"
+      val json = org.json.JSONObject(raw)
+      json.put(ch, json.optInt(ch, 0) + 1)
+      prefs.edit().putString(MY_ROW_USAGE_KEY, json.toString()).apply()
+      promise.resolve(true)
+    } catch (error: Exception) {
+      promise.reject("RECORD_MY_ROW_SYMBOL_FAILED", error)
+    }
+  }
+
+  @ReactMethod
   fun getClipboardText(promise: Promise) {
     try {
       val manager =
@@ -2263,6 +2306,7 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     private const val PREFS_NAME = "typebase_keyboard"
     private const val LEARNED_WORDS_KEY = "learned_words"
     private const val ESSENTIALS_KEY = "essentials"
+    private const val MY_ROW_USAGE_KEY = "my_row_usage"
     private const val CLIPBOARD_HISTORY_KEY = "clipboard_history"
     private const val RECENT_EMOJIS_KEY = "recent_emojis"
     private const val GESTURE_SETTINGS_KEY = "gesture_settings"

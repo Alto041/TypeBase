@@ -7,6 +7,11 @@ import {
   ensureBundledDefaultTapSound,
 } from './tapSoundStore';
 import {
+  isValidMyRowPin,
+  MY_ROW_SLOT_COUNT,
+  normalizeMyRowPin,
+} from '../myRow/myRowStore';
+import {
   DEFAULT_KEYBOARD_LAYOUT_SETTINGS,
   type KeyboardLayoutSettings,
 } from '../theme';
@@ -61,6 +66,31 @@ function normalizeLayout(raw: unknown): KeyboardLayoutSettings {
       typeof obj['numberRowEnabled'] === 'boolean'
         ? obj['numberRowEnabled']
         : defaults.numberRowEnabled,
+    myRowEnabled:
+      typeof obj['myRowEnabled'] === 'boolean'
+        ? obj['myRowEnabled']
+        : defaults.myRowEnabled,
+    myRowPins: Array.isArray(obj['myRowPins'])
+      ? obj['myRowPins']
+          .filter((value): value is string => typeof value === 'string')
+          .map(value => normalizeMyRowPin(value))
+          .filter(value => isValidMyRowPin(value))
+          .slice(0, MY_ROW_SLOT_COUNT)
+      : [...defaults.myRowPins],
+    myRowShiftNumbersEnabled:
+      typeof obj['myRowShiftNumbersEnabled'] === 'boolean'
+        ? obj['myRowShiftNumbersEnabled']
+        : defaults.myRowShiftNumbersEnabled,
+    essentialsEnabled:
+      typeof obj['essentialsEnabled'] === 'boolean'
+        ? obj['essentialsEnabled']
+        : typeof obj['snippetsEnabled'] === 'boolean'
+          ? obj['snippetsEnabled']
+          : defaults.essentialsEnabled,
+    essentialsMatchCaseEnabled:
+      typeof obj['essentialsMatchCaseEnabled'] === 'boolean'
+        ? obj['essentialsMatchCaseEnabled']
+        : defaults.essentialsMatchCaseEnabled,
     keyboardHeightOffset:
       typeof obj['keyboardHeightOffset'] === 'number' && Number.isFinite(obj['keyboardHeightOffset'])
         ? clamp(Math.round(obj['keyboardHeightOffset']), -140, 220)

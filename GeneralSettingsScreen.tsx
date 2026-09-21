@@ -1,4 +1,4 @@
-import React, {useEffect, useRef, useState} from 'react';
+import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {
   Animated,
   Linking,
@@ -23,8 +23,15 @@ import SymbolToggleIcon from './assets/symbol-toggle.svg';
 import NumberRowIcon from './assets/123.svg';
 import AutoCapIcon from './assets/format-letter-case-upper.svg';
 import PersonalIcon from './assets/personal.svg';
+import GestureIcon from './assets/gesture.svg';
+import KeyIcon from './assets/key.svg';
 
 import {playSwitchOffSound, playSwitchOnSound} from './src/app/switchSound';
+import {
+  getTouchIntelligenceTelemetrySummary,
+  subscribeTouchIntelligenceTelemetry,
+} from './src/keyboard/gesture/touchIntelligenceTelemetry';
+import {getTapMapSnapshot, hydrateTapMapFromStorage} from './src/keyboard/gesture/tapMap';
 import {
   ensureUiSoundsLoaded,
   getUiSoundsEnabled,
@@ -60,12 +67,16 @@ export function GeneralSettingsScreen({
   onBack,
   onOpenConsole,
   onOpenEngineStats,
+  onOpenTapMap,
+  onOpenTouchHits,
   onOpenPersonalTyping,
   onOpenPremium,
 }: {
   onBack: () => void;
   onOpenConsole?: () => void;
   onOpenEngineStats?: () => void;
+  onOpenTapMap?: () => void;
+  onOpenTouchHits?: () => void;
   onOpenPersonalTyping?: () => void;
   onOpenPremium?: () => void;
 }) {
@@ -79,6 +90,37 @@ export function GeneralSettingsScreen({
   const [autoCapitalizeEnabled, setAutoCapitalizeEnabledState] = useState(true);
   const [controllerSettings, setControllerSettings] =
     useState<ControllerSettings>(DEFAULT_CONTROLLER_SETTINGS);
+  const [tapMapSamples, setTapMapSamples] = useState(
+    () => getTapMapSnapshot().totalSamples,
+  );
+  const [touchHitCount, setTouchHitCount] = useState(
+    () => getTouchIntelligenceTelemetrySummary().totalHits,
+  );
+
+  useEffect(() => {
+    void hydrateTapMapFromStorage().then(() => {
+      setTapMapSamples(getTapMapSnapshot().totalSamples);
+    });
+    const refreshTouch = () => {
+      setTouchHitCount(getTouchIntelligenceTelemetrySummary().totalHits);
+    };
+    refreshTouch();
+    return subscribeTouchIntelligenceTelemetry(refreshTouch);
+  }, []);
+
+  const tapMapHint = useMemo(() => {
+    if (tapMapSamples > 0) {
+      return `${tapMapSamples} taps`;
+    }
+    return 'Per-key offsets';
+  }, [tapMapSamples]);
+
+  const touchHitsHint = useMemo(() => {
+    if (touchHitCount > 0) {
+      return `${touchHitCount} logged`;
+    }
+    return 'Key fixes';
+  }, [touchHitCount]);
 
   const uiSoundsAnim = useRef(new Animated.Value(0)).current;
   const keyHapticAnim = useRef(new Animated.Value(0)).current;
@@ -373,6 +415,28 @@ export function GeneralSettingsScreen({
           </View>
         </View>
 
+        <Text style={styles.sectionLabel}>Touch learning</Text>
+        <View style={styles.mainSettingsStack}>
+          <Pressable
+            style={[styles.rowCard, styles.firstSettingCard]}
+            onPress={() => onOpenTapMap?.()}>
+            <View style={styles.rowInner}>
+              <KeyIcon width={ROW_ICON} height={ROW_ICON} color={C.text} />
+              <Text style={styles.rowTitle}>Tap map</Text>
+              <Text style={styles.rowValue}>{tapMapHint}</Text>
+            </View>
+          </Pressable>
+          <Pressable
+            style={[styles.rowCard, styles.lastSettingCard]}
+            onPress={() => onOpenTouchHits?.()}>
+            <View style={styles.rowInner}>
+              <GestureIcon width={ROW_ICON} height={ROW_ICON} color={C.text} />
+              <Text style={styles.rowTitle}>Touch hits</Text>
+              <Text style={styles.rowValue}>{touchHitsHint}</Text>
+            </View>
+          </Pressable>
+        </View>
+
         {/* Developer Eye + Console grouped (tighter, shared rounding) */}
         <View style={styles.mainSettingsStack}>
           {/* Developer Eye */}
@@ -518,6 +582,14 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     letterSpacing: -2.5,
     fontFamily: 'FragmentMono',
+  },
+  sectionLabel: {
+    fontSize: 11,
+    color: C.sub,
+    fontFamily: 'FragmentMono',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginBottom: 6,
   },
   stack: {
     gap: ROW_GAP,

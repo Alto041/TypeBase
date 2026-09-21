@@ -14,7 +14,6 @@ import {
 } from 'react-native';
 import Reanimated, {
   Easing,
-  LinearTransition,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
@@ -25,6 +24,8 @@ import {useFonts} from 'expo-font';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import AiConfigIcon from './assets/ai_config.svg';
 import LanguageLayoutIcon from './assets/layout.svg';
+import EssentialsIcon from './assets/plugins/essentials.svg';
+import NumberRowIcon from './assets/123.svg';
 import KeyboardPermIcon from './assets/keyboard_perm.svg';
 
 import HomeIcon from './assets/home.svg';
@@ -40,7 +41,11 @@ import { CustomizeScreen, ThemesScreen } from './KeyboardCustomization';
 import { GeneralSettingsScreen } from './GeneralSettingsScreen';
 import { ConsoleSettingsScreen } from './ConsoleSettingsScreen';
 import { EngineStatsScreen } from './EngineStatsScreen';
+import { TapMapScreen } from './TapMapScreen';
+import { TouchIntelligenceHitsScreen } from './TouchIntelligenceHitsScreen';
 import { PersonalTypingScreen } from './PersonalTypingScreen';
+import { EssentialsScreen } from './EssentialsScreen';
+import { MyRowScreen } from './MyRowScreen';
 import { keyboardBridge } from './src/keyboard/keyboardBridge';
 import { AiConfigScreen } from './AiConfigScreen';
 import { OnboardingScreen } from './OnboardingScreen';
@@ -62,7 +67,6 @@ const C = {
 
 const CARD_R = 25;
 const INNER_R = 5;
-const HOME_ICON = 22;
 
 const CONFIG_AI_W = 80;
 const CONFIG_AI_H = 94;
@@ -70,6 +74,21 @@ const CONFIG_PERM_SIZE = 68;
 const CONFIG_ICON_INSET = 16;
 
 const TEXT_KERNING = -0.7;
+const LAUNCHPAD_ROW_GAP = 8;
+const LAUNCHPAD_ROW_ICON = 20;
+
+function launchpadRowCardStyle(index: number, total: number) {
+  if (total <= 1) {
+    return [styles.lpRowCard, styles.lpFirstCard, styles.lpLastCard];
+  }
+  if (index === 0) {
+    return [styles.lpRowCard, styles.lpFirstCard];
+  }
+  if (index === total - 1) {
+    return [styles.lpRowCard, styles.lpLastCard];
+  }
+  return [styles.lpRowCard, styles.lpMiddleCard];
+}
 
 const ONBOARDING_COMPLETE_KEY = 'typebase:onboardingComplete';
 
@@ -281,72 +300,17 @@ function BottomNavigation({
   );
 }
 
-type LaunchpadCardProps = {
-  icon: React.ReactNode;
-  title: string;
-  description?: string;
-  titleFontFamily?: string;
-  radius?: number;
-  onPress?: () => void;
-  position?: 'top' | 'mid' | 'bottom' | 'solo';
-};
-
-function LaunchpadCard({
-  icon,
-  title,
-  description,
-  titleFontFamily,
-  radius = CARD_R,
-  onPress,
-  position = 'solo',
-}: LaunchpadCardProps) {
-  const positionStyle =
-    position === 'top'
-      ? styles.stackItemTop
-      : position === 'mid'
-        ? styles.stackItemMid
-        : position === 'bottom'
-          ? styles.stackItemBottom
-          : styles.stackItemSolo;
-
-  const content = (
-    <View style={styles.linkRow}>
-      <View style={styles.launchpadIconWrap}>{icon}</View>
-      <View style={styles.linkTextWrap}>
-        <Text style={[styles.rowTitle, titleFontFamily ? {fontFamily: titleFontFamily} : null]}>
-          {title}
-        </Text>
-        {description ? <Text style={styles.rowSub}>{description}</Text> : null}
-      </View>
-    </View>
-  );
-
-  return onPress ? (
-    <Pressable
-      onPress={onPress}
-      style={[
-        styles.stackItem,
-        positionStyle,
-        {borderRadius: radius},
-        styles.launchpadPressable,
-      ]}
-    >
-      {content}
-    </Pressable>
-  ) : (
-    <View style={[styles.stackItem, positionStyle, {borderRadius: radius}]}>
-      {content}
-    </View>
-  );
-}
-
 function SetupScreen() {
   const [tab, setTab] = useState<NavTab>('home');
   const [showAiConfig, setShowAiConfig] = useState(false);
   const [showLanguageLayout, setShowLanguageLayout] = useState(false);
   const [showConsoleSettings, setShowConsoleSettings] = useState(false);
   const [showEngineStats, setShowEngineStats] = useState(false);
+  const [showTapMap, setShowTapMap] = useState(false);
+  const [showTouchHits, setShowTouchHits] = useState(false);
   const [showPersonalTyping, setShowPersonalTyping] = useState(false);
+  const [showEssentials, setShowEssentials] = useState(false);
+  const [showMyRow, setShowMyRow] = useState(false);
   const [showPremiumUpgrade, setShowPremiumUpgrade] = useState(false);
   const { animatedStyle, transitionTo } = useScreenTransition();
 
@@ -358,7 +322,11 @@ function SetupScreen() {
       setTab(next);
       setShowConsoleSettings(false);
       setShowEngineStats(false);
+      setShowTapMap(false);
+      setShowTouchHits(false);
       setShowPersonalTyping(false);
+      setShowEssentials(false);
+      setShowMyRow(false);
     });
   };
 
@@ -394,12 +362,44 @@ function SetupScreen() {
     transitionTo(() => setShowEngineStats(false));
   };
 
+  const openTapMap = () => {
+    transitionTo(() => setShowTapMap(true));
+  };
+
+  const closeTapMap = () => {
+    transitionTo(() => setShowTapMap(false));
+  };
+
+  const openTouchHits = () => {
+    transitionTo(() => setShowTouchHits(true));
+  };
+
+  const closeTouchHits = () => {
+    transitionTo(() => setShowTouchHits(false));
+  };
+
   const openPersonalTyping = () => {
     transitionTo(() => setShowPersonalTyping(true));
   };
 
   const closePersonalTyping = () => {
     transitionTo(() => setShowPersonalTyping(false));
+  };
+
+  const openEssentials = () => {
+    transitionTo(() => setShowEssentials(true));
+  };
+
+  const closeEssentials = () => {
+    transitionTo(() => setShowEssentials(false));
+  };
+
+  const openMyRow = () => {
+    transitionTo(() => setShowMyRow(true));
+  };
+
+  const closeMyRow = () => {
+    transitionTo(() => setShowMyRow(false));
   };
 
   const openPremiumUpgrade = () => {
@@ -460,6 +460,38 @@ function SetupScreen() {
     );
   }
 
+  if (showTapMap) {
+    return (
+      <View style={styles.setupRoot}>
+        <TapMapScreen onBack={closeTapMap} />
+      </View>
+    );
+  }
+
+  if (showTouchHits) {
+    return (
+      <View style={styles.setupRoot}>
+        <TouchIntelligenceHitsScreen onBack={closeTouchHits} />
+      </View>
+    );
+  }
+
+  if (showEssentials) {
+    return (
+      <View style={styles.setupRoot}>
+        <EssentialsScreen onBack={closeEssentials} onOpenPremium={openPremiumUpgrade} />
+      </View>
+    );
+  }
+
+  if (showMyRow) {
+    return (
+      <View style={styles.setupRoot}>
+        <MyRowScreen onBack={closeMyRow} onOpenPremium={openPremiumUpgrade} />
+      </View>
+    );
+  }
+
   if (showPersonalTyping) {
     return (
       <View style={styles.setupRoot}>
@@ -475,6 +507,8 @@ function SetupScreen() {
           onBack={() => changeTab('home')}
           onOpenConsole={openConsoleSettings}
           onOpenEngineStats={openEngineStats}
+          onOpenTapMap={openTapMap}
+          onOpenTouchHits={openTouchHits}
           onOpenPersonalTyping={openPersonalTyping}
           onOpenPremium={openPremiumUpgrade}
         />
@@ -490,6 +524,8 @@ function SetupScreen() {
       <LaunchpadScreen
         onOpenAiConfig={openAiConfig}
         onOpenLanguageLayout={openLanguageLayout}
+        onOpenEssentials={openEssentials}
+        onOpenMyRow={openMyRow}
         onOpenPremium={openPremiumUpgrade}
       />
     );
@@ -550,41 +586,77 @@ function QuickActionsToggleIcon({expanded}: {expanded: boolean}) {
   );
 }
 
-function FreeTierFootnote({onOpenPremium}: {onOpenPremium: () => void}) {
-  const {isPremium, loading} = usePremium();
-
-  if (loading || isPremium) {
-    return null;
-  }
-
-  return (
-    <Pressable
-      onPress={() => {
-        void hapticTap();
-        onOpenPremium();
-      }}
-      hitSlop={8}
-      style={styles.freeTierFootnote}>
-      <Text style={styles.freeTierFootnoteText}>
-        Free experience — autocorrect and smart features stay basic.{' '}
-        <Text style={styles.freeTierFootnoteEmphasis}>Premium</Text> unlocks
-        everything and supports indie development.
-      </Text>
-    </Pressable>
-  );
-}
-
 function LaunchpadScreen({
   onOpenAiConfig,
   onOpenLanguageLayout,
+  onOpenEssentials,
+  onOpenMyRow,
   onOpenPremium,
 }: {
   onOpenAiConfig: () => void;
   onOpenLanguageLayout: () => void;
+  onOpenEssentials: () => void;
+  onOpenMyRow: () => void;
   onOpenPremium: () => void;
 }) {
   const {isPremium, loading} = usePremium();
   const [quickActionsExpanded, setQuickActionsExpanded] = useState(false);
+
+  const launchpadRows = [
+    ...(!loading && isPremium
+      ? [
+          {
+            key: 'premium',
+            icon: (
+              <PremiumIcon
+                width={LAUNCHPAD_ROW_ICON}
+                height={LAUNCHPAD_ROW_ICON}
+                color={C.text}
+              />
+            ),
+            title: 'Typebase Premium',
+            showPremiumDot: true,
+            onPress: onOpenPremium,
+          },
+        ]
+      : []),
+    {
+      key: 'my-row',
+      icon: (
+        <NumberRowIcon
+          width={LAUNCHPAD_ROW_ICON}
+          height={LAUNCHPAD_ROW_ICON}
+          color={C.text}
+        />
+      ),
+      title: 'My Row',
+      onPress: onOpenMyRow,
+    },
+    {
+      key: 'snippets',
+      icon: (
+        <EssentialsIcon
+          width={LAUNCHPAD_ROW_ICON}
+          height={LAUNCHPAD_ROW_ICON}
+          color={C.text}
+        />
+      ),
+      title: 'Essentials',
+      onPress: onOpenEssentials,
+    },
+    {
+      key: 'language',
+      icon: (
+        <LanguageLayoutIcon
+          width={LAUNCHPAD_ROW_ICON}
+          height={LAUNCHPAD_ROW_ICON}
+          color={C.text}
+        />
+      ),
+      title: 'Language & layout',
+      onPress: onOpenLanguageLayout,
+    },
+  ];
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -632,70 +704,74 @@ function LaunchpadScreen({
           </View>
         </View>
 
-        <View style={styles.stack}>
-          <LaunchpadCard
-            icon={<PremiumIcon width={HOME_ICON} height={HOME_ICON} color={C.text} />}
-            title={!loading && isPremium ? 'Typebase Premium' : 'Unlock TypeBase'}
-            description={
-              !loading && isPremium
-                ? 'Active on this device'
-                : !loading && !isPremium
-                  ? 'Full keyboard · supports indie dev'
-                  : undefined
-            }
-            titleFontFamily="FragmentMono"
-            radius={18}
-            onPress={onOpenPremium}
-            position="top"
-          />
-          <LaunchpadCard
-            icon={<LanguageLayoutIcon width={HOME_ICON} height={HOME_ICON} color={C.text} />}
-            title="Language & layout"
-            description="Typing language · layouts"
-            titleFontFamily="FragmentMono"
-            radius={18}
-            onPress={onOpenLanguageLayout}
-            position="bottom"
-          />
-          <Reanimated.View
-            layout={LinearTransition.duration(180)}
-            style={styles.quickActionsCard}>
+        {!loading && !isPremium ? (
+          <Pressable
+            style={[styles.lpRowCard, styles.lpUnlockCard, {marginBottom: LAUNCHPAD_ROW_GAP}]}
+            onPress={onOpenPremium}>
+            <View style={styles.lpRowInner}>
+              <Text style={styles.lpRowTitle}>Unlock TypeBase Premium</Text>
+              <Text style={styles.lpRowValue}>→</Text>
+            </View>
+          </Pressable>
+        ) : null}
+
+        <View style={styles.lpMainStack}>
+          {launchpadRows.map((row, index) => (
+            <Pressable
+              key={row.key}
+              onPress={row.onPress}
+              style={launchpadRowCardStyle(index, launchpadRows.length)}>
+              <View style={styles.lpRowInner}>
+                {row.icon}
+                <Text style={styles.lpRowTitle}>{row.title}</Text>
+                {'showPremiumDot' in row && row.showPremiumDot ? (
+                  <View style={styles.lpPremiumDot} accessibilityLabel="Premium active" />
+                ) : 'trailing' in row && row.trailing ? (
+                  <Text style={styles.lpRowValue}>{row.trailing}</Text>
+                ) : null}
+              </View>
+            </Pressable>
+          ))}
+        </View>
+
+        <View style={[styles.lpMainStack, {marginTop: LAUNCHPAD_ROW_GAP}]}>
+          <View style={[styles.lpRowCard, styles.lpSoloCard]}>
             <Pressable
               onPress={() => setQuickActionsExpanded(current => !current)}
-              style={styles.quickActionsHeader}>
-              <View style={styles.quickActionsLabel}>
-                <View style={styles.launchpadIconWrap}>
-                  <ActionsIcon
-                    width={HOME_ICON}
-                    height={HOME_ICON}
-                    color="#000000"
-                    fill="#000000"
-                  />
-                </View>
-                <Text style={styles.quickActionsTitle}>QUICK ACTIONS</Text>
+              style={styles.lpRowInner}>
+              <ActionsIcon
+                width={LAUNCHPAD_ROW_ICON}
+                height={LAUNCHPAD_ROW_ICON}
+                color={C.text}
+                fill={C.text}
+              />
+              <Text style={styles.lpRowTitle}>Quick Actions</Text>
+              <View style={styles.lpRowTrailing}>
+                <QuickActionsToggleIcon expanded={quickActionsExpanded} />
               </View>
-              <QuickActionsToggleIcon expanded={quickActionsExpanded} />
             </Pressable>
             {quickActionsExpanded ? (
               <View style={styles.quickActionsBody}>
                 <View style={styles.quickActionRow}>
                   <Text style={styles.quickActionKey}>,</Text>
-                  <Text style={styles.quickActionText}>AI Rewrite</Text>
+                  <Text style={styles.quickActionText}>Hold · Rewrite</Text>
                 </View>
                 <View style={styles.quickActionRow}>
                   <Text style={styles.quickActionKey}>.</Text>
-                  <Text style={styles.quickActionText}>App shortcut</Text>
+                  <Text style={styles.quickActionText}>Hold · Clipboard</Text>
+                </View>
+                <View style={styles.quickActionRow}>
+                  <Text style={styles.quickActionKey}>Shift</Text>
+                  <Text style={styles.quickActionText}>A C V X</Text>
                 </View>
                 <View style={styles.quickActionRow}>
                   <Text style={styles.quickActionKey}>Space</Text>
-                  <Text style={styles.quickActionText}>Zero latency</Text>
+                  <Text style={styles.quickActionText}>Long-press</Text>
                 </View>
               </View>
             ) : null}
-          </Reanimated.View>
+          </View>
         </View>
-
-        <FreeTierFootnote onOpenPremium={onOpenPremium} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -782,21 +858,6 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     letterSpacing: TEXT_KERNING,
   },
-  freeTierFootnote: {
-    paddingHorizontal: 8,
-    paddingTop: 18,
-  },
-  freeTierFootnoteText: {
-    fontSize: 12,
-    lineHeight: 17,
-    color: C.sub,
-    textAlign: 'center',
-    letterSpacing: -0.1,
-  },
-  freeTierFootnoteEmphasis: {
-    color: C.text,
-    fontWeight: '500',
-  },
   keyboardShortcut: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -876,31 +937,13 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
   },
-  quickActionsCard: {
-    backgroundColor: C.card,
-    borderRadius: 18,
-    paddingHorizontal: 16,
-    paddingVertical: 4,
-    marginTop: 10,
-    overflow: 'hidden',
-  },
-  quickActionsHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-  },
-  quickActionsLabel: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  quickActionsTitle: {
-    fontFamily: 'FragmentMono',
-    fontSize: 16,
-    color: C.text,
-    fontWeight: '400',
-    textTransform: 'uppercase',
+  quickActionsBody: {
+    marginTop: 4,
+    paddingTop: 6,
+    paddingHorizontal: 2,
+    paddingBottom: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: C.border,
   },
   quickActionsToggle: {
     width: 22,
@@ -916,13 +959,6 @@ const styles = StyleSheet.create({
     left: 0,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  quickActionsBody: {
-    marginTop: 4,
-    paddingTop: 6,
-    paddingBottom: 12,
-    borderTopWidth: 1,
-    borderTopColor: C.border,
   },
   quickActionRow: {
     flexDirection: 'row',
@@ -942,6 +978,7 @@ const styles = StyleSheet.create({
   },
   quickActionText: {
     marginLeft: 10,
+    flex: 1,
     color: C.text,
     fontSize: 13,
     fontFamily: 'FragmentMono',
@@ -1098,77 +1135,68 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
 
-  // Reference-design card stack styles (HomeDockScreen.tsx)
-  stack: {
-    marginBottom: 12,
+  // Launchpad rows — match GeneralSettingsScreen card stack
+  lpMainStack: {
+    gap: 4,
+    marginBottom: LAUNCHPAD_ROW_GAP,
   },
-  stackItem: {
+  lpRowCard: {
     backgroundColor: C.card,
-    paddingHorizontal: 16,
-  },
-  stackItemTop: {
-    borderTopLeftRadius: CARD_R,
-    borderTopRightRadius: CARD_R,
-    borderBottomLeftRadius: INNER_R,
-    borderBottomRightRadius: INNER_R,
-    marginBottom: 2,
+    borderRadius: 14,
+    paddingHorizontal: 14,
     paddingVertical: 4,
   },
-  stackItemBottom: {
-    borderTopLeftRadius: INNER_R,
-    borderTopRightRadius: INNER_R,
-    borderBottomLeftRadius: CARD_R,
-    borderBottomRightRadius: CARD_R,
-    paddingVertical: 4,
+  lpUnlockCard: {
+    borderRadius: 20,
   },
-  stackItemMid: {
-    borderRadius: 0,
-    borderTopLeftRadius: INNER_R,
-    borderTopRightRadius: INNER_R,
-    borderBottomLeftRadius: INNER_R,
-    borderBottomRightRadius: INNER_R,
-    marginBottom: 2,
-    paddingVertical: 4,
+  lpSoloCard: {
+    borderRadius: 20,
+    overflow: 'hidden',
   },
-  stackItemSolo: {
-    borderRadius: CARD_R,
-    paddingVertical: 4,
+  lpFirstCard: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderBottomLeftRadius: 8,
+    borderBottomRightRadius: 8,
   },
-  linkRow: {
+  lpMiddleCard: {
+    borderRadius: 10,
+  },
+  lpLastCard: {
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+  },
+  lpRowInner: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-    gap: 12,
+    gap: 14,
+    minHeight: 56,
   },
-  linkTextWrap: {
-    flex: 1,
-    minWidth: 0,
-  },
-  rowTitle: {
-    fontSize: 16,
+  lpRowTitle: {
     color: C.text,
-    fontWeight: '200',
+    fontSize: 16,
+    fontFamily: 'FragmentMono',
     textTransform: 'uppercase',
+    letterSpacing: TEXT_KERNING,
   },
-  rowSub: {
-    fontSize: 13,
-    color: C.sub,
-    marginTop: 1,
-    letterSpacing: 0.2,
+  lpRowValue: {
+    color: C.text,
+    fontSize: 14,
+    fontFamily: 'FragmentMono',
+    marginLeft: 'auto',
+    letterSpacing: TEXT_KERNING,
   },
-  divider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: C.border,
-    marginLeft: 34,
+  lpRowTrailing: {
+    marginLeft: 'auto',
   },
-  launchpadIconWrap: {
-    width: 22,
-    height: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  launchpadPressable: {
-    // keep pressable layout identical to stack items
+  lpPremiumDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#2CC642',
+    marginLeft: 'auto',
   },
 
   testSection: {

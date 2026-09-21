@@ -15,11 +15,13 @@ import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
 import {triggerKeyHaptic} from '../haptics';
 import type {KeyboardTheme} from '../theme';
 import type {Essential} from './types';
+import {formatSnippetTriggerLabel} from './essentialsStore';
 
 const ACTION_WIDTH = 72;
 
 type EssentialsSwipeRowProps = {
   essential: Essential;
+  isPremium?: boolean;
   tileStyle?: StyleProp<ViewStyle>;
   onSelect: (essential: Essential) => void;
   onDelete: (essential: Essential) => void;
@@ -27,6 +29,7 @@ type EssentialsSwipeRowProps = {
 
 export function EssentialsSwipeRow({
   essential,
+  isPremium = false,
   tileStyle,
   onSelect,
   onDelete,
@@ -169,7 +172,7 @@ export function EssentialsSwipeRow({
               pressed && !isDeleting && styles.cardPressed,
             ]}>
             <Text style={styles.keyword} numberOfLines={1}>
-              @@{essential.keyword}
+              {formatSnippetTriggerLabel(essential.keyword)}
             </Text>
             <Text style={styles.value} numberOfLines={2}>
               {essential.value || 'Empty value'}

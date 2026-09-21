@@ -59,6 +59,8 @@ const wordLetterTaps: Array<{letter: string; x: number; y: number}> = [];
 let neighborCacheKey = '';
 let neighborCache = new Map<string, Set<string>>();
 let lastNativeContextPayload = '';
+let lastNativeContextSyncAtMs = 0;
+const NATIVE_TOUCH_INTEL_SYNC_MIN_MS = 48;
 
 export function setTouchIntelligenceTypingContextProvider(
   provider: (() => TouchIntelligenceTypingContext) | null,
@@ -126,7 +128,11 @@ export function getTouchIntelligenceNativeConfig(): TouchIntelligenceNativeConfi
   };
 }
 
-export function syncTouchIntelligenceToNative(): void {
+export function syncTouchIntelligenceToNative(force = false): void {
+  const now = Date.now();
+  if (!force && now - lastNativeContextSyncAtMs < NATIVE_TOUCH_INTEL_SYNC_MIN_MS) {
+    return;
+  }
   const typing = getTouchIntelligenceTypingContext();
   const hitboxState = getPredictiveHitboxState();
   const payload = JSON.stringify({
@@ -145,6 +151,7 @@ export function syncTouchIntelligenceToNative(): void {
     return;
   }
   lastNativeContextPayload = payload;
+  lastNativeContextSyncAtMs = now;
   keyboardBridge.updateTouchIntelligenceContext(payload);
 }
 

@@ -44,6 +44,8 @@ import {MacintoshKeyBevels} from './MacintoshKeyBevels';
 export type EssentialSuggestion = {
   keyword: string;
   value: string;
+  /** Display trigger, e.g. ;email */
+  triggerLabel: string;
 };
 
 export type AiAutocorrectSuggestionBarItem = {
@@ -247,6 +249,8 @@ type EssentialsFormBarState = {
   keyword: string;
   value: string;
   canConfirm: boolean;
+  formHint?: string;
+  formError?: string;
   onBack: () => void;
   onConfirm: () => void;
 };
@@ -558,9 +562,18 @@ function SuggestionBarComponent({
             <Text style={styles.formLabel}>
               {essentialsForm.focusField === 'keyword' ? 'Keyword' : 'Value'}
             </Text>
+            {essentialsForm.formError ? (
+              <Text style={styles.formError} numberOfLines={2}>
+                {essentialsForm.formError}
+              </Text>
+            ) : essentialsForm.formHint && essentialsForm.focusField === 'value' ? (
+              <Text style={styles.formHint} numberOfLines={2}>
+                {essentialsForm.formHint}
+              </Text>
+            ) : null}
             <View style={styles.formRow}>
               {essentialsForm.focusField === 'keyword' ? (
-                <Text style={styles.formPrefix}>@@</Text>
+                <Text style={styles.formPrefix}>;</Text>
               ) : null}
               <Text
                 style={[
@@ -659,7 +672,7 @@ function SuggestionBarComponent({
                   onPress={() => onEssentialSelect?.(item)}
                   style={styles.suggestion}>
                   <Text style={styles.essentialKeyword} numberOfLines={1}>
-                    @@{asDisplayText(item.keyword)}
+                    {asDisplayText(item.triggerLabel)}
                   </Text>
                   <Text style={styles.essentialValue} numberOfLines={1}>
                     {asDisplayText(item.value)}
@@ -963,6 +976,18 @@ function createSuggestionBarStyles(theme: KeyboardTheme) {
     ...keyboardTypefaceStyle(theme, '600'),
     textTransform: 'uppercase',
     letterSpacing: 0.6,
+  },
+  formHint: {
+    color: theme.spaceLabel,
+    fontSize: 11,
+    ...keyboardTypefaceStyle(theme),
+    lineHeight: 14,
+  },
+  formError: {
+    color: theme.enter,
+    fontSize: 11,
+    ...keyboardTypefaceStyle(theme, '600'),
+    lineHeight: 14,
   },
   formRow: {
     flexDirection: 'row',

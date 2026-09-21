@@ -1,35 +1,69 @@
-import {getEssentialByKeyword} from './essentialsStore';
+import {
+  expandEssentialForInsert,
+  getEssentialByKeyword,
+} from './essentialsStore';
+import {
+  expandBuiltinPlaceholder,
+  isBuiltinPlaceholderKey,
+} from './snippetExpand';
 
 export type EssentialTrigger = {
   query: string;
   triggerLength: number;
 };
 
-export function extractEssentialTrigger(context: string): EssentialTrigger | null {
-  const match = context.match(/@@([a-zA-Z0-9_]*)$/);
-  if (!match) {
+export function extractEssentialTrigger(
+  context: string,
+  matchCase = false,
+): EssentialTrigger | null {
+  const semiMatch = context.match(/;([a-zA-Z0-9_]*)$/);
+  if (!semiMatch) {
     return null;
   }
+  const raw = semiMatch[1];
   return {
-    query: match[1].toLowerCase(),
-    triggerLength: match[0].length,
+    query: matchCase ? raw : raw.toLowerCase(),
+    triggerLength: semiMatch[0].length,
   };
 }
 
-export function resolveEssentialExpansion(context: string): {
+export function resolveEssentialExpansion(
+  context: string,
+  matchCase = false,
+): {
   triggerLength: number;
   value: string;
 } | null {
-  const match = context.match(/@@([a-zA-Z0-9_]+)$/);
-  if (!match) {
+  const semiMatch = context.match(/;([a-zA-Z0-9_]+)$/);
+  if (!semiMatch) {
     return null;
   }
-  const essential = getEssentialByKeyword(match[1]);
+  const typed = semiMatch[1];
+  const builtinKey = typed.toLowerCase();
+  if (isBuiltinPlaceholderKey(builtinKey)) {
+    return {
+      triggerLength: semiMatch[0].length,
+      value: expandBuiltinPlaceholder(builtinKey),
+    };
+  }
+  const essential = getEssentialByKeyword(typed, matchCase);
   if (!essential) {
     return null;
   }
   return {
-    triggerLength: match[0].length,
-    value: essential.value,
+    triggerLength: semiMatch[0].length,
+    value: expandEssentialForInsert(essential),
   };
+}
+
+export function formatEssentialSuggestionTrigger(keyword: string): string {
+  return `;${keyword}`;
+}
+
+/** True while the user is typing a ;essential trigger (skip heavy prefix bar work). */
+export function isEssentialTriggerPrefix(prefix: string): boolean {
+  if (!prefix) {
+    return false;
+  }
+  return /;\w*$/.test(prefix);
 }
