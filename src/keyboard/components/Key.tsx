@@ -37,8 +37,11 @@ import {gestureSwipeActiveRef} from '../gesture/gestureState';
 import {
   getKeyPreviewStyle,
   hideKeyPreview,
+  hideKeyPressed,
+  primeKeyPreviewAnchor,
   showKeyDoodleAt,
   showKeyPreview,
+  showKeyPressed,
 } from '../KeyPreview';
 import {registerKeyReactTag, unregisterKeyReactTag} from '../keyReactTags';
 import {triggerKeyHaptic} from '../haptics';
@@ -108,6 +111,7 @@ type KeyProps = {
   enterKeyNextLineEnabled?: boolean;
   multiTouchDispatchEnabled?: boolean;
   typeLiftProcessing?: boolean;
+  compactTypingNativeActive?: boolean;
 };
 
 function KeyComponent({
@@ -123,6 +127,7 @@ function KeyComponent({
   enterKeyNextLineEnabled,
   multiTouchDispatchEnabled = false,
   typeLiftProcessing = false,
+  compactTypingNativeActive = false,
   style,
 }: KeyProps) {
   const theme = useKeyboardTheme();
@@ -150,8 +155,8 @@ function KeyComponent({
     isSpaceKey && typeLiftProcessing && !showZeroLatencyRipple;
   const usesMultiTouchRouter = isMultiTouchTextKey(keyDef);
   const usesMultiTouchDispatch =
-    usesMultiTouchRouter ||
-    (isSpaceKey && multiTouchDispatchEnabled);
+    multiTouchDispatchEnabled &&
+    (usesMultiTouchRouter || isSpaceKey);
   const usesTouchDispatchView = usesMultiTouchDispatch;
   const launcherHoldDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const launcherDidHoldRef = useRef(false);
@@ -208,10 +213,6 @@ function KeyComponent({
     isEnterKey && !isApple ? keyHeight / 2 : theme.keyRadius;
 
   const measureKey = useCallback(() => {
-    if (!usesMultiTouchDispatch) {
-      return;
-    }
-
     const keyView = keyRef.current;
     const keysArea = layoutContext?.keysAreaRef.current;
     if (!keyView || !layoutContext) {
@@ -235,6 +236,13 @@ function KeyComponent({
         centerX: x + width / 2,
         centerY: y + height / 2,
       });
+
+      const tag = findNodeHandle(keyView);
+      if (tag) {
+        reactTagRef.current = tag;
+        registerKeyReactTag(keyDef.id, tag);
+        primeKeyPreviewAnchor(tag);
+      }
     };
 
     if (keysArea) {
@@ -260,11 +268,85 @@ function KeyComponent({
       );
       return;
     }
-  }, [keyDef, layoutContext, usesMultiTouchDispatch]);
+  }, [keyDef, layoutContext]);
 
   const animateMultiTouchPress = useCallback((pressed: boolean) => {
     setKeyPressed(pressed);
   }, []);
+
+  const previewStyle = getKeyPreviewStyle();
+  const subtlePreviewEnabled = previewStyle === 'subtle';
+  const doodlePressEnabled = previewStyle === 'doodle';
+  const softPressPreviewEnabled = subtlePreviewEnabled || doodlePressEnabled;
+
+  const previewLabelForKey = useCallback((): string => {
+    const raw = keyDef.value ?? keyDef.label ?? '';
+    if (/^[a-z]$/i.test(raw) && isUppercase) {
+      return raw.toUpperCase();
+    }
+    if (/^[a-z]$/i.test(raw)) {
+      return raw.toLowerCase();
+    }
+    return raw;
+  }, [isUppercase, keyDef.label, keyDef.value]);
+
+  const showPressableKeyPreview = useCallback(
+    (options?: {skipPopup?: boolean}) => {
+      if (compactTypingNativeActive || usesMultiTouchDispatch) {
+        return;
+      }
+      if (shouldSkipKeyPreviewEffects() && shouldSkipKeyPressEffects()) {
+        return;
+      }
+      const tag = reactTagRef.current ?? findNodeHandle(keyRef.current);
+      if (!tag) {
+        if (
+          (subtlePreviewEnabled || doodlePressEnabled) &&
+          !shouldSkipKeyPressEffects()
+        ) {
+          setKeyPressed(true);
+        }
+        return;
+      }
+      reactTagRef.current = tag;
+      if (
+        previewStyle === 'popup' &&
+        !options?.skipPopup &&
+        !keyboardBridge.isNativeTypingCommitActive()
+      ) {
+        showKeyPreview(tag, previewLabelForKey());
+      }
+      if (
+        (subtlePreviewEnabled || doodlePressEnabled) &&
+        !shouldSkipKeyPressEffects()
+      ) {
+        setKeyPressed(true);
+      }
+      if (previewStyle === 'popup' || previewStyle === 'subtle') {
+        showKeyPressed(tag);
+      }
+    },
+    [
+      doodlePressEnabled,
+      previewLabelForKey,
+      previewStyle,
+      subtlePreviewEnabled,
+      usesMultiTouchDispatch,
+      compactTypingNativeActive,
+    ],
+  );
+
+  const hidePressableKeyPreview = useCallback(() => {
+    if (usesMultiTouchDispatch) {
+      return;
+    }
+    const tag = reactTagRef.current ?? findNodeHandle(keyRef.current);
+    if (tag) {
+      hideKeyPreview(tag);
+      hideKeyPressed(tag);
+    }
+    setKeyPressed(false);
+  }, [usesMultiTouchDispatch]);
 
   useEffect(() => {
     if (!usesMultiTouchDispatch) {
@@ -336,23 +418,12 @@ function KeyComponent({
   }, [usesMultiTouchDispatch, keyDef.id]);
 
   useEffect(() => {
-    if (!usesMultiTouchDispatch) {
-      return;
-    }
     measureKey();
     return () => {
       layoutContext?.unregisterKey(keyDef.id);
-      if (usesMultiTouchRouter) {
-        unregisterKeyReactTag(keyDef.id);
-      }
+      unregisterKeyReactTag(keyDef.id);
     };
-  }, [
-    keyDef.id,
-    layoutContext,
-    measureKey,
-    usesMultiTouchDispatch,
-    usesMultiTouchRouter,
-  ]);
+  }, [keyDef.id, layoutContext, measureKey]);
 
   const clearLauncherHold = useCallback(() => {
     if (launcherHoldDelayRef.current) {
@@ -369,15 +440,11 @@ function KeyComponent({
   }, []);
 
   useEffect(() => {
-    if (!usesMultiTouchDispatch) {
-      return;
-    }
     const timer = setTimeout(measureKey, 0);
     return () => clearTimeout(timer);
   }, [
     measureKey,
     keyDef.id,
-    usesMultiTouchDispatch,
     layoutContext?.layoutEpoch,
     layoutContext?.areaBounds.pageX,
     layoutContext?.areaBounds.pageY,
@@ -389,12 +456,8 @@ function KeyComponent({
     return () => {
       clearLauncherHold();
       clearRewriteHold();
-      layoutContext?.unregisterKey(keyDef.id);
-      if (usesMultiTouchRouter) {
-        unregisterKeyReactTag(keyDef.id);
-      }
     };
-  }, [clearLauncherHold, clearRewriteHold, keyDef.id, layoutContext, usesMultiTouchRouter]);
+  }, [clearLauncherHold, clearRewriteHold, keyDef.id]);
 
   const isLauncherGesture =
     keyDef.type === 'period' && keyGestures?.commaLauncher;
@@ -542,34 +605,43 @@ function KeyComponent({
       // Defer the action to onPress (short tap) or onLongPress (hold for alternate newline).
       // Give immediate haptic + visual on down for responsiveness.
       triggerKeyHaptic(pointerId);
+      showPressableKeyPreview();
       return;
     }
     if (isShift && keyGestures?.shiftEditorShortcuts) {
       triggerKeyHaptic(pointerId);
       keyGestures.onShiftEditorPressIn?.();
+      showPressableKeyPreview();
       return;
     }
     const nativeCommitted =
       pointerId != null &&
       keyboardBridge.consumeNativeFastPathPointer(pointerId);
-    if (
-      Platform.OS !== 'android' &&
-      getKeyPreviewStyle() === 'doodle'
-    ) {
+    if (getKeyPreviewStyle() === 'doodle' && !shouldSkipKeyPressEffects()) {
       showKeyDoodleAt(event.nativeEvent.pageX, event.nativeEvent.pageY);
     }
+    showPressableKeyPreview({
+      skipPopup:
+        nativeCommitted &&
+        isTextKey &&
+        keyboardBridge.isNativeTypingCommitActive(),
+    });
     triggerKeyHaptic(pointerId, {nativeCommitted});
     if (!nativeCommitted) {
       onPress(keyDef);
     }
-  }, [isEnterAction, isShift, keyDef, keyGestures, onPress]);
+  }, [
+    isEnterAction,
+    isShift,
+    isTextKey,
+    keyDef,
+    keyGestures,
+    onPress,
+    showPressableKeyPreview,
+  ]);
 
   const isSpaceGesture =
     keyDef.type === 'space' && keyGestures?.spaceCursorSwipe;
-  const previewStyle = getKeyPreviewStyle();
-  const subtlePreviewEnabled = previewStyle === 'subtle';
-  const doodlePressEnabled = previewStyle === 'doodle';
-  const softPressPreviewEnabled = subtlePreviewEnabled || doodlePressEnabled;
   const handleLauncherPressIn = useCallback(() => {
     clearLauncherHold();
     launcherDidHoldRef.current = false;
@@ -799,7 +871,9 @@ function KeyComponent({
 
   const gestureHandlers = isSpaceGesture ? spacePanResponder.panHandlers : undefined;
 
-  const handlePressOut = useCallback(() => {}, []);
+  const handlePressOut = useCallback(() => {
+    hidePressableKeyPreview();
+  }, [hidePressableKeyPreview]);
 
   if (usesTouchDispatchView) {
     return (
@@ -818,7 +892,13 @@ function KeyComponent({
           }
         }}
         collapsable={false}
-        pointerEvents={isSpaceGesture ? 'auto' : 'box-none'}>
+        pointerEvents={
+          compactTypingNativeActive
+            ? 'none'
+            : isSpaceGesture
+              ? 'auto'
+              : 'box-none'
+        }>
         <View
           pointerEvents="none"
           style={[
@@ -865,6 +945,7 @@ function KeyComponent({
       ref={keyRef}
       style={style}
       onLayout={measureKey}
+      pointerEvents={compactTypingNativeActive ? 'none' : 'auto'}
       {...gestureHandlers}>
       <Pressable
           unstable_pressDelay={0}
@@ -996,6 +1077,7 @@ function keyPropsAreEqual(prev: KeyProps, next: KeyProps): boolean {
     prev.variant === next.variant &&
     prev.enterKeyNextLineEnabled === next.enterKeyNextLineEnabled &&
     prev.multiTouchDispatchEnabled === next.multiTouchDispatchEnabled &&
+    prev.compactTypingNativeActive === next.compactTypingNativeActive &&
     prev.typeLiftProcessing === next.typeLiftProcessing &&
     prev.style === next.style
   );

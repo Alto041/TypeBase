@@ -52,12 +52,16 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   private var removeSupportsNewlineListener: (() -> Unit)? = null
   private var removeInitialCapsModeListener: (() -> Unit)? = null
   private var removeEditorContextListener: (() -> Unit)? = null
+  private var removeFloatingKeyboardDragListener: (() -> Unit)? = null
   private var removeNativeFastPathKeyListener: (() -> Unit)? = null
   private var removeEditorShortcutListener: (() -> Unit)? = null
   private var removeNativeSuggestionsListener: (() -> Unit)? = null
   private var removeTouchIntelligenceHitListener: (() -> Unit)? = null
   private var removeControllerInputListener: (() -> Unit)? = null
   private var removeControllerConnectionListener: (() -> Unit)? = null
+  private var removeCompactTypingStateListener: (() -> Unit)? = null
+  private var removeCompactTypingBoundaryListener: (() -> Unit)? = null
+  private var removeCompactTypingShiftListener: (() -> Unit)? = null
   private var clipboardListener: ClipboardManager.OnPrimaryClipChangedListener? = null
   private val backspaceHandler = Handler(Looper.getMainLooper())
   private var backspaceHoldRunnable: Runnable? = null
@@ -178,6 +182,14 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
                 .emit("keyboardEditorContextChanged", event)
           }
         }
+    removeFloatingKeyboardDragListener =
+        KeyboardInputBridge.addFloatingKeyboardDragListener { active ->
+          if (reactApplicationContext.hasActiveReactInstance()) {
+            reactApplicationContext
+                .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                .emit("keyboardFloatingDrag", active)
+          }
+        }
     removeNativeFastPathKeyListener =
         KeyboardInputBridge.addNativeFastPathKeyListener { id, type, value, text, shiftConsumed ->
           if (reactApplicationContext.hasActiveReactInstance()) {
@@ -257,6 +269,43 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
                 .emit("keyboardControllerConnection", connected)
           }
         }
+    removeCompactTypingStateListener =
+        KeyboardInputBridge.addCompactTypingStateListener {
+            prefix,
+            shiftOn,
+            capsLocked,
+            reason ->
+          if (reactApplicationContext.hasActiveReactInstance()) {
+            val event = Arguments.createMap()
+            event.putString("prefix", prefix)
+            event.putBoolean("shiftOn", shiftOn)
+            event.putBoolean("capsLocked", capsLocked)
+            event.putString("reason", reason)
+            reactApplicationContext
+                .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                .emit("compactTypingStateSync", event)
+            emitCompactTypingMetricsChanged()
+          }
+        }
+    removeCompactTypingBoundaryListener =
+        KeyboardInputBridge.addCompactTypingBoundaryListener { boundary, typedWord ->
+          if (reactApplicationContext.hasActiveReactInstance()) {
+            val event = Arguments.createMap()
+            event.putString("boundary", boundary)
+            event.putString("typedWord", typedWord)
+            reactApplicationContext
+                .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                .emit("compactTypingBoundary", event)
+          }
+        }
+    removeCompactTypingShiftListener =
+        KeyboardInputBridge.addCompactTypingShiftListener {
+          if (reactApplicationContext.hasActiveReactInstance()) {
+            reactApplicationContext
+                .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                .emit("compactTypingShiftPress", null)
+          }
+        }
     try {
       val layoutJson =
           learnedWordsPrefs()
@@ -308,6 +357,8 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     removeInitialCapsModeListener = null
     removeEditorContextListener?.invoke()
     removeEditorContextListener = null
+    removeFloatingKeyboardDragListener?.invoke()
+    removeFloatingKeyboardDragListener = null
     removeNativeFastPathKeyListener?.invoke()
     removeNativeFastPathKeyListener = null
     removeEditorShortcutListener?.invoke()
@@ -320,6 +371,12 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     removeControllerInputListener = null
     removeControllerConnectionListener?.invoke()
     removeControllerConnectionListener = null
+    removeCompactTypingStateListener?.invoke()
+    removeCompactTypingStateListener = null
+    removeCompactTypingBoundaryListener?.invoke()
+    removeCompactTypingBoundaryListener = null
+    removeCompactTypingShiftListener?.invoke()
+    removeCompactTypingShiftListener = null
     clipboardListener?.let { listener ->
       val clipboardManager =
           reactApplicationContext.getSystemService(Context.CLIPBOARD_SERVICE) as
@@ -939,6 +996,19 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     KeyboardInputBridge.updateNativeFastPathCaseState(shiftOn, capsLocked, uppercase)
   }
 
+  @ReactMethod
+  fun updateNativeFastPathPreviewChrome(
+      previewPopup: Boolean,
+      previewPressed: Boolean,
+      previewDoodle: Boolean,
+  ) {
+    KeyboardInputBridge.updateNativeFastPathPreviewChrome(
+        previewPopup,
+        previewPressed,
+        previewDoodle,
+    )
+  }
+
   @ReactMethod(isBlockingSynchronousMethod = true)
   fun consumeNativeFastPathPointer(pointerId: Int): Boolean {
     return KeyboardInputBridge.consumeNativeFastPathPointer(pointerId)
@@ -958,6 +1028,47 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   @ReactMethod(isBlockingSynchronousMethod = true)
   fun isNativeTypingCommitActive(): Boolean {
     return KeyboardInputBridge.isNativeTypingCommitActive()
+  }
+
+  @ReactMethod(isBlockingSynchronousMethod = true)
+  fun isCompactTypingConsumingTouches(): Boolean {
+    return KeyboardInputBridge.isCompactTypingConsumingTouches()
+  }
+
+  @ReactMethod
+  fun getCompactTypingMetrics(promise: Promise) {
+    try {
+      val json = CompactTypingTelemetry.toJson()
+      val map = Arguments.createMap()
+      map.putInt("nativeCommits", json.getInt("nativeCommits"))
+      map.putInt("reactTouchBlocks", json.getInt("reactTouchBlocks"))
+      map.putInt("fastPathConfigPublishes", json.getInt("fastPathConfigPublishes"))
+      map.putInt("layoutEpochBumps", json.getInt("layoutEpochBumps"))
+      map.putInt("compactStateSyncs", json.getInt("compactStateSyncs"))
+      map.putInt("boundaryAutocorrectCalls", json.getInt("boundaryAutocorrectCalls"))
+      promise.resolve(map)
+    } catch (error: Exception) {
+      promise.reject("compact_typing_metrics", error)
+    }
+  }
+
+  @ReactMethod
+  fun resetCompactTypingMetrics() {
+    CompactTypingTelemetry.resetSessionCounters()
+    emitCompactTypingMetricsChanged()
+  }
+
+  private fun emitCompactTypingMetricsChanged() {
+    if (reactApplicationContext.hasActiveReactInstance()) {
+      reactApplicationContext
+          .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+          .emit("compactTypingMetricsChanged", null)
+    }
+  }
+
+  @ReactMethod
+  fun syncCompactTypingPrefix(prefix: String) {
+    KeyboardInputBridge.inputService?.syncCompactTypingPrefix(prefix)
   }
 
   @ReactMethod(isBlockingSynchronousMethod = true)
@@ -1000,6 +1111,11 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   }
 
   @ReactMethod
+  fun deleteBackwardFast() {
+    performDeleteBackwardFast()
+  }
+
+  @ReactMethod
   fun startBackspaceRepeat(holdDelayMs: Int, intervalMs: Int) {
     UiThreadUtil.runOnUiThread {
       stopBackspaceRepeatInternal()
@@ -1008,14 +1124,14 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
 
       val holdRunnable = Runnable {
         backspaceHoldRunnable = null
-        performDeleteBackward()
+        performDeleteBackwardFast()
         val tickRunnable =
             object : Runnable {
               override fun run() {
                 if (backspaceTickRunnable !== this) {
                   return
                 }
-                performDeleteBackward()
+                performDeleteBackwardFast()
                 backspaceHandler.postDelayed(this, interval)
               }
             }
@@ -1030,6 +1146,22 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   @ReactMethod
   fun stopBackspaceRepeat() {
     UiThreadUtil.runOnUiThread { stopBackspaceRepeatInternal() }
+  }
+
+  private fun performDeleteBackwardFast() {
+    val connection = KeyboardInputBridge.getInputConnection() ?: return
+    val selected = connection.getSelectedText(0)
+    if (selected != null && selected.isNotEmpty()) {
+      connection.commitText("", 1)
+      return
+    }
+
+    if (KeyboardInputBridge.shouldPreferDeleteKeyEvent()) {
+      sendDeleteKeyEvent(connection)
+      return
+    }
+
+    connection.deleteSurroundingTextInCodePoints(1, 0)
   }
 
   private fun performDeleteBackward() {
@@ -1167,7 +1299,12 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   @ReactMethod
   fun setKeyboardColorScheme(scheme: String, promise: Promise) {
     try {
-      val normalized = if (scheme == "dark") "dark" else "light"
+      val normalized =
+          when (scheme) {
+            "dark" -> "dark"
+            "auto" -> "auto"
+            else -> "light"
+          }
       val saved =
           learnedWordsPrefs()
               .edit()
@@ -2321,7 +2458,7 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     private const val VOICE_STT_PROVIDER_KEY = "voice_stt_provider"
     private const val DEFAULT_VOICE_STT_PROVIDER = "android"
     private const val KEYBOARD_THEME_KEY = "keyboard_theme"
-    private const val DEFAULT_KEYBOARD_THEME = "light"
+    private const val DEFAULT_KEYBOARD_THEME = "auto"
     private const val KEYBOARD_DESIGN_KEY = "keyboard_design"
     private const val DEFAULT_KEYBOARD_DESIGN = "typebase"
     private const val KEYBOARD_CUSTOM_THEME_KEY = "keyboard_custom_theme"

@@ -1,6 +1,7 @@
 import {Platform} from 'react-native';
 
 import {keyboardBridge} from './keyboardBridge';
+import {shouldSkipNativeSuggestionTracking} from './zeroLatencyMode';
 
 export type NativeSuggestionSnapshot = {
   prefix: string;
@@ -31,7 +32,7 @@ export function getFreshNativeSuggestions(prefix: string): string[] | null {
 }
 
 export function syncNativeSuggestionPrefix(prefix: string): void {
-  if (Platform.OS !== 'android') {
+  if (Platform.OS !== 'android' || shouldSkipNativeSuggestionTracking()) {
     return;
   }
   void keyboardBridge.syncNativeSuggestionPrefix(prefix);
@@ -39,7 +40,7 @@ export function syncNativeSuggestionPrefix(prefix: string): void {
 
 export function clearNativeSuggestionSnapshot(): void {
   latestSnapshot = null;
-  if (Platform.OS === 'android') {
+  if (Platform.OS === 'android' && !shouldSkipNativeSuggestionTracking()) {
     void keyboardBridge.syncNativeSuggestionPrefix('');
   }
 }

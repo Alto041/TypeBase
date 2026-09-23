@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -54,6 +54,7 @@ import {
   getKeyboardColorScheme,
   getKeyboardDesign,
   getKeyboardCustomTheme,
+  KEYBOARD_THEME_CHANGED_EVENT,
   setKeyboardColorScheme,
   setKeyboardDesign,
   setKeyboardCustomTheme,
@@ -63,7 +64,7 @@ import {
   parseCustomThemeJsonFromEditor,
 } from './src/keyboard/theme';
 import {DEFAULT_KEYBOARD_LAYOUT_SETTINGS} from './src/keyboard/theme';
-import type {KeyboardLayoutSettings} from './src/keyboard/theme';
+import type {KeyboardColorScheme, KeyboardLayoutSettings} from './src/keyboard/theme';
 
 const C = {
   bg: '#f2f2f4',
@@ -92,6 +93,15 @@ const KEY_PREVIEW_STYLES: ReadonlyArray<{
   {id: 'doodle', label: 'Doodle'},
 ];
 
+const THEME_COLOR_SCHEMES: ReadonlyArray<{
+  id: KeyboardColorScheme;
+  label: string;
+}> = [
+  {id: 'light', label: 'Light'},
+  {id: 'dark', label: 'Dark'},
+  {id: 'auto', label: 'Auto'},
+];
+
 function keyPreviewStyleIndex(
   style: KeyboardLayoutSettings['keyPreviewStyle'],
 ): number {
@@ -104,20 +114,33 @@ function keyPreviewStyleIndex(
   return 0;
 }
 
-function KeyPreviewSegmentBar({
+function colorSchemeIndex(scheme: KeyboardColorScheme): number {
+  if (scheme === 'dark') {
+    return 1;
+  }
+  if (scheme === 'auto') {
+    return 2;
+  }
+  return 0;
+}
+
+function ThreeOptionSegmentBar<T extends string>({
+  options,
   value,
   loading,
   onChange,
+  indexForValue,
 }: {
-  value: KeyboardLayoutSettings['keyPreviewStyle'];
+  options: ReadonlyArray<{id: T; label: string}>;
+  value: T;
   loading: boolean;
-  onChange: (style: KeyboardLayoutSettings['keyPreviewStyle']) => void;
+  onChange: (next: T) => void;
+  indexForValue: (item: T) => number;
 }) {
-  const slideAnim = useRef(
-    new Animated.Value(keyPreviewStyleIndex(value)),
-  ).current;
+  const slideAnim = useRef(new Animated.Value(indexForValue(value))).current;
   const [slotWidth, setSlotWidth] = useState(0);
-  const index = keyPreviewStyleIndex(value);
+  const index = indexForValue(value);
+  const segmentCount = options.length;
 
   useEffect(() => {
     Animated.spring(slideAnim, {
@@ -129,6 +152,15 @@ function KeyPreviewSegmentBar({
     }).start();
   }, [index, slideAnim]);
 
+  const inputRange = useMemo(
+    () => options.map((_, optionIndex) => optionIndex),
+    [options],
+  );
+  const outputRange = useMemo(
+    () => options.map((_, optionIndex) => optionIndex * (slotWidth || 0)),
+    [options, slotWidth],
+  );
+
   return (
     <View
       style={styles.previewSegment}
@@ -136,7 +168,7 @@ function KeyPreviewSegmentBar({
         const width = event.nativeEvent.layout.width;
         if (width > 0) {
           const inset = KEY_PREVIEW_SEGMENT_PADDING * 2;
-          setSlotWidth((width - inset) / KEY_PREVIEW_STYLES.length);
+          setSlotWidth((width - inset) / segmentCount);
         }
       }}>
       {slotWidth > 0 ? (
@@ -149,8 +181,8 @@ function KeyPreviewSegmentBar({
               transform: [
                 {
                   translateX: slideAnim.interpolate({
-                    inputRange: [0, 1, 2],
-                    outputRange: [0, slotWidth, slotWidth * 2],
+                    inputRange,
+                    outputRange,
                   }),
                 },
               ],
@@ -158,7 +190,7 @@ function KeyPreviewSegmentBar({
           ]}
         />
       ) : null}
-      {KEY_PREVIEW_STYLES.map(option => {
+      {options.map(option => {
         const selected = value === option.id;
         return (
           <Pressable
@@ -179,6 +211,46 @@ function KeyPreviewSegmentBar({
         );
       })}
     </View>
+  );
+}
+
+function KeyPreviewSegmentBar({
+  value,
+  loading,
+  onChange,
+}: {
+  value: KeyboardLayoutSettings['keyPreviewStyle'];
+  loading: boolean;
+  onChange: (style: KeyboardLayoutSettings['keyPreviewStyle']) => void;
+}) {
+  return (
+    <ThreeOptionSegmentBar
+      options={KEY_PREVIEW_STYLES}
+      value={value}
+      loading={loading}
+      onChange={onChange}
+      indexForValue={keyPreviewStyleIndex}
+    />
+  );
+}
+
+function ColorSchemeSegmentBar({
+  value,
+  loading,
+  onChange,
+}: {
+  value: KeyboardColorScheme;
+  loading: boolean;
+  onChange: (scheme: KeyboardColorScheme) => void;
+}) {
+  return (
+    <ThreeOptionSegmentBar
+      options={THEME_COLOR_SCHEMES}
+      value={value}
+      loading={loading}
+      onChange={onChange}
+      indexForValue={colorSchemeIndex}
+    />
   );
 }
 
@@ -986,9 +1058,9 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
 export function ThemesScreen({onBack}: {onBack: () => void}) {
   const {canUse} = usePremium();
   const [design, setDesign] = useState<'typebase' | 'quivox' | 'macintosh' | 'apple'>('typebase');
-  const [isDark, setIsDark] = useState(false);
+  const [colorScheme, setColorScheme] = useState<KeyboardColorScheme>('auto');
   const [keyPreviewStyle, setKeyPreviewStyle] =
-    useState<KeyboardLayoutSettings['keyPreviewStyle']>('popup');
+    useState<KeyboardLayoutSettings['keyPreviewStyle']>('doodle');
   const [loading, setLoading] = useState(true);
   const [themeJson, setThemeJson] = useState(() => formatCustomThemeJsonForEditor('{}'));
   const [jsonError, setJsonError] = useState<string | null>(null);
@@ -1000,13 +1072,12 @@ export function ThemesScreen({onBack}: {onBack: () => void}) {
   const [importingFont, setImportingFont] = useState(false);
   const importFontInFlightRef = useRef(false);
 
-  const toggleAnim = useRef(new Animated.Value(0)).current;
   const fontToggleAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     void ensureThemeLoaded().then(() => {
       const current = getKeyboardDesign();
-      const dark = getKeyboardColorScheme() === 'dark';
+      setColorScheme(getKeyboardColorScheme());
       setDesign(
         current === 'quivox'
           ? 'quivox'
@@ -1016,8 +1087,6 @@ export function ThemesScreen({onBack}: {onBack: () => void}) {
               ? 'apple'
               : 'typebase',
       );
-      setIsDark(dark);
-      toggleAnim.setValue(dark ? 1 : 0);
       setThemeJson(formatCustomThemeJsonForEditor(getKeyboardCustomTheme()));
       setLoading(false);
     });
@@ -1028,7 +1097,7 @@ export function ThemesScreen({onBack}: {onBack: () => void}) {
       const fontOn = !!ls.customFontEnabled;
       setCustomFontEnabled(fontOn);
       fontToggleAnim.setValue(fontOn ? 1 : 0);
-      setKeyPreviewStyle(ls.keyPreviewStyle ?? 'popup');
+      setKeyPreviewStyle(ls.keyPreviewStyle ?? 'doodle');
     });
 
     const layoutSubscription = DeviceEventEmitter.addListener(
@@ -1039,12 +1108,22 @@ export function ThemesScreen({onBack}: {onBack: () => void}) {
         const fontOn = !!parsed.customFontEnabled;
         setCustomFontEnabled(fontOn);
         fontToggleAnim.setValue(fontOn ? 1 : 0);
-        setKeyPreviewStyle(parsed.keyPreviewStyle ?? 'popup');
+        setKeyPreviewStyle(parsed.keyPreviewStyle ?? 'doodle');
       },
     );
 
-    return () => layoutSubscription.remove();
-  }, [toggleAnim, fontToggleAnim]);
+    const schemeSubscription = DeviceEventEmitter.addListener(
+      KEYBOARD_THEME_CHANGED_EVENT,
+      (scheme: KeyboardColorScheme) => {
+        setColorScheme(scheme);
+      },
+    );
+
+    return () => {
+      layoutSubscription.remove();
+      schemeSubscription.remove();
+    };
+  }, [fontToggleAnim]);
 
   const applyThemeJson = async () => {
     if (!canUse('themes_premium')) {
@@ -1078,22 +1157,13 @@ export function ThemesScreen({onBack}: {onBack: () => void}) {
     void setKeyboardDesign(which);
   };
 
-  const toggleDark = () => {
-    if (loading) return;
-    const next = !isDark;
-    setIsDark(next);
-    void setKeyboardColorScheme(next ? 'dark' : 'light');
-    Haptics.selectionAsync().catch(() => {});
-    if (next) playSwitchOnSound();
-    else playSwitchOffSound();
-
-    Animated.spring(toggleAnim, {
-      toValue: next ? 1 : 0,
-      useNativeDriver: true,
-      stiffness: 700,
-      damping: 28,
-      mass: 0.8,
-    }).start();
+  const selectColorScheme = (scheme: KeyboardColorScheme) => {
+    if (loading || scheme === colorScheme) {
+      return;
+    }
+    setColorScheme(scheme);
+    void setKeyboardColorScheme(scheme);
+    void Haptics.selectionAsync().catch(() => {});
   };
 
   const isNothing = design === 'typebase';
@@ -1308,33 +1378,20 @@ export function ThemesScreen({onBack}: {onBack: () => void}) {
 
         <View style={styles.themesSettingsStack}>
           <View style={[styles.settingRowCard, styles.firstSettingCard]}>
-            <View style={styles.settingRowInner}>
-              <ThemeIcon width={SETTINGS_ROW_ICON} height={SETTINGS_ROW_ICON} color={C.text} />
-              <Text style={[styles.settingRowTitle, styles.settingRowTitleFill]}>
-                Dark Theme
-              </Text>
-              <View style={styles.settingToggleWrap}>
-                <Pressable
-                  onPress={toggleDark}
-                  style={[styles.toggleTrack, isDark && styles.toggleTrackOn]}
-                  disabled={loading}>
-                  <Animated.View
-                    style={[
-                      styles.toggleThumb,
-                      {
-                        transform: [
-                          {
-                            translateX: toggleAnim.interpolate({
-                              inputRange: [0, 1],
-                              outputRange: [0, 18],
-                            }),
-                          },
-                        ],
-                      },
-                    ]}
-                  />
-                </Pressable>
-              </View>
+            <View style={styles.keyPreviewHeaderRow}>
+              <ThemeIcon
+                width={SETTINGS_ROW_ICON}
+                height={SETTINGS_ROW_ICON}
+                color={C.text}
+              />
+              <Text style={styles.settingRowTitle}>Theme</Text>
+            </View>
+            <View style={styles.keyPreviewSegmentWrap}>
+              <ColorSchemeSegmentBar
+                value={colorScheme}
+                loading={loading}
+                onChange={selectColorScheme}
+              />
             </View>
           </View>
 

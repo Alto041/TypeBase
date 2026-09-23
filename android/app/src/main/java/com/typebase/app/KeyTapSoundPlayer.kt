@@ -20,6 +20,10 @@ object KeyTapSoundPlayer {
   private const val DEFAULT_LOADED_TOKEN = "asset:$DEFAULT_TAP_ASSET"
   private const val MACINTOSH_ASSET = "sounds/mac-sfx.mp3"
   private const val MACINTOSH_LOADED_TOKEN = "asset:$MACINTOSH_ASSET"
+  /** Left/right gain for key taps (SoundPool). */
+  private const val TAP_VOLUME = 0.32f
+  /** Slightly slower playback reads softer than full-speed click. */
+  private const val TAP_PLAYBACK_RATE = 0.96f
 
   @Volatile private var enabled: Boolean = false
   @Volatile private var soundReady: Boolean = false
@@ -241,7 +245,7 @@ object KeyTapSoundPlayer {
     if (pool == null || id == 0 || !soundReady) {
       return
     }
-    pool.play(id, 0.55f, 0.55f, 1, 0, 1f)
+    pool.play(id, TAP_VOLUME, TAP_VOLUME, 1, 0, TAP_PLAYBACK_RATE)
   }
 
   fun isEnabled(): Boolean = enabled

@@ -8,16 +8,20 @@ import android.graphics.Rect
 import android.hardware.input.InputManager
 import android.inputmethodservice.InputMethodService
 import android.net.Uri
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.TypedValue
+import android.view.Choreographer
 import android.view.Gravity
+import android.view.HapticFeedbackConstants
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewOutlineProvider
+import android.view.WindowInsets
 import android.view.inputmethod.EditorInfo
 import android.widget.FrameLayout
 import android.widget.LinearLayout
@@ -28,6 +32,7 @@ import com.facebook.react.bridge.ReactContext
 import com.facebook.react.bridge.UiThreadUtil
 import com.facebook.react.common.LifecycleState
 import com.facebook.react.interfaces.fabric.ReactSurface
+import kotlin.math.roundToInt
 
 class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListener {
 
@@ -35,6 +40,8 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
   private var container: FrameLayout? = null
   private var keyboardView: View? = null
   private var previewOverlay: FrameLayout? = null
+  /** Wraps RN keyboard + preview overlay so drag moves one composited layer (Gboard-style). */
+  private var floatingCardShell: FrameLayout? = null
   private var keyboardHeightDp: Int = DEFAULT_KEYBOARD_HEIGHT_DP
   private var surfaceMountAttempts = 0
   private var keyboardResumedReact = false
@@ -53,6 +60,17 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
   private var floatingDragStartLeft = 0
   private var floatingDragStartTop = 0
   private var floatingDragActive = false
+  private var pendingFloatingDragDeltaX = 0f
+  private var pendingFloatingDragDeltaY = 0f
+  private var floatingDragFramePosted = false
+  private val floatingDragFrameCallback =
+      Choreographer.FrameCallback {
+        floatingDragFramePosted = false
+        if (!floatingDragActive) {
+          return@FrameCallback
+        }
+        applyFloatingDragTranslation(pendingFloatingDragDeltaX, pendingFloatingDragDeltaY)
+      }
   private val floatingKeyboardOutlineProvider =
       object : ViewOutlineProvider() {
         override fun getOutline(view: View, outline: Outline) {
@@ -141,6 +159,7 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
     val frame = container ?: return
     resumeReactForKeyboard()
     mountKeyboardSurface(frame)
+    syncImeCaptionBarVisibility()
     KeyboardInputBridge.notifyKeyboardShown()
   }
 
@@ -180,6 +199,9 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
     if (KeyboardInputBridge.isGamePerformanceMode()) {
       return
     }
+    if (KeyboardInputBridge.isFloatingKeyboardDragging()) {
+      return
+    }
     if (forced != null) {
       KeyboardInputBridge.notifyEditorContextBeforeCursor(forced)
       return
@@ -193,7 +215,10 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
     super.onConfigurationChanged(newConfig)
     val landscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
     KeyboardInputBridge.notifyOrientationChanged(landscape)
+    floatingLeftPx = -1
+    floatingTopPx = -1
     mainHandler.post {
+      KeyboardInputBridge.syncFloatingKeyboardForOrientation()
       applyKeyboardSurfaceLayout()
       ensurePreviewOverlay()
       KeyboardInputBridge.notifyPreviewContainerChanged()
@@ -276,7 +301,10 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
 
     surfaceMountAttempts = 0
 
-    if (keyboardView === view && view.parent === frame) {
+    if (keyboardView === view && (view.parent === frame || view.parent === floatingCardShell)) {
+      if (floatingKeyboardEnabled) {
+        ensureFloatingCardShell(frame)
+      }
       ensurePreviewOverlay()
       return
     }
@@ -286,6 +314,9 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
     view.isHapticFeedbackEnabled = true
     keyboardView = view
     frame.addView(view, createKeyboardLayoutParams(frame.width))
+    if (floatingKeyboardEnabled) {
+      ensureFloatingCardShell(frame)
+    }
     frame.post {
       applyKeyboardSurfaceLayout()
       ensurePreviewOverlay()
@@ -313,6 +344,7 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
   private fun ensurePreviewOverlayOnMainThread() {
     val frame = container ?: return
     val keyboard = keyboardView ?: return
+    val parent: ViewGroup = floatingCardShell ?: frame
 
     var overlay = previewOverlay
     if (overlay == null) {
@@ -324,17 +356,29 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
           }
       previewOverlay = overlay
-      frame.addView(
-          overlay,
-          FrameLayout.LayoutParams(keyboard.width, keyboard.height),
-      )
+      val lp =
+          if (parent === floatingCardShell) {
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT,
+            )
+          } else {
+            FrameLayout.LayoutParams(keyboard.width, keyboard.height)
+          }
+      parent.addView(overlay, lp)
       KeyboardInputBridge.notifyPreviewContainerChanged()
-    } else if (overlay.parent !== frame) {
+    } else if (overlay.parent !== parent) {
       (overlay.parent as? ViewGroup)?.removeView(overlay)
-      frame.addView(
-          overlay,
-          FrameLayout.LayoutParams(keyboard.width, keyboard.height),
-      )
+      val lp =
+          if (parent === floatingCardShell) {
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT,
+            )
+          } else {
+            FrameLayout.LayoutParams(keyboard.width, keyboard.height)
+          }
+      parent.addView(overlay, lp)
       KeyboardInputBridge.notifyPreviewContainerChanged()
     }
 
@@ -351,6 +395,22 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
     }
     val keyboard = keyboardView ?: return
     val overlay = previewOverlay ?: return
+    if (floatingCardShell != null && overlay.parent === floatingCardShell) {
+      val lp =
+          (overlay.layoutParams as? FrameLayout.LayoutParams)
+              ?: FrameLayout.LayoutParams(
+                  FrameLayout.LayoutParams.MATCH_PARENT,
+                  FrameLayout.LayoutParams.MATCH_PARENT,
+              )
+      lp.width = FrameLayout.LayoutParams.MATCH_PARENT
+      lp.height = FrameLayout.LayoutParams.MATCH_PARENT
+      lp.leftMargin = 0
+      lp.topMargin = 0
+      lp.gravity = Gravity.NO_GRAVITY
+      overlay.layoutParams = lp
+      overlay.bringToFront()
+      return
+    }
     val lp =
         (overlay.layoutParams as? FrameLayout.LayoutParams)
             ?: FrameLayout.LayoutParams(keyboard.width, keyboard.height)
@@ -388,6 +448,8 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
       return
     }
     floatingKeyboardEnabled = enabled
+    floatingLeftPx = -1
+    floatingTopPx = -1
     UiThreadUtil.runOnUiThread { applyKeyboardSurfaceLayout() }
   }
 
@@ -430,6 +492,14 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
     nativeKeyFastPath.updateCaseState(shiftOn, capsLocked, uppercase)
   }
 
+  fun updateNativeFastPathPreviewChrome(
+      previewPopup: Boolean,
+      previewPressed: Boolean,
+      previewDoodle: Boolean,
+  ) {
+    nativeKeyFastPath.updatePreviewChromeFlags(previewPopup, previewPressed, previewDoodle)
+  }
+
   fun consumeNativeFastPathPointer(pointerId: Int): Boolean =
       nativeKeyFastPath.consumePointer(pointerId)
 
@@ -437,6 +507,12 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
       nativeKeyFastPath.pollPendingCommit()
 
   fun isNativeTypingCommitActive(): Boolean = nativeKeyFastPath.isTypingCommitActive()
+
+  fun isCompactTypingSessionActive(): Boolean = nativeKeyFastPath.isCompactTyping()
+
+  fun syncCompactTypingPrefix(prefix: String) {
+    nativeKeyFastPath.syncLivePrefixFromJs(prefix)
+  }
 
   fun rollbackNativeFastPathPointer(pointerId: Int): Boolean =
       nativeKeyFastPath.rollbackPointerCommit(pointerId)
@@ -451,6 +527,16 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
 
   private fun floatingRootHeightPx(keyboardHeightPx: Int, measuredHeightPx: Int = 0): Int {
     val screenHeight = resources.displayMetrics.heightPixels
+    val landscape =
+        resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    if (landscape) {
+      // Avoid a ~full-screen IME layer in landscape; still leave room to drag vertically.
+      val verticalTravel = dpToPx(LANDSCAPE_FLOATING_VERTICAL_TRAVEL_DP)
+      val maxRoot = (screenHeight * LANDSCAPE_FLOATING_ROOT_MAX_FRACTION).toInt()
+      return (keyboardHeightPx + verticalTravel)
+          .coerceAtMost(maxRoot)
+          .coerceAtLeast(keyboardHeightPx + dpToPx(FLOATING_VERTICAL_MARGIN_DP * 2))
+    }
     val measured =
         measuredHeightPx.takeIf { it > keyboardHeightPx } ?: ((screenHeight * 0.88f).toInt())
     return measured.coerceAtMost(screenHeight).coerceAtLeast(
@@ -458,13 +544,103 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
     )
   }
 
+  /** View that represents the floating card position (shell when enabled). */
+  private fun floatingCard(): View? =
+      if (floatingKeyboardEnabled) {
+        floatingCardShell ?: keyboardView
+      } else {
+        keyboardView
+      }
+
+  private fun ensureFloatingCardShell(frame: FrameLayout) {
+    if (!floatingKeyboardEnabled) {
+      teardownFloatingCardShell(frame)
+      return
+    }
+    val keyboard = keyboardView ?: return
+    var shell = floatingCardShell
+    if (shell == null) {
+      shell =
+          FrameLayout(this).apply {
+            clipChildren = false
+            clipToPadding = false
+            setMotionEventSplittingEnabled(true)
+            isHapticFeedbackEnabled = true
+          }
+      floatingCardShell = shell
+      frame.addView(shell, createKeyboardLayoutParams(frame.width))
+    } else {
+      shell.layoutParams = createKeyboardLayoutParams(frame.width)
+    }
+
+    if (keyboard.parent !== shell) {
+      (keyboard.parent as? ViewGroup)?.removeView(keyboard)
+      shell.addView(
+          keyboard,
+          FrameLayout.LayoutParams(
+              FrameLayout.LayoutParams.MATCH_PARENT,
+              FrameLayout.LayoutParams.MATCH_PARENT,
+          ),
+      )
+    }
+
+    ensurePreviewOverlayOnMainThread()
+    previewOverlay?.let { overlay ->
+      if (overlay.parent !== shell) {
+        (overlay.parent as? ViewGroup)?.removeView(overlay)
+        shell.addView(
+            overlay,
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT,
+            ),
+        )
+      }
+    }
+
+    applyFloatingSurfaceChrome(shell)
+  }
+
+  private fun teardownFloatingCardShell(frame: FrameLayout) {
+    val shell = floatingCardShell ?: return
+    val keyboard = keyboardView
+    val overlay = previewOverlay
+
+    if (keyboard?.parent === shell) {
+      shell.removeView(keyboard)
+    }
+    if (overlay?.parent === shell) {
+      shell.removeView(overlay)
+    }
+    frame.removeView(shell)
+    floatingCardShell = null
+
+    if (keyboard != null && keyboard.parent !== frame) {
+      frame.addView(keyboard, createKeyboardLayoutParams(frame.width))
+    }
+    if (overlay != null && keyboard != null && overlay.parent !== frame) {
+      frame.addView(
+          overlay,
+          FrameLayout.LayoutParams(keyboard.width, keyboard.height),
+      )
+    }
+    keyboard?.let { applyFloatingSurfaceChrome(it) }
+    syncPreviewOverlayLayout()
+  }
+
   private fun floatingKeyboardWidthPx(containerWidth: Int): Int {
     val availableWidth =
         if (containerWidth > 0) containerWidth else resources.displayMetrics.widthPixels
     val horizontalMargin = dpToPx(FLOATING_HORIZONTAL_MARGIN_DP * 2)
-    val maxWidth = dpToPx(FLOATING_MAX_WIDTH_DP)
+    val landscape =
+        resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val maxWidth =
+        dpToPx(
+            if (landscape) FLOATING_LANDSCAPE_MAX_WIDTH_DP else FLOATING_MAX_WIDTH_DP,
+        )
     val targetWidth = (availableWidth - horizontalMargin).coerceAtMost(maxWidth)
-    return targetWidth.coerceAtLeast(availableWidth.coerceAtMost(dpToPx(320)))
+    val minWidth = dpToPx(if (landscape) 300 else 320)
+    return targetWidth.coerceAtLeast(availableWidth.coerceAtMost(minWidth))
   }
 
   private fun createKeyboardLayoutParams(containerWidth: Int): FrameLayout.LayoutParams {
@@ -484,23 +660,98 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
 
   private fun ensureFloatingPosition(frameWidth: Int, frameHeight: Int, childWidth: Int, childHeight: Int) {
     val margin = dpToPx(FLOATING_VERTICAL_MARGIN_DP)
+    val landscape =
+        resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
     if (floatingLeftPx < 0 || floatingTopPx < 0) {
+      if (landscape && restoreFloatingCardPosition(frameWidth, frameHeight, childWidth, childHeight)) {
+        return
+      }
       floatingLeftPx = ((frameWidth - childWidth) / 2).coerceAtLeast(0)
-      floatingTopPx = (frameHeight - childHeight - margin).coerceAtLeast(0)
+      floatingTopPx =
+          if (landscape) {
+            ((frameHeight - childHeight) / 2).coerceAtLeast(margin)
+          } else {
+            (frameHeight - childHeight - margin).coerceAtLeast(0)
+          }
       return
     }
     floatingLeftPx = floatingLeftPx.coerceIn(0, (frameWidth - childWidth).coerceAtLeast(0))
     floatingTopPx = floatingTopPx.coerceIn(0, (frameHeight - childHeight).coerceAtLeast(0))
   }
 
+  private fun restoreFloatingCardPosition(
+      frameWidth: Int,
+      frameHeight: Int,
+      childWidth: Int,
+      childHeight: Int,
+  ): Boolean {
+    val prefs =
+        applicationContext.getSharedPreferences(FLOATING_POSITION_PREFS, MODE_PRIVATE)
+    if (!prefs.contains(KEY_FLOATING_LEFT_FRAC)) {
+      return false
+    }
+    val maxLeft = (frameWidth - childWidth).coerceAtLeast(0)
+    val maxTop = (frameHeight - childHeight).coerceAtLeast(0)
+    floatingLeftPx =
+        (prefs.getFloat(KEY_FLOATING_LEFT_FRAC, 0.5f) * maxLeft).roundToInt().coerceIn(0, maxLeft)
+    floatingTopPx =
+        (prefs.getFloat(KEY_FLOATING_TOP_FRAC, 0.5f) * maxTop).roundToInt().coerceIn(0, maxTop)
+    return true
+  }
+
+  private fun persistFloatingCardPosition(
+      frameWidth: Int,
+      frameHeight: Int,
+      childWidth: Int,
+      childHeight: Int,
+  ) {
+    val maxLeft = (frameWidth - childWidth).coerceAtLeast(1)
+    val maxTop = (frameHeight - childHeight).coerceAtLeast(1)
+    applicationContext
+        .getSharedPreferences(FLOATING_POSITION_PREFS, MODE_PRIVATE)
+        .edit()
+        .putFloat(KEY_FLOATING_LEFT_FRAC, floatingLeftPx.toFloat() / maxLeft.toFloat())
+        .putFloat(KEY_FLOATING_TOP_FRAC, floatingTopPx.toFloat() / maxTop.toFloat())
+        .apply()
+  }
+
+  private fun scheduleFloatingDragTranslation(deltaX: Float, deltaY: Float) {
+    pendingFloatingDragDeltaX = deltaX
+    pendingFloatingDragDeltaY = deltaY
+    if (floatingDragFramePosted) {
+      return
+    }
+    floatingDragFramePosted = true
+    Choreographer.getInstance().postFrameCallback(floatingDragFrameCallback)
+  }
+
+  private fun flushFloatingDragTranslation(deltaX: Float, deltaY: Float) {
+    if (floatingDragFramePosted) {
+      Choreographer.getInstance().removeFrameCallback(floatingDragFrameCallback)
+      floatingDragFramePosted = false
+    }
+    applyFloatingDragTranslation(deltaX, deltaY)
+  }
+
+  /** Landscape uses a floating card when enabled in settings; portrait stays docked. */
+  private fun syncFloatingModeForOrientation() {
+    KeyboardInputBridge.syncFloatingKeyboardForOrientation()
+  }
+
   private fun applyKeyboardSurfaceLayout() {
-    val view = keyboardView
+    syncFloatingModeForOrientation()
     val frame = container
+    val view = keyboardView
     if (view == null || frame == null) {
       return
     }
-    view.layoutParams = createKeyboardLayoutParams(frame.width)
-    applyFloatingSurfaceChrome(view)
+    if (floatingKeyboardEnabled) {
+      ensureFloatingCardShell(frame)
+    } else {
+      teardownFloatingCardShell(frame)
+      view.layoutParams = createKeyboardLayoutParams(frame.width)
+      applyFloatingSurfaceChrome(view)
+    }
     frame.requestLayout()
     frame.invalidate()
     updateInputViewShown()
@@ -510,13 +761,33 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
   private fun applyFloatingSurfaceChrome(view: View) {
     if (floatingKeyboardEnabled) {
       view.outlineProvider = floatingKeyboardOutlineProvider
-      view.clipToOutline = true
+      // clipToOutline cuts off the bottom row at rounded corners; RN handles insets.
+      view.clipToOutline = false
       view.elevation = dpToPx(FLOATING_ELEVATION_DP).toFloat()
+      syncImeCaptionBarVisibility()
       return
     }
     view.clipToOutline = false
     view.elevation = 0f
     view.outlineProvider = ViewOutlineProvider.BACKGROUND
+    syncImeCaptionBarVisibility()
+  }
+
+  /**
+   * Hides the system "IME caption bar" (globe + dismiss) when floating so it does not sit
+   * under the keyboard card. On API 36+ the IME may need a custom switcher if the system asks.
+   */
+  private fun syncImeCaptionBarVisibility() {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+      return
+    }
+    val decorView = window?.window?.decorView ?: return
+    val controller = decorView.windowInsetsController ?: return
+    if (floatingKeyboardEnabled) {
+      controller.hide(WindowInsets.Type.captionBar())
+    } else {
+      controller.show(WindowInsets.Type.captionBar())
+    }
   }
 
   override fun onComputeInsets(outInsets: Insets) {
@@ -526,11 +797,13 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
     }
 
     val frame = container ?: return
-    val view = keyboardView ?: return
-    val left = view.left.coerceAtLeast(0)
-    val top = view.top.coerceAtLeast(0)
-    val right = view.right.coerceAtMost(frame.width)
-    val bottom = view.bottom.coerceAtMost(frame.height)
+    val view = floatingCard() ?: return
+    val tx = view.translationX.toInt()
+    val ty = view.translationY.toInt()
+    val left = (view.left + tx).coerceAtLeast(0)
+    val top = (view.top + ty).coerceAtLeast(0)
+    val right = (view.right + tx).coerceAtMost(frame.width)
+    val bottom = (view.bottom + ty).coerceAtMost(frame.height)
     if (right <= left || bottom <= top) {
       return
     }
@@ -540,6 +813,85 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
     outInsets.touchableRegion.set(floatingTouchableRect)
     outInsets.contentTopInsets = top
     outInsets.visibleTopInsets = top
+  }
+
+  /** Commit layout after a translation-only drag (single inset update). */
+  private fun commitFloatingDragPosition() {
+    val frame = container ?: return
+    val view = floatingCard() ?: return
+
+    val maxLeft = (frame.width - view.width).coerceAtLeast(0)
+    val maxTop = (frame.height - view.height).coerceAtLeast(0)
+    floatingLeftPx = floatingLeftPx.coerceIn(0, maxLeft)
+    floatingTopPx = floatingTopPx.coerceIn(0, maxTop)
+
+    view.translationX = 0f
+    view.translationY = 0f
+    endFloatingDragLayers()
+
+    val childLeft = floatingLeftPx
+    val childTop = floatingTopPx
+    view.layout(
+        childLeft,
+        childTop,
+        childLeft + view.measuredWidth,
+        childTop + view.measuredHeight,
+    )
+    if (floatingCardShell == null) {
+      syncPreviewOverlayLayout()
+    }
+    persistFloatingCardPosition(
+        frame.width,
+        frame.height,
+        view.measuredWidth,
+        view.measuredHeight,
+    )
+    updateInputViewShown()
+  }
+
+  /** Move floating keyboard visually during drag — no layout or inset churn. */
+  private fun applyFloatingDragTranslation(deltaX: Float, deltaY: Float) {
+    val frame = container ?: return
+    val view = floatingCard() ?: return
+    val maxLeft = (frame.width - view.width).coerceAtLeast(0)
+    val maxTop = (frame.height - view.height).coerceAtLeast(0)
+    val minTx = -floatingDragStartLeft.toFloat()
+    val maxTx = (maxLeft - floatingDragStartLeft).toFloat()
+    val minTy = -floatingDragStartTop.toFloat()
+    val maxTy = (maxTop - floatingDragStartTop).toFloat()
+    val tx = deltaX.coerceIn(minTx, maxTx)
+    val ty = deltaY.coerceIn(minTy, maxTy)
+    view.translationX = tx
+    view.translationY = ty
+    floatingLeftPx = floatingDragStartLeft + tx.roundToInt()
+    floatingTopPx = floatingDragStartTop + ty.roundToInt()
+  }
+
+  private fun beginFloatingDragLayers() {
+    KeyboardInputBridge.setFloatingKeyboardDragging(true)
+    val card = floatingCard() ?: return
+    previewOverlay?.visibility = View.GONE
+    keyboardView?.isEnabled = false
+    keyboardView?.setLayerType(View.LAYER_TYPE_NONE, null)
+    previewOverlay?.setLayerType(View.LAYER_TYPE_NONE, null)
+    card.setLayerType(View.LAYER_TYPE_HARDWARE, null)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+      card.setHasTransientState(true)
+    }
+    card.elevation = 0f
+    card.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+  }
+
+  private fun endFloatingDragLayers() {
+    KeyboardInputBridge.setFloatingKeyboardDragging(false)
+    val card = floatingCard() ?: return
+    previewOverlay?.visibility = View.VISIBLE
+    keyboardView?.isEnabled = true
+    card.setLayerType(View.LAYER_TYPE_NONE, null)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+      card.setHasTransientState(false)
+    }
+    card.elevation = dpToPx(FLOATING_ELEVATION_DP).toFloat()
   }
 
   private fun isControllerSource(source: Int): Boolean =
@@ -745,11 +1097,17 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
           .toInt()
 
   override fun onDestroy() {
+    if (floatingDragFramePosted) {
+      Choreographer.getInstance().removeFrameCallback(floatingDragFrameCallback)
+      floatingDragFramePosted = false
+    }
     val app = application as? ReactApplication
     app?.reactHost?.removeReactInstanceEventListener(reactInstanceListener)
     pauseReactForKeyboardIfNeeded()
     keyboardView?.let { view -> (view.parent as? ViewGroup)?.removeView(view) }
     keyboardView = null
+    previewOverlay = null
+    floatingCardShell = null
     container = null
     nativeKeyFastPath.clear()
     inputManager?.unregisterInputDeviceListener(this)
@@ -785,9 +1143,18 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
     private const val FLOATING_HORIZONTAL_MARGIN_DP = 18
     private const val FLOATING_VERTICAL_MARGIN_DP = 18
     private const val FLOATING_MAX_WIDTH_DP = 720
-    private const val FLOATING_DRAG_HANDLE_HEIGHT_DP = 32
+    /** Portrait-like card width in landscape (not full strip). */
+    private const val FLOATING_LANDSCAPE_MAX_WIDTH_DP = 480
+    private const val FLOATING_DRAG_HANDLE_HEIGHT_DP = 46
     private const val FLOATING_CORNER_RADIUS_DP = 18
     private const val FLOATING_ELEVATION_DP = 10
+    /** Lighter shadow while dragging (less GPU work per frame). */
+    private const val FLOATING_DRAG_ELEVATION_DP = 4
+    private const val LANDSCAPE_FLOATING_VERTICAL_TRAVEL_DP = 140
+    private const val LANDSCAPE_FLOATING_ROOT_MAX_FRACTION = 0.52f
+    private const val FLOATING_POSITION_PREFS = "typebase_floating_keyboard"
+    private const val KEY_FLOATING_LEFT_FRAC = "landscape_left_frac"
+    private const val KEY_FLOATING_TOP_FRAC = "landscape_top_frac"
   }
 
   private inner class KeyboardFrameLayout : FrameLayout(this@TypeBaseInputService) {
@@ -813,10 +1180,18 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
 
       val rootHeight = floatingRootHeightPx(keyboardHeightPx, MeasureSpec.getSize(heightMeasureSpec))
       val childWidth = floatingKeyboardWidthPx(width)
-      keyboardView?.measure(
-          MeasureSpec.makeMeasureSpec(childWidth, MeasureSpec.EXACTLY),
-          MeasureSpec.makeMeasureSpec(keyboardHeightPx, MeasureSpec.EXACTLY),
-      )
+      val shell = floatingCardShell
+      if (shell != null) {
+        shell.measure(
+            MeasureSpec.makeMeasureSpec(childWidth, MeasureSpec.EXACTLY),
+            MeasureSpec.makeMeasureSpec(keyboardHeightPx, MeasureSpec.EXACTLY),
+        )
+      } else {
+        keyboardView?.measure(
+            MeasureSpec.makeMeasureSpec(childWidth, MeasureSpec.EXACTLY),
+            MeasureSpec.makeMeasureSpec(keyboardHeightPx, MeasureSpec.EXACTLY),
+        )
+      }
       setMeasuredDimension(width, rootHeight)
     }
 
@@ -830,14 +1205,16 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
         return
       }
 
-      val view = keyboardView ?: return
-      val childWidth = view.measuredWidth
-      val childHeight = view.measuredHeight
+      val card = floatingCard() ?: return
+      val childWidth = card.measuredWidth
+      val childHeight = card.measuredHeight
       ensureFloatingPosition(width, height, childWidth, childHeight)
       val childLeft = floatingLeftPx
       val childTop = floatingTopPx
-      view.layout(childLeft, childTop, childLeft + childWidth, childTop + childHeight)
-      syncPreviewOverlayLayout()
+      card.layout(childLeft, childTop, childLeft + childWidth, childTop + childHeight)
+      if (floatingCardShell == null) {
+        syncPreviewOverlayLayout()
+      }
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
@@ -861,9 +1238,12 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
       if (handleFloatingKeyboardDrag(event)) {
         return true
       }
+      if (floatingDragActive) {
+        return true
+      }
 
       // Commit text first, then haptic — never stall InputConnection behind the vibrator.
-      nativeKeyFastPath.onTouchEvent(event)
+      val blockReactDispatch = nativeKeyFastPath.onTouchEvent(event)
 
       when (event.actionMasked) {
         MotionEvent.ACTION_DOWN,
@@ -885,6 +1265,10 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
         }
       }
 
+      if (blockReactDispatch) {
+        return true
+      }
+
       super.dispatchTouchEvent(event)
       if (KeyboardInputBridge.isTouchpadGestureConsuming()) {
         return true
@@ -898,13 +1282,19 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
       if (!floatingKeyboardEnabled) {
         return false
       }
-      val view = keyboardView ?: return false
+      val view = floatingCard() ?: return false
+      val tx = view.translationX.toInt()
+      val ty = view.translationY.toInt()
       val x = event.x.toInt()
       val y = event.y.toInt()
-      val bottomHandleTop = view.bottom - dpToPx(FLOATING_DRAG_HANDLE_HEIGHT_DP)
-      val bottomHandleLeft = view.left + view.width / 4
-      val bottomHandleRight = view.right - view.width / 4
-      return x in bottomHandleLeft..bottomHandleRight && y in bottomHandleTop..view.bottom
+      val handleHeight = dpToPx(FLOATING_DRAG_HANDLE_HEIGHT_DP)
+      val inset = dpToPx(6)
+      val visLeft = view.left + tx
+      val visTop = view.top + ty
+      val handleLeft = visLeft + inset
+      val handleRight = view.right + tx - inset
+      val topHandleBottom = visTop + handleHeight
+      return x in handleLeft..handleRight && y in visTop..topHandleBottom
     }
 
     private fun handleFloatingKeyboardDrag(event: MotionEvent): Boolean {
@@ -924,6 +1314,7 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
           floatingDragStartY = event.y
           floatingDragStartLeft = floatingLeftPx
           floatingDragStartTop = floatingTopPx
+          beginFloatingDragLayers()
           parent?.requestDisallowInterceptTouchEvent(true)
           return true
         }
@@ -931,14 +1322,9 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
           if (!floatingDragActive) {
             return false
           }
-          val view = keyboardView ?: return true
-          val nextLeft = floatingDragStartLeft + (event.x - floatingDragStartX).toInt()
-          val nextTop = floatingDragStartTop + (event.y - floatingDragStartY).toInt()
-          floatingLeftPx = nextLeft.coerceIn(0, (width - view.width).coerceAtLeast(0))
-          floatingTopPx = nextTop.coerceIn(0, (height - view.height).coerceAtLeast(0))
-          requestLayout()
-          invalidate()
-          updateInputViewShown()
+          val deltaX = event.x - floatingDragStartX
+          val deltaY = event.y - floatingDragStartY
+          scheduleFloatingDragTranslation(deltaX, deltaY)
           return true
         }
         MotionEvent.ACTION_UP,
@@ -946,7 +1332,11 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
           if (!floatingDragActive) {
             return false
           }
+          val deltaX = event.x - floatingDragStartX
+          val deltaY = event.y - floatingDragStartY
+          flushFloatingDragTranslation(deltaX, deltaY)
           floatingDragActive = false
+          commitFloatingDragPosition()
           return true
         }
       }

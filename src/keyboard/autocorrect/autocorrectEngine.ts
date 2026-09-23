@@ -1886,8 +1886,9 @@ export function getAutocorrectCandidate(
 
   const premiumAutocorrect = canUseFeature('autocorrect_full');
   const basicTierAutocorrect = !premiumAutocorrect;
+  const contextCorrectionOn = getAutocorrectSettings().contextCorrectionEnabled;
   if (
-    premiumAutocorrect &&
+    contextCorrectionOn &&
     (options?.context || options?.previousWord || options?.trailingWords?.length)
   ) {
     const shouldRunContext =
@@ -2265,9 +2266,7 @@ export function getSuggestionBarAutocorrect(
   }
 
   const fast = options?.fast ?? false;
-  const contextEnabled =
-    canUseFeature('autocorrect_full') &&
-    getAutocorrectSettings().contextCorrectionEnabled;
+  const contextEnabled = getAutocorrectSettings().contextCorrectionEnabled;
   const canUseContext =
     contextEnabled && Boolean(options?.context || previousWord);
 

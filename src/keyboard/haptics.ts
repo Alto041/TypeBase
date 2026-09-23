@@ -1,4 +1,5 @@
 import {keyboardBridge} from './keyboardBridge';
+import {isLandscapeTypingProfile} from './landscapeTypingProfile';
 import {isZeroLatencyModeActive} from './zeroLatencyMode';
 
 type TriggerKeyHapticOptions = {
@@ -21,6 +22,9 @@ export function triggerKeyHaptic(
   if (!frameHapticHandled) {
     if (isZeroLatencyModeActive()) {
       keyboardBridge.performSubtleKeyHaptic();
+    } else if (isLandscapeTypingProfile()) {
+      keyboardBridge.performLightKeyHaptic();
+      keyboardBridge.playKeyTapSound();
     } else {
       // performKeyHaptic also schedules the custom tap sound (when enabled).
       keyboardBridge.performKeyHaptic();

@@ -2,7 +2,7 @@ import {NativeModules} from 'react-native';
 
 const {KeyPreview} = NativeModules;
 export type KeyPreviewStyle = 'popup' | 'subtle' | 'doodle';
-let keyPreviewStyle: KeyPreviewStyle = 'popup';
+let keyPreviewStyle: KeyPreviewStyle = 'doodle';
 
 export function initKeyPreview(): void {
   KeyPreview?.init();

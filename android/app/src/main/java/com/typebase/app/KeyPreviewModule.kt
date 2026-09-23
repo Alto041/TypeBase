@@ -42,6 +42,16 @@ class KeyPreviewModule(private val reactContext: ReactApplicationContext) :
             showDoodleAtScreen = { pageX, pageY ->
                 showDoodleAtScreenOnUiThread(pageX, pageY)
             },
+            showAtTouch = { previewId, screenX, screenY, keyWidth, keyHeight, label ->
+                showPreviewAtTouchOnUiThread(
+                    previewId,
+                    screenX,
+                    screenY,
+                    keyWidth,
+                    keyHeight,
+                    label,
+                )
+            },
         )
     }
 
@@ -153,16 +163,39 @@ class KeyPreviewModule(private val reactContext: ReactApplicationContext) :
         performHidePreview(reactTag)
     }
 
+    private fun showPreviewAtTouchOnUiThread(
+        previewId: Int,
+        screenX: Float,
+        screenY: Float,
+        keyWidth: Float,
+        keyHeight: Float,
+        label: String,
+    ) {
+        if (!UiThreadUtil.isOnUiThread()) {
+            UiThreadUtil.runOnUiThread {
+                showPreviewAtTouchOnUiThread(
+                    previewId,
+                    screenX,
+                    screenY,
+                    keyWidth,
+                    keyHeight,
+                    label,
+                )
+            }
+            return
+        }
+        manager.showAtTouch(previewId, screenX, screenY, keyWidth, keyHeight, label)
+    }
+
     private fun performShowPreview(reactTag: Int, label: String) {
         if (!UiThreadUtil.isOnUiThread()) {
             UiThreadUtil.runOnUiThread { performShowPreview(reactTag, label) }
             return
         }
-        val hideGenAtShow = hideGenerations[reactTag] ?: 0
         val globalAtShow = globalHideGeneration
 
         resolveAnchorView(reactTag)?.let { view ->
-            if (!isShowStale(reactTag, hideGenAtShow, globalAtShow)) {
+            if (globalAtShow == globalHideGeneration) {
                 manager.show(reactTag, view, label)
             }
             return
@@ -175,7 +208,7 @@ class KeyPreviewModule(private val reactContext: ReactApplicationContext) :
         uiManager.addUIBlock(
             UIBlock { resolver ->
                 UiThreadUtil.runOnUiThread {
-                    if (isShowStale(reactTag, hideGenAtShow, globalAtShow)) {
+                    if (globalAtShow != globalHideGeneration) {
                         return@runOnUiThread
                     }
                     val view = resolver.resolveView(reactTag) ?: return@runOnUiThread

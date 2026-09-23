@@ -66,6 +66,10 @@ function normalizeLayout(raw: unknown): KeyboardLayoutSettings {
       typeof obj['numberRowEnabled'] === 'boolean'
         ? obj['numberRowEnabled']
         : defaults.numberRowEnabled,
+    landscapeFloatingKeyboardEnabled:
+      typeof obj['landscapeFloatingKeyboardEnabled'] === 'boolean'
+        ? obj['landscapeFloatingKeyboardEnabled']
+        : defaults.landscapeFloatingKeyboardEnabled,
     myRowEnabled:
       typeof obj['myRowEnabled'] === 'boolean'
         ? obj['myRowEnabled']

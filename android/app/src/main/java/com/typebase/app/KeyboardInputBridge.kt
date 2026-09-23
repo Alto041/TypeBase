@@ -63,11 +63,17 @@ object KeyboardInputBridge {
   private val keyboardVisibilityListeners = CopyOnWriteArrayList<(Boolean) -> Unit>()
   private val keyboardSessionStartListeners = CopyOnWriteArrayList<() -> Unit>()
   private val editorContextListeners = CopyOnWriteArrayList<(String) -> Unit>()
+  private val floatingKeyboardDragListeners = CopyOnWriteArrayList<(Boolean) -> Unit>()
   private val orientationChangeListeners = CopyOnWriteArrayList<(Boolean) -> Unit>()
   private val supportsNewlineListeners = CopyOnWriteArrayList<(Boolean) -> Unit>()
   private val initialCapsModeListeners = CopyOnWriteArrayList<(Boolean) -> Unit>()
   private val nativeFastPathKeyListeners =
       CopyOnWriteArrayList<(String, String, String, String, Boolean) -> Unit>()
+  private val compactTypingStateListeners =
+      CopyOnWriteArrayList<(String, Boolean, Boolean, String) -> Unit>()
+  private val compactTypingBoundaryListeners =
+      CopyOnWriteArrayList<(String, String) -> Unit>()
+  private val compactTypingShiftListeners = CopyOnWriteArrayList<() -> Unit>()
   private val editorShortcutListeners = CopyOnWriteArrayList<(String) -> Unit>()
   private val touchIntelligenceHitListeners =
       CopyOnWriteArrayList<(TouchIntelligence.HitAnalysis) -> Unit>()
@@ -79,6 +85,8 @@ object KeyboardInputBridge {
   private var hideKeyPressedFn: ((Int) -> Unit)? = null
   private var showKeyDoodleDotFn: ((Int, Float, Float) -> Unit)? = null
   private var showKeyDoodleAtScreenFn: ((Float, Float) -> Unit)? = null
+  private var showKeyPreviewAtTouchFn:
+      ((Int, Float, Float, Float, Float, String) -> Unit)? = null
   private val previewContainerChangedListeners = CopyOnWriteArrayList<() -> Unit>()
   private val controllerInputListeners = CopyOnWriteArrayList<(String) -> Unit>()
   private val controllerConnectionListeners = CopyOnWriteArrayList<(Boolean) -> Unit>()
@@ -91,6 +99,9 @@ object KeyboardInputBridge {
 
   @Volatile
   private var gamePerformanceMode: Boolean = false
+
+  @Volatile
+  private var floatingKeyboardDragging: Boolean = false
 
   /** True while MainActivity is in the foreground (shared React host must stay alive for the app). */
   @Volatile
@@ -284,6 +295,13 @@ object KeyboardInputBridge {
     inputService?.setFloatingKeyboardEnabled(enabled)
   }
 
+  @Volatile private var landscapeFloatingKeyboardEnabled = true
+
+  fun syncFloatingKeyboardForOrientation() {
+    val landscape = isDeviceLandscape()
+    setFloatingKeyboard(landscape && landscapeFloatingKeyboardEnabled)
+  }
+
   fun setNativeKeyFastPathConfig(json: String) {
     inputService?.setNativeKeyFastPathConfig(json)
   }
@@ -309,6 +327,21 @@ object KeyboardInputBridge {
 
   fun isGamePerformanceMode(): Boolean = gamePerformanceMode
 
+  fun isFloatingKeyboardDragging(): Boolean = floatingKeyboardDragging
+
+  fun setFloatingKeyboardDragging(active: Boolean) {
+    if (floatingKeyboardDragging == active) {
+      return
+    }
+    floatingKeyboardDragging = active
+    floatingKeyboardDragListeners.forEach { listener -> listener(active) }
+  }
+
+  fun addFloatingKeyboardDragListener(listener: (Boolean) -> Unit): () -> Unit {
+    floatingKeyboardDragListeners.add(listener)
+    return { floatingKeyboardDragListeners.remove(listener) }
+  }
+
   fun clearNativeMidWordShiftBlock() {
     inputService?.clearNativeMidWordShiftBlock()
   }
@@ -332,11 +365,14 @@ object KeyboardInputBridge {
       val layout = JSONObject(json)
       keyHapticEnabled = layout.optBoolean("keyHapticEnabled", true)
       keyHapticPulseMs = layout.optInt("keyHapticPulseMs", 12).coerceIn(6, 24)
+      landscapeFloatingKeyboardEnabled =
+          layout.optBoolean("landscapeFloatingKeyboardEnabled", true)
     } catch (_: Exception) {
       keyHapticEnabled = true
       keyHapticPulseMs = 12
+      landscapeFloatingKeyboardEnabled = true
     }
-    setFloatingKeyboard(false)
+    syncFloatingKeyboardForOrientation()
   }
 
   /** Cached for vibrator fallback only (no view attached). */
@@ -793,7 +829,7 @@ object KeyboardInputBridge {
   }
 
   fun notifyEditorContextBeforeCursor(beforeCursor: String) {
-    if (gamePerformanceMode) {
+    if (gamePerformanceMode || floatingKeyboardDragging) {
       return
     }
     pendingEditorContextBeforeCursor = beforeCursor
@@ -894,6 +930,7 @@ object KeyboardInputBridge {
       hidePressed: (Int) -> Unit,
       showDoodleDot: (Int, Float, Float) -> Unit,
       showDoodleAtScreen: (Float, Float) -> Unit,
+      showAtTouch: (Int, Float, Float, Float, Float, String) -> Unit,
   ) {
     showKeyPreviewFn = show
     hideKeyPreviewFn = hide
@@ -901,6 +938,7 @@ object KeyboardInputBridge {
     hideKeyPressedFn = hidePressed
     showKeyDoodleDotFn = showDoodleDot
     showKeyDoodleAtScreenFn = showDoodleAtScreen
+    showKeyPreviewAtTouchFn = showAtTouch
   }
 
   fun clearKeyPreviewCallbacks() {
@@ -910,10 +948,41 @@ object KeyboardInputBridge {
     hideKeyPressedFn = null
     showKeyDoodleDotFn = null
     showKeyDoodleAtScreenFn = null
+    showKeyPreviewAtTouchFn = null
   }
 
   fun showKeyPreview(reactTag: Int, label: String) {
     showKeyPreviewFn?.invoke(reactTag, label)
+  }
+
+  fun updateNativeFastPathPreviewChrome(
+      previewPopup: Boolean,
+      previewPressed: Boolean,
+      previewDoodle: Boolean,
+  ) {
+    inputService?.updateNativeFastPathPreviewChrome(
+        previewPopup,
+        previewPressed,
+        previewDoodle,
+    )
+  }
+
+  fun showKeyPreviewAtTouch(
+      previewId: Int,
+      screenX: Float,
+      screenY: Float,
+      keyWidth: Float,
+      keyHeight: Float,
+      label: String,
+  ) {
+    showKeyPreviewAtTouchFn?.invoke(
+        previewId,
+        screenX,
+        screenY,
+        keyWidth,
+        keyHeight,
+        label,
+    )
   }
 
   fun hideKeyPreview(reactTag: Int) {
@@ -1110,4 +1179,113 @@ object KeyboardInputBridge {
   }
 
   fun isTouchpadGestureConsuming(): Boolean = touchpadGestureConsuming
+
+  private val compactBackspaceHandler = Handler(Looper.getMainLooper())
+  private var compactBackspaceHoldRunnable: Runnable? = null
+  private var compactBackspaceTickRunnable: Runnable? = null
+
+  fun performDeleteBackwardFast() {
+    val connection = getInputConnection() ?: return
+    val selected = connection.getSelectedText(0)
+    if (selected != null && selected.isNotEmpty()) {
+      connection.commitText("", 1)
+      return
+    }
+    if (shouldPreferDeleteKeyEvent()) {
+      sendDeleteKeyEvent(connection)
+      return
+    }
+    connection.deleteSurroundingTextInCodePoints(1, 0)
+  }
+
+  fun startCompactBackspaceRepeat(holdDelayMs: Long = 400L, intervalMs: Long = 50L) {
+    stopCompactBackspaceRepeat()
+    val holdDelay = holdDelayMs.coerceAtLeast(0L)
+    val interval = intervalMs.coerceIn(16L, 500L)
+    val holdRunnable = Runnable {
+      compactBackspaceHoldRunnable = null
+      performDeleteBackwardFast()
+      val tickRunnable =
+          object : Runnable {
+            override fun run() {
+              if (compactBackspaceTickRunnable !== this) {
+                return
+              }
+              performDeleteBackwardFast()
+              compactBackspaceHandler.postDelayed(this, interval)
+            }
+          }
+      compactBackspaceTickRunnable = tickRunnable
+      compactBackspaceHandler.postDelayed(tickRunnable, interval)
+    }
+    compactBackspaceHoldRunnable = holdRunnable
+    compactBackspaceHandler.postDelayed(holdRunnable, holdDelay)
+  }
+
+  fun stopCompactBackspaceRepeat() {
+    compactBackspaceHoldRunnable?.let { compactBackspaceHandler.removeCallbacks(it) }
+    compactBackspaceTickRunnable?.let { compactBackspaceHandler.removeCallbacks(it) }
+    compactBackspaceHoldRunnable = null
+    compactBackspaceTickRunnable = null
+  }
+
+  private fun sendDeleteKeyEvent(connection: InputConnection) {
+    val eventTime = SystemClock.uptimeMillis()
+    connection.sendKeyEvent(
+        KeyEvent(eventTime, eventTime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DEL, 0, 0),
+    )
+    connection.sendKeyEvent(
+        KeyEvent(eventTime, eventTime, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DEL, 0, 0),
+    )
+  }
+
+  fun submitEnterFromCompactTyping() {
+    val connection = getInputConnection() ?: return
+    if (currentInputSupportsNewline() && !shouldForceSubmitEnter()) {
+      connection.commitText("\n", 1)
+      return
+    }
+    performEnterAction(connection)
+  }
+
+  fun notifyCompactTypingState(
+      prefix: String,
+      shiftOn: Boolean,
+      capsLocked: Boolean,
+      reason: String,
+  ) {
+    CompactTypingTelemetry.recordCompactStateSync()
+    compactTypingStateListeners.forEach { listener ->
+      listener(prefix, shiftOn, capsLocked, reason)
+    }
+  }
+
+  fun addCompactTypingStateListener(
+      listener: (String, Boolean, Boolean, String) -> Unit,
+  ): () -> Unit {
+    compactTypingStateListeners.add(listener)
+    return { compactTypingStateListeners.remove(listener) }
+  }
+
+  fun notifyCompactTypingBoundary(boundary: String, typedWord: String) {
+    CompactTypingTelemetry.recordBoundaryAutocorrect()
+    compactTypingBoundaryListeners.forEach { listener -> listener(boundary, typedWord) }
+  }
+
+  fun addCompactTypingBoundaryListener(listener: (String, String) -> Unit): () -> Unit {
+    compactTypingBoundaryListeners.add(listener)
+    return { compactTypingBoundaryListeners.remove(listener) }
+  }
+
+  fun notifyCompactTypingShiftPress() {
+    compactTypingShiftListeners.forEach { listener -> listener() }
+  }
+
+  fun addCompactTypingShiftListener(listener: () -> Unit): () -> Unit {
+    compactTypingShiftListeners.add(listener)
+    return { compactTypingShiftListeners.remove(listener) }
+  }
+
+  fun isCompactTypingConsumingTouches(): Boolean =
+      inputService?.isCompactTypingSessionActive() == true
 }

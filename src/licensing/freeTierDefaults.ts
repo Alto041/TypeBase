@@ -23,15 +23,15 @@ export async function applyFreeTierDefaults(): Promise<void> {
   await ensureAutocorrectLoaded();
   const settings = getAutocorrectSettings();
   if (
-    settings.contextCorrectionEnabled ||
-    settings.aiAutoCorrectEnabled
+    settings.aiAutoCorrectEnabled ||
+    !settings.contextCorrectionEnabled
   ) {
     await keyboardBridge.setAutocorrectSettings(
       JSON.stringify({
         ...settings,
         enabled: true,
         autoApplyOnSpace: settings.autoApplyOnSpace,
-        contextCorrectionEnabled: false,
+        contextCorrectionEnabled: true,
         aiAutoCorrectEnabled: false,
       }),
     );
@@ -98,14 +98,14 @@ export async function clampAutocorrectForTier(): Promise<void> {
   await ensureAutocorrectLoaded();
   const settings = getAutocorrectSettings();
   if (
-    settings.contextCorrectionEnabled ||
-    settings.aiAutoCorrectEnabled
+    settings.aiAutoCorrectEnabled ||
+    !settings.contextCorrectionEnabled
   ) {
     await keyboardBridge.setAutocorrectSettings(
       JSON.stringify({
         ...settings,
         autoApplyOnSpace: settings.autoApplyOnSpace,
-        contextCorrectionEnabled: false,
+        contextCorrectionEnabled: true,
         aiAutoCorrectEnabled: false,
       }),
     );

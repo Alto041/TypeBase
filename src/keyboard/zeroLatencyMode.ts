@@ -1,8 +1,19 @@
 import {keyboardBridge} from './keyboardBridge';
 
+import {isLandscapeTypingProfile} from './landscapeTypingProfile';
+
 let zeroLatencyModeActive = false;
 let burstTypingActive = false;
 let gamePerformanceModeActive = false;
+let floatingKeyboardDragActive = false;
+
+export function isFloatingKeyboardDragActive(): boolean {
+  return floatingKeyboardDragActive;
+}
+
+export function setFloatingKeyboardDragActive(active: boolean): void {
+  floatingKeyboardDragActive = active;
+}
 
 export function isZeroLatencyModeActive(): boolean {
   return zeroLatencyModeActive;
@@ -24,13 +35,14 @@ export function setBurstTypingActive(active: boolean): void {
   burstTypingActive = active;
 }
 
-/** Skip press tint and native preview overlays during performance modes. */
+/** Skip press tint during zero-latency only (landscape keeps lightweight previews). */
 export function shouldSkipKeyPressEffects(): boolean {
-  return zeroLatencyModeActive || gamePerformanceModeActive;
+  return zeroLatencyModeActive;
 }
 
+/** Skip native popup/pressed chrome during zero-latency and landscape typing. */
 export function shouldSkipKeyPreviewEffects(): boolean {
-  return zeroLatencyModeActive || gamePerformanceModeActive;
+  return zeroLatencyModeActive || isLandscapeTypingProfile();
 }
 
 export function isGamePerformanceModeActive(): boolean {
@@ -41,10 +53,14 @@ export function setGamePerformanceModeActive(active: boolean): void {
   gamePerformanceModeActive = active;
 }
 
-/** Skip touch-intel sync, AI preflight, and metrics during fast bursts. */
+/** Skip touch-intel sync, AI preflight, and metrics during fast bursts / landscape. */
 export function shouldDeferHeavyTypingSideEffects(): boolean {
   return (
-    zeroLatencyModeActive || gamePerformanceModeActive || burstTypingActive
+    zeroLatencyModeActive ||
+    gamePerformanceModeActive ||
+    burstTypingActive ||
+    floatingKeyboardDragActive ||
+    isLandscapeTypingProfile()
   );
 }
 
@@ -53,20 +69,37 @@ export function shouldDeferLiveSuggestionBar(): boolean {
   return (
     zeroLatencyModeActive ||
     gamePerformanceModeActive ||
-    burstTypingActive
+    burstTypingActive ||
+    floatingKeyboardDragActive ||
+    isLandscapeTypingProfile()
   );
 }
 
 export function shouldSkipFrostedKeyboardEffects(): boolean {
-  return zeroLatencyModeActive || gamePerformanceModeActive;
+  return (
+    zeroLatencyModeActive ||
+    gamePerformanceModeActive ||
+    floatingKeyboardDragActive ||
+    isLandscapeTypingProfile()
+  );
 }
 
 /** Skip touch-intel scoring, telemetry, and native context sync. */
 export function shouldSkipTouchIntelligenceWork(): boolean {
-  return zeroLatencyModeActive || gamePerformanceModeActive;
+  return (
+    zeroLatencyModeActive ||
+    gamePerformanceModeActive ||
+    floatingKeyboardDragActive ||
+    isLandscapeTypingProfile()
+  );
 }
 
 /** Skip native prefix tracking and suggestion-bar bridge traffic. */
 export function shouldSkipNativeSuggestionTracking(): boolean {
-  return zeroLatencyModeActive || gamePerformanceModeActive;
+  return (
+    zeroLatencyModeActive ||
+    gamePerformanceModeActive ||
+    floatingKeyboardDragActive ||
+    isLandscapeTypingProfile()
+  );
 }

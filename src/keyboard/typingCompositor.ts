@@ -79,6 +79,33 @@ export function reconcileLivePrefixFromContext(
   return contextPrefix;
 }
 
+/** Merge native editor text with the in-flight word buffer for context autocorrect. */
+export function buildEffectiveTextBeforeCursor(
+  editorContext: string,
+  livePrefix: string,
+): string {
+  if (!livePrefix) {
+    return editorContext;
+  }
+  if (!editorContext.trim()) {
+    return livePrefix;
+  }
+  const editorWord = extractCurrentWord(editorContext);
+  if (!editorWord) {
+    if (/\s$/.test(editorContext)) {
+      return editorContext + livePrefix;
+    }
+    return editorContext;
+  }
+  if (wordsAlignForInFlightCommit(editorWord, livePrefix)) {
+    return (
+      editorContext.slice(0, editorContext.length - editorWord.length) +
+      livePrefix
+    );
+  }
+  return editorContext;
+}
+
 /** Insert a leading space when the cursor sits directly after a completed word. */
 export function shouldInsertLeadingSpaceBeforeWord(
   textBeforeCursor: string,

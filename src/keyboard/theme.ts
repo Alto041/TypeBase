@@ -46,6 +46,8 @@ export type KeyboardLayoutSettings = {
   letterSymbolAlternatesEnabled: boolean;
   /** When true, show a dedicated number row (1 2 … 0) above the letter rows. */
   numberRowEnabled: boolean;
+  /** When true in landscape, keyboard is a draggable floating card; when false, full-width docked. */
+  landscapeFloatingKeyboardEnabled: boolean;
   /** Premium: adaptive symbol row learned from how you type (replaces number row). */
   myRowEnabled: boolean;
   /** Pinned symbols always included in My Row (max 10 total slots). */
@@ -100,24 +102,25 @@ export const DEFAULT_KEYBOARD_LAYOUT_SETTINGS: KeyboardLayoutSettings = {
   developerEyeEnabled: false,
   letterLayoutId: DEFAULT_LETTER_LAYOUT_ID,
   letterSymbolAlternatesEnabled: true,
-  numberRowEnabled: false,
+  numberRowEnabled: true,
+  landscapeFloatingKeyboardEnabled: true,
   myRowEnabled: false,
   myRowPins: [],
-  myRowShiftNumbersEnabled: true,
+  myRowShiftNumbersEnabled: false,
   essentialsEnabled: true,
   essentialsMatchCaseEnabled: false,
   keyboardHeightOffset: 0,
   bottomClearanceAdjust: 0,
-  customTapSoundEnabled: true,
+  customTapSoundEnabled: false,
   customTapSoundFile: 'typebase_keytap_soft.wav',
   keyHapticEnabled: true,
-  keyHapticPulseMs: 12,
+  keyHapticPulseMs: 11,
   autoCapitalizeEnabled: true,
   customFontEnabled: false,
   customFontFile: null,
   controller: DEFAULT_CONTROLLER_SETTINGS,
   predictiveHitboxesEnabled: true,
-  keyPreviewStyle: 'popup',
+  keyPreviewStyle: 'doodle',
 };
 
 /** Touch slop into gaps — horizontal fills keyGap; vertical reaches row gaps without full overlap. */
@@ -142,7 +145,7 @@ export const PREDICTIVE_HITBOX_EXPANSION = {
 };
 const NUMPAD_KEYS_PADDING_TOP = 2;
 
-export type KeyboardColorScheme = 'light' | 'dark';
+export type KeyboardColorScheme = 'light' | 'dark' | 'auto';
 export type KeyboardDesign = 'typebase' | 'quivox' | 'macintosh' | 'apple' | 'custom';
 
 /** Nothing-style key grid (rect caps, standard row layout) — includes Apple variant. */
@@ -236,7 +239,10 @@ function paletteForCustomTheme(
   scheme: KeyboardColorScheme,
   customThemeJson: string | null | undefined,
 ): KeyboardPalette {
-  const base = scheme === 'light' ? LIGHT_PALETTE : DARK_PALETTE;
+  // Auto scheme will be resolved to actual 'light' or 'dark' at the app level
+  // Here we treat 'auto' as 'light' as a fallback
+  const effectiveScheme = scheme === 'auto' ? 'light' : scheme;
+  const base = effectiveScheme === 'light' ? LIGHT_PALETTE : DARK_PALETTE;
   if (!customThemeJson) {
     return base;
   }
@@ -619,19 +625,21 @@ function paletteFor(
   scheme: KeyboardColorScheme,
   design: KeyboardDesign,
 ): KeyboardPalette {
+  // Auto scheme defaults to 'light' (will be overridden by app-level logic if needed)
+  const effectiveScheme = scheme === 'auto' ? 'light' : scheme;
   if (design === 'quivox') {
-    return scheme === 'light' ? QUIVOX_LIGHT_PALETTE : QUIVOX_DARK_PALETTE;
+    return effectiveScheme === 'light' ? QUIVOX_LIGHT_PALETTE : QUIVOX_DARK_PALETTE;
   }
   if (design === 'macintosh') {
-    return scheme === 'light' ? MACINTOSH_LIGHT_PALETTE : MACINTOSH_DARK_PALETTE;
+    return effectiveScheme === 'light' ? MACINTOSH_LIGHT_PALETTE : MACINTOSH_DARK_PALETTE;
   }
   if (design === 'apple') {
-    return scheme === 'light' ? APPLE_LIGHT_PALETTE : APPLE_DARK_PALETTE;
+    return effectiveScheme === 'light' ? APPLE_LIGHT_PALETTE : APPLE_DARK_PALETTE;
   }
   if (design === 'typebase') {
-    return scheme === 'light' ? TYPEBASE_LIGHT_PALETTE : TYPEBASE_DARK_PALETTE;
+    return effectiveScheme === 'light' ? TYPEBASE_LIGHT_PALETTE : TYPEBASE_DARK_PALETTE;
   }
-  return scheme === 'light' ? LIGHT_PALETTE : DARK_PALETTE;
+  return effectiveScheme === 'light' ? LIGHT_PALETTE : DARK_PALETTE;
 }
 
 /**
@@ -834,16 +842,26 @@ export function createKeyboardTheme(
   const numpadKeyHeight = Math.max(36, layout.keyHeight - 6);
   const suggestionBarHeight = isLandscape ? 42 : 48;
   const keysPaddingTop = isLandscape ? 4 : KEYS_PADDING_TOP;
-  const baseImeStripClearance = isLandscape ? 28 : IME_STRIP_CLEARANCE;
+  const baseImeStripClearance =
+    isLandscape && layout.landscapeFloatingKeyboardEnabled
+      ? 20
+      : isLandscape
+        ? 28
+        : IME_STRIP_CLEARANCE;
   const imeStripClearance = Math.round(
     clamp(
       baseImeStripClearance + (layout.bottomClearanceAdjust ?? 0),
-      isLandscape ? 16 : 22,
+      isLandscape && layout.landscapeFloatingKeyboardEnabled ? 14 : isLandscape ? 16 : 22,
       isLandscape ? 64 : 96,
     ),
   );
   const essentialsPanelHeight = isLandscape ? 112 : 136;
-  const keyboardHeightBuffer = isLandscape ? 4 : KEYBOARD_HEIGHT_BUFFER;
+  const keyboardHeightBuffer =
+    isLandscape && layout.landscapeFloatingKeyboardEnabled
+      ? 8
+      : isLandscape
+        ? 4
+        : KEYBOARD_HEIGHT_BUFFER;
   const numberRowHeight =
     layout.numberRowEnabled || layout.myRowEnabled
       ? layout.keyHeight + layout.keyRowMargin
@@ -915,6 +933,10 @@ export function createKeyboardTheme(
     /** @deprecated Use modifierKey */
     numpadActionKey: palette.modifierKey,
     suggestionBarHeight,
+    landscapeFloatingKeyboardEnabled: layout.landscapeFloatingKeyboardEnabled,
+    /** Extra inset so bottom row is not clipped by floating card rounding. */
+    floatingKeyboardCardInsetBottom:
+      isLandscape && layout.landscapeFloatingKeyboardEnabled ? 10 : 0,
     keysPaddingTop,
     imeStripClearance,
     essentialsPanelHeight,

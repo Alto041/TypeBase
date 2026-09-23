@@ -5,6 +5,8 @@ type KeyboardModuleType = {
   insertText: (text: string) => void;
   insertKeyText: (text: string) => void;
   deleteBackward: () => void;
+  /** Single-code-unit delete without extra editor round-trips (hold-repeat / landscape). */
+  deleteBackwardFast: () => void;
   startBackspaceRepeat: (holdDelayMs: number, intervalMs: number) => void;
   stopBackspaceRepeat: () => void;
   getTextBeforeCursor: (length: number) => Promise<string>;
@@ -80,6 +82,7 @@ type KeyboardModuleType = {
   syncCustomTapSound: () => void;
   playCustomTapSound: () => void;
   setKeyboardHeight: (heightDp: number) => void;
+  setFloatingKeyboard: (enabled: boolean) => void;
   setTouchpadGestureConsuming: (active: boolean) => void;
   setNativeKeyFastPathConfig: (json: string) => void;
   setKeyPreviewDoodleEnabled: (enabled: boolean) => void;
@@ -92,6 +95,11 @@ type KeyboardModuleType = {
     capsLocked: boolean,
     uppercase: boolean,
   ) => void;
+  updateNativeFastPathPreviewChrome: (
+    previewPopup: boolean,
+    previewPressed: boolean,
+    previewDoodle: boolean,
+  ) => void;
   consumeNativeFastPathPointer: (pointerId: number) => boolean;
   pollNativeFastPathCommit: () => {
     keyId: string;
@@ -101,6 +109,17 @@ type KeyboardModuleType = {
   } | null;
   setNativeShiftConsumedHandler: (handler: (() => void) | null) => void;
   isNativeTypingCommitActive: () => boolean;
+  isCompactTypingConsumingTouches: () => boolean;
+  getCompactTypingMetrics: () => Promise<{
+    nativeCommits: number;
+    reactTouchBlocks: number;
+    fastPathConfigPublishes: number;
+    layoutEpochBumps: number;
+    compactStateSyncs: number;
+    boundaryAutocorrectCalls: number;
+  }>;
+  resetCompactTypingMetrics: () => void;
+  syncCompactTypingPrefix: (prefix: string) => void;
   rollbackNativeFastPathPointer: (pointerId: number) => boolean;
   consumeNativeHapticPointer: (pointerId: number) => boolean;
   getGestureSettings: () => Promise<string>;
@@ -181,6 +200,13 @@ export const keyboardBridge: KeyboardModuleType = {
   },
   deleteBackward: () => {
     if (Platform.OS === 'android' && KeyboardModule?.deleteBackward) {
+      KeyboardModule.deleteBackward();
+    }
+  },
+  deleteBackwardFast: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.deleteBackwardFast) {
+      KeyboardModule.deleteBackwardFast();
+    } else if (Platform.OS === 'android' && KeyboardModule?.deleteBackward) {
       KeyboardModule.deleteBackward();
     }
   },
@@ -573,6 +599,11 @@ export const keyboardBridge: KeyboardModuleType = {
       KeyboardModule.setKeyboardHeight(heightDp);
     }
   },
+  setFloatingKeyboard: (enabled: boolean) => {
+    if (Platform.OS === 'android' && KeyboardModule?.setFloatingKeyboard) {
+      KeyboardModule.setFloatingKeyboard(enabled);
+    }
+  },
   setTouchpadGestureConsuming: (active: boolean) => {
     if (Platform.OS === 'android' && KeyboardModule?.setTouchpadGestureConsuming) {
       KeyboardModule.setTouchpadGestureConsuming(active);
@@ -620,6 +651,22 @@ export const keyboardBridge: KeyboardModuleType = {
       KeyboardModule.updateNativeFastPathCaseState(shiftOn, capsLocked, uppercase);
     }
   },
+  updateNativeFastPathPreviewChrome: (
+    previewPopup: boolean,
+    previewPressed: boolean,
+    previewDoodle: boolean,
+  ) => {
+    if (
+      Platform.OS === 'android' &&
+      KeyboardModule?.updateNativeFastPathPreviewChrome
+    ) {
+      KeyboardModule.updateNativeFastPathPreviewChrome(
+        previewPopup,
+        previewPressed,
+        previewDoodle,
+      );
+    }
+  },
   consumeNativeFastPathPointer: (pointerId: number): boolean => {
     if (Platform.OS === 'android' && KeyboardModule?.consumeNativeFastPathPointer) {
       const consumed = KeyboardModule.consumeNativeFastPathPointer(pointerId);
@@ -665,6 +712,35 @@ export const keyboardBridge: KeyboardModuleType = {
       return KeyboardModule.isNativeTypingCommitActive();
     }
     return false;
+  },
+  isCompactTypingConsumingTouches: (): boolean => {
+    if (Platform.OS === 'android' && KeyboardModule?.isCompactTypingConsumingTouches) {
+      return KeyboardModule.isCompactTypingConsumingTouches();
+    }
+    return false;
+  },
+  getCompactTypingMetrics: async () => {
+    if (Platform.OS === 'android' && KeyboardModule?.getCompactTypingMetrics) {
+      return KeyboardModule.getCompactTypingMetrics();
+    }
+    return {
+      nativeCommits: 0,
+      reactTouchBlocks: 0,
+      fastPathConfigPublishes: 0,
+      layoutEpochBumps: 0,
+      compactStateSyncs: 0,
+      boundaryAutocorrectCalls: 0,
+    };
+  },
+  resetCompactTypingMetrics: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.resetCompactTypingMetrics) {
+      KeyboardModule.resetCompactTypingMetrics();
+    }
+  },
+  syncCompactTypingPrefix: (prefix: string) => {
+    if (Platform.OS === 'android' && KeyboardModule?.syncCompactTypingPrefix) {
+      KeyboardModule.syncCompactTypingPrefix(prefix);
+    }
   },
   rollbackNativeFastPathPointer: (pointerId: number): boolean => {
     if (Platform.OS === 'android' && KeyboardModule?.rollbackNativeFastPathPointer) {

@@ -22,6 +22,7 @@ type SharedRowProps = {
   multiTouchDispatchEnabled?: boolean;
   focusedKeyId?: string | null;
   typeLiftProcessing?: boolean;
+  compactTypingNativeActive?: boolean;
 };
 
 type KeyboardRowProps = SharedRowProps & {
@@ -42,6 +43,7 @@ function renderRowKey(
         keyGestures={props.keyGestures}
         keyHeight={props.keyHeight}
         style={style}
+        compactTypingNativeActive={props.compactTypingNativeActive}
       />
     );
   }
@@ -76,6 +78,7 @@ function renderRowKey(
       typeLiftProcessing={
         keyDef.type === 'space' ? props.typeLiftProcessing : false
       }
+      compactTypingNativeActive={props.compactTypingNativeActive}
       style={style}
     />
   );
@@ -95,6 +98,7 @@ function KeyboardRowComponent({
   multiTouchDispatchEnabled,
   focusedKeyId,
   typeLiftProcessing,
+  compactTypingNativeActive,
 }: KeyboardRowProps) {
   const styles = useThemedStyles(createRowStyles);
   const shared: SharedRowProps = {
@@ -109,6 +113,7 @@ function KeyboardRowComponent({
     enterKeyNextLineEnabled,
     multiTouchDispatchEnabled,
     typeLiftProcessing,
+    compactTypingNativeActive,
   };
 
   return (

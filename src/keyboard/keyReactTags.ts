@@ -1,10 +1,17 @@
-import {primeKeyPreviewAnchor} from './KeyPreview';
+import {getKeyPreviewStyle, primeKeyPreviewAnchor} from './KeyPreview';
 
 const reactTagsByKeyId = new Map<string, number>();
 const listeners = new Set<() => void>();
+let notifyRaf: number | null = null;
 
 function notifyListeners(): void {
-  listeners.forEach(listener => listener());
+  if (notifyRaf != null) {
+    return;
+  }
+  notifyRaf = requestAnimationFrame(() => {
+    notifyRaf = null;
+    listeners.forEach(listener => listener());
+  });
 }
 
 export function registerKeyReactTag(keyId: string, reactTag: number): void {
@@ -12,7 +19,9 @@ export function registerKeyReactTag(keyId: string, reactTag: number): void {
     return;
   }
   reactTagsByKeyId.set(keyId, reactTag);
-  primeKeyPreviewAnchor(reactTag);
+  if (getKeyPreviewStyle() === 'popup') {
+    primeKeyPreviewAnchor(reactTag);
+  }
   notifyListeners();
 }
 

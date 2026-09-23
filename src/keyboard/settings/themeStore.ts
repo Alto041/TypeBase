@@ -7,7 +7,7 @@ export const KEYBOARD_DESIGN_CHANGED_EVENT = 'keyboardDesignChanged';
 export const KEYBOARD_CUSTOM_THEME_CHANGED_EVENT =
   'keyboardCustomThemeChanged';
 
-const DEFAULT_SCHEME: KeyboardColorScheme = 'light';
+const DEFAULT_SCHEME: KeyboardColorScheme = 'auto';
 const DEFAULT_DESIGN: KeyboardDesign = 'typebase';
 
 let cachedScheme: KeyboardColorScheme = DEFAULT_SCHEME;
@@ -16,7 +16,27 @@ let cachedCustomThemeJson: string = '{}';
 let loadPromise: Promise<void> | null = null;
 
 function normalizeScheme(value: string | null | undefined): KeyboardColorScheme {
-  return value === 'dark' ? 'dark' : 'light';
+  if (value === 'dark') {
+    return 'dark';
+  }
+  if (value === 'light') {
+    return 'light';
+  }
+  if (value === 'auto') {
+    return 'auto';
+  }
+  return DEFAULT_SCHEME;
+}
+
+/** Stored preference may be auto; palette code needs concrete light/dark. */
+export function resolveKeyboardColorScheme(
+  scheme: KeyboardColorScheme,
+  systemScheme: 'light' | 'dark' | null | undefined,
+): 'light' | 'dark' {
+  if (scheme === 'auto') {
+    return systemScheme === 'dark' ? 'dark' : 'light';
+  }
+  return scheme === 'dark' ? 'dark' : 'light';
 }
 
 function normalizeDesign(value: string | null | undefined): KeyboardDesign {

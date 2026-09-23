@@ -60,6 +60,8 @@ class NativeKeyFastPath {
   private var previewPressedEnabled = true
   @Volatile
   private var previewDoodleEnabled = false
+  @Volatile
+  private var compactTyping = false
   private var areaPageX = 0f
   private var areaPageY = 0f
   private var hitSlopHorizontal = 0f
@@ -83,6 +85,48 @@ class NativeKeyFastPath {
   private val pendingJsCommits = ArrayDeque<PendingJsCommit>()
   private val pendingJsCommitsLock = Any()
   private val previewHandler = Handler(Looper.getMainLooper())
+  private val compactSyncHandler = Handler(Looper.getMainLooper())
+  private var compactIdleSyncRunnable: Runnable? = null
+  private var livePrefix = StringBuilder()
+
+  fun isCompactTyping(): Boolean = enabled && compactTyping
+
+  fun syncLivePrefixFromJs(prefix: String) {
+    livePrefix.clear()
+    livePrefix.append(prefix.take(28))
+  }
+
+  private fun clearCompactSessionState() {
+    livePrefix.clear()
+    compactIdleSyncRunnable?.let { compactSyncHandler.removeCallbacks(it) }
+    compactIdleSyncRunnable = null
+    KeyboardInputBridge.stopCompactBackspaceRepeat()
+  }
+
+  private fun pushCompactStateSync(reason: String) {
+    if (!compactTyping) {
+      return
+    }
+    KeyboardInputBridge.notifyCompactTypingState(
+        livePrefix.toString(),
+        shiftOn,
+        capsLocked,
+        reason,
+    )
+  }
+
+  private fun scheduleCompactIdleSync() {
+    if (!compactTyping) {
+      return
+    }
+    compactIdleSyncRunnable?.let { compactSyncHandler.removeCallbacks(it) }
+    val runnable = Runnable {
+      compactIdleSyncRunnable = null
+      pushCompactStateSync("idle")
+    }
+    compactIdleSyncRunnable = runnable
+    compactSyncHandler.postDelayed(runnable, 200L)
+  }
 
   fun updateConfig(json: String) {
     if (json == lastConfigJson) {
@@ -97,6 +141,7 @@ class NativeKeyFastPath {
       previewPopupEnabled = obj.optBoolean("previewPopupEnabled", true)
       previewPressedEnabled = obj.optBoolean("previewPressedEnabled", true)
       previewDoodleEnabled = obj.optBoolean("previewDoodleEnabled", false)
+      compactTyping = obj.optBoolean("compactTyping", false)
       areaPageX = obj.optDouble("areaPageX", 0.0).toFloat()
       areaPageY = obj.optDouble("areaPageY", 0.0).toFloat()
       hitSlopHorizontal = obj.optDouble("hitSlopHorizontal", 0.0).toFloat()
@@ -126,10 +171,12 @@ class NativeKeyFastPath {
         gamePerformance = false
         previewPopupEnabled = true
         previewPressedEnabled = true
+        clearCompactSessionState()
         sessions.clear()
         synchronized(pendingJsCommitsLock) { pendingJsCommits.clear() }
       }
       lastConfigJson = json
+      CompactTypingTelemetry.recordFastPathConfigPublish()
     } catch (_: Exception) {
       enabled = false
       zeroLatency = false
@@ -145,6 +192,16 @@ class NativeKeyFastPath {
     }
   }
 
+  fun updatePreviewChromeFlags(
+      previewPopup: Boolean,
+      previewPressed: Boolean,
+      previewDoodle: Boolean,
+  ) {
+    previewPopupEnabled = previewPopup
+    previewPressedEnabled = previewPressed
+    previewDoodleEnabled = previewDoodle
+  }
+
   fun clear() {
     enabled = false
     zeroLatency = false
@@ -156,6 +213,7 @@ class NativeKeyFastPath {
     keyById = emptyMap()
     lastConfigJson = ""
     lastTouchContextJson = ""
+    clearCompactSessionState()
     sessions.clear()
     synchronized(pendingJsCommitsLock) { pendingJsCommits.clear() }
   }
@@ -240,8 +298,8 @@ class NativeKeyFastPath {
   }
 
   /**
-   * Commits letter keys on touch-down (before React processes the event) for minimal
-   * input latency. Returns false so swipe typing and key visuals still receive touches.
+   * Commits keys on touch-down. When [compactTyping] is active and a typing key is handled,
+   * returns true so the IME can skip dispatching the event to React Native.
    */
   fun onTouchEvent(event: MotionEvent): Boolean {
     if (!enabled || keys.isEmpty()) {
@@ -251,145 +309,272 @@ class NativeKeyFastPath {
     return when (event.actionMasked) {
       MotionEvent.ACTION_DOWN,
       MotionEvent.ACTION_POINTER_DOWN -> {
-        val index = event.actionIndex
-        val pointerId = event.getPointerId(index)
-        val rawX = event.rawXForIndex(index)
-        val rawY = event.rawYForIndex(index)
-        val localX = rawX - areaPageX
-        val localY = rawY - areaPageY
-        val key =
-            if (zeroLatency || gamePerformance) {
-              touchIntelligence.geometricHitTest(localX, localY)?.let { geometry ->
-                keyById[geometry.id]
-              }
-            } else {
-              touchIntelligence
-                  .hitTestWithAnalysis(localX, localY, event.eventTime)
-                  .key
-                  ?.let { geometry -> keyById[geometry.id] }
-            }
-                ?: return false
-
-        if (!commitOnDown) {
-          return false
-        }
-
-        val text = resolveCommitText(key.value)
-        if (shouldRunShiftEditorChord(text)) {
-          KeyboardInputBridge.tryPerformShiftEditorShortcut(text[0])
-          shiftOn = false
-          uppercase = false
-          blockAutoShiftReenable = true
-          if (zeroLatency) {
-            KeyboardInputBridge.performSubtleKeyHapticForPointer(pointerId)
-          } else if (gamePerformance) {
-            KeyboardInputBridge.performLightKeyHapticForPointer(pointerId)
-          } else {
-            KeyboardInputBridge.performKeyHapticForPointer(pointerId)
-          }
-          return false
-        }
-        val shiftConsumed =
-            keyboardLayout == "letters" &&
-                shiftOn &&
-                !capsLocked &&
-                text.length == 1 &&
-                text[0].isUpperCase()
-        if (!commitKeyTextOnly(key, text, shiftConsumed)) {
-          return false
-        }
-
-        if (keyboardLayout == "letters" && text.length == 1 && text[0].isLetter()) {
-          if (!zeroLatency && !gamePerformance) {
-            NativeSuggestionBarEngine.appendLetter(text)
-          }
-        }
-
-        sessions[pointerId] = TouchSession(pointerId, key, text)
-        if (!zeroLatency && !gamePerformance) {
-          touchIntelligence.recordTap(text, localX, localY, event.eventTime)
-        }
-        synchronized(pendingJsCommitsLock) {
-          pendingJsCommits.addLast(
-              PendingJsCommit(pointerId, key.id, text, shiftConsumed),
-          )
-        }
-
-        if (zeroLatency) {
-          KeyboardInputBridge.performSubtleKeyHapticForPointer(pointerId)
-        } else if (gamePerformance) {
-          KeyboardInputBridge.performLightKeyHapticForPointer(pointerId)
-        } else {
-          KeyboardInputBridge.performKeyHapticForPointer(pointerId)
-        }
-
-        if (key.reactTag > 0) {
-          val reactTag = key.reactTag
-          val previewLabel = text
-          // Touch dispatch is already on the main looper — show preview immediately.
-          if (!zeroLatency && !gamePerformance && previewPressedEnabled) {
-            KeyboardInputBridge.showKeyPressed(reactTag)
-          }
-          if (!zeroLatency && !gamePerformance && previewPopupEnabled) {
-            KeyboardInputBridge.showKeyPreview(reactTag, previewLabel)
-          }
-          if (!zeroLatency && !gamePerformance) {
-            previewHandler.post { KeyboardInputBridge.playKeyTapSound() }
-          }
-        }
-        false
+        handlePointerDown(event)
       }
 
       MotionEvent.ACTION_UP,
       MotionEvent.ACTION_POINTER_UP -> {
-        val pointerId = event.getPointerId(event.actionIndex)
-        if (!zeroLatency && !gamePerformance) {
-          val reactTag = sessions[pointerId]?.key?.reactTag ?: 0
-          if (reactTag > 0) {
-            if (previewPressedEnabled) {
-              KeyboardInputBridge.hideKeyPressed(reactTag)
-            }
-            if (previewPopupEnabled) {
-              KeyboardInputBridge.hideKeyPreview(reactTag)
-            }
-          }
-        }
-        val sessionCleanupDelayMs =
-            if (zeroLatency || gamePerformance) 120L else 450L
-        previewHandler.postDelayed({ sessions.remove(pointerId) }, sessionCleanupDelayMs)
-        false
+        handlePointerUp(event)
       }
 
       MotionEvent.ACTION_CANCEL -> {
-        for (session in sessions.values) {
-          if (session.key.reactTag > 0) {
-            if (previewPressedEnabled) {
-              KeyboardInputBridge.hideKeyPressed(session.key.reactTag)
-            }
-            if (previewPopupEnabled) {
-              KeyboardInputBridge.hideKeyPreview(session.key.reactTag)
-            }
-          }
-        }
-        sessions.clear()
-        synchronized(pendingJsCommitsLock) { pendingJsCommits.clear() }
-        false
+        handlePointerCancel()
       }
 
       else -> false
     }
   }
 
+  private fun handlePointerDown(event: MotionEvent): Boolean {
+    val index = event.actionIndex
+    val pointerId = event.getPointerId(index)
+    val rawX = event.rawXForIndex(index)
+    val rawY = event.rawYForIndex(index)
+    val localX = rawX - areaPageX
+    val localY = rawY - areaPageY
+    val key =
+        if (zeroLatency || gamePerformance || compactTyping) {
+          touchIntelligence.geometricHitTest(localX, localY)?.let { geometry ->
+            keyById[geometry.id]
+          }
+        } else {
+          touchIntelligence
+              .hitTestWithAnalysis(localX, localY, event.eventTime)
+              .key
+              ?.let { geometry -> keyById[geometry.id] }
+        }
+            ?: return false
+
+    if (!commitOnDown) {
+      return false
+    }
+
+    val blockReact = handleKeyDown(key, pointerId, localX, localY, rawX, rawY, event.eventTime)
+    if (blockReact) {
+      CompactTypingTelemetry.recordNativeCommit()
+      CompactTypingTelemetry.recordReactTouchBlocked()
+    }
+    return blockReact
+  }
+
+  private fun handleKeyDown(
+      key: NativeKey,
+      pointerId: Int,
+      localX: Float,
+      localY: Float,
+      rawX: Float,
+      rawY: Float,
+      eventTime: Long,
+  ): Boolean {
+    when (key.type) {
+      "backspace" -> {
+        KeyboardInputBridge.performDeleteBackwardFast()
+        if (livePrefix.isNotEmpty()) {
+          livePrefix.deleteCharAt(livePrefix.length - 1)
+        }
+        NativeSuggestionBarEngine.syncPrefix(livePrefix.toString())
+        KeyboardInputBridge.startCompactBackspaceRepeat()
+        pulseLandscapeAwareHaptic(pointerId)
+        showKeyChromeForKey(key, "⌫", rawX, rawY, localX, localY)
+        sessions[pointerId] = TouchSession(pointerId, key, "")
+        pushCompactStateSync("backspace")
+        scheduleCompactIdleSync()
+        return compactTyping
+      }
+      "space" -> {
+        val connection = KeyboardInputBridge.getInputConnection() ?: return false
+        connection.commitText(" ", 1)
+        val typedWord = livePrefix.toString()
+        livePrefix.clear()
+        NativeSuggestionBarEngine.clearPrefix()
+        pulseLandscapeAwareHaptic(pointerId)
+        showKeyChromeForKey(key, " ", rawX, rawY, localX, localY)
+        sessions[pointerId] = TouchSession(pointerId, key, " ")
+        if (compactTyping && typedWord.isNotBlank()) {
+          KeyboardInputBridge.notifyCompactTypingBoundary(" ", typedWord)
+        }
+        pushCompactStateSync("space")
+        return compactTyping
+      }
+      "shift" -> {
+        KeyboardInputBridge.notifyCompactTypingShiftPress()
+        pulseLandscapeAwareHaptic(pointerId)
+        showKeyChromeForKey(key, "⇧", rawX, rawY, localX, localY)
+        sessions[pointerId] = TouchSession(pointerId, key, "")
+        return compactTyping
+      }
+      "enter" -> {
+        if (livePrefix.isNotEmpty()) {
+          val typedWord = livePrefix.toString()
+          KeyboardInputBridge.notifyCompactTypingBoundary("", typedWord)
+        }
+        KeyboardInputBridge.submitEnterFromCompactTyping()
+        livePrefix.clear()
+        NativeSuggestionBarEngine.clearPrefix()
+        pulseLandscapeAwareHaptic(pointerId)
+        showKeyChromeForKey(key, "↵", rawX, rawY, localX, localY)
+        sessions[pointerId] = TouchSession(pointerId, key, "")
+        pushCompactStateSync("enter")
+        return compactTyping
+      }
+    }
+
+    val text = resolveCommitText(key.value)
+    if (shouldRunShiftEditorChord(text)) {
+      KeyboardInputBridge.tryPerformShiftEditorShortcut(text[0])
+      shiftOn = false
+      uppercase = false
+      blockAutoShiftReenable = true
+      pulseLandscapeAwareHaptic(pointerId)
+      return false
+    }
+    val shiftConsumed =
+        keyboardLayout == "letters" &&
+            shiftOn &&
+            !capsLocked &&
+            text.length == 1 &&
+            text[0].isUpperCase()
+    if (!commitKeyTextOnly(key, text, shiftConsumed)) {
+      return false
+    }
+
+    if (keyboardLayout == "letters" && text.length == 1 && text[0].isLetter()) {
+      if (!zeroLatency && !compactTyping) {
+        if (!gamePerformance) {
+          NativeSuggestionBarEngine.appendLetter(text)
+        }
+      } else if (!zeroLatency && compactTyping) {
+        livePrefix.append(text.lowercase())
+      }
+    }
+
+    sessions[pointerId] = TouchSession(pointerId, key, text)
+    if (!zeroLatency && !gamePerformance && !compactTyping) {
+      touchIntelligence.recordTap(text, localX, localY, eventTime)
+    }
+    if (!compactTyping) {
+      synchronized(pendingJsCommitsLock) {
+        pendingJsCommits.addLast(
+            PendingJsCommit(pointerId, key.id, text, shiftConsumed),
+        )
+      }
+    }
+
+    pulseLandscapeAwareHaptic(pointerId)
+    showKeyChromeForKey(key, text, rawX, rawY, localX, localY)
+    if (!zeroLatency) {
+      previewHandler.post { KeyboardInputBridge.playKeyTapSound() }
+    }
+    scheduleCompactIdleSync()
+    return compactTyping
+  }
+
+  private fun previewIdForKey(key: NativeKey): Int =
+      if (key.reactTag > 0) key.reactTag else key.id.hashCode()
+
+  private fun showKeyChromeForKey(
+      key: NativeKey,
+      previewLabel: String,
+      rawX: Float,
+      rawY: Float,
+      localX: Float,
+      localY: Float,
+  ) {
+    if (zeroLatency || compactTyping) {
+      return
+    }
+    val previewId = previewIdForKey(key)
+    if (previewPressedEnabled && key.reactTag > 0) {
+      KeyboardInputBridge.showKeyPressed(key.reactTag)
+    }
+    if (previewPopupEnabled) {
+      val keyWidth = (key.right - key.left).coerceAtLeast(1f)
+      val keyHeight = (key.bottom - key.top).coerceAtLeast(1f)
+      // Keys are laid out in keys-area space; areaPage* matches native hit-test coords.
+      val screenCenterX = areaPageX + key.centerX
+      val screenKeyTop = areaPageY + key.top
+      KeyboardInputBridge.showKeyPreviewAtTouch(
+          previewId,
+          screenCenterX,
+          screenKeyTop,
+          keyWidth,
+          keyHeight,
+          previewLabel,
+      )
+    }
+  }
+
+  private fun handlePointerUp(event: MotionEvent): Boolean {
+    val pointerId = event.getPointerId(event.actionIndex)
+    val session = sessions[pointerId]
+    if (session?.key?.type == "backspace") {
+      KeyboardInputBridge.stopCompactBackspaceRepeat()
+    }
+    if (!zeroLatency) {
+      val sessionKey = session?.key
+      if (sessionKey != null) {
+        val previewId = previewIdForKey(sessionKey)
+        if (previewPressedEnabled && sessionKey.reactTag > 0) {
+          KeyboardInputBridge.hideKeyPressed(sessionKey.reactTag)
+        }
+        if (previewPopupEnabled) {
+          val tagForHide = previewId
+          previewHandler.postDelayed(
+              { KeyboardInputBridge.hideKeyPreview(tagForHide) },
+              120L,
+          )
+        }
+      }
+    }
+    val blockReact = compactTyping && session != null
+    val sessionCleanupDelayMs =
+        if (zeroLatency || gamePerformance) 120L else 450L
+    previewHandler.postDelayed({ sessions.remove(pointerId) }, sessionCleanupDelayMs)
+    return blockReact
+  }
+
+  private fun handlePointerCancel(): Boolean {
+    KeyboardInputBridge.stopCompactBackspaceRepeat()
+    for (session in sessions.values) {
+      val previewId = previewIdForKey(session.key)
+      if (session.key.reactTag > 0) {
+        if (previewPressedEnabled) {
+          KeyboardInputBridge.hideKeyPressed(session.key.reactTag)
+        }
+      }
+      if (previewPopupEnabled) {
+        KeyboardInputBridge.hideKeyPreview(previewId)
+      }
+    }
+    val blockReact = compactTyping && sessions.isNotEmpty()
+    sessions.clear()
+    synchronized(pendingJsCommitsLock) { pendingJsCommits.clear() }
+    return blockReact
+  }
+
   private fun parseKeys(array: JSONArray): List<NativeKey> {
     val parsed = mutableListOf<NativeKey>()
     for (index in 0 until array.length()) {
       val obj = array.optJSONObject(index) ?: continue
-      val value = obj.optString("value", "")
+      val type = obj.optString("type", "char")
+      var value = obj.optString("value", "")
+      if (value.isEmpty()) {
+        value =
+            when (type) {
+              "backspace" -> "\u232b"
+              "space" -> " "
+              "shift" -> "shift"
+              "enter" -> "enter"
+              else -> ""
+            }
+      }
       if (value.isEmpty()) {
         continue
       }
-      val type = obj.optString("type", "char")
-      if (type == "comma" || type == "period" || type == "space") {
+      if (!compactTyping && (type == "comma" || type == "period" || type == "space")) {
+        continue
+      }
+      if (type == "comma" || type == "period") {
         continue
       }
       parsed.add(
@@ -470,6 +655,15 @@ class NativeKeyFastPath {
       return false
     }
     return shiftEditorHeld
+  }
+
+  private fun pulseLandscapeAwareHaptic(pointerId: Int) {
+    when {
+      zeroLatency -> KeyboardInputBridge.performSubtleKeyHapticForPointer(pointerId)
+      gamePerformance || compactTyping ->
+          KeyboardInputBridge.performLightKeyHapticForPointer(pointerId)
+      else -> KeyboardInputBridge.performKeyHapticForPointer(pointerId)
+    }
   }
 
   private fun resolveCommitText(value: String): String {

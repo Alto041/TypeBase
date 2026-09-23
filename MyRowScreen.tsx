@@ -61,13 +61,11 @@ export function MyRowScreen({
   const {isPremium, canUse} = usePremium();
   const [ready, setReady] = useState(false);
   const [myRowEnabled, setMyRowEnabled] = useState(false);
-  const [shiftNumbersEnabled, setShiftNumbersEnabled] = useState(true);
   const [pins, setPins] = useState<string[]>([]);
   const [usageTick, setUsageTick] = useState(0);
   const [customDraft, setCustomDraft] = useState('');
   const [pinError, setPinError] = useState<string | null>(null);
   const myRowAnim = useRef(new Animated.Value(0)).current;
-  const shiftAnim = useRef(new Animated.Value(1)).current;
 
   const animateToggle = (anim: Animated.Value, toValue: number) => {
     Animated.spring(anim, {
@@ -84,14 +82,11 @@ export function MyRowScreen({
     await ensureMyRowUsageLoaded();
     const layout = getKeyboardLayoutSettings();
     const enabled = layout.myRowEnabled ?? false;
-    const shiftNumbers = layout.myRowShiftNumbersEnabled ?? true;
     setMyRowEnabled(enabled);
-    setShiftNumbersEnabled(shiftNumbers);
     myRowAnim.setValue(enabled ? 1 : 0);
-    shiftAnim.setValue(shiftNumbers ? 1 : 0);
     setPins(layout.myRowPins ?? []);
     setReady(true);
-  }, [myRowAnim, shiftAnim]);
+  }, [myRowAnim]);
 
   useEffect(() => {
     void reload();
@@ -100,11 +95,8 @@ export function MyRowScreen({
       () => {
         const layout = getKeyboardLayoutSettings();
         const enabled = layout.myRowEnabled ?? false;
-        const shiftNumbers = layout.myRowShiftNumbersEnabled ?? true;
         setMyRowEnabled(enabled);
-        setShiftNumbersEnabled(shiftNumbers);
         myRowAnim.setValue(enabled ? 1 : 0);
-        shiftAnim.setValue(shiftNumbers ? 1 : 0);
         setPins(layout.myRowPins ?? []);
       },
     );
@@ -116,7 +108,7 @@ export function MyRowScreen({
       layoutSub.remove();
       usageSub.remove();
     };
-  }, [myRowAnim, reload, shiftAnim]);
+  }, [myRowAnim, reload]);
 
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -167,22 +159,6 @@ export function MyRowScreen({
     setMyRowEnabled(next);
     await updateKeyboardLayoutSetting('myRowEnabled', next);
     animateToggle(myRowAnim, next ? 1 : 0);
-    if (next) {
-      playSwitchOnSound();
-    } else {
-      playSwitchOffSound();
-    }
-    void Haptics.selectionAsync().catch(() => undefined);
-  };
-
-  const toggleShiftNumbers = async () => {
-    if (!requireMyRow()) {
-      return;
-    }
-    const next = !shiftNumbersEnabled;
-    setShiftNumbersEnabled(next);
-    await updateKeyboardLayoutSetting('myRowShiftNumbersEnabled', next);
-    animateToggle(shiftAnim, next ? 1 : 0);
     if (next) {
       playSwitchOnSound();
     } else {
@@ -280,7 +256,7 @@ export function MyRowScreen({
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}>
         <Text style={styles.pageTitle}>My Row</Text>
-        <Text style={styles.pageIntro}>Pin symbols · Shift or Caps = 0–9 row</Text>
+        <Text style={styles.pageIntro}>Pin symbols · show on Shift or Caps Lock</Text>
 
         {!isPremium ? (
           <Pressable
@@ -295,17 +271,9 @@ export function MyRowScreen({
 
         <Text style={styles.sectionLabel}>Behavior</Text>
         <View style={styles.mainStack}>
-          <View style={[styles.rowCard, styles.firstCard]}>
+          <View style={[styles.rowCard, styles.firstCard, styles.lastCard]}>
             {renderToggleRow('Use my row', myRowEnabled, myRowAnim, () =>
               void toggleMyRow(), {premiumBadge: true})}
-          </View>
-          <View style={[styles.rowCard, styles.lastCard]}>
-            {renderToggleRow(
-              'Shift shows 0–9',
-              shiftNumbersEnabled,
-              shiftAnim,
-              () => void toggleShiftNumbers(),
-            )}
           </View>
         </View>
 

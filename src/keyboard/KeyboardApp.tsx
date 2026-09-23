@@ -12,6 +12,7 @@ import {
   InteractionManager,
   Platform,
   StyleSheet,
+  useColorScheme,
   useWindowDimensions,
   View,
   type StyleProp,
@@ -128,7 +129,10 @@ import {
   learnTapMapFromWordCorrection,
   setTapMapLayoutProvider,
 } from './gesture/tapMap';
-import {updatePredictiveHitboxes} from './gesture/predictiveHitboxes';
+import {
+  serializeKeyExpansionsForNative,
+  updatePredictiveHitboxes,
+} from './gesture/predictiveHitboxes';
 import {installTouchIntelligenceNativeTelemetry} from './gesture/touchIntelligenceNativeBridge';
 import {hydrateTouchIntelligenceHitsFromStorage} from './gesture/touchIntelligenceTelemetry';
 import {
@@ -197,6 +201,7 @@ import {
   recordMetricsSessionStart,
   recordWordCommitted,
 } from './metrics/metricsStore';
+import {recordCompactTypingFastPathPublish} from './metrics/compactTypingMetrics';
 import {OneHandPanel} from './onehand/OneHandPanel';
 import {
   ensureOneHandLoaded,
@@ -228,13 +233,16 @@ import {
   tryShiftEditorShortcut,
 } from './editor/shiftEditorShortcuts';
 import {deferKeyboardSideEffect, triggerKeyHaptic} from './haptics';
+import {isLandscapeTypingProfile, setLandscapeTypingProfile} from './landscapeTypingProfile';
 import {keyboardBridge} from './keyboardBridge';
 import {getKeyReactTag, subscribeKeyReactTags} from './keyReactTags';
 import {
   isBurstTypingActive,
   setBurstTypingActive,
   setGamePerformanceModeActive,
+  setFloatingKeyboardDragActive,
   setZeroLatencyModeActive as setZeroLatencyRuntimeActive,
+  isFloatingKeyboardDragActive,
   shouldDeferHeavyTypingSideEffects,
   shouldDeferLiveSuggestionBar,
   shouldSkipFrostedKeyboardEffects,
@@ -279,6 +287,7 @@ import {
   KEYBOARD_DESIGN_CHANGED_EVENT,
   KEYBOARD_THEME_CHANGED_EVENT,
   KEYBOARD_CUSTOM_THEME_CHANGED_EVENT,
+  resolveKeyboardColorScheme,
 } from './settings/themeStore';
 import {
   KeyboardThemeProvider,
@@ -298,6 +307,7 @@ import {
 import {useVoiceInput} from './voice/useVoiceInput';
 import {
   derivePreviousWordFromEditor,
+  buildEffectiveTextBeforeCursor,
   pickTypedWordForBoundary,
   reconcileLivePrefixFromContext,
   shouldInsertLeadingSpaceBeforeWord,
@@ -342,7 +352,16 @@ const AI_PREFLIGHT_CACHE_LIMIT = 12;
 const AI_AUTO_APPLY_MAX_REPLACE_LENGTH = 72;
 const AI_AUTO_APPLY_MAX_WORDS = 12;
 const NATIVE_FAST_PATH_MIN_KEYS = 20;
-const NATIVE_FAST_PATH_ENABLED = true;
+/** Disabled: native fast path + compact typing experiment caused lag in both portrait & landscape. */
+const NATIVE_FAST_PATH_ENABLED = false;
+/** Landscape native compact session — off until preview + JS sync are stable. */
+const LANDSCAPE_NATIVE_COMPACT_TYPING_ENABLED = false;
+
+function buildNativeFastPathReactTagsSignature(
+  keyLayouts: {id: string}[],
+): string {
+  return keyLayouts.map(({id}) => `${id}:${getKeyReactTag(id) ?? 0}`).join('|');
+}
 const AI_AUTOCORRECT_LOG_PREFIX = '[AiAutocorrect]';
 
 function logAiAutocorrect(...args: unknown[]): void {
@@ -527,6 +546,7 @@ type LetterKeyboardRowsProps = {
   focusedKeyId?: string | null;
   typeLiftProcessing?: boolean;
   predictiveHitboxTick?: number;
+  compactTypingNativeActive?: boolean;
 };
 
 const LetterKeyboardRows = React.memo(function LetterKeyboardRows({
@@ -554,6 +574,7 @@ const LetterKeyboardRows = React.memo(function LetterKeyboardRows({
   focusedKeyId,
   typeLiftProcessing,
   predictiveHitboxTick = 0,
+  compactTypingNativeActive = false,
 }: LetterKeyboardRowsProps) {
   const theme = useKeyboardTheme();
   const styles = useThemedStyles(createKeyboardAppStyles);
@@ -602,6 +623,7 @@ const LetterKeyboardRows = React.memo(function LetterKeyboardRows({
           multiTouchDispatchEnabled={multiTouchActive}
           focusedKeyId={focusedKeyId}
           typeLiftProcessing={typeLiftProcessing}
+          compactTypingNativeActive={compactTypingNativeActive}
         />
       ))}
     </SwipeTypingKeysHost>
@@ -752,11 +774,14 @@ function KeyboardBody({
   >(new Map());
   const lastAiProofreadOriginalRef = useRef<string | null>(null);
   const livePrefixRef = useRef('');
+  const editorContextRef = useRef('');
   const lastInstantPrefixRef = useRef('');
   const previousWordRef = useRef('');
   const autocorrectPreviewRef = useRef<string | null>(null);
   const nativeFastPathActiveRef = useRef(false);
   const lastPublishedFastPathLayoutEpochRef = useRef(-1);
+  const lastPublishedLandscapeRef = useRef<boolean | null>(null);
+  const lastPublishedReactTagsSignatureRef = useRef('');
   const instantSuggestionRafRef = useRef<number | null>(null);
   const instantSuggestionLastFlushAtRef = useRef(0);
   const nativeSideEffectDedupRef = useRef<{text: string; at: number} | null>(null);
@@ -783,8 +808,7 @@ function KeyboardBody({
   const [gamePerformanceActive, setGamePerformanceActive] = useState(false);
   const gamePerformanceModeRef = useRef(false);
   const autoGamePerformanceRef = useRef(false);
-  /** Briefly disable native commit-on-down after rotation until key bounds remeasure. */
-  const [nativeFastPathLayoutHold, setNativeFastPathLayoutHold] = useState(false);
+  const landscapeInputBoostRef = useRef(false);
   const shiftOnRef = useRef(false);
   const capsLockedRef = useRef(false);
   const hasTypedInFieldRef = useRef(false);
@@ -896,6 +920,17 @@ function KeyboardBody({
     );
   }, []);
 
+  const syncNativeFastPathPreviewChrome = useCallback(
+    (style: KeyboardLayoutSettings['keyPreviewStyle']) => {
+      keyboardBridge.updateNativeFastPathPreviewChrome(
+        style === 'popup',
+        style === 'popup' || style === 'subtle',
+        style === 'doodle',
+      );
+    },
+    [],
+  );
+
   const clearMidWordAutoShift = useCallback(() => {
     autoShiftConsumedMidWordRef.current = false;
     keyboardBridge.clearNativeMidWordShiftBlock();
@@ -932,15 +967,18 @@ function KeyboardBody({
   }, []);
 
   const refreshTouchIntelligenceFromLivePrefix = useCallback(() => {
+    if (shouldSkipTouchIntelligenceWork()) {
+      return;
+    }
     if (shouldDeferHeavyTypingSideEffects()) {
       return;
     }
     const prefix = livePrefixRef.current;
     touchIntelligencePreviousKeyRef.current =
       prefix.length > 0 ? prefix[prefix.length - 1]!.toLowerCase() : null;
-    if (layoutContext) {
+    if (layoutContext && theme.predictiveHitboxesEnabled) {
       updatePredictiveHitboxes(prefix, layoutContext.getLayouts(), {
-        enabled: theme.predictiveHitboxesEnabled,
+        enabled: true,
         lang: getActiveLanguage(),
       });
       setPredictiveHitboxTick(tick => tick + 1);
@@ -1000,6 +1038,7 @@ function KeyboardBody({
   const gestureEnabled =
     !zeroLatencyMode &&
     !gamePerformanceActive &&
+    !theme.isLandscape &&
     gestureSettings.swipeTyping &&
     layout === 'letters' &&
     mode.type === 'typing' &&
@@ -1010,25 +1049,30 @@ function KeyboardBody({
   const [customLayoutsTick, setCustomLayoutsTick] = useState(0);
   const [myRowUsageTick, setMyRowUsageTick] = useState(0);
 
-  const myRowActive = theme.myRowEnabled && canUseFeature('my_row');
-  const shiftShowsNumberRow =
-    (shiftOn || capsLocked) && theme.myRowShiftNumbersEnabled;
+  const myRowSettingOn = theme.myRowEnabled && canUseFeature('my_row');
+  const shiftActive = shiftOn || capsLocked;
 
-  const extraTopRowEnabled = myRowActive || theme.numberRowEnabled;
+  const extraTopRowEnabled = myRowSettingOn || theme.numberRowEnabled;
 
   const rows = useMemo(() => {
     let baseRows = getKeyboardRows(layout, theme.letterLayoutId);
     if (layout === 'letters' && theme.design === 'apple' && baseRows.length > 0) {
       baseRows = [...baseRows.slice(0, -1), APPLE_BOTTOM_ROW];
     }
-    if (layout === 'letters' && myRowActive) {
-      const topRow = shiftShowsNumberRow
-        ? DIGITS_ROW
-        : buildMyRowKeyDefinitions(theme.myRowPins, getMyRowUsageSnapshot());
-      return [topRow, ...baseRows];
-    }
-    if (layout === 'letters' && theme.numberRowEnabled) {
-      return [DIGITS_ROW, ...baseRows];
+    if (layout === 'letters') {
+      const showMyRowTop = myRowSettingOn && shiftActive;
+      const showNumberTop =
+        theme.numberRowEnabled || (myRowSettingOn && !shiftActive);
+
+      if (showMyRowTop) {
+        return [
+          buildMyRowKeyDefinitions(theme.myRowPins, getMyRowUsageSnapshot()),
+          ...baseRows,
+        ];
+      }
+      if (showNumberTop) {
+        return [DIGITS_ROW, ...baseRows];
+      }
     }
     return baseRows;
   }, [
@@ -1037,15 +1081,15 @@ function KeyboardBody({
     theme.letterLayoutId,
     theme.myRowPins,
     theme.numberRowEnabled,
-    myRowActive,
-    shiftShowsNumberRow,
+    myRowSettingOn,
+    shiftActive,
     customLayoutsTick,
     myRowUsageTick,
   ]);
 
   const numberRowLayoutBoost = useMemo(
     () => getNumberRowLayoutBoost(layout, theme),
-    [layout, theme.keyGap, theme.keyHeight, theme.keyRowMargin, myRowActive, theme.numberRowEnabled],
+    [layout, theme.keyGap, theme.keyHeight, theme.keyRowMargin, myRowSettingOn, theme.numberRowEnabled],
   );
   const [controllerFocus, setControllerFocus] = useState<ControllerFocus>({
     row: 0,
@@ -1231,7 +1275,8 @@ function KeyboardBody({
     setKeyPreviewStyle(keyPreviewStyle);
     hideAllKeyPreviews();
     keyboardBridge.setKeyPreviewDoodleEnabled(keyPreviewStyle === 'doodle');
-  }, [keyPreviewStyle]);
+    syncNativeFastPathPreviewChrome(keyPreviewStyle);
+  }, [keyPreviewStyle, syncNativeFastPathPreviewChrome]);
 
   useEffect(() => {
     void keyboardBridge.getPrefersNumpad().then(setPrefersNumpad);
@@ -1354,6 +1399,7 @@ function KeyboardBody({
 
   const resetTypingCompositorState = useCallback(() => {
     livePrefixRef.current = '';
+    editorContextRef.current = '';
     previousWordRef.current = '';
     lastInstantPrefixRef.current = '';
     touchIntelligencePreviousKeyRef.current = null;
@@ -1378,6 +1424,7 @@ function KeyboardBody({
 
   const syncTypingCompositorFromEditor = useCallback(
     (context: string, options: {recentLetterCommit?: boolean} = {}) => {
+      editorContextRef.current = context;
       const recentLetterCommit =
         options.recentLetterCommit ??
         Date.now() - lastLetterCommitAtRef.current < 350;
@@ -1399,6 +1446,13 @@ function KeyboardBody({
     },
     [resetTypingCompositorState],
   );
+
+  const getEffectiveEditorContext = useCallback((prefix?: string) => {
+    return buildEffectiveTextBeforeCursor(
+      editorContextRef.current,
+      prefix ?? livePrefixRef.current,
+    );
+  }, []);
 
   const resetToMainAlphabetView = useCallback(() => {
     // Update refs immediately so guards and the next paint see the main alphabet view.
@@ -1556,6 +1610,7 @@ function KeyboardBody({
     zeroLatencyModeRef.current = false;
     gamePerformanceModeRef.current = false;
     autoGamePerformanceRef.current = false;
+    landscapeInputBoostRef.current = false;
     setZeroLatencyRuntimeActive(false);
     setGamePerformanceModeActive(false);
     keyboardBridge.setGamePerformanceMode(false);
@@ -1576,6 +1631,28 @@ function KeyboardBody({
     setGamePerformanceModeActive(true);
     keyboardBridge.setGamePerformanceMode(true);
     setGamePerformanceActive(true);
+  }, []);
+
+  /** Landscape: keep multi-touch but disable heavy touch intelligence. */
+  const activateLandscapeInputBoost = useCallback(() => {
+    if (landscapeInputBoostRef.current) {
+      return;
+    }
+    landscapeInputBoostRef.current = true;
+  }, []);
+
+  const deactivateLandscapeInputBoost = useCallback(() => {
+    if (!landscapeInputBoostRef.current) {
+      return;
+    }
+    landscapeInputBoostRef.current = false;
+    if (autoGamePerformanceRef.current) {
+      return;
+    }
+    gamePerformanceModeRef.current = false;
+    setGamePerformanceModeActive(false);
+    keyboardBridge.setGamePerformanceMode(false);
+    setGamePerformanceActive(false);
   }, []);
 
   const isNativeTypingCommitActive = useCallback(
@@ -1656,13 +1733,23 @@ function KeyboardBody({
     const editorContextSubscription = DeviceEventEmitter.addListener(
       'keyboardEditorContextChanged',
       (payload: {textBeforeCursor?: string} | null) => {
-        if (shouldDeferHeavyTypingSideEffects()) {
-          return;
-        }
         const context =
           payload && typeof payload.textBeforeCursor === 'string'
             ? payload.textBeforeCursor
             : '';
+        editorContextRef.current = context;
+        if (shouldDeferHeavyTypingSideEffects()) {
+          const recentLetterCommit =
+            Date.now() - lastLetterCommitAtRef.current < 400;
+          const prefix = reconcileLivePrefixFromContext(
+            context,
+            livePrefixRef.current,
+            recentLetterCommit,
+          );
+          livePrefixRef.current = prefix;
+          previousWordRef.current = derivePreviousWordFromEditor(context, prefix);
+          return;
+        }
         syncTypingCompositorFromEditor(context);
         const recentLetterCommit =
           Date.now() - lastLetterCommitAtRef.current < 400;
@@ -1867,7 +1954,7 @@ function KeyboardBody({
     theme.keyHeight,
     theme.keyRowMargin,
     theme.myRowEnabled,
-    myRowActive,
+    myRowSettingOn,
     theme.numberRowEnabled,
   ]);
 
@@ -2048,6 +2135,9 @@ function KeyboardBody({
   const refreshSuggestions = useCallback(async (options?: {fast?: boolean}) => {
     const runId = suggestionRefreshRunIdRef.current + 1;
     suggestionRefreshRunIdRef.current = runId;
+    if (isFloatingKeyboardDragActive()) {
+      return;
+    }
     if (
       layout !== 'letters' ||
       isClipboardMode ||
@@ -2077,6 +2167,7 @@ function KeyboardBody({
     if (canUseLivePrefixFastPath) {
       const barState = computeTypingSuggestionBar(livePrefix, {
         fast: true,
+        context: getEffectiveEditorContext(livePrefix),
         previousWord: previousWordRef.current,
         suggestionsOnly: true,
       });
@@ -2094,6 +2185,7 @@ function KeyboardBody({
 
     await ensureEssentialsLoaded();
     const context = await keyboardBridge.getTextBeforeCursor(96);
+    editorContextRef.current = context;
     if (suggestionRefreshRunIdRef.current !== runId) {
       return;
     }
@@ -2182,6 +2274,7 @@ function KeyboardBody({
     isPremium,
     layout,
     syncAutoCapitalizeShift,
+    getEffectiveEditorContext,
   ]);
 
   const clearSuggestionBarForPrefix = useCallback((prefix: string) => {
@@ -2302,8 +2395,10 @@ function KeyboardBody({
         nativeFastPathActiveRef.current &&
         Platform.OS === 'android' &&
         nextPrefix.length > 0;
+      const liveContext = getEffectiveEditorContext(nextPrefix);
       const barState = computeTypingSuggestionBar(nextPrefix, {
         fast: true,
+        context: liveContext,
         previousWord: previousWordRef.current,
         suggestionsOnly: true,
         prefixOnly: isBurstTypingActive(),
@@ -2324,7 +2419,7 @@ function KeyboardBody({
       return;
     }
     instantSuggestionRafRef.current = requestAnimationFrame(flush);
-  }, [clearSuggestionBarForPrefix]);
+  }, [clearSuggestionBarForPrefix, getEffectiveEditorContext]);
 
   const flushPendingNativeSuggestions = useCallback(() => {
     const pending = pendingNativeSuggestionsRef.current;
@@ -2339,20 +2434,106 @@ function KeyboardBody({
     lastInstantPrefixRef.current = pending.prefix;
     lastFlushedBarPrefixRef.current = pending.prefix;
     lastFlushedSuggestionsRef.current = pending.suggestions;
+    const barState = computeTypingSuggestionBar(pending.prefix, {
+      fast: true,
+      context: getEffectiveEditorContext(pending.prefix),
+      previousWord: previousWordRef.current,
+      suggestionsOnly: true,
+    });
+    lastFlushedAutocorrectRef.current = barState.autocorrectPreview;
     startTransition(() => {
       setTypingBarPrefix(pending.prefix);
-      setTypingBarSuggestions(pending.suggestions);
+      setTypingBarSuggestions(
+        pending.suggestions.length > 0 ? pending.suggestions : barState.suggestions,
+      );
+      setTypingBarAutocorrectPreview(barState.autocorrectPreview);
+      setTypingBarTypedKeep(barState.typedKeepSuggestion);
+      autocorrectPreviewRef.current = barState.autocorrectPreview;
     });
-  }, []);
+  }, [getEffectiveEditorContext]);
+
+  const flushLandscapeLiveSuggestionBar = useCallback(() => {
+    if (!isLandscapeTypingProfile()) {
+      return;
+    }
+    if (layoutRef.current !== 'letters' || modeRef.current.type !== 'typing') {
+      return;
+    }
+    const prefix = livePrefixRef.current;
+    flushPendingNativeSuggestions();
+    if (prefix.length === 0 || shouldSkipAutocorrectForToken(prefix)) {
+      clearSuggestionBarForPrefix(prefix);
+      return;
+    }
+    if (
+      prefix === lastFlushedBarPrefixRef.current &&
+      prefix === lastInstantPrefixRef.current
+    ) {
+      return;
+    }
+    const barState = computeTypingSuggestionBar(prefix, {
+      fast: true,
+      context: getEffectiveEditorContext(prefix),
+      previousWord: previousWordRef.current,
+      suggestionsOnly: true,
+    });
+    lastInstantPrefixRef.current = prefix;
+    lastFlushedBarPrefixRef.current = prefix;
+    lastFlushedSuggestionsRef.current = barState.suggestions;
+    lastFlushedAutocorrectRef.current = barState.autocorrectPreview;
+    lastFlushedTypedKeepRef.current = barState.typedKeepSuggestion;
+    startTransition(() => {
+      setTypingBarPrefix(prefix);
+      setTypingBarTypedKeep(barState.typedKeepSuggestion);
+      setTypingBarAutocorrectPreview(barState.autocorrectPreview);
+      autocorrectPreviewRef.current = barState.autocorrectPreview;
+      setTypingBarSuggestions(barState.suggestions);
+      setTypingBarEssentials([]);
+      setTypingBarEssentialTriggerLength(0);
+    });
+  }, [
+    clearSuggestionBarForPrefix,
+    flushPendingNativeSuggestions,
+    getEffectiveEditorContext,
+  ]);
 
   const flushTypingIdleSideEffects = useCallback(() => {
     if (shouldDeferHeavyTypingSideEffects()) {
+      if (isLandscapeTypingProfile()) {
+        flushLandscapeLiveSuggestionBar();
+      }
       return;
     }
     syncTouchIntelligenceToNative(true);
     flushPendingNativeSuggestions();
     applyInstantSuggestionBar(livePrefixRef.current);
-  }, [applyInstantSuggestionBar, flushPendingNativeSuggestions]);
+  }, [
+    applyInstantSuggestionBar,
+    flushLandscapeLiveSuggestionBar,
+    flushPendingNativeSuggestions,
+  ]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') {
+      return;
+    }
+    const subscription = DeviceEventEmitter.addListener(
+      'keyboardFloatingDrag',
+      (active: boolean) => {
+        if (active === true) {
+          return;
+        }
+        flushPendingNativeSuggestions();
+        flushLandscapeLiveSuggestionBar();
+        applyInstantSuggestionBar(livePrefixRef.current);
+      },
+    );
+    return () => subscription.remove();
+  }, [
+    applyInstantSuggestionBar,
+    flushLandscapeLiveSuggestionBar,
+    flushPendingNativeSuggestions,
+  ]);
 
   const recordTypedWordLearnUndo = useCallback((word: string, boundary: string) => {
     const normalized = word.trim().toLowerCase();
@@ -2497,7 +2678,7 @@ function KeyboardBody({
       }
       const localCandidate = getAutocorrectCandidate(requestedToken, {
         previousWord: previousWordRef.current,
-        context: undefined,
+        context: getEffectiveEditorContext(requestedToken),
         lightweight: true,
         skipFrequentScan: true,
       });
@@ -2536,7 +2717,7 @@ function KeyboardBody({
           }
         });
     }, AI_PREFLIGHT_DEBOUNCE_MS);
-  }, []);
+  }, [getEffectiveEditorContext]);
 
   const scheduleAiProofread = useCallback(
     (delayMs = AI_PROOFREAD_DELAY_MS) => {
@@ -2761,6 +2942,11 @@ function KeyboardBody({
       return;
     }
 
+    if (isLandscapeTypingProfile()) {
+      lastInstantPrefixRef.current = prefix;
+      return;
+    }
+
     if (prefix === lastInstantPrefixRef.current) {
       return;
     }
@@ -2769,6 +2955,7 @@ function KeyboardBody({
 
     const barState = computeTypingSuggestionBar(prefix, {
       fast: true,
+      context: getEffectiveEditorContext(prefix),
       previousWord: previousWordRef.current,
       suggestionsOnly: true,
     });
@@ -2788,6 +2975,7 @@ function KeyboardBody({
     applyInstantSuggestionBar,
     cancelPendingInstantSuggestionBar,
     clearSuggestionBarForPrefix,
+    getEffectiveEditorContext,
   ]);
 
   const scheduleBackspaceBarFlush = useCallback(() => {
@@ -2799,7 +2987,7 @@ function KeyboardBody({
     }
     backspaceBarTimerRef.current = setTimeout(() => {
       flushBackspaceSuggestionBar();
-    }, BACKSPACE_BAR_FLUSH_MS);
+    }, isLandscapeTypingProfile() ? 72 : BACKSPACE_BAR_FLUSH_MS);
   }, [flushBackspaceSuggestionBar]);
 
   useEffect(() => {
@@ -2835,7 +3023,6 @@ function KeyboardBody({
       const commitSeq = options?.commitSeq;
       clearMidWordAutoShift();
       const zeroLatency = zeroLatencyModeRef.current;
-      const gamePerformance = gamePerformanceModeRef.current;
       const boundaryLength = options?.boundaryPreInserted ? boundary.length : 0;
       const boundaryText = options?.boundaryPreInserted ? boundary : '';
       const applyBoundary = () => {
@@ -2843,8 +3030,12 @@ function KeyboardBody({
           insertBoundary();
         }
       };
-      const context = await (options?.contextPromise ??
-        keyboardBridge.getTextBeforeCursor(96));
+      // Space/enter handlers may start getTextBeforeCursor before the boundary char
+      // is committed — always re-read after a pre-inserted boundary.
+      const context = options?.boundaryPreInserted
+        ? await keyboardBridge.getTextBeforeCursor(96)
+        : await (options?.contextPromise ??
+            keyboardBridge.getTextBeforeCursor(96));
 
       if (commitSeq != null && commitSeq !== boundaryCommitSeqRef.current) {
         return;
@@ -2867,7 +3058,7 @@ function KeyboardBody({
         applyBoundary();
       };
 
-      if (zeroLatency || gamePerformance) {
+      if (zeroLatency) {
         finishLightweightBoundary();
         return;
       }
@@ -2905,16 +3096,20 @@ function KeyboardBody({
         });
       }
 
-      let typedWord = typedWordFallback.trim();
-      if (!typedWord) {
-        typedWord = pickTypedWordForBoundary(context, livePrefixRef.current);
-      }
+      let typedWord = pickTypedWordForBoundary(context, typedWordFallback.trim());
       const autocorrectOn = getAutocorrectSettings().enabled;
 
+      const contextTail =
+        boundaryText.length > 0 && context.endsWith(boundaryText)
+          ? context.slice(0, -boundaryText.length)
+          : context;
+      const contextWord = extractCurrentWord(contextTail).trim();
       const contextMatchesTypedWord =
-        typedWord.length > 0 &&
+        typedWord.length >= 2 &&
         (context.endsWith(typedWord) ||
-          context.endsWith(`${typedWord}${boundaryText}`));
+          context.endsWith(`${typedWord}${boundaryText}`) ||
+          (contextWord.length > 0 &&
+            contextWord.toLowerCase() === typedWord.toLowerCase()));
 
       if (autocorrectOn && typedWord.length >= 2 && contextMatchesTypedWord) {
         const preflight = aiPreflightCacheRef.current.get(typedWord);
@@ -3170,12 +3365,34 @@ function KeyboardBody({
   ]);
 
   useEffect(() => {
+    setLandscapeTypingProfile(theme.isLandscape);
+    if (theme.isLandscape) {
+      activateLandscapeInputBoost();
+    } else {
+      deactivateLandscapeInputBoost();
+      if (gamePerformanceModeRef.current && !autoGamePerformanceRef.current) {
+        gamePerformanceModeRef.current = false;
+        setGamePerformanceModeActive(false);
+        keyboardBridge.setGamePerformanceMode(false);
+        setGamePerformanceActive(false);
+      }
+    }
+    return () => {
+      deactivateLandscapeInputBoost();
+      setLandscapeTypingProfile(false);
+    };
+  }, [
+    activateLandscapeInputBoost,
+    deactivateLandscapeInputBoost,
+    theme.isLandscape,
+  ]);
+
+  useEffect(() => {
     const timer = setTimeout(() => {
       layoutContext?.requestRemeasure();
-      void refreshSuggestions();
     }, 100);
     return () => clearTimeout(timer);
-  }, [layoutContext, refreshSuggestions, theme.isLandscape]);
+  }, [layoutContext, theme.isLandscape]);
 
   useEffect(() => {
     const finalHeight =
@@ -3217,40 +3434,69 @@ function KeyboardBody({
     theme.numberRowEnabled,
   ]);
 
+  const orientationPrefixSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+
   useEffect(() => {
     const subscription = DeviceEventEmitter.addListener(
       'keyboardOrientationChange',
       () => {
         hideAllKeyPreviews();
         initKeyPreview();
-        if (!gamePerformanceModeRef.current) {
-          setNativeFastPathLayoutHold(true);
-          nativeFastPathActiveRef.current = false;
-          keyboardBridge.setNativeKeyFastPathConfig(
-            JSON.stringify({enabled: false}),
-          );
-        }
         layoutContext?.requestRemeasure();
-        void refreshSuggestions();
+        requestAnimationFrame(() => {
+          layoutContext?.requestRemeasure();
+        });
+        if (orientationPrefixSyncTimerRef.current) {
+          clearTimeout(orientationPrefixSyncTimerRef.current);
+        }
+        orientationPrefixSyncTimerRef.current = setTimeout(() => {
+          orientationPrefixSyncTimerRef.current = null;
+          void keyboardBridge.getTextBeforeCursor(96).then(context => {
+            editorContextRef.current = context;
+            const prefix = reconcileLivePrefixFromContext(
+              context,
+              livePrefixRef.current,
+              false,
+            );
+            livePrefixRef.current = prefix;
+            previousWordRef.current = derivePreviousWordFromEditor(context, prefix);
+            syncNativeSuggestionPrefix(prefix);
+            keyboardBridge.syncCompactTypingPrefix(prefix);
+          });
+        }, 120);
         void keyboardBridge.isCurrentEditorGame().then(isGame => {
           if (isGame && modeRef.current.type === 'typing') {
             activateGamePerformanceMode();
+            return;
+          }
+          if (autoGamePerformanceRef.current) {
+            autoGamePerformanceRef.current = false;
+            if (!landscapeInputBoostRef.current) {
+              gamePerformanceModeRef.current = false;
+              setGamePerformanceModeActive(false);
+              keyboardBridge.setGamePerformanceMode(false);
+              setGamePerformanceActive(false);
+            }
+          }
+          if (isLandscapeTypingProfile()) {
+            activateLandscapeInputBoost();
           }
         });
       },
     );
-    return () => subscription.remove();
-  }, [activateGamePerformanceMode, layoutContext, refreshSuggestions]);
-
-  useEffect(() => {
-    if (!nativeFastPathLayoutHold) {
-      return;
-    }
-    const timer = setTimeout(() => {
-      setNativeFastPathLayoutHold(false);
-    }, 200);
-    return () => clearTimeout(timer);
-  }, [nativeFastPathLayoutHold, layoutContext?.layoutEpoch]);
+    return () => {
+      subscription.remove();
+      if (orientationPrefixSyncTimerRef.current) {
+        clearTimeout(orientationPrefixSyncTimerRef.current);
+      }
+    };
+  }, [
+    activateGamePerformanceMode,
+    activateLandscapeInputBoost,
+    layoutContext,
+  ]);
 
   useEffect(() => {
     setControllerFocus(current => normalizeControllerFocus(rows, current));
@@ -3725,16 +3971,29 @@ function KeyboardBody({
           if (handleAutocorrectBackspace() || handleTypedWordLearningBackspace()) {
             return;
           }
-          keyboardBridge.deleteBackward();
+          if (
+            layoutRef.current === 'letters' &&
+            modeRef.current.type === 'typing'
+          ) {
+            keyboardBridge.deleteBackwardFast();
+          } else {
+            keyboardBridge.deleteBackward();
+          }
           backspaceSyncSeqRef.current += 1;
           livePrefixRef.current = livePrefixRef.current.slice(0, -1);
-          refreshTouchIntelligenceFromLivePrefix();
+          if (!isLandscapeTypingProfile()) {
+            refreshTouchIntelligenceFromLivePrefix();
+          }
           lastTypingAtRef.current = Date.now();
           if (autocorrectPreviewRef.current) {
             autocorrectPreviewRef.current = null;
-            setTypingBarAutocorrectPreview(null);
+            if (!isLandscapeTypingProfile()) {
+              setTypingBarAutocorrectPreview(null);
+            }
           }
-          setTypingBarTypedKeep(current => (current ? null : current));
+          if (!isLandscapeTypingProfile()) {
+            setTypingBarTypedKeep(current => (current ? null : current));
+          }
           scheduleBackspaceBarFlush();
           return;
         case 'space': {
@@ -3744,13 +4003,12 @@ function KeyboardBody({
           }
           boundaryCommitSeqRef.current += 1;
           const commitSeq = boundaryCommitSeqRef.current;
-          const contextPromise = keyboardBridge.getTextBeforeCursor(96);
           livePrefixRef.current = '';
           touchIntelligencePreviousKeyRef.current = null;
           syncTouchIntelligenceToNative();
           keyboardBridge.insertText(' ');
           syncNativeSuggestionPrefix('');
-          if (zeroLatencyModeRef.current || gamePerformanceModeRef.current) {
+          if (zeroLatencyModeRef.current) {
             if (typedFallback.trim()) {
               const lower = typedFallback.trim().toLowerCase();
               if (
@@ -3769,7 +4027,7 @@ function KeyboardBody({
             () => {},
             ' ',
             typedFallback,
-            {boundaryPreInserted: true, contextPromise, commitSeq},
+            {boundaryPreInserted: true, commitSeq},
           );
           return;
         }
@@ -3798,7 +4056,7 @@ function KeyboardBody({
           lastAiProofreadOriginalRef.current = null;
           setAiAutocorrectSuggestion(null);
           setIsAiAutocorrectProcessing(false);
-          if (zeroLatencyModeRef.current || gamePerformanceModeRef.current) {
+          if (zeroLatencyModeRef.current) {
             keyboardBridge.submitEnterKey();
             if (typedFallback.trim()) {
               const lower = typedFallback.trim().toLowerCase();
@@ -4015,6 +4273,28 @@ function KeyboardBody({
         return;
       }
 
+      if (isLandscapeTypingProfile()) {
+        hasTypedInFieldRef.current = true;
+        const now = Date.now();
+        if (/[a-z]/i.test(text)) {
+          lastLetterCommitAtRef.current = now;
+          livePrefixRef.current += text;
+          editorContextRef.current = getEffectiveEditorContext(
+            livePrefixRef.current,
+          );
+          previousWordRef.current = derivePreviousWordFromEditor(
+            editorContextRef.current,
+            livePrefixRef.current,
+          );
+          scheduleBackspaceBarFlush();
+        } else if (text === ' ') {
+          livePrefixRef.current = '';
+          clearMidWordAutoShift();
+        }
+        lastTypingAtRef.current = now;
+        return;
+      }
+
       if (zeroLatencyModeRef.current) {
         hasTypedInFieldRef.current = true;
         if (/[a-z]/i.test(text)) {
@@ -4033,12 +4313,19 @@ function KeyboardBody({
         (/[a-z]/i.test(text) && isBurstTyping(lastLetterCommitAtRef.current, now));
 
       hasTypedInFieldRef.current = true;
-      if (myRowActive && isMyRowTrackableChar(text)) {
+      if (myRowSettingOn && isMyRowTrackableChar(text)) {
         recordMyRowSymbol(text);
       }
       if (/[a-z]/i.test(text)) {
         lastLetterCommitAtRef.current = now;
         livePrefixRef.current += text;
+        editorContextRef.current = getEffectiveEditorContext(
+          livePrefixRef.current,
+        );
+        previousWordRef.current = derivePreviousWordFromEditor(
+          editorContextRef.current,
+          livePrefixRef.current,
+        );
         touchIntelligencePreviousKeyRef.current = text.toLowerCase();
         if (!shouldDeferHeavyTypingSideEffects()) {
           syncTouchIntelligenceToNative();
@@ -4119,7 +4406,7 @@ function KeyboardBody({
         }, 450);
       }, LETTER_SIDE_EFFECTS_DEBOUNCE_MS);
     },
-    [applyInstantSuggestionBar, clearMidWordAutoShift, flushTypingIdleSideEffects, myRowActive, scheduleAiPreflight, syncAutoCapitalizeShift, syncTouchIntelligenceToNative],
+    [applyInstantSuggestionBar, clearMidWordAutoShift, flushTypingIdleSideEffects, getEffectiveEditorContext, myRowSettingOn, scheduleAiPreflight, scheduleBackspaceBarFlush, syncAutoCapitalizeShift, syncTouchIntelligenceToNative],
   );
 
   const handleMultiTouchKeyCommit = useCallback(
@@ -4325,20 +4612,131 @@ function KeyboardBody({
         }
         if (shouldDeferLiveSuggestionBar()) {
           pendingNativeSuggestionsRef.current = snapshot;
+          lastInstantPrefixRef.current = snapshot.prefix;
           return;
         }
         pendingNativeSuggestionsRef.current = null;
         lastInstantPrefixRef.current = snapshot.prefix;
         lastFlushedBarPrefixRef.current = snapshot.prefix;
         lastFlushedSuggestionsRef.current = snapshot.suggestions;
+        const barState = computeTypingSuggestionBar(snapshot.prefix, {
+          fast: true,
+          context: getEffectiveEditorContext(snapshot.prefix),
+          previousWord: previousWordRef.current,
+          suggestionsOnly: true,
+        });
+        lastFlushedAutocorrectRef.current = barState.autocorrectPreview;
         startTransition(() => {
           setTypingBarPrefix(snapshot.prefix);
-          setTypingBarSuggestions(snapshot.suggestions);
+          setTypingBarSuggestions(
+            snapshot.suggestions.length > 0
+              ? snapshot.suggestions
+              : barState.suggestions,
+          );
+          setTypingBarAutocorrectPreview(barState.autocorrectPreview);
+          setTypingBarTypedKeep(barState.typedKeepSuggestion);
+          autocorrectPreviewRef.current = barState.autocorrectPreview;
         });
       },
     );
     return () => subscription.remove();
   }, []);
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') {
+      return;
+    }
+
+    const stateSubscription = DeviceEventEmitter.addListener(
+      'compactTypingStateSync',
+      (payload: {
+        prefix?: string;
+        shiftOn?: boolean;
+        capsLocked?: boolean;
+        reason?: string;
+      }) => {
+        if (layoutRef.current !== 'letters' || modeRef.current.type !== 'typing') {
+          return;
+        }
+        const prefix = typeof payload?.prefix === 'string' ? payload.prefix : '';
+        livePrefixRef.current = prefix;
+        const reason = payload?.reason ?? '';
+        if (typeof payload?.shiftOn === 'boolean') {
+          shiftOnRef.current = payload.shiftOn;
+        }
+        if (typeof payload?.capsLocked === 'boolean') {
+          capsLockedRef.current = payload.capsLocked;
+        }
+        if (reason === 'idle') {
+          setShiftOn(shiftOnRef.current);
+          setCapsLocked(capsLockedRef.current);
+          syncNativeFastPathCaseState();
+        }
+        if (reason === 'space' || reason === 'enter' || reason === 'backspace') {
+          startTransition(() => {
+            setTypingBarPrefix(prefix);
+            if (prefix.length === 0) {
+              setTypingBarSuggestions([]);
+              setTypingBarAutocorrectPreview(null);
+              setTypingBarTypedKeep(null);
+              autocorrectPreviewRef.current = null;
+            }
+          });
+        }
+      },
+    );
+
+    const boundarySubscription = DeviceEventEmitter.addListener(
+      'compactTypingBoundary',
+      (payload: {boundary?: string; typedWord?: string}) => {
+        if (layoutRef.current !== 'letters' || modeRef.current.type !== 'typing') {
+          return;
+        }
+        if (zeroLatencyModeRef.current) {
+          return;
+        }
+        const boundary = typeof payload?.boundary === 'string' ? payload.boundary : '';
+        const typedWord =
+          typeof payload?.typedWord === 'string' ? payload.typedWord : '';
+        boundaryCommitSeqRef.current += 1;
+        const commitSeq = boundaryCommitSeqRef.current;
+        livePrefixRef.current = '';
+        touchIntelligencePreviousKeyRef.current = null;
+        if (typedWord.trim()) {
+          previousWordRef.current = typedWord.trim().toLowerCase();
+        }
+        applyInstantSuggestionBar('');
+        void commitTypedWordBoundary(
+          () => {},
+          boundary,
+          typedWord,
+          {
+            boundaryPreInserted: boundary.length > 0,
+            commitSeq,
+          },
+        );
+      },
+    );
+
+    const shiftSubscription = DeviceEventEmitter.addListener(
+      'compactTypingShiftPress',
+      () => {
+        if (layoutRef.current !== 'letters' || modeRef.current.type !== 'typing') {
+          return;
+        }
+        handleShiftPressRef.current();
+        queueMicrotask(() => {
+          syncNativeFastPathCaseState();
+        });
+      },
+    );
+
+    return () => {
+      stateSubscription.remove();
+      boundarySubscription.remove();
+      shiftSubscription.remove();
+    };
+  }, [applyInstantSuggestionBar, commitTypedWordBoundary, syncNativeFastPathCaseState]);
 
   const handleWordCommitted = useCallback(
     (word: string, options?: {textAlreadyInserted?: boolean}) => {
@@ -4540,12 +4938,7 @@ function KeyboardBody({
   useEffect(() => {
     if (!nativeFastPathEligible || !layoutContext) {
       nativeFastPathActiveRef.current = false;
-      keyboardBridge.setNativeKeyFastPathConfig(JSON.stringify({enabled: false}));
-      return;
-    }
-
-    if (nativeFastPathLayoutHold) {
-      nativeFastPathActiveRef.current = false;
+      lastPublishedLandscapeRef.current = null;
       keyboardBridge.setNativeKeyFastPathConfig(JSON.stringify({enabled: false}));
       return;
     }
@@ -4553,47 +4946,97 @@ function KeyboardBody({
     let cancelled = false;
     let publishRaf: number | null = null;
     const publishConfig = () => {
-      if (cancelled || nativeFastPathLayoutHold) {
+      if (cancelled) {
         return;
       }
 
       const keyLayouts = layoutContext
         .getLayouts()
         .filter(({keyDef}) => {
+          if (keyDef.type === 'spacer') {
+            return false;
+          }
+          if (theme.isLandscape) {
+            const type = keyDef.type;
+            if (
+              type === 'backspace' ||
+              type === 'space' ||
+              type === 'shift' ||
+              type === 'enter' ||
+              type === 'enter-backspace'
+            ) {
+              return true;
+            }
+            if (!keyDef.value || type === 'comma' || type === 'period') {
+              return false;
+            }
+            return keyDef.value.length > 0;
+          }
           if (!keyDef.value || keyDef.type === 'comma' || keyDef.type === 'period') {
             return false;
           }
           return keyDef.value.length > 0;
         });
 
-      if (
-        keyLayouts.length < NATIVE_FAST_PATH_MIN_KEYS ||
-        layoutContext.areaBounds.width <= 0 ||
-        layoutContext.areaBounds.height <= 0
-      ) {
-        nativeFastPathActiveRef.current = false;
-        keyboardBridge.setNativeKeyFastPathConfig(JSON.stringify({enabled: false}));
-        return;
-      }
-
-      const origin = layoutContext.areaOriginRef.current;
       const layoutEpoch = layoutContext.layoutEpoch;
-      if (layoutEpoch !== lastPublishedFastPathLayoutEpochRef.current) {
-        updatePredictiveHitboxes(livePrefixRef.current, keyLayouts, {
-          enabled: theme.predictiveHitboxesEnabled,
-          lang: getActiveLanguage(),
-        });
-        lastPublishedFastPathLayoutEpochRef.current = layoutEpoch;
-      }
-      const touchIntelligence = getTouchIntelligenceNativeConfig();
+      const landscape = theme.isLandscape;
+      const reactTagsSignature = buildNativeFastPathReactTagsSignature(keyLayouts);
       const previewPopupEnabled = keyPreviewStyle === 'popup';
       const previewPressedEnabled =
         keyPreviewStyle === 'popup' || keyPreviewStyle === 'subtle';
       const previewDoodleEnabled = keyPreviewStyle === 'doodle';
+
+      // Native fast path disabled — revert to pure JS typing.
+      nativeFastPathActiveRef.current = false;
+      keyboardBridge.setNativeKeyFastPathConfig(JSON.stringify({enabled: false}));
+      return;
+
+      const origin = layoutContext.areaOriginRef.current;
+      if (layoutEpoch !== lastPublishedFastPathLayoutEpochRef.current) {
+        if (!theme.isLandscape) {
+          updatePredictiveHitboxes(livePrefixRef.current, keyLayouts, {
+            enabled: theme.predictiveHitboxesEnabled,
+            lang: getActiveLanguage(),
+          });
+        }
+        lastPublishedFastPathLayoutEpochRef.current = layoutEpoch;
+      }
+      const landscapeCompactNative =
+        theme.isLandscape && LANDSCAPE_NATIVE_COMPACT_TYPING_ENABLED;
+      const nativeFastPathEnabled =
+        nativeFastPathEligible && landscapeCompactNative;
+      const compactTyping = landscapeCompactNative;
+      const touchIntelligence = compactTyping
+        ? {
+            enabled: false,
+            previousKeyLetter: null,
+            wordPrefix: '',
+            lastTapX: 0,
+            lastTapY: 0,
+            lastTapAtMs: 0,
+            predictiveNeutralMode: true,
+            topPredictedLetter: null,
+            topExpansionKeyId: null,
+            keyExpansions: [] as ReturnType<typeof serializeKeyExpansionsForNative>,
+          }
+        : getTouchIntelligenceNativeConfig();
+      if (landscape) {
+        recordCompactTypingFastPathPublish();
+      }
+      if (!nativeFastPathEnabled) {
+        nativeFastPathActiveRef.current = false;
+        keyboardBridge.setNativeKeyFastPathConfig(JSON.stringify({enabled: false}));
+        lastPublishedLandscapeRef.current = landscape;
+        lastPublishedReactTagsSignatureRef.current = reactTagsSignature;
+        lastPublishedFastPathLayoutEpochRef.current = layoutEpoch;
+        return;
+      }
+
       keyboardBridge.setNativeKeyFastPathConfig(
         JSON.stringify({
           enabled: true,
           commitOnDown: true,
+          compactTyping,
           shiftEditorShortcuts: gestureSettingsRef.current.shiftEditorShortcuts,
           shiftEditorHeld: shiftEditorHeldRef.current,
           shiftOn: shiftOnRef.current,
@@ -4628,16 +5071,25 @@ function KeyboardBody({
         syncNativeFastPathCaseState();
       }
       nativeFastPathActiveRef.current = true;
+      lastPublishedLandscapeRef.current = landscape;
+      lastPublishedReactTagsSignatureRef.current = reactTagsSignature;
     };
 
+    let publishDebounceTimer: ReturnType<typeof setTimeout> | null = null;
     const schedulePublishConfig = () => {
-      if (publishRaf != null) {
-        cancelAnimationFrame(publishRaf);
+      if (publishDebounceTimer != null) {
+        return;
       }
-      publishRaf = requestAnimationFrame(() => {
-        publishRaf = null;
-        publishConfig();
-      });
+      publishDebounceTimer = setTimeout(() => {
+        publishDebounceTimer = null;
+        if (publishRaf != null) {
+          cancelAnimationFrame(publishRaf);
+        }
+        publishRaf = requestAnimationFrame(() => {
+          publishRaf = null;
+          publishConfig();
+        });
+      }, 32);
     };
 
     schedulePublishConfig();
@@ -4645,6 +5097,9 @@ function KeyboardBody({
 
     return () => {
       cancelled = true;
+      if (publishDebounceTimer != null) {
+        clearTimeout(publishDebounceTimer);
+      }
       if (publishRaf != null) {
         cancelAnimationFrame(publishRaf);
       }
@@ -4653,25 +5108,20 @@ function KeyboardBody({
   }, [
     layout,
     layoutContext,
-    layoutContext?.areaBounds.height,
-    layoutContext?.areaBounds.width,
     layoutContext?.layoutEpoch,
     mode.type,
     nativeFastPathEligible,
     gestureEnabled,
     gestureSettings.shiftEditorShortcuts,
     shiftEditorHeld,
-    shiftOn,
-    capsLocked,
     theme.keyHitSlop.horizontal,
     theme.keyHitSlop.vertical,
     theme.predictiveHitboxesEnabled,
     theme.letterLayoutId,
-    nativeFastPathLayoutHold,
     theme.isLandscape,
-    gamePerformanceActive,
     keyPreviewStyle,
     syncNativeFastPathCaseState,
+    syncNativeFastPathPreviewChrome,
   ]);
 
   useEffect(() => {
@@ -4870,6 +5320,8 @@ function KeyboardBody({
 
   const isNumpadLayout = layout === 'numpad';
   const useCompactLayout = isNumpadLayout || theme.isLandscape;
+  /** Native IME skips RN dispatch on compact hits; do not block touches in JS (fallback Pressable). */
+  const compactTypingNativeActive = false;
   const frostedKeyboardVisible =
     theme.frostedGlass &&
     showKeys &&
@@ -4886,7 +5338,14 @@ function KeyboardBody({
 
   return (
     <View
-      style={[styles.container, useCompactLayout && styles.containerCompact]}>
+      style={[
+        styles.container,
+        useCompactLayout && styles.containerCompact,
+        theme.isLandscape &&
+        theme.landscapeFloatingKeyboardEnabled
+          ? styles.containerFloatingLandscape
+          : null,
+      ]}>
       <GestureTypingLayer
           enabled={gestureEnabled}
           compact={useCompactLayout}
@@ -5349,10 +5808,11 @@ function KeyboardBody({
                         : keyGestures
                     }
                     multiTouchEnabled={
-                      mode.type === 'typing' ||
-                      isGifSearchMode ||
-                      isEmojiSearchMode ||
-                      isSfxSearchMode
+                      !theme.isLandscape &&
+                      (mode.type === 'typing' ||
+                        isGifSearchMode ||
+                        isEmojiSearchMode ||
+                        isSfxSearchMode)
                     }
                     keyHeight={
                       effectiveLetterKeyHeight ?? numberRowLayoutBoost?.keyHeight
@@ -5368,6 +5828,7 @@ function KeyboardBody({
                     }
                     typeLiftProcessing={isAiAutocorrectProcessing}
                     predictiveHitboxTick={predictiveHitboxTick}
+                    compactTypingNativeActive={compactTypingNativeActive}
                   />
             </View>
           ) : null}
@@ -5398,7 +5859,7 @@ export default function KeyboardApp() {
     Pixel: require('../../assets/pixel.ttf'),
   });
   const [colorScheme, setColorScheme] =
-    useState<KeyboardColorScheme>('light');
+    useState<KeyboardColorScheme>('auto');
   const [keyboardDesign, setKeyboardDesign] =
     useState<KeyboardDesign>('typebase');
   const [customThemeJson, setCustomThemeJson] = useState<string>('{}');
@@ -5407,7 +5868,13 @@ export default function KeyboardApp() {
   );
   const [controllerConnected, setControllerConnected] = useState(false);
   const [themeReady, setThemeReady] = useState(false);
+  const systemColorScheme = useColorScheme();
   const [customUserFontFamily, setCustomUserFontFamily] = useState<string | null>(null);
+
+  const resolvedColorScheme = useMemo(
+    () => resolveKeyboardColorScheme(colorScheme, systemColorScheme),
+    [colorScheme, systemColorScheme],
+  );
 
   const effectiveLayoutSettings = useMemo(
     () => layoutSettingsForOrientation(layoutSettings, deviceLandscape),
@@ -5422,6 +5889,35 @@ export default function KeyboardApp() {
       },
     );
     return () => orientationSubscription.remove();
+  }, []);
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') {
+      return;
+    }
+    keyboardBridge.setFloatingKeyboard(
+      deviceLandscape && layoutSettings.landscapeFloatingKeyboardEnabled,
+    );
+  }, [deviceLandscape, layoutSettings.landscapeFloatingKeyboardEnabled]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') {
+      return;
+    }
+    const dragSubscription = DeviceEventEmitter.addListener(
+      'keyboardFloatingDrag',
+      (active: boolean) => {
+        const dragging = active === true;
+        setFloatingKeyboardDragActive(dragging);
+        if (dragging) {
+          hideAllKeyPreviews();
+        }
+      },
+    );
+    return () => {
+      dragSubscription.remove();
+      setFloatingKeyboardDragActive(false);
+    };
   }, []);
 
   useEffect(() => {
@@ -5535,7 +6031,7 @@ export default function KeyboardApp() {
 
   return (
     <KeyboardThemeProvider
-      scheme={colorScheme}
+      scheme={resolvedColorScheme}
       design={keyboardDesign}
       customThemeJson={customThemeJson}
       layoutSettings={effectiveLayoutSettings}
@@ -5595,6 +6091,12 @@ function createKeyboardAppStyles(theme: KeyboardTheme) {
     },
     containerCompact: {
       justifyContent: 'flex-start',
+    },
+    containerFloatingLandscape: {
+      paddingBottom: theme.floatingKeyboardCardInsetBottom,
+      borderBottomLeftRadius: 18,
+      borderBottomRightRadius: 18,
+      overflow: 'visible',
     },
     numpadRow: {
       marginBottom: theme.keyGap,

@@ -27,6 +27,10 @@ import {
   isGemmaModelLoaded,
 } from './src/keyboard/ai/gemmaBridge';
 import {loadMetricsSnapshot} from './src/keyboard/metrics/metricsStore';
+import {
+  fetchCompactTypingMetricsFromNative,
+  subscribeCompactTypingMetricsRefresh,
+} from './src/keyboard/metrics/compactTypingMetrics';
 import {getAiAutocorrectTelemetry} from './src/keyboard/autocorrect/aiAutocorrectTelemetry';
 import {
   getTouchIntelligenceTelemetrySummary,
@@ -55,6 +59,14 @@ const DEFAULT_SNAPSHOT = {
     characters: 0,
     words: 0,
     charsSaved: 0,
+  },
+  compactTyping: {
+    nativeCommits: 0,
+    reactTouchBlocks: 0,
+    fastPathConfigPublishes: 0,
+    layoutEpochBumps: 0,
+    compactStateSyncs: 0,
+    boundaryAutocorrectCalls: 0,
   },
   aiPreflight: {
     requests: 0,
@@ -249,6 +261,7 @@ export function EngineStatsScreen({onBack}: {onBack: () => void}) {
       const learnedPhrases = getLearnedPhraseCounts().size;
       const aiTelemetry = getAiAutocorrectTelemetry();
       const gemmaStats = getGemmaRuntimeStats();
+      const compactTyping = await fetchCompactTypingMetricsFromNative();
 
       setSnap(current => ({
         ...current,
@@ -284,6 +297,7 @@ export function EngineStatsScreen({onBack}: {onBack: () => void}) {
           words: metrics.today.words,
           charsSaved: metrics.today.charsSaved,
         },
+        compactTyping,
         aiPreflight: {
           requests: aiTelemetry.preflightRequests,
           accepted: aiTelemetry.preflightAccepted,
@@ -293,8 +307,12 @@ export function EngineStatsScreen({onBack}: {onBack: () => void}) {
     };
 
     void loadStats();
+    const unsubscribeCompactMetrics = subscribeCompactTypingMetricsRefresh(() => {
+      void loadStats();
+    });
     return () => {
       cancelled = true;
+      unsubscribeCompactMetrics();
     };
   }, []);
 
@@ -369,6 +387,29 @@ export function EngineStatsScreen({onBack}: {onBack: () => void}) {
           <SectionRow
             label="Personal entries"
             value={`${snap.learnedWords} words · ${snap.learnedPhrases} phrases`}
+          />
+        </SectionCard>
+
+        <SectionCard title="Compact typing (session)">
+          <SectionRow
+            label="Native commits"
+            value={String(snap.compactTyping.nativeCommits)}
+          />
+          <SectionRow
+            label="RN touch blocks"
+            value={String(snap.compactTyping.reactTouchBlocks)}
+          />
+          <SectionRow
+            label="Fast-path publishes"
+            value={String(snap.compactTyping.fastPathConfigPublishes)}
+          />
+          <SectionRow
+            label="State syncs"
+            value={String(snap.compactTyping.compactStateSyncs)}
+          />
+          <SectionRow
+            label="Boundary autocorrect"
+            value={String(snap.compactTyping.boundaryAutocorrectCalls)}
           />
         </SectionCard>
 

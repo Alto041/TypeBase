@@ -132,6 +132,133 @@ class KeyPreviewManager(private val fallbackContext: Context) {
     }
 
     /**
+     * Popup at key top-center in screen space (areaPage + key layout), aligned with native hit-test.
+     */
+    fun showAtTouch(
+        previewId: Int,
+        screenCenterX: Float,
+        screenKeyTop: Float,
+        keyWidth: Float,
+        keyHeight: Float,
+        label: String,
+    ) {
+        runOnMainThread {
+            hideRequested.remove(previewId)
+            if (previewContainer == null) {
+                attachPreviewContainer()
+            }
+            val container =
+                previewContainer
+                    ?: KeyboardInputBridge.getPopupAnchorView() as? FrameLayout
+                    ?: return@runOnMainThread
+            previewContainer = container
+
+            cancelPendingLayoutShow(previewId)
+            cancelDismiss(previewId)
+
+            val tv = obtainPreviewView(container, previewId)
+            tv.animate().cancel()
+            tv.alpha = 1f
+            applyThemeToPreviewView(tv)
+            tv.typeface = loadLabelTypeface(tv.context)
+            tv.text = label
+            shownAtMs[previewId] = SystemClock.uptimeMillis()
+
+            val previewWidth =
+                keyWidth.coerceAtLeast(dpToPx(MIN_PREVIEW_WIDTH_DP).toFloat())
+            val previewHeight =
+                keyHeight.coerceAtLeast(dpToPx(MIN_PREVIEW_HEIGHT_DP).toFloat())
+            val gapAboveKey = dpToPx(PREVIEW_GAP_ABOVE_KEY_DP).toFloat()
+
+            updatePreviewCornerRadius(tv, previewHeight.toInt())
+
+            val containerLoc = IntArray(2)
+            container.getLocationOnScreen(containerLoc)
+            val centerX = screenCenterX - containerLoc[0]
+            val topY = screenKeyTop - containerLoc[1] - gapAboveKey - previewHeight
+
+            val params = tv.layoutParams as FrameLayout.LayoutParams
+            params.width = previewWidth.toInt()
+            params.height = previewHeight.toInt()
+            params.gravity = Gravity.TOP or Gravity.START
+            params.leftMargin = (centerX - previewWidth / 2f).toInt()
+            params.topMargin = topY.toInt()
+            tv.layoutParams = params
+            if (tv.parent !== container) {
+                (tv.parent as? ViewGroup)?.removeView(tv)
+                container.addView(tv, params)
+            }
+            tv.visibility = View.VISIBLE
+            tv.elevation = dpToPx(12).toFloat()
+            tv.bringToFront()
+            container.bringToFront()
+            container.requestLayout()
+            container.invalidate()
+        }
+    }
+
+    /** @deprecated Prefer [showAtTouch] for native fast-path popups. */
+    fun showAtKeyBounds(
+        previewId: Int,
+        localLeft: Float,
+        localTop: Float,
+        localRight: Float,
+        localBottom: Float,
+        label: String,
+        rawX: Float,
+        rawY: Float,
+        localX: Float,
+        localY: Float,
+    ) {
+        runOnMainThread {
+            hideRequested.remove(previewId)
+            val container =
+                previewContainer
+                    ?: KeyboardInputBridge.getPopupAnchorView() as? FrameLayout
+                    ?: return@runOnMainThread
+            previewContainer = container
+
+            cancelPendingLayoutShow(previewId)
+            cancelDismiss(previewId)
+
+            val tv = obtainPreviewView(container, previewId)
+            tv.animate().cancel()
+            tv.alpha = 1f
+            applyThemeToPreviewView(tv)
+            tv.typeface = loadLabelTypeface(tv.context)
+            tv.text = label
+            shownAtMs[previewId] = SystemClock.uptimeMillis()
+
+            val keyWidth = (localRight - localLeft).coerceAtLeast(1f)
+            val keyHeight = (localBottom - localTop).coerceAtLeast(1f)
+            val previewWidth =
+                keyWidth.coerceAtLeast(dpToPx(MIN_PREVIEW_WIDTH_DP).toFloat())
+            val previewHeight =
+                keyHeight.coerceAtLeast(dpToPx(MIN_PREVIEW_HEIGHT_DP).toFloat())
+            val gapAboveKey = dpToPx(PREVIEW_GAP_ABOVE_KEY_DP).toFloat()
+
+            updatePreviewCornerRadius(tv, previewHeight.toInt())
+
+            val containerLoc = IntArray(2)
+            container.getLocationOnScreen(containerLoc)
+            val centerX = rawX - containerLoc[0]
+            val topY = rawY - containerLoc[1] - gapAboveKey - previewHeight
+
+            val params = tv.layoutParams as FrameLayout.LayoutParams
+            params.width = previewWidth.toInt()
+            params.height = previewHeight.toInt()
+            params.leftMargin = (centerX - previewWidth / 2f).toInt()
+            params.topMargin = topY.toInt()
+            tv.layoutParams = params
+            tv.visibility = View.VISIBLE
+            tv.elevation = dpToPx(12).toFloat()
+            tv.bringToFront()
+            container.bringToFront()
+            container.invalidate()
+        }
+    }
+
+    /**
      * Finger-up hide — Gboard-style: tiny hold for flash taps, then a quick fade.
      */
     fun hide(reactTag: Int) {

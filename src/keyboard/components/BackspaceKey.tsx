@@ -11,6 +11,7 @@ import {
 import BackKeyIcon from '../../../assets/back-key.svg';
 import BackspaceIcon from '../../../assets/keyboard_backspace.svg';
 import {triggerKeyHaptic} from '../haptics';
+import {useKeyLayoutContext} from '../gesture/KeyLayoutContext';
 import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
 import {keyboardBridge} from '../keyboardBridge';
 import type {KeyDefinition} from '../layouts/qwerty';
@@ -43,6 +44,7 @@ type BackspaceKeyProps = {
   >;
   keyHeight?: number;
   style?: StyleProp<ViewStyle>;
+  compactTypingNativeActive?: boolean;
 };
 
 function BackspaceKeyComponent({
@@ -51,10 +53,14 @@ function BackspaceKeyComponent({
   keyGestures,
   keyHeight: keyHeightProp,
   style,
+  compactTypingNativeActive = false,
 }: BackspaceKeyProps) {
+  const layoutContext = useKeyLayoutContext();
   const theme = useKeyboardTheme();
   const styles = useThemedStyles(createBackspaceKeyStyles);
   const keyHeight = keyHeightProp ?? theme.keyHeight;
+  const measureInNativeFastPath = theme.isLandscape;
+  const keyOuterRef = useRef<View>(null);
   const keyGesturesRef = useRef(keyGestures);
   const [pressed, setPressed] = useState(false);
   const touchActiveRef = useRef(false);
@@ -210,6 +216,76 @@ function BackspaceKeyComponent({
 
   useEffect(() => () => clearRepeat(), [clearRepeat]);
 
+  const measureKey = useCallback(() => {
+    if (!layoutContext || !measureInNativeFastPath) {
+      return;
+    }
+    const keyView = keyOuterRef.current;
+    const keysArea = layoutContext.keysAreaRef.current;
+    if (!keyView) {
+      return;
+    }
+
+    const registerFromRect = (x: number, y: number, width: number, height: number) => {
+      layoutContext.registerKey({
+        id: keyDef.id,
+        keyDef,
+        x,
+        y,
+        width,
+        height,
+        centerX: x + width / 2,
+        centerY: y + height / 2,
+      });
+    };
+
+    if (keysArea) {
+      keyView.measureLayout(
+        keysArea,
+        (x, y, width, height) => registerFromRect(x, y, width, height),
+        () => {
+          keysArea.measure(
+            (_ax, _ay, _aw, _ah, areaPageX, areaPageY) => {
+              keyView.measure(
+                (_kx, _ky, width, height, keyPageX, keyPageY) => {
+                  registerFromRect(
+                    keyPageX - areaPageX,
+                    keyPageY - areaPageY,
+                    width,
+                    height,
+                  );
+                },
+              );
+            },
+          );
+        },
+      );
+    }
+  }, [keyDef, layoutContext, measureInNativeFastPath]);
+
+  useEffect(() => {
+    if (!measureInNativeFastPath) {
+      layoutContext?.unregisterKey(keyDef.id);
+      return;
+    }
+    measureKey();
+    return () => {
+      layoutContext?.unregisterKey(keyDef.id);
+    };
+  }, [keyDef.id, layoutContext, measureInNativeFastPath, measureKey]);
+
+  useEffect(() => {
+    if (!layoutContext || !measureInNativeFastPath) {
+      return;
+    }
+    const timer = setTimeout(measureKey, 0);
+    return () => clearTimeout(timer);
+  }, [
+    measureKey,
+    layoutContext,
+    layoutContext?.layoutEpoch,
+  ]);
+
   const iconColor = isEnterBackspace ? theme.iconOnEnter : theme.icon;
   const icon = isEnterBackspace ? (
     <BackspaceIcon width={24} height={16} color={iconColor} />
@@ -224,8 +300,11 @@ function BackspaceKeyComponent({
 
   return (
     <View
+      ref={keyOuterRef}
       style={style}
       collapsable={false}
+      onLayout={measureKey}
+      pointerEvents={compactTypingNativeActive ? 'none' : 'auto'}
       {...(wordSwipeEnabled ? swipePanResponder.panHandlers : undefined)}>
       <Pressable
         unstable_pressDelay={0}
