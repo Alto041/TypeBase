@@ -4,8 +4,8 @@ import type {KeyBounds} from './types';
 
 const STORAGE_KEY = '@typebase/tap_map_v1';
 const MAX_OFFSET_PX = 16;
-const LEARN_RATE = 0.14;
-const MIN_SAMPLES_TO_APPLY = 3;
+const LEARN_RATE = 0.16;
+const MIN_SAMPLES_TO_APPLY = 2;
 const PERSIST_DEBOUNCE_MS = 45_000;
 
 export type TapMapEntry = {

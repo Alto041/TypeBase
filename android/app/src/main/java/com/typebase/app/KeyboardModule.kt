@@ -431,6 +431,11 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   }
 
   @ReactMethod(isBlockingSynchronousMethod = true)
+  fun getAndroidSdkIntSync(): Int {
+    return android.os.Build.VERSION.SDK_INT
+  }
+
+  @ReactMethod(isBlockingSynchronousMethod = true)
   fun getAutoCapitalizeAtCursor(): Boolean {
     return KeyboardInputBridge.shouldAutoCapitalizeAtCursor()
   }

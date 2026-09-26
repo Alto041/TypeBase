@@ -18,7 +18,7 @@ class PremiumModule(private val reactContext: ReactApplicationContext) :
 
   override fun initialize() {
     super.initialize()
-    PremiumBillingManager.refreshEntitlement(reactApplicationContext, null)
+    // Premium is loaded from encrypted cache on demand; Play sync is manual (Restore).
   }
 
   @ReactMethod

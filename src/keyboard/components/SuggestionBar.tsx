@@ -1,6 +1,7 @@
 import React, {Fragment, memo, useEffect, useRef, useState} from 'react';
 import {
   Animated,
+  ActivityIndicator,
   Image,
   Pressable,
   StyleSheet,
@@ -298,6 +299,8 @@ type SuggestionBarProps = {
   aiAutocorrectSuggestion?: AiAutocorrectSuggestionBarItem | null;
   onAiAutocorrectSelect?: () => void;
   isAiAutocorrectProcessing?: boolean;
+  /** Personal typing + dictionary bootstrap before first suggestions. */
+  isSuggestionBootstrapLoading?: boolean;
   /** Show back chevron instead of the plugins icon (panels + essentials form). */
   leadingBack?: boolean;
   trailingAction?: {
@@ -345,6 +348,7 @@ function SuggestionBarComponent({
   aiAutocorrectSuggestion = null,
   onAiAutocorrectSelect,
   isAiAutocorrectProcessing = false,
+  isSuggestionBootstrapLoading = false,
   leadingBack = false,
   trailingAction,
   showUndoRedo = false,
@@ -452,7 +456,8 @@ function SuggestionBarComponent({
     Boolean(swipePreview) &&
     !showPartial &&
     !showVoiceProcessing &&
-    !isAiAutocorrectProcessing;
+    !isAiAutocorrectProcessing &&
+    !isSuggestionBootstrapLoading;
   const showEssentials = hasEssentials && !showSwipePreview;
   const showWordSuggestions = wordSuggestionChips.length > 0 && !showSwipePreview;
   const wordSuggestionDisplayMax = suggestionDisplayMaxLength(
@@ -590,7 +595,14 @@ function SuggestionBarComponent({
               <View style={styles.cursor} />
             </View>
           </View>
-        ) : centerTitle ? null : showVoiceProcessing ? (
+        ) : centerTitle ? null : isSuggestionBootstrapLoading ? (
+          <View style={styles.bootstrapLoadingContainer}>
+            <ActivityIndicator size="small" color={theme.spaceLabel} />
+            <Text style={styles.bootstrapLoadingText} numberOfLines={1}>
+              Loading…
+            </Text>
+          </View>
+        ) : showVoiceProcessing ? (
           <View style={styles.partialContainer}>
             <Text style={styles.partialText} numberOfLines={1}>
               Polishing…
@@ -1128,6 +1140,19 @@ function createSuggestionBarStyles(theme: KeyboardTheme) {
     justifyContent: 'center',
     alignItems: 'flex-end',
     paddingHorizontal: 4,
+  },
+  bootstrapLoadingContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 8,
+  },
+  bootstrapLoadingText: {
+    color: theme.spaceLabel,
+    fontSize: 14,
+    ...keyboardTypefaceStyle(theme, '500'),
   },
   swipePreviewContainer: {
     flex: 1,

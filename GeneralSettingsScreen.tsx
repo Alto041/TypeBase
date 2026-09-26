@@ -25,6 +25,7 @@ import AutoCapIcon from './assets/format-letter-case-upper.svg';
 import PersonalIcon from './assets/personal.svg';
 import GestureIcon from './assets/gesture.svg';
 import KeyIcon from './assets/key.svg';
+import BalloonIcon from './assets/balloon.svg';
 
 import {playSwitchOffSound, playSwitchOnSound} from './src/app/switchSound';
 import {
@@ -399,11 +400,8 @@ export function GeneralSettingsScreen({
 
           <View style={[styles.rowCard, styles.middleSettingCard]}>
             <View style={styles.rowInner}>
-              <KeyIcon width={ROW_ICON} height={ROW_ICON} color={C.text} />
-              <View style={styles.rowTextCol}>
-                <Text style={styles.rowTitle}>Floating landscape keyboard</Text>
-                <Text style={styles.rowHint}>Off = full-width in landscape</Text>
-              </View>
+              <BalloonIcon width={ROW_ICON} height={ROW_ICON} color={C.text} />
+              <Text style={styles.rowTitle}>Floating keyboard</Text>
               <View style={styles.toggleWrap}>
                 <Pressable
                   onPress={() => void toggleLandscapeFloating()}
@@ -687,16 +685,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'FragmentMono',
     textTransform: 'uppercase',
-    letterSpacing: TEXT_KERNING,
-  },
-  rowTextCol: {
-    flex: 1,
-    gap: 2,
-  },
-  rowHint: {
-    color: C.sub,
-    fontSize: 12,
-    fontFamily: 'FragmentMono',
     letterSpacing: TEXT_KERNING,
   },
   rowSubLabel: {

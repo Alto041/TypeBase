@@ -16,6 +16,7 @@ function clampAutocorrectForTier(
     ...settings,
     enabled: settings.enabled,
     autoApplyOnSpace: settings.autoApplyOnSpace,
+    contextCorrectionEnabled: true,
     aiAutoCorrectEnabled: false,
   };
 }

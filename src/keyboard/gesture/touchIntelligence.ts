@@ -7,7 +7,9 @@ import {
   getPredictiveHitboxState,
   serializeKeyExpansionsForNative,
 } from './predictiveHitboxes';
+import {learnTapMapFromKeyTap} from './tapMap';
 import {recordTouchIntelligenceAnalysis} from './touchIntelligenceTelemetry';
+import {shouldSkipTouchIntelligenceWork} from '../zeroLatencyMode';
 
 export type TouchIntelligenceTypingContext = {
   wordPrefix: string;
@@ -96,6 +98,9 @@ export function recordTouchIntelligenceTap(
   wordLetterTaps.push({letter: normalized, x: localX, y: localY});
   if (wordLetterTaps.length > 32) {
     wordLetterTaps.shift();
+  }
+  if (!shouldSkipTouchIntelligenceWork()) {
+    learnTapMapFromKeyTap(normalized, localX, localY);
   }
 }
 

@@ -41,21 +41,10 @@ object PremiumBillingManager : PurchasesUpdatedListener {
     reactContext = context
   }
 
+  /** Reads local entitlement only — does not query Google Play (use [restorePurchases] for that). */
   fun refreshEntitlement(context: Context, callback: ((Boolean) -> Unit)? = null) {
-    val appContext = context.applicationContext
-
-    ensureBillingClient(appContext) { ready ->
-      if (!ready) {
-        val cached = isPremiumCached(appContext)
-        callback?.let { deliver(it, cached) }
-        return@ensureBillingClient
-      }
-      queryOwnedPurchases(appContext) { owned ->
-        PremiumStore.setPremium(appContext, owned)
-        emitPremiumChanged(owned)
-        callback?.let { deliver(it, owned) }
-      }
-    }
+    val cached = isPremiumCached(context.applicationContext)
+    callback?.let { deliver(it, cached) }
   }
 
   fun getProductPrice(context: Context, callback: (String?) -> Unit) {

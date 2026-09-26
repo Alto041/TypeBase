@@ -214,13 +214,13 @@ export function isSymSpellLookupReady(): boolean {
 }
 
 const SYM_SPELL_BOOTSTRAP_WORDS = ENGLISH_ACCURACY_BOOTSTRAP_WORDS;
-const SYM_SEED_CHUNK = 500;
-const SYM_SEED_DELAY_MS = 32;
+const SYM_SEED_CHUNK = 120;
+const SYM_SEED_DELAY_MS = 48;
 
 function bootstrapEnglishSymSpell(words: readonly string[]): SymSpell {
   ensureEnglishAccuracyBootstrap();
   scheduleEnglishRankMapBuild();
-  const en = new SymSpell(90_000, 2, 7);
+  const en = new SymSpell(90_000, 3, 7);
   const bootstrapCount = Math.min(SYM_SPELL_BOOTSTRAP_WORDS, words.length);
   for (let i = 0; i < bootstrapCount; i += 1) {
     en.CreateDictionaryEntry(words[i]!, syntheticFrequencyCount(i));
@@ -375,7 +375,7 @@ async function ensureSymSpell(lang: string): Promise<SymSpell> {
   if (pending) return pending;
 
   const promise = (async () => {
-    const ss = new SymSpell(95_000, 2, 7);
+    const ss = new SymSpell(95_000, 3, 7);
     await seedSymSpell(lang, ss);
     ssCache.set(lang, ss);
     if (!readySymSpell) {
@@ -639,12 +639,25 @@ export function getPrefixIndexWordList(lang?: string): readonly string[] {
 /** Preload the dictionary for the active language (useful on layout switch). */
 export async function preloadActiveDictionary(): Promise<void> {
   const lang = getActiveLanguage();
-  await getSymSpell(lang);
-  const words = getPrefixIndexWordList(lang);
-  if (words.length > 0) {
-    const {getOrCreatePrefixIndex} = await import('../gesture/prefixIndex');
-    getOrCreatePrefixIndex(lang, words);
+  if (!ssCache.get(lang) && (lang === 'en' || lang === 'hi-en' || lang === 'fr-en' || lang === 'es-en')) {
+    // English-like layouts rely on chunked background SymSpell seed — never block on full ensureSymSpell here.
+    scheduleDeferredPrefixIndex(lang);
+    return;
   }
+  await getSymSpell(lang);
+  scheduleDeferredPrefixIndex(lang);
+}
+
+function scheduleDeferredPrefixIndex(lang: string): void {
+  const words = getPrefixIndexWordList(lang);
+  if (words.length === 0) {
+    return;
+  }
+  setTimeout(() => {
+    void import('../gesture/prefixIndex').then(({getOrCreatePrefixIndex}) => {
+      getOrCreatePrefixIndex(lang, words);
+    });
+  }, 300);
 }
 
 /** Primarily for tests / reset in dev. */

@@ -9,6 +9,7 @@ import {createEmojiPanelShellStyles} from './emojiPanelLayout';
 import {GifCategoryGrid} from './GifCategoryGrid';
 import {SfxCategoryGrid} from './SfxCategoryGrid';
 import {StickerCategoryGrid} from './StickerCategoryGrid';
+import {getContextPrefaceEmojis} from './subtoneEngine';
 import type {EmojiPanelTab, EmojiSubcategoryId} from './emojis';
 import type {StickerLySticker} from './stickers';
 import type {GiphyGif} from './giphyService';
@@ -21,6 +22,7 @@ type EmojiPanelProps = {
   emojiSubcategory: EmojiSubcategoryId;
   onEmojiSubcategorySelect: (subcategory: EmojiSubcategoryId) => void;
   emojiSearchQuery: string;
+  emojiSearchActive?: boolean;
   panelHeight: number;
   onSelect: (emoji: string) => void;
   onGifSelect: (gif: GiphyGif) => void;
@@ -35,6 +37,8 @@ type EmojiPanelProps = {
   showUpsell?: boolean;
   onLockedPress?: () => void;
   onDismissUpsell?: () => void;
+  /** Text before cursor — context emojis prepend the grid when non-empty. */
+  contextSnippet?: string;
 };
 
 export function EmojiPanel({
@@ -42,6 +46,7 @@ export function EmojiPanel({
   emojiSubcategory,
   onEmojiSubcategorySelect,
   emojiSearchQuery,
+  emojiSearchActive = false,
   panelHeight,
   onSelect,
   onGifSelect,
@@ -56,13 +61,23 @@ export function EmojiPanel({
   showUpsell = false,
   onLockedPress,
   onDismissUpsell,
+  contextSnippet = '',
 }: EmojiPanelProps) {
   const showEmojiSubcategories =
-    panelTab === 'emojis' && emojiSearchQuery.trim().length === 0;
+    panelTab === 'emojis' &&
+    !emojiSearchActive &&
+    emojiSearchQuery.trim().length === 0;
+  const showEmojiSearch =
+    panelTab === 'emojis' &&
+    (emojiSearchActive || emojiSearchQuery.trim().length > 0);
+  const contextPrefaceEmojis = useMemo(
+    () => getContextPrefaceEmojis(contextSnippet),
+    [contextSnippet],
+  );
   const emojiScrollHeight = Math.max(
     120,
     Math.round(
-      panelHeight - (showEmojiSubcategories ? SUBCATEGORY_BAR_HEIGHT : 0),
+      panelHeight - (panelTab === 'emojis' ? SUBCATEGORY_BAR_HEIGHT : 0),
     ),
   );
   const shellStyles = useThemedStyles(themeValue =>
@@ -140,7 +155,7 @@ export function EmojiPanel({
         installingId={installingSfxId}
         locked={sfxLocked}
       />
-    ) : emojiSearchQuery.trim().length > 0 ? (
+    ) : showEmojiSearch ? (
       <EmojiSearchGrid
         width={contentWidth}
         height={emojiScrollHeight}
@@ -152,6 +167,7 @@ export function EmojiPanel({
         category={emojiSubcategory}
         width={contentWidth}
         height={emojiScrollHeight}
+        contextPrefaceEmojis={contextPrefaceEmojis}
         onSelect={onSelect}
       />
     );
@@ -166,11 +182,15 @@ export function EmojiPanel({
         }
       }}>
       <View style={shellStyles.card}>
-        {showEmojiSubcategories ? (
-          <EmojiSubcategoryBar
-            selected={emojiSubcategory}
-            onSelect={onEmojiSubcategorySelect}
-          />
+        {panelTab === 'emojis' ? (
+          showEmojiSubcategories ? (
+            <EmojiSubcategoryBar
+              selected={emojiSubcategory}
+              onSelect={onEmojiSubcategorySelect}
+            />
+          ) : (
+            <View style={styles.subcategorySpacer} />
+          )
         ) : null}
         <View style={[styles.contentHost, isLockedTab && styles.lockedContent]}>
           {content}
@@ -191,6 +211,9 @@ export function EmojiPanel({
 const styles = StyleSheet.create({
   container: {
     position: 'relative',
+  },
+  subcategorySpacer: {
+    height: SUBCATEGORY_BAR_HEIGHT,
   },
   contentHost: {
     flex: 1,

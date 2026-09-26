@@ -321,6 +321,132 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
   const bottomClearanceAdjust = layout.bottomClearanceAdjust ?? 0;
   const hapticPulseMs = layout.keyHapticPulseMs;
   const hapticEnabled = layout.keyHapticEnabled;
+
+  const keyHeightRef = useRef(keyHeight);
+  const keyGapRef = useRef(keyGap);
+  const rowGapRef = useRef(rowGap);
+  const keyRadiusRef = useRef(keyRadius);
+  keyHeightRef.current = keyHeight;
+  keyGapRef.current = keyGap;
+  rowGapRef.current = rowGap;
+  keyRadiusRef.current = keyRadius;
+
+  const layoutPersistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const layoutPersistPendingRef = useRef<
+    Partial<
+      Pick<
+        KeyboardLayoutSettings,
+        'keyHeight' | 'keyGap' | 'keyRowMargin' | 'keyRadius'
+      >
+    >
+  >({});
+
+  const flushLayoutPersist = useCallback(() => {
+    if (layoutPersistTimerRef.current) {
+      clearTimeout(layoutPersistTimerRef.current);
+      layoutPersistTimerRef.current = null;
+    }
+    const pending = layoutPersistPendingRef.current;
+    const keys = Object.keys(pending) as Array<
+      'keyHeight' | 'keyGap' | 'keyRowMargin' | 'keyRadius'
+    >;
+    if (keys.length === 0) {
+      return;
+    }
+    layoutPersistPendingRef.current = {};
+    const patch: Partial<KeyboardLayoutSettings> = {};
+    for (const key of keys) {
+      patch[key] = pending[key];
+    }
+    void setKeyboardLayoutSettings({
+      ...getKeyboardLayoutSettings(),
+      ...patch,
+    });
+  }, []);
+
+  const scheduleLayoutPersist = useCallback(
+    (
+      key: 'keyHeight' | 'keyGap' | 'keyRowMargin' | 'keyRadius',
+      value: number,
+    ) => {
+      layoutPersistPendingRef.current[key] = value;
+      if (layoutPersistTimerRef.current) {
+        return;
+      }
+      layoutPersistTimerRef.current = setTimeout(() => {
+        layoutPersistTimerRef.current = null;
+        flushLayoutPersist();
+      }, 100);
+    },
+    [flushLayoutPersist],
+  );
+
+  const clampNumericLayout = (
+    key: 'keyHeight' | 'keyGap' | 'keyRowMargin' | 'keyRadius',
+    value: number,
+  ): number => {
+    if (key === 'keyHeight') {
+      return Math.max(40, Math.min(64, Math.round(value)));
+    }
+    if (key === 'keyGap') {
+      return Math.max(0, Math.min(12, Math.round(value)));
+    }
+    if (key === 'keyRowMargin') {
+      return Math.max(0, Math.min(20, Math.round(value)));
+    }
+    return Math.max(0, Math.min(12, Math.round(value)));
+  };
+
+  const commitNumericLayout = useCallback(
+    (key: 'keyHeight' | 'keyGap' | 'keyRowMargin' | 'keyRadius', value: number) => {
+      if (!canUse('keyboard_customize')) {
+        return;
+      }
+      const next = clampNumericLayout(key, value);
+      const ref =
+        key === 'keyHeight'
+          ? keyHeightRef
+          : key === 'keyGap'
+            ? keyGapRef
+            : key === 'keyRowMargin'
+              ? rowGapRef
+              : keyRadiusRef;
+      if (next === ref.current) {
+        return;
+      }
+      ref.current = next;
+      setLayout(current => ({...current, [key]: next}));
+      scheduleLayoutPersist(key, next);
+    },
+    [canUse, scheduleLayoutPersist],
+  );
+
+  const commitNumericLayoutRef = useRef(commitNumericLayout);
+  commitNumericLayoutRef.current = commitNumericLayout;
+  const flushLayoutPersistRef = useRef(flushLayoutPersist);
+  flushLayoutPersistRef.current = flushLayoutPersist;
+
+  useEffect(
+    () => () => {
+      if (layoutPersistTimerRef.current) {
+        clearTimeout(layoutPersistTimerRef.current);
+      }
+    },
+    [],
+  );
+
+  const layoutDragHapticAtRef = useRef(0);
+  const fireLayoutDragHaptic = () => {
+    const now = Date.now();
+    if (now - layoutDragHapticAtRef.current < 50) {
+      return;
+    }
+    layoutDragHapticAtRef.current = now;
+    void Haptics.selectionAsync().catch(() => {});
+  };
+
   loadingRef.current = loading;
   hapticEnabledRef.current = hapticEnabled;
   hapticPulseMsRef.current = hapticPulseMs;
@@ -328,6 +454,11 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
   bottomClearanceAdjustRef.current = bottomClearanceAdjust;
 
   const handleReset = () => {
+    if (layoutPersistTimerRef.current) {
+      clearTimeout(layoutPersistTimerRef.current);
+      layoutPersistTimerRef.current = null;
+    }
+    layoutPersistPendingRef.current = {};
     setLayout(DEFAULT_KEYBOARD_LAYOUT_SETTINGS);
     void installDefaultTapSoundSettings();
     void clearCustomKeyboardFont();
@@ -452,21 +583,24 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
       onPanResponderGrant: () => {
-        keyHeightDragRef.current.startValue = keyHeight;
-        // No haptic here — only fire when the value actually changes (in onPanResponderMove).
+        keyHeightDragRef.current.startValue = keyHeightRef.current;
       },
-      onPanResponderMove: (evt, gestureState) => {
-        // Dragging up increases the value, dragging down decreases it —
-        // the natural feel for "more height". dy is negative when moving up.
+      onPanResponderMove: (_evt, gestureState) => {
         const deltaValue =
           (-gestureState.dy / KEY_HEIGHT_DRAG_PX) * KEY_HEIGHT_RANGE;
         let next = Math.round(keyHeightDragRef.current.startValue + deltaValue);
         next = Math.max(KEY_HEIGHT_MIN, Math.min(KEY_HEIGHT_MAX, next));
 
-        if (next !== keyHeight) {
-          update('keyHeight', next);
-          Haptics.selectionAsync().catch(() => {});
+        if (next !== keyHeightRef.current) {
+          commitNumericLayoutRef.current('keyHeight', next);
+          fireLayoutDragHaptic();
         }
+      },
+      onPanResponderRelease: () => {
+        flushLayoutPersistRef.current();
+      },
+      onPanResponderTerminate: () => {
+        flushLayoutPersistRef.current();
       },
     })
   ).current;
@@ -500,21 +634,24 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
       onPanResponderGrant: () => {
-        gapDragRef.current.startValue = keyGap;
-        // No haptic here — only fire when the value actually changes (in onPanResponderMove).
+        gapDragRef.current.startValue = keyGapRef.current;
       },
-      onPanResponderMove: (evt, gestureState) => {
-        // Drag up/right to increase, down/left to decrease — combine both
-        // axes so it feels natural no matter which direction you drag in.
+      onPanResponderMove: (_evt, gestureState) => {
         const drag = gestureState.dx - gestureState.dy;
         const deltaValue = (drag / GAP_DRAG_PX) * GAP_RANGE;
         let next = Math.round(gapDragRef.current.startValue + deltaValue);
         next = Math.max(GAP_MIN, Math.min(GAP_MAX, next));
 
-        if (next !== keyGap) {
-          update('keyGap', next);
-          Haptics.selectionAsync().catch(() => {});
+        if (next !== keyGapRef.current) {
+          commitNumericLayoutRef.current('keyGap', next);
+          fireLayoutDragHaptic();
         }
+      },
+      onPanResponderRelease: () => {
+        flushLayoutPersistRef.current();
+      },
+      onPanResponderTerminate: () => {
+        flushLayoutPersistRef.current();
       },
     })
   ).current;
@@ -541,28 +678,29 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
       onPanResponderGrant: () => {
-        rowGapDragRef.current.anchorValue = rowGap;
-        rowGapDragRef.current.startDy = 0; // track how much drag we've "consumed"
+        rowGapDragRef.current.anchorValue = rowGapRef.current;
+        rowGapDragRef.current.startDy = 0;
       },
-      onPanResponderMove: (evt, gestureState) => {
-        // Relative drag: compare cumulative dy to what we've already processed.
-        // This prevents jumps if the component re-renders mid-drag.
-        const rawDy = -gestureState.dy; // up = positive (increase value)
+      onPanResponderMove: (_evt, gestureState) => {
+        const rawDy = -gestureState.dy;
         const consumedDy = rowGapDragRef.current.startDy;
         const deltaDy = rawDy - consumedDy;
-
-        // Convert pixel delta to value delta
         const deltaVal = (deltaDy / ROW_GAP_DRAG_PX) * ROW_GAP_RANGE;
         let next = Math.round(rowGapDragRef.current.anchorValue + deltaVal);
         next = Math.max(ROW_GAP_MIN, Math.min(ROW_GAP_MAX, next));
 
-        if (next !== rowGap) {
-          // Value changed: commit it, update anchor, and "consume" the drag distance
-          update('keyRowMargin', next);
-          Haptics.selectionAsync().catch(() => {});
+        if (next !== rowGapRef.current) {
+          commitNumericLayoutRef.current('keyRowMargin', next);
+          fireLayoutDragHaptic();
           rowGapDragRef.current.anchorValue = next;
           rowGapDragRef.current.startDy = rawDy;
         }
+      },
+      onPanResponderRelease: () => {
+        flushLayoutPersistRef.current();
+      },
+      onPanResponderTerminate: () => {
+        flushLayoutPersistRef.current();
       },
     })
   ).current;
@@ -581,18 +719,24 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
       onPanResponderGrant: () => {
-        radiusDragRef.current.startValue = keyRadius;
+        radiusDragRef.current.startValue = keyRadiusRef.current;
       },
-      onPanResponderMove: (evt, gestureState) => {
+      onPanResponderMove: (_evt, gestureState) => {
         const drag = gestureState.dx - gestureState.dy;
         const deltaValue = (drag / RADIUS_DRAG_PX) * KEY_RADIUS_RANGE;
         let next = Math.round(radiusDragRef.current.startValue + deltaValue);
         next = Math.max(KEY_RADIUS_MIN, Math.min(KEY_RADIUS_MAX, next));
 
-        if (next !== keyRadius) {
-          update('keyRadius', next);
-          Haptics.selectionAsync().catch(() => {});
+        if (next !== keyRadiusRef.current) {
+          commitNumericLayoutRef.current('keyRadius', next);
+          fireLayoutDragHaptic();
         }
+      },
+      onPanResponderRelease: () => {
+        flushLayoutPersistRef.current();
+      },
+      onPanResponderTerminate: () => {
+        flushLayoutPersistRef.current();
       },
     })
   ).current;

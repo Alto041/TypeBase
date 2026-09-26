@@ -28,6 +28,7 @@ export async function refreshPremiumEntitlement(): Promise<boolean> {
   if (Platform.OS !== 'android' || !Premium?.refreshEntitlement) {
     return true;
   }
+  /** Local cache only — does not restore from Google Play. */
   return Premium.refreshEntitlement();
 }
 

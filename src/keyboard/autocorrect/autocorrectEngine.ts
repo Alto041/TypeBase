@@ -31,6 +31,7 @@ import {
 } from './dictionaryManager';
 import {getHinglishPhraseCorrection, isHinglishHeadword} from './hinglishDictionary';
 import {getContextCorrectionCandidate} from './contextCorrectionEngine';
+import {extractTrailingWords} from './learnedPhrases';
 import {
   getPunctuationCorrection,
   shouldAutoApplyPunctuation,
@@ -74,7 +75,7 @@ const HIGH_ACCURACY_SYMSPELL_LIMIT = 8;
 /** On space/punctuation commit, search deeper for long-word typos (everyibe → everyone). */
 const BOUNDARY_SYMSPELL_LIMIT = 24;
 const LIGHTWEIGHT_SYMSPELL_LIMIT = 6; // Enough hits for long-word typo fixes while typing
-const BASIC_BOUNDARY_SYMSPELL_LIMIT = 18; // Free-tier boundary typo recovery without heavy scans
+const BASIC_BOUNDARY_SYMSPELL_LIMIT = 32;
 const COMMON_WORD_RANK = 4000;
 /** Dictionary headwords rarer than this can still be autocorrected (e.g. beng → being). */
 const OBSCURE_WORD_RANK_THRESHOLD = 20_000;
@@ -218,6 +219,25 @@ export function extractPreviousWordFromContext(
   return extractPreviousWord(ctx);
 }
 
+function buildContextTrailingWords(
+  context: string | undefined,
+  typed: string,
+  trailingWords?: string[],
+): string[] | undefined {
+  if (trailingWords && trailingWords.length > 0) {
+    return trailingWords.map(word => word.toLowerCase());
+  }
+  if (!context) {
+    return undefined;
+  }
+  let ctx = context;
+  if (typed.length > 0 && ctx.endsWith(typed)) {
+    ctx = ctx.slice(0, ctx.length - typed.length);
+  }
+  const trailing = extractTrailingWords(ctx, 6);
+  return trailing.length > 0 ? trailing : undefined;
+}
+
 function contextFollowBias(previousWord: string, candidate: string): number {
   if (!previousWord) {
     return 0;
@@ -239,11 +259,12 @@ function wordRank(word: string): number {
   if (override != null) {
     return override;
   }
-  if (isEnglishRankMapReady()) {
-    return getEnglishStaticRank(lower) ?? 99_999;
+  const staticRank = getEnglishStaticRank(lower);
+  if (staticRank != null) {
+    return staticRank;
   }
-  if (isEnglishDictionaryWord(lower)) {
-    return 50_000;
+  if (isEnglishDictionaryWord(lower) || hasDictionaryWord(lower)) {
+    return symSpellRank(lower);
   }
   if (isEnglishSymSpellReady()) {
     return symSpellRank(lower);
@@ -303,6 +324,116 @@ function getEffectiveMinAutoConfidence(learnedUses: number, fromExactFix: boolea
 }
 const MISSING_SPACE_MIN_LENGTH = 6;
 const MISSING_SPACE_STRONG_RANK = 12_000;
+
+/** Common tails after "I" in run-ons (iwould, ibwpuld → I would). */
+const I_PRONOUN_MODAL_WORDS = [
+  'would',
+  'will',
+  'can',
+  'could',
+  'should',
+  'have',
+  'had',
+  'was',
+  'were',
+  'want',
+  'need',
+  'like',
+  'think',
+  'know',
+  'guess',
+  'hope',
+  'wish',
+  'mean',
+  'said',
+  'must',
+  'might',
+  'may',
+  'shall',
+  'did',
+  'do',
+  'does',
+  'am',
+  'are',
+  'been',
+  'being',
+  'got',
+  'get',
+  'just',
+  'also',
+  'never',
+  'always',
+  'really',
+] as const;
+
+function maxModalTailEditDistance(tailLength: number): number {
+  if (tailLength <= 4) {
+    return 1;
+  }
+  if (tailLength <= 7) {
+    return 2;
+  }
+  return tailLength <= 9 ? 2 : 3;
+}
+
+function matchIPronounModalTail(tail: string): string | null {
+  if (tail.length < 3 || tail.length > 10) {
+    return null;
+  }
+  if (isKnownEnglishWord(tail) && wordRank(tail) <= MISSING_SPACE_STRONG_RANK) {
+    return tail;
+  }
+  const maxEdits = maxModalTailEditDistance(tail.length);
+  let best: {word: string; edits: number} | null = null;
+  for (const modal of I_PRONOUN_MODAL_WORDS) {
+    const edits = levenshtein(tail, modal);
+    if (edits > maxEdits) {
+      continue;
+    }
+    if (
+      !best ||
+      edits < best.edits ||
+      (edits === best.edits && wordRank(modal) < wordRank(best.word))
+    ) {
+      best = {word: modal, edits};
+    }
+  }
+  return best?.word ?? null;
+}
+
+/** iwould / ibwpuld / iwpuld → I would (missing space + modal typo). */
+function findIPronounModalRunOn(typed: string): string | null {
+  if (!typed.startsWith('i') || typed.length < 5 || typed.length > 14) {
+    return null;
+  }
+
+  const directTail = typed.slice(1);
+  const directModal = matchIPronounModalTail(directTail);
+  if (directModal && directTail === directModal) {
+    return acceptMissingSpaceSplit(typed, `i ${directModal}`);
+  }
+
+  for (let removeAt = 1; removeAt < typed.length - 2; removeAt += 1) {
+    const shortened = typed.slice(0, removeAt) + typed.slice(removeAt + 1);
+    if (!shortened.startsWith('i') || shortened.length < 4) {
+      continue;
+    }
+    const modal = matchIPronounModalTail(shortened.slice(1));
+    if (modal) {
+      const phrase = acceptMissingSpaceSplit(typed, `i ${modal}`);
+      if (phrase) {
+        return phrase;
+      }
+    }
+  }
+
+  const fuzzyModal = matchIPronounModalTail(directTail);
+  if (fuzzyModal && fuzzyModal !== directTail) {
+    return acceptMissingSpaceSplit(typed, `i ${fuzzyModal}`);
+  }
+
+  return null;
+}
 
 /** QWERTY adjacency — single-key fat fingers (pwople → people). */
 const KEYBOARD_NEIGHBORS: Record<string, string> = {
@@ -459,7 +590,10 @@ function findBestSingleWordCorrection(
     if (!isValidCorrectionWord(match.word)) {
       continue;
     }
-    const staticRank = wordRank(match.word);
+    const staticRank =
+      match.count != null
+        ? rankFromSymSpellFrequency(match.word, match.count, match.edits)
+        : wordRank(match.word);
     const prefixBonus = sharedPrefixLength(typed, match.word) * 800;
     const score =
       staticRank +
@@ -485,12 +619,20 @@ function shouldPreferSingleWordOverSplit(
   typed: string,
   splitPhrase: string,
 ): boolean {
+  const parts = splitPhrase.trim().split(/\s+/);
+  if (parts.length >= 2) {
+    const splitRankSum = parts.reduce((sum, part) => sum + wordRank(part), 0);
+    // Strong two-word splits (to make, on today) beat fuzzy single-word guesses.
+    if (typed.length >= 6 && splitRankSum < 6_000) {
+      return false;
+    }
+  }
+
   const single = findBestSingleWordCorrection(typed);
   if (!single) {
     return false;
   }
 
-  const parts = splitPhrase.trim().split(/\s+/);
   if (parts.length < 2) {
     return false;
   }
@@ -513,6 +655,42 @@ function acceptMissingSpaceSplit(typed: string, splitPhrase: string): string | n
     return null;
   }
   return splitPhrase;
+}
+
+/** Run-on with one stray letter (thisbis → this is via thisis). */
+function findRunOnWithStrayLetter(typed: string): string | null {
+  if (typed.length < 7) {
+    return null;
+  }
+
+  for (let removeAt = 1; removeAt < typed.length - 1; removeAt += 1) {
+    const shortened = typed.slice(0, removeAt) + typed.slice(removeAt + 1);
+    if (shortened.length < MISSING_SPACE_MIN_LENGTH) {
+      continue;
+    }
+    if (isKnownEnglishWord(shortened)) {
+      continue;
+    }
+
+    const twoWord = findTwoWordSplit(shortened);
+    if (twoWord) {
+      return twoWord;
+    }
+
+    const compound = lookupCompoundSync(shortened, 2);
+    if (
+      compound?.term?.includes(' ') &&
+      compound.distance <= 2 &&
+      !isHinglishHeadword(shortened)
+    ) {
+      const split = acceptMissingSpaceSplit(shortened, compound.term);
+      if (split) {
+        return split;
+      }
+    }
+  }
+
+  return null;
 }
 
 function findTwoWordSplit(typed: string): string | null {
@@ -540,10 +718,16 @@ function findTwoWordSplit(typed: string): string | null {
     return null;
   }
 
+  const splitRankSum = best.score;
+  if (splitRankSum > MISSING_SPACE_STRONG_RANK * 2.2) {
+    return null;
+  }
+
   if (
     best.left === 'i' &&
     best.right.length >= 5 &&
-    typed.length >= 6
+    typed.length >= 6 &&
+    !isKnownEnglishWord(best.right)
   ) {
     return null;
   }
@@ -604,7 +788,7 @@ function findMissingSpaceCorrection(
     return null;
   }
 
-  if (isLikelyIncompleteWord(typed)) {
+  if (isLikelyIncompleteWord(typed) && typed.length < 10) {
     return null;
   }
 
@@ -612,6 +796,16 @@ function findMissingSpaceCorrection(
   // Hinglish fixes come from the underscore→space phrase map instead.
   if (lang === 'hi-en') {
     return null;
+  }
+
+  const strayLetterSplit = findRunOnWithStrayLetter(typed);
+  if (strayLetterSplit) {
+    return strayLetterSplit;
+  }
+
+  const iModalSplit = findIPronounModalRunOn(typed);
+  if (iModalSplit) {
+    return iModalSplit;
   }
 
   const twoWord = findTwoWordSplit(typed);
@@ -679,13 +873,9 @@ function maxEditDistance(length: number): number {
   if (length <= 3) {
     return 1;
   }
-  if (length <= 8) {
+  if (length <= 5) {
     return 2;
   }
-  if (length <= 16) {
-    return 2;
-  }
-  // Long words accumulate more typos; allow a third edit.
   if (length <= MAX_LIVE_AUTOCORRECT_LENGTH) {
     return 3;
   }
@@ -698,7 +888,10 @@ function allowedFuzzyEdits(wordLength: number): number {
 
 function boundaryFuzzyEdits(wordLength: number): number {
   const base = maxEditDistance(wordLength);
-  if (wordLength >= 8) {
+  if (wordLength >= 12) {
+    return Math.min(4, base + 1);
+  }
+  if (wordLength >= 7) {
     return Math.min(3, base + 1);
   }
   return base;
@@ -861,7 +1054,7 @@ function pickBestSymSpellTypoFix(
 
   const maxEd = allowedFuzzyEdits(lower.length);
   const symLimit =
-    lower.length >= 12 ? HIGH_ACCURACY_SYMSPELL_LIMIT : LIGHTWEIGHT_SYMSPELL_LIMIT;
+    lower.length >= 12 ? HIGH_ACCURACY_SYMSPELL_LIMIT : LIGHTWEIGHT_SYMSPELL_LIMIT + 2;
   const hits = lookupCandidatesSync(lower, maxEd, symLimit);
   let best: {word: string; score: number} | null = null;
 
@@ -936,6 +1129,23 @@ export function getFastAutocorrectPreview(
 
   if (blocksAutocorrectAsKnownWord(lower)) {
     return null;
+  }
+
+  if (isEnglishLikeLang()) {
+    const punctFix = getPunctuationCorrection(typed, previousWord);
+    if (
+      punctFix &&
+      punctFix.correction.toLowerCase() !== typed.toLowerCase()
+    ) {
+      return applyCaseToPunctuation(punctFix.correction, typed);
+    }
+  }
+
+  if (lower.length >= MISSING_SPACE_MIN_LENGTH) {
+    const missingSpace = findMissingSpaceCorrection(lower, learnedUses);
+    if (missingSpace) {
+      return applyCaseToWord(missingSpace, typed);
+    }
   }
 
   if (isEnglishLikeLang()) {
@@ -1224,17 +1434,27 @@ function isPlausibleTypo(
   if (edits === 3) {
     if (
       isCommonAutocorrectTarget(staticRank) &&
-      typed.length >= 8 &&
+      typed.length >= 6 &&
       Math.abs(typed.length - candidate.length) <= maxLenDelta &&
       prefix >= Math.min(2, typed.length - 3)
     ) {
       return true;
     }
     return (
-      typed.length >= 10 &&
-      staticRank < 8_000 &&
+      typed.length >= 7 &&
+      staticRank < 12_000 &&
+      typed[0] === candidate[0] &&
       Math.abs(typed.length - candidate.length) <= maxLenDelta &&
-      prefix >= Math.min(3, typed.length - 3)
+      prefix >= Math.min(2, typed.length - 3)
+    );
+  }
+  if (edits === 4) {
+    return (
+      typed.length >= 9 &&
+      staticRank < 6_000 &&
+      typed[0] === candidate[0] &&
+      Math.abs(typed.length - candidate.length) <= 2 &&
+      prefix >= Math.min(3, typed.length - 4)
     );
   }
   return false;
@@ -1424,7 +1644,7 @@ function toConfidence(
   learnedUses: number,
   staticRank: number,
 ): number {
-  let confidence = edits === 1 ? 0.82 : edits === 2 ? 0.58 : 0.48;
+  let confidence = edits === 1 ? 0.82 : edits === 2 ? 0.58 : edits === 3 ? 0.48 : 0.44;
   if (learnedUses >= 2) {
     confidence += Math.min(learnedUses * 0.05, 0.2);
   }
@@ -1494,6 +1714,9 @@ function toConfidence(
   if (edits === 3 && learnedUses === 0 && staticRank > 5000) {
     confidence -= 0.1;
   }
+  if (edits >= 4 && staticRank < COMMON_WORD_RANK && prefix >= 3) {
+    confidence += 0.08;
+  }
   return Math.min(Math.max(confidence, 0), 0.98);
 }
 
@@ -1530,11 +1753,15 @@ function isLikelyTypoMatch(typed: string, candidate: string, edits: number): boo
     );
   }
   return (
-    edits === 3 &&
-    typed.length >= 8 &&
-    (typed[0] === candidate[0] ||
-      isCommonAutocorrectTarget(wordRank(candidate))) &&
-    sharedPrefixLength(typed, candidate) >= Math.min(2, typed.length - 2)
+    (edits === 3 &&
+      typed.length >= 6 &&
+      (typed[0] === candidate[0] ||
+        isCommonAutocorrectTarget(wordRank(candidate))) &&
+      sharedPrefixLength(typed, candidate) >= Math.min(2, typed.length - 2)) ||
+    (edits === 4 &&
+      typed.length >= 9 &&
+      typed[0] === candidate[0] &&
+      sharedPrefixLength(typed, candidate) >= Math.min(3, typed.length - 3))
   );
 }
 
@@ -1859,6 +2086,9 @@ export function getAutocorrectCandidate(
     return null;
   }
 
+  const premiumAutocorrect = canUseFeature('autocorrect_full');
+  const basicTierAutocorrect = !premiumAutocorrect;
+
   if (isEnglishLikeLang()) {
     const structural = findStructuralTypoFix(lower);
     if (structural && structural !== lower) {
@@ -1869,8 +2099,6 @@ export function getAutocorrectCandidate(
     }
   }
 
-  // Punctuation correction (contractions, apostrophes)
-  // Check this early for high-confidence common patterns
   if (isEnglishLikeLang()) {
     const punctFix = getPunctuationCorrection(typed, options?.previousWord);
     if (
@@ -1884,21 +2112,26 @@ export function getAutocorrectCandidate(
     }
   }
 
-  const premiumAutocorrect = canUseFeature('autocorrect_full');
-  const basicTierAutocorrect = !premiumAutocorrect;
   const contextCorrectionOn = getAutocorrectSettings().contextCorrectionEnabled;
   if (
     contextCorrectionOn &&
     (options?.context || options?.previousWord || options?.trailingWords?.length)
   ) {
+    const trailingForContext = buildContextTrailingWords(
+      options?.context,
+      typed,
+      options?.trailingWords,
+    );
     const shouldRunContext =
       options.boundary === true ||
       options.lightweight !== true ||
-      Boolean(options.previousWord);
+      Boolean(options.previousWord || trailingForContext?.length);
     if (shouldRunContext) {
       const contextFix = getContextCorrectionCandidate(typed, options.context ?? '', {
-        previousWord: options.previousWord,
-        trailingWords: options.trailingWords,
+        previousWord:
+          options.previousWord ??
+          extractPreviousWordFromContext(options.context ?? '', typed),
+        trailingWords: trailingForContext,
         boundary: options.boundary,
         lightweight: options.lightweight,
       });
@@ -1950,6 +2183,38 @@ export function getAutocorrectCandidate(
 
   const previousWord = options?.previousWord ?? '';
   const boundaryLookup = options?.boundary === true;
+
+  const allowMissingSpaceSplit =
+    boundaryLookup ||
+    options?.lightweight !== true ||
+    lower.length >= 8;
+  if (allowMissingSpaceSplit) {
+    const missingSpace = findMissingSpaceCorrection(lower, learnedUses);
+    if (missingSpace) {
+      return {
+        correction: applyCaseToWord(missingSpace, typed),
+        confidence: 0.9,
+      };
+    }
+
+    const compound = lookupCompoundSync(lower, boundaryLookup ? 2 : 2);
+    if (
+      compound &&
+      compound.term &&
+      compound.term.includes(' ') &&
+      compound.distance <= (boundaryLookup ? 3 : 2) &&
+      !isHinglishHeadword(lower)
+    ) {
+      const split = acceptMissingSpaceSplit(lower, compound.term);
+      if (split) {
+        return {
+          correction: applyCaseToWord(split, typed),
+          confidence: 0.88,
+        };
+      }
+    }
+  }
+
   const editBudget = boundaryLookup
     ? boundaryFuzzyEdits(lower.length)
     : maxEditDistance(lower.length);
@@ -1988,9 +2253,9 @@ export function getAutocorrectCandidate(
         symFix.staticRank,
       );
       const minConfidence = basicTierAutocorrect
-        ? boundaryLookup && lower.length >= 8
-          ? Math.max(MIN_AUTO_CONFIDENCE, 0.53)
-          : Math.max(MIN_AUTO_CONFIDENCE, 0.57)
+        ? boundaryLookup
+          ? MIN_AUTO_CONFIDENCE
+          : Math.max(MIN_AUTO_CONFIDENCE, 0.54)
         : boundaryLookup && lower.length >= 8
           ? 0.52
           : MIN_AUTO_CONFIDENCE;
@@ -2003,48 +2268,12 @@ export function getAutocorrectCandidate(
     }
   }
 
-  // Free/basic tier keeps corrections responsive by avoiding the heavier split/compound
-  // and broad candidate-ranking passes on every boundary commit.
-  if (basicTierAutocorrect) {
-    return null;
-  }
-
-  // Missing-space / run-on: run before the proper-noun guard. Sentence-start
-  // auto-caps turn "haveyou" into "Haveyou", which used to look like a name
-  // and skipped splits entirely.
-  const allowMissingSpaceSplit =
-    options?.boundary === true ||
-    options?.lightweight !== true ||
-    lower.length >= 10;
-  const missingSpace =
-    allowMissingSpaceSplit
-      ? findMissingSpaceCorrection(lower, learnedUses)
-      : null;
-  if (missingSpace) {
-    return {
-      correction: applyCaseToWord(missingSpace, typed),
-      confidence: 0.9,
-    };
-  }
-
-  const compound =
-    allowMissingSpaceSplit
-      ? lookupCompoundSync(lower)
-      : null;
   if (
-    compound &&
-    compound.term &&
-    compound.term.includes(' ') &&
-    compound.distance <= 1 &&
-    !isHinglishHeadword(lower)
+    boundaryLookup &&
+    !isEnglishSymSpellReady() &&
+    !options?.lightweight
   ) {
-    const split = acceptMissingSpaceSplit(lower, compound.term);
-    if (split) {
-      return {
-        correction: applyCaseToWord(split, typed),
-        confidence: 0.88,
-      };
-    }
+    return null;
   }
 
   if (isProbablyProperNoun(typed)) {
@@ -2055,16 +2284,12 @@ export function getAutocorrectCandidate(
     return null;
   }
 
-  // Non-English guard: if the word is unknown to this language's dictionary and
-  // not learned + not an exact fix, do not fuzzy auto-correct it.
-  // (SymSpell may still be used for suggestions, but auto-apply stays conservative.)
-  // Hinglish / Franglais are English-like — allow OOV fuzzy against the combined dictionary.
   const langGate = getActiveLanguage();
   if (!isEnglishLikeLang(langGate) && !getBaseWords(langGate).includes(lower) && learnedUses === 0) {
     return null;
   }
 
-  const candidates = collectCandidates(lower, maxEditDistance(lower.length), {
+  const candidates = collectCandidates(lower, editBudget, {
     skipFrequentScan: options?.skipFrequentScan ?? options?.lightweight,
     lightweight: options?.lightweight,
     boundary: options?.boundary,
@@ -2271,9 +2496,14 @@ export function getSuggestionBarAutocorrect(
     contextEnabled && Boolean(options?.context || previousWord);
 
   if (canUseContext) {
+    const trailingForContext = buildContextTrailingWords(
+      options?.context,
+      typed,
+      options?.trailingWords,
+    );
     const contextFix = getContextCorrectionCandidate(typed, options?.context ?? '', {
       previousWord,
-      trailingWords: previousWord ? [previousWord] : undefined,
+      trailingWords: trailingForContext,
       lightweight: fast,
       boundary: !fast,
     });

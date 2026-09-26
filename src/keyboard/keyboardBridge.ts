@@ -50,6 +50,7 @@ type KeyboardModuleType = {
   isCurrentEditorGame: () => Promise<boolean>;
   isDeviceLandscape: () => Promise<boolean>;
   isDeviceLandscapeSync: () => boolean;
+  getAndroidSdkIntSync: () => number;
   getAutoCapitalizeAtCursor: () => boolean;
   getClipboardText: () => Promise<string>;
   getClipboardContent: () => Promise<ClipboardContent>;
@@ -406,6 +407,12 @@ export const keyboardBridge: KeyboardModuleType = {
       return KeyboardModule.isDeviceLandscapeSync() as boolean;
     }
     return false;
+  },
+  getAndroidSdkIntSync: () => {
+    if (Platform.OS === 'android' && KeyboardModule?.getAndroidSdkIntSync) {
+      return KeyboardModule.getAndroidSdkIntSync() as number;
+    }
+    return 0;
   },
   getAutoCapitalizeAtCursor: () => {
     if (Platform.OS === 'android' && KeyboardModule?.getAutoCapitalizeAtCursor) {

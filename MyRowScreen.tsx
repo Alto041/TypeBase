@@ -271,7 +271,7 @@ export function MyRowScreen({
 
         <Text style={styles.sectionLabel}>Behavior</Text>
         <View style={styles.mainStack}>
-          <View style={[styles.rowCard, styles.firstCard, styles.lastCard]}>
+          <View style={[styles.rowCard, styles.soloCard]}>
             {renderToggleRow('Use my row', myRowEnabled, myRowAnim, () =>
               void toggleMyRow(), {premiumBadge: true})}
           </View>
@@ -367,21 +367,6 @@ const styles = StyleSheet.create({
   },
   unlockCard: {
     borderRadius: 20,
-  },
-  firstCard: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    borderBottomLeftRadius: 8,
-    borderBottomRightRadius: 8,
-  },
-  middleCard: {
-    borderRadius: 10,
-  },
-  lastCard: {
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
-    borderTopLeftRadius: 8,
-    borderTopRightRadius: 8,
   },
   soloCard: {
     borderRadius: 20,

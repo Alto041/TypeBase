@@ -1,5 +1,10 @@
 import {InteractionManager} from 'react-native';
-import {canUseFeature} from '../../licensing/entitlements';
+import {
+  canUsePersonalTypingEngine,
+  canUsePersonalTypingSettings,
+  FREE_LEARNED_PHRASE_CAP,
+  FREE_PERSONAL_PHRASE_HINT_LIMIT,
+} from '../../licensing/freeTierAccess';
 import {hasDictionaryWord} from '../autocorrect/dictionaryManager';
 import {keyboardBridge} from '../keyboardBridge';
 import {
@@ -411,7 +416,7 @@ export function isHardRejectedCorrection(typed: string, candidate: string): bool
 export function queryPersonalContextCorrections(
   typedWord: string,
 ): Array<{to: string; confidence: number}> {
-  if (!canUseFeature('personal_typing')) {
+  if (!canUsePersonalTypingEngine()) {
     return [];
   }
   const from = normalizeLearnedWord(typedWord);
@@ -468,14 +473,213 @@ export function queryPhraseCorrectionCandidates(
   if (!normalizedLead || typedWord.length < 2) {
     return [];
   }
-  return phrasesByLead.get(normalizedLead) ?? [];
+  const exact = phrasesByLead.get(normalizedLead) ?? [];
+  if (exact.length > 0) {
+    return exact;
+  }
+  return collectPhraseLeadSuffixMatches(normalizedLead);
+}
+
+function collectPhraseLeadSuffixMatches(
+  normalizedLead: string,
+): Array<{phrase: string; weight: number; lastWord: string}> {
+  const suffixMatches: Array<{phrase: string; weight: number; lastWord: string}> =
+    [];
+  for (const [leadKey, list] of phrasesByLead) {
+    if (leadKey === normalizedLead) {
+      continue;
+    }
+    if (leadKey.endsWith(normalizedLead)) {
+      const boundary = leadKey.length - normalizedLead.length;
+      if (boundary === 0 || leadKey[boundary - 1] === ' ') {
+        suffixMatches.push(...list);
+      }
+    }
+  }
+  return suffixMatches;
+}
+
+function phraseTypoMaxEdits(wordLength: number): number {
+  if (wordLength <= 4) {
+    return 1;
+  }
+  if (wordLength <= 8) {
+    return 2;
+  }
+  return 3;
+}
+
+function phraseTypoDistance(a: string, b: string): number {
+  if (a === b) {
+    return 0;
+  }
+  if (a.length === 0) {
+    return b.length;
+  }
+  if (b.length === 0) {
+    return a.length;
+  }
+  if (Math.abs(a.length - b.length) > 3) {
+    return 99;
+  }
+  const row = Array.from({length: b.length + 1}, (_, index) => index);
+  for (let i = 1; i <= a.length; i += 1) {
+    let previous = i - 1;
+    row[0] = i;
+    for (let j = 1; j <= b.length; j += 1) {
+      const temp = row[j]!;
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      row[j] = Math.min(row[j]! + 1, row[j - 1]! + 1, previous + cost);
+      previous = temp;
+    }
+  }
+  return row[b.length]!;
+}
+
+/** Next-word hints from personal phrases matching trailing context (exact or suffix lead). */
+export function queryPersonalPhraseExpectedWords(
+  priorWords: readonly string[],
+): Array<{word: string; weight: number}> {
+  if (!canUsePersonalTypingEngine() || priorWords.length === 0) {
+    return [];
+  }
+  const key = priorWords.join(' ');
+  const starter = priorWords[0]!;
+  const byWeight = new Map<string, number>();
+
+  const ingest = (list: readonly PhraseIndexEntry[] | undefined) => {
+    for (const item of list ?? []) {
+      byWeight.set(
+        item.lastWord,
+        Math.max(byWeight.get(item.lastWord) ?? 0, item.weight),
+      );
+    }
+  };
+
+  ingest(phrasesByLead.get(key));
+  ingest(collectPhraseLeadSuffixMatches(key));
+
+  for (const item of phrasesByStarter.get(starter) ?? []) {
+    const words = item.phrase.split(' ');
+    if (words.length < 2) {
+      continue;
+    }
+    const prefix = words.slice(0, -1);
+    if (priorWords.length > prefix.length) {
+      continue;
+    }
+    const suffix = prefix.slice(-priorWords.length);
+    if (suffix.join(' ') !== key) {
+      continue;
+    }
+    byWeight.set(
+      item.lastWord,
+      Math.max(byWeight.get(item.lastWord) ?? 0, item.weight),
+    );
+  }
+
+  return [...byWeight.entries()]
+    .map(([word, weight]) => ({word, weight}))
+    .sort((a, b) => b.weight - a.weight)
+    .slice(0, canUsePersonalTypingSettings() ? 14 : FREE_PERSONAL_PHRASE_HINT_LIMIT);
+}
+
+export type PersonalPhraseBoundaryFix = {
+  phrase: string;
+  replaceLength: number;
+};
+
+function extractTrailingWordsLocal(text: string, maxWords: number): string[] {
+  const match = text.match(/(?:^|\s)([\p{L}\p{M}']+(?:\s+[\p{L}\p{M}']+)*)$/u);
+  if (!match) {
+    return [];
+  }
+  return match[1]
+    .split(/\s+/)
+    .map(word => word.toLowerCase())
+    .slice(-maxWords);
+}
+
+/** Multi-word replace from personal phrases when the last typed token is a typo. */
+export function findPersonalPhraseMultiWordFix(
+  context: string,
+  typedWord: string,
+  maxTrailingWords = 8,
+): PersonalPhraseBoundaryFix | null {
+  if (!canUsePersonalTypingEngine() || typedWord.length < 2) {
+    return null;
+  }
+
+  const typedLower = typedWord.toLowerCase();
+  let ctx = context;
+  if (typedWord.length > 0 && ctx.endsWith(typedWord)) {
+    ctx = ctx.slice(0, ctx.length - typedWord.length);
+  }
+
+  const trailing = extractTrailingWordsLocal(
+    `${ctx}${typedLower}`,
+    maxTrailingWords,
+  );
+  if (trailing.length < 2 || trailing[trailing.length - 1] !== typedLower) {
+    return null;
+  }
+
+  const priorWords = trailing.slice(0, -1);
+  const priorKey = priorWords.join(' ');
+  const maxEdits = phraseTypoMaxEdits(typedLower.length);
+
+  let best: {phrase: string; score: number; replaceLength: number} | null = null;
+
+  const consider = (
+    phrase: string,
+    weight: number,
+    lastWord: string,
+  ) => {
+    const edits = phraseTypoDistance(typedLower, lastWord);
+    if (edits > maxEdits) {
+      return;
+    }
+    const score = weight - edits * 22;
+    const replaceLength = [...priorWords, typedWord].join(' ').length;
+    if (!best || score > best.score) {
+      best = {phrase, score, replaceLength};
+    }
+  };
+
+  for (const item of queryPhraseCorrectionCandidates(priorKey, typedWord)) {
+    consider(item.phrase, item.weight, item.lastWord);
+  }
+
+  const starter = priorWords[0] ?? '';
+  for (const item of phrasesByStarter.get(starter) ?? []) {
+    const words = item.phrase.split(' ');
+    if (words.length < 2) {
+      continue;
+    }
+    const lastWord = words[words.length - 1]!;
+    const prefix = words.slice(0, -1);
+    if (priorWords.length > prefix.length) {
+      continue;
+    }
+    if (prefix.slice(-priorWords.length).join(' ') !== priorKey) {
+      continue;
+    }
+    const replacement = words.slice(prefix.length - priorWords.length).join(' ');
+    consider(replacement, item.weight, lastWord);
+  }
+
+  if (!best || best.score < 5) {
+    return null;
+  }
+
+  return {phrase: best.phrase, replaceLength: best.replaceLength};
 }
 
 function upsertWord(
   word: string,
   source: LearningSource,
 ): LearnedWordEntry | null {
-  if (!canUseFeature('personal_typing')) {
+  if (!canUsePersonalTypingEngine()) {
     return null;
   }
   if (!isLearnableWord(word)) {
@@ -510,7 +714,7 @@ function upsertPhrase(
   source: LearningSource,
   schedule = true,
 ): LearnedPhraseEntry | null {
-  if (!canUseFeature('personal_typing')) {
+  if (!canUsePersonalTypingEngine()) {
     return null;
   }
   if (!isLearnablePhrase(phrase)) {
@@ -519,6 +723,13 @@ function upsertPhrase(
   const normalized = normalizePhrase(phrase);
   const now = Date.now();
   const existing = profile.phrases[normalized];
+  if (
+    !existing &&
+    !canUsePersonalTypingSettings() &&
+    Object.keys(profile.phrases).length >= FREE_LEARNED_PHRASE_CAP
+  ) {
+    return null;
+  }
   const next: LearnedPhraseEntry = existing
     ? {
         ...existing,

@@ -1,4 +1,4 @@
-import React, {useMemo, useRef, type RefObject} from 'react';
+import React, {useEffect, useMemo, useRef, useState, type RefObject} from 'react';
 import {
   FlatList,
   ListRenderItem,
@@ -12,9 +12,10 @@ import {triggerKeyHaptic} from '../haptics';
 import {
   chunkEmojis,
   EMOJI_COLUMNS,
-  EMOJIS_BY_CATEGORY,
+  getEmojisForCategory,
   type EmojiSubcategoryId,
 } from './emojis';
+import {subscribeEmojiCatalog} from './gboardEmojiData';
 import {
   createEmojiPanelSharedStyles,
   EMOJI_CELL_GAP,
@@ -24,6 +25,8 @@ type EmojiCategoryGridProps = {
   category: EmojiSubcategoryId;
   width: number;
   height: number;
+  /** Shown as the first grid row(s), before category emojis (deduped). */
+  contextPrefaceEmojis?: readonly string[];
   selectionLockedRef?: RefObject<boolean>;
   onSelect: (emoji: string) => void;
 };
@@ -50,6 +53,7 @@ export function EmojiCategoryGrid({
   category,
   width,
   height,
+  contextPrefaceEmojis = [],
   selectionLockedRef,
   onSelect,
 }: EmojiCategoryGridProps) {
@@ -59,11 +63,22 @@ export function EmojiCategoryGrid({
     createEmojiCategoryGridStyles(height, rowHeight),
   );
   const gridScrollGuard = useScrollGuard();
+  const [catalogRevision, setCatalogRevision] = useState(0);
 
-  const gridRows = useMemo(
-    () => chunkEmojis(EMOJIS_BY_CATEGORY[category], EMOJI_COLUMNS),
-    [category],
+  useEffect(
+    () => subscribeEmojiCatalog(() => setCatalogRevision(revision => revision + 1)),
+    [],
   );
+
+  const gridRows = useMemo(() => {
+    const categoryEmojis = getEmojisForCategory(category);
+    if (contextPrefaceEmojis.length === 0) {
+      return chunkEmojis(categoryEmojis, EMOJI_COLUMNS);
+    }
+    const seen = new Set(contextPrefaceEmojis);
+    const rest = categoryEmojis.filter(emoji => !seen.has(emoji));
+    return chunkEmojis([...contextPrefaceEmojis, ...rest], EMOJI_COLUMNS);
+  }, [category, contextPrefaceEmojis, catalogRevision]);
 
   const handleEmojiPress = (emoji: string) => {
     if (selectionLockedRef?.current || gridScrollGuard.scrollingRef.current) {
@@ -122,6 +137,7 @@ export function EmojiCategoryGrid({
   return (
     <View style={[styles.panel, {width}]}>
       <FlatList
+        key={category}
         style={styles.gridScroll}
         contentContainerStyle={sharedStyles.scrollContent}
         data={gridRows}

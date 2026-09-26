@@ -94,12 +94,12 @@ export function PremiumProvider({children}: {children: ReactNode}) {
   const restore = useCallback(async () => {
     const success = await restorePremiumPurchases();
     if (success) {
-      const entitled = await syncPremium();
+      const entitled = await refreshPremium();
       setIsPremium(entitled);
       setPremiumCached(entitled);
     }
     return success;
-  }, [syncPremium]);
+  }, []);
 
   const value = useMemo(
     () => ({

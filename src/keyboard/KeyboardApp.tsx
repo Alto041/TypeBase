@@ -39,11 +39,13 @@ import {EmojiPanel} from './emoji/EmojiPanel';
 import {
   DEFAULT_EMOJI_PANEL_TAB,
   DEFAULT_EMOJI_SUBCATEGORY,
+  normalizeEmojiSubcategoryId,
   type EmojiPanelTab,
   type EmojiSubcategoryId,
 } from './emoji/emojis';
 import {downloadAndInsertGif} from './emoji/gifInsert';
 import {insertStickerLySticker} from './emoji/stickerInsert';
+import {recordRecentSticker} from './emoji/recentStickersStore';
 import {downloadAndSendSfx, previewSfx, stopSfxPreview} from './emoji/sfxInsert';
 import type {GiphyGif} from './emoji/giphyService';
 import type {StickerLySticker} from './emoji/stickers';
@@ -83,12 +85,18 @@ import {GestureTypingLayer} from './gesture/GestureTypingLayer';
 import {PremiumUpsellSheet} from './components/PremiumUpsellSheet';
 import {useKeyboardPremium} from './hooks/useKeyboardPremium';
 import {canUseFeature} from '../licensing/entitlements';
+import {canUsePluginMenuItem} from '../licensing/freeTierAccess';
 import {setUndoCommittedTextHandler} from './gesture/multiTouchKeys';
 import {SwipeTypingKeysHost} from './gesture/SwipeTypingContext';
 import {PredictiveHitboxOverlay} from './gesture/PredictiveHitboxOverlay';
 import {ContextCorrectionDebugOverlay} from './autocorrect/ContextCorrectionDebugOverlay';
 import {setContextCorrectionDebugCapture} from './autocorrect/contextCorrectionEngine';
 import {preloadContextBigrams} from './autocorrect/contextBigrams';
+import {
+  isMinimalSuggestionEngineReady,
+  startSuggestionEngineWarmup,
+  waitForMinimalSuggestionEngine,
+} from './suggestionEngineBootstrap';
 import {
   clearNativeSuggestionSnapshot,
   getFreshNativeSuggestions,
@@ -161,6 +169,7 @@ import {
 import {
   extractPreviousWordFromContext,
   getAutocorrectCandidate,
+  getFastAutocorrectPreview,
   getSuggestionBarAutocorrect,
   isDictionaryWord,
   shouldAutoApply,
@@ -187,7 +196,7 @@ import {
   recordAiPreflightResult,
   recordAiPreflightStale,
 } from './autocorrect/aiAutocorrectTelemetry';
-import {getActiveLanguage, isEnglishSymSpellReady, preloadActiveDictionary, scheduleBackgroundEnglishSymSpellSeed} from './autocorrect/dictionaryManager';
+import {getActiveLanguage, preloadActiveDictionary, scheduleBackgroundEnglishSymSpellSeed} from './autocorrect/dictionaryManager';
 import {scheduleEnglishWordSetBuild} from './autocorrect/englishFrequencyDictionary';
 import {GesturesPanel} from './gestures/GesturesPanel';
 import {TranslatePanel} from './translate/TranslatePanel';
@@ -238,6 +247,8 @@ import {keyboardBridge} from './keyboardBridge';
 import {getKeyReactTag, subscribeKeyReactTags} from './keyReactTags';
 import {
   isBurstTypingActive,
+  isTypingChurnActive,
+  markTypingChurn,
   setBurstTypingActive,
   setGamePerformanceModeActive,
   setFloatingKeyboardDragActive,
@@ -247,6 +258,7 @@ import {
   shouldDeferLiveSuggestionBar,
   shouldSkipFrostedKeyboardEffects,
   shouldSkipTouchIntelligenceWork,
+  shouldDeferNativeTouchIntelligenceSync,
 } from './zeroLatencyMode';
 import {
   CUSTOM_LAYOUTS_CHANGED_EVENT,
@@ -321,6 +333,10 @@ const LETTER_SIDE_EFFECTS_DEBOUNCE_MS = 220;
 /** Gap between letters that counts as fast typing (~6–7 chars/sec and above). */
 const BURST_TYPING_INTERVAL_MS = 200;
 const BURST_TYPING_IDLE_MS = 380;
+/** While keys are arriving, defer SymSpell bar work and native touch-intel sync. */
+const TYPING_HEAVY_DEFER_MS = 480;
+/** Coalesce live suggestion-bar React updates (portrait + landscape). */
+const DEFERRED_BAR_FLUSH_MS = 52;
 /** Skip duplicate async native fast-path side effects after inline touch handling. */
 const NATIVE_SIDE_EFFECT_DEDUP_MS = 100;
 
@@ -338,6 +354,14 @@ function suggestionListsEqual(left: string[], right: string[]): boolean {
 
 function isBurstTyping(lastCommitAtMs: number, now = Date.now()): boolean {
   return lastCommitAtMs > 0 && now - lastCommitAtMs < BURST_TYPING_INTERVAL_MS;
+}
+
+function shouldUseLightSuggestionBar(lastTypingAtMs: number, now = Date.now()): boolean {
+  return (
+    isLandscapeTypingProfile() ||
+    isTypingChurnActive(now) ||
+    (lastTypingAtMs > 0 && now - lastTypingAtMs < TYPING_HEAVY_DEFER_MS)
+  );
 }
 
 const INSTANT_SUGGESTION_DISABLED = false;
@@ -653,11 +677,14 @@ function computeTypingSuggestionBar(
     prefixOnly?: boolean;
     /** Prefer native prefix chips; JS still computes autocorrect preview. */
     preferNativeWords?: boolean;
+    /** Landscape idle flush — skip heavy bar autocorrect (SymSpell/context scans). */
+    landscapeLight?: boolean;
   },
 ) {
   const fast = options.fast;
   const suggestionsOnly = options.suggestionsOnly ?? false;
   const prefixOnly = options.prefixOnly ?? false;
+  const landscapeLight = options.landscapeLight === true;
   const previousWord =
     options.previousWord ??
     (options.context
@@ -669,11 +696,16 @@ function computeTypingSuggestionBar(
     prefix.length < 2 ||
     shouldSkipAutocorrectForToken(prefix)
       ? {keepTyped: null, correction: null}
-      : getSuggestionBarAutocorrect(prefix, {
-          fast,
-          previousWord,
-          context: options.context,
-        });
+      : landscapeLight
+        ? {
+            keepTyped: null,
+            correction: getFastAutocorrectPreview(prefix, {previousWord}) ?? null,
+          }
+        : getSuggestionBarAutocorrect(prefix, {
+            fast,
+            previousWord,
+            context: options.context,
+          });
 
   const phraseSuggestions =
     fast ||
@@ -698,7 +730,7 @@ function computeTypingSuggestionBar(
     wordSuggestions =
       nativeSuggestions ??
       getWordSuggestions(prefix, TYPING_BAR_WORD_LIMIT, {
-        skipFuzzy: suggestionsOnly,
+        skipFuzzy: suggestionsOnly || landscapeLight,
         lightweight: true,
       });
   }
@@ -742,7 +774,7 @@ function KeyboardBody({
   const layoutContext = useKeyLayoutContext();
   const {width: viewportWidth} = useWindowDimensions();
   const styles = useThemedStyles(createKeyboardAppStyles);
-  const {showUpsell, setShowUpsell, requireFeature, isPluginPremium, isPremium, premiumReady} =
+  const {showUpsell, setShowUpsell, requireFeature, isPremium, premiumReady} =
     useKeyboardPremium();
   const stickersLocked = premiumReady && !isPremium;
   const sfxLocked = premiumReady && !isPremium;
@@ -757,6 +789,10 @@ function KeyboardBody({
   const letterSideEffectsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
+  const deferredBarFlushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const scheduleDeferredLiveSuggestionBarRef = useRef<() => void>(() => {});
   const burstTypingEndTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
@@ -800,6 +836,9 @@ function KeyboardBody({
   const lastTypingAtRef = useRef(0);
   const typingIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [stoppedTyping, setStoppedTyping] = useState(true);
+  const [suggestionEngineLoading, setSuggestionEngineLoading] = useState(
+    () => !isMinimalSuggestionEngineReady(),
+  );
   const [predictiveHitboxTick, setPredictiveHitboxTick] = useState(0);
   const [contextCorrectionTick, setContextCorrectionTick] = useState(0);
   const stoppedTypingRef = useRef(true);
@@ -970,9 +1009,6 @@ function KeyboardBody({
     if (shouldSkipTouchIntelligenceWork()) {
       return;
     }
-    if (shouldDeferHeavyTypingSideEffects()) {
-      return;
-    }
     const prefix = livePrefixRef.current;
     touchIntelligencePreviousKeyRef.current =
       prefix.length > 0 ? prefix[prefix.length - 1]!.toLowerCase() : null;
@@ -981,10 +1017,33 @@ function KeyboardBody({
         enabled: true,
         lang: getActiveLanguage(),
       });
-      setPredictiveHitboxTick(tick => tick + 1);
+      if (theme.developerEyeEnabled) {
+        setPredictiveHitboxTick(tick => tick + 1);
+      }
     }
-    syncTouchIntelligenceToNative();
-  }, [layoutContext, syncTouchIntelligenceToNative, theme.predictiveHitboxesEnabled]);
+    if (!shouldDeferNativeTouchIntelligenceSync()) {
+      syncTouchIntelligenceToNative();
+    }
+  }, [
+    layoutContext,
+    syncTouchIntelligenceToNative,
+    theme.developerEyeEnabled,
+    theme.predictiveHitboxesEnabled,
+  ]);
+
+  const updateLivePrefixPredictiveHitboxes = useCallback(() => {
+    if (
+      shouldSkipTouchIntelligenceWork() ||
+      !layoutContext ||
+      !theme.predictiveHitboxesEnabled
+    ) {
+      return;
+    }
+    updatePredictiveHitboxes(livePrefixRef.current, layoutContext.getLayouts(), {
+      enabled: true,
+      lang: getActiveLanguage(),
+    });
+  }, [layoutContext, theme.predictiveHitboxesEnabled]);
 
   useEffect(() => {
     if (!layoutContext) {
@@ -994,10 +1053,11 @@ function KeyboardBody({
       };
     }
     setTapMapLayoutProvider(() => layoutContext.getLayouts());
+    refreshTouchIntelligenceFromLivePrefix();
     return () => {
       setTapMapLayoutProvider(null);
     };
-  }, [layoutContext]);
+  }, [layoutContext, refreshTouchIntelligenceFromLivePrefix]);
 
   /** Uppercase at most one letter per shift tap — uses refs so fast typing can't double-cap. */
   const consumeLetterCommitText = useCallback((keyValue: string): string => {
@@ -1035,6 +1095,11 @@ function KeyboardBody({
   const isSfxSearchMode = isSfxCategory && sfxSearchActive;
   const isEmojiSearchMode =
     isEmojiMode && emojiPanelTab === 'emojis' && emojiSearchActive;
+  const showEmojiPluginPanel =
+    isEmojiMode &&
+    !isGifSearchMode &&
+    !isSfxSearchMode &&
+    !isEmojiSearchMode;
   const gestureEnabled =
     !zeroLatencyMode &&
     !gamePerformanceActive &&
@@ -1187,10 +1252,8 @@ function KeyboardBody({
   );
 
   useEffect(() => {
-    scheduleBackgroundEnglishSymSpellSeed();
+    startSuggestionEngineWarmup();
     scheduleEnglishWordSetBuild();
-    void ensurePersonalTypingLoaded();
-    void preloadActiveDictionary();
     return installTouchIntelligenceNativeTelemetry();
   }, []);
 
@@ -1795,31 +1858,50 @@ function KeyboardBody({
   }, [reloadEssentials, resetCase]);
 
   const openEssentialsList = useCallback(() => {
-    requireFeature('plugins', () => {
-      reloadEssentials();
-      setMode({type: 'essentials-list'});
-      setLayout('letters');
-      resetCase();
-    });
-  }, [reloadEssentials, requireFeature, resetCase]);
+    if (!canUsePluginMenuItem('essentials')) {
+      setShowUpsell(true);
+      return;
+    }
+    reloadEssentials();
+    setMode({type: 'essentials-list'});
+    setLayout('letters');
+    resetCase();
+  }, [reloadEssentials, resetCase]);
 
   const reloadAutocorrect = useCallback(async () => {
     await reloadAutocorrectFromStorage();
-    await Promise.all([
-      ensurePersonalTypingLoaded(),
-    ]);
+    await ensurePersonalTypingLoaded();
     setAutocorrectSettings(getAutocorrectSettings());
   }, []);
 
-  useEffect(() => {
-    void Promise.all([
-      ensurePersonalTypingLoaded(),
-      ensureAutocorrectLoaded(),
-    ]).then(() => {
+  const runSuggestionEngineBootstrap = useCallback(() => {
+    startSuggestionEngineWarmup();
+    if (isMinimalSuggestionEngineReady()) {
       suggestionDictionariesReadyRef.current = true;
-      preloadContextBigrams();
+      setSuggestionEngineLoading(false);
+      return Promise.resolve();
+    }
+    setSuggestionEngineLoading(true);
+    return waitForMinimalSuggestionEngine().then(() => {
+      suggestionDictionariesReadyRef.current = true;
+      setSuggestionEngineLoading(false);
     });
   }, []);
+
+  useEffect(() => {
+    void runSuggestionEngineBootstrap().then(() => {
+      scheduleDeferredLiveSuggestionBarRef.current();
+    });
+  }, [runSuggestionEngineBootstrap]);
+
+  useEffect(() => {
+    const subscription = DeviceEventEmitter.addListener('keyboardShown', () => {
+      void runSuggestionEngineBootstrap().then(() => {
+        scheduleDeferredLiveSuggestionBarRef.current();
+      });
+    });
+    return () => subscription.remove();
+  }, [runSuggestionEngineBootstrap]);
 
   useEffect(() => {
     const capture =
@@ -1873,65 +1955,79 @@ function KeyboardBody({
   }, []);
 
   const openAutocorrect = useCallback(() => {
-    requireFeature('plugins', () => {
-      setMode({type: 'autocorrect'});
-      setLayout('letters');
-      resetCase();
-      void reloadAutocorrect();
-    });
-  }, [reloadAutocorrect, requireFeature, resetCase]);
+    if (!canUsePluginMenuItem('autocorrect')) {
+      setShowUpsell(true);
+      return;
+    }
+    setMode({type: 'autocorrect'});
+    setLayout('letters');
+    resetCase();
+    void reloadAutocorrect();
+  }, [reloadAutocorrect, resetCase]);
 
   const openGestures = useCallback(() => {
-    requireFeature('plugins', () => {
-      setMode({type: 'gestures'});
-      setLayout('letters');
-      resetCase();
-      void reloadGestures();
-    });
-  }, [reloadGestures, requireFeature, resetCase]);
+    if (!canUsePluginMenuItem('gestures')) {
+      setShowUpsell(true);
+      return;
+    }
+    setMode({type: 'gestures'});
+    setLayout('letters');
+    resetCase();
+    void reloadGestures();
+  }, [reloadGestures, resetCase]);
 
   const openCalculator = useCallback(() => {
-    requireFeature('plugins', () => {
-      setCalculatorDisplay('0');
-      setMode({type: 'calculator'});
-      setLayout('letters');
-      resetCase();
-    });
-  }, [requireFeature, resetCase]);
+    if (!canUsePluginMenuItem('calculator')) {
+      setShowUpsell(true);
+      return;
+    }
+    setCalculatorDisplay('0');
+    setMode({type: 'calculator'});
+    setLayout('letters');
+    resetCase();
+  }, [resetCase]);
 
   const openTouchpad = useCallback(() => {
-    requireFeature('plugins', () => {
-      keyboardBridge.setTouchpadGestureConsuming(false);
-      setTouchpadGestureActive(false);
-      setMode({type: 'touchpad'});
-      setLayout('letters');
-      resetCase();
-    });
-  }, [requireFeature, resetCase]);
+    if (!canUsePluginMenuItem('touchpad')) {
+      setShowUpsell(true);
+      return;
+    }
+    keyboardBridge.setTouchpadGestureConsuming(false);
+    setTouchpadGestureActive(false);
+    setMode({type: 'touchpad'});
+    setLayout('letters');
+    resetCase();
+  }, [resetCase]);
 
   const openResize = useCallback(() => {
-    requireFeature('plugins', () => {
-      setMode({type: 'resize'});
-      setLayout('letters');
-      resetCase();
-    });
-  }, [requireFeature, resetCase]);
+    if (!canUsePluginMenuItem('resize')) {
+      setShowUpsell(true);
+      return;
+    }
+    setMode({type: 'resize'});
+    setLayout('letters');
+    resetCase();
+  }, [resetCase]);
 
   const openMetrics = useCallback(() => {
-    requireFeature('plugins', () => {
-      setMode({type: 'metrics'});
-      setLayout('letters');
-      resetCase();
-    });
-  }, [requireFeature, resetCase]);
+    if (!canUsePluginMenuItem('metrics')) {
+      setShowUpsell(true);
+      return;
+    }
+    setMode({type: 'metrics'});
+    setLayout('letters');
+    resetCase();
+  }, [resetCase]);
 
   const openOneHand = useCallback(() => {
-    requireFeature('plugins', () => {
-      setMode({type: 'onehand'});
-      setLayout('letters');
-      resetCase();
-    });
-  }, [requireFeature, resetCase]);
+    if (!canUsePluginMenuItem('onehand')) {
+      setShowUpsell(true);
+      return;
+    }
+    setMode({type: 'onehand'});
+    setLayout('letters');
+    resetCase();
+  }, [resetCase]);
 
   const closeResize = useCallback((saveOffset?: number) => {
     if (typeof saveOffset === 'number') {
@@ -2026,20 +2122,22 @@ function KeyboardBody({
   }, [closeItemsFlow, isListening, mode.type, resetCase, toggleListening]);
 
   const openClipboard = useCallback(() => {
-    requireFeature('plugins', () => {
+    if (!canUsePluginMenuItem('clipboard')) {
+      setShowUpsell(true);
+      return;
+    }
+    setClipboardItems(getClipboardItems());
+    refreshClipboardPasteSuggestion?.();
+    setMode({type: 'clipboard'});
+    setLayout('letters');
+    resetCase();
+    void (async () => {
+      await ensureClipboardLoaded().catch(() => {});
+      await captureSystemClipboard().catch(() => null);
       setClipboardItems(getClipboardItems());
       refreshClipboardPasteSuggestion?.();
-      setMode({type: 'clipboard'});
-      setLayout('letters');
-      resetCase();
-      void (async () => {
-        await ensureClipboardLoaded().catch(() => {});
-        await captureSystemClipboard().catch(() => null);
-        setClipboardItems(getClipboardItems());
-        refreshClipboardPasteSuggestion?.();
-      })();
-    });
-  }, [refreshClipboardPasteSuggestion, requireFeature, resetCase]);
+    })();
+  }, [refreshClipboardPasteSuggestion, resetCase]);
 
   const toggleEmojiPanel = useCallback(async () => {
     if (mode.type === 'emoji') {
@@ -2073,7 +2171,10 @@ function KeyboardBody({
             setMode({type: 'emoji'});
             setLayout('letters');
             resetCase();
-  }, [isListening, mode.type, resetCase, toggleListening]);
+            void keyboardBridge.getTextBeforeCursor(280).then(text => {
+              syncTypingCompositorFromEditor(text);
+            });
+  }, [isListening, mode.type, resetCase, syncTypingCompositorFromEditor, toggleListening]);
 
   useEffect(() => {
     if (emojiPanelTab === 'gif') {
@@ -2301,6 +2402,14 @@ function KeyboardBody({
     if (layoutRef.current !== 'letters' || modeRef.current.type !== 'typing') {
       return;
     }
+    if (
+      prefix.length > 0 &&
+      !zeroLatencyModeRef.current &&
+      !gamePerformanceModeRef.current
+    ) {
+      scheduleDeferredLiveSuggestionBarRef.current();
+      return;
+    }
     if (isEssentialTriggerPrefix(prefix)) {
       return;
     }
@@ -2452,10 +2561,7 @@ function KeyboardBody({
     });
   }, [getEffectiveEditorContext]);
 
-  const flushLandscapeLiveSuggestionBar = useCallback(() => {
-    if (!isLandscapeTypingProfile()) {
-      return;
-    }
+  const flushDeferredLiveSuggestionBar = useCallback(() => {
     if (layoutRef.current !== 'letters' || modeRef.current.type !== 'typing') {
       return;
     }
@@ -2471,11 +2577,15 @@ function KeyboardBody({
     ) {
       return;
     }
+    const typingLight = shouldUseLightSuggestionBar(lastTypingAtRef.current);
     const barState = computeTypingSuggestionBar(prefix, {
       fast: true,
+      landscapeLight: typingLight,
       context: getEffectiveEditorContext(prefix),
       previousWord: previousWordRef.current,
       suggestionsOnly: true,
+      prefixOnly: typingLight && isBurstTypingActive(),
+      preferNativeWords: Platform.OS === 'android',
     });
     lastInstantPrefixRef.current = prefix;
     lastFlushedBarPrefixRef.current = prefix;
@@ -2497,11 +2607,29 @@ function KeyboardBody({
     getEffectiveEditorContext,
   ]);
 
+  const scheduleDeferredLiveSuggestionBar = useCallback(() => {
+    if (deferredBarFlushTimerRef.current) {
+      clearTimeout(deferredBarFlushTimerRef.current);
+    }
+    deferredBarFlushTimerRef.current = setTimeout(() => {
+      deferredBarFlushTimerRef.current = null;
+      InteractionManager.runAfterInteractions(() => {
+        flushDeferredLiveSuggestionBar();
+      });
+    }, isLandscapeTypingProfile() ? 56 : DEFERRED_BAR_FLUSH_MS);
+  }, [flushDeferredLiveSuggestionBar]);
+
+  useEffect(() => {
+    scheduleDeferredLiveSuggestionBarRef.current = scheduleDeferredLiveSuggestionBar;
+  }, [scheduleDeferredLiveSuggestionBar]);
+
   const flushTypingIdleSideEffects = useCallback(() => {
+    updateLivePrefixPredictiveHitboxes();
     if (shouldDeferHeavyTypingSideEffects()) {
-      if (isLandscapeTypingProfile()) {
-        flushLandscapeLiveSuggestionBar();
+      if (!shouldDeferNativeTouchIntelligenceSync()) {
+        syncTouchIntelligenceToNative(true);
       }
+      scheduleDeferredLiveSuggestionBar();
       return;
     }
     syncTouchIntelligenceToNative(true);
@@ -2509,8 +2637,10 @@ function KeyboardBody({
     applyInstantSuggestionBar(livePrefixRef.current);
   }, [
     applyInstantSuggestionBar,
-    flushLandscapeLiveSuggestionBar,
     flushPendingNativeSuggestions,
+    scheduleDeferredLiveSuggestionBar,
+    syncTouchIntelligenceToNative,
+    updateLivePrefixPredictiveHitboxes,
   ]);
 
   useEffect(() => {
@@ -2524,15 +2654,15 @@ function KeyboardBody({
           return;
         }
         flushPendingNativeSuggestions();
-        flushLandscapeLiveSuggestionBar();
+        scheduleDeferredLiveSuggestionBar();
         applyInstantSuggestionBar(livePrefixRef.current);
       },
     );
     return () => subscription.remove();
   }, [
     applyInstantSuggestionBar,
-    flushLandscapeLiveSuggestionBar,
     flushPendingNativeSuggestions,
+    scheduleDeferredLiveSuggestionBar,
   ]);
 
   const recordTypedWordLearnUndo = useCallback((word: string, boundary: string) => {
@@ -2942,40 +3072,13 @@ function KeyboardBody({
       return;
     }
 
-    if (isLandscapeTypingProfile()) {
-      lastInstantPrefixRef.current = prefix;
-      return;
-    }
-
-    if (prefix === lastInstantPrefixRef.current) {
-      return;
-    }
-    suggestionRefreshRunIdRef.current += 1;
     lastInstantPrefixRef.current = prefix;
-
-    const barState = computeTypingSuggestionBar(prefix, {
-      fast: true,
-      context: getEffectiveEditorContext(prefix),
-      previousWord: previousWordRef.current,
-      suggestionsOnly: true,
-    });
-    setTypingBarPrefix(prefix);
-    setTypingBarTypedKeep(barState.typedKeepSuggestion);
-    setTypingBarAutocorrectPreview(barState.autocorrectPreview);
-    autocorrectPreviewRef.current = barState.autocorrectPreview;
-    setTypingBarSuggestions(barState.suggestions);
-    setTypingBarEssentials([]);
-    setTypingBarEssentialTriggerLength(0);
-
-    if (suggestionRefreshTimerRef.current) {
-      clearTimeout(suggestionRefreshTimerRef.current);
-      suggestionRefreshTimerRef.current = null;
-    }
+    scheduleDeferredLiveSuggestionBar();
   }, [
     applyInstantSuggestionBar,
     cancelPendingInstantSuggestionBar,
     clearSuggestionBarForPrefix,
-    getEffectiveEditorContext,
+    scheduleDeferredLiveSuggestionBar,
   ]);
 
   const scheduleBackspaceBarFlush = useCallback(() => {
@@ -2997,6 +3100,9 @@ function KeyboardBody({
       }
       if (backspaceBarTimerRef.current) {
         clearTimeout(backspaceBarTimerRef.current);
+      }
+      if (deferredBarFlushTimerRef.current) {
+        clearTimeout(deferredBarFlushTimerRef.current);
       }
       if (aiProofreadTimerRef.current) {
         clearTimeout(aiProofreadTimerRef.current);
@@ -3040,8 +3146,11 @@ function KeyboardBody({
       if (commitSeq != null && commitSeq !== boundaryCommitSeqRef.current) {
         return;
       }
-      if (livePrefixRef.current.length > 0) {
+      if (livePrefixRef.current.length > 0 && !options?.boundaryPreInserted) {
         return;
+      }
+      if (options?.boundaryPreInserted && livePrefixRef.current.length > 0) {
+        livePrefixRef.current = '';
       }
 
       const finishLightweightBoundary = () => {
@@ -3064,6 +3173,10 @@ function KeyboardBody({
       }
 
       syncTypingCompositorFromEditor(context);
+      startSuggestionEngineWarmup();
+      if (isMinimalSuggestionEngineReady()) {
+        suggestionDictionariesReadyRef.current = true;
+      }
       if (endsWithRewriteCommand(context)) {
         keyboardBridge.replaceWordPrefix(REWRITE_COMMAND.length, '');
         await openRewritePanel();
@@ -3088,12 +3201,7 @@ function KeyboardBody({
       }
 
       if (!suggestionDictionariesReadyRef.current) {
-        void Promise.all([
-          ensurePersonalTypingLoaded(),
-          ensureAutocorrectLoaded(),
-        ]).then(() => {
-          suggestionDictionariesReadyRef.current = true;
-        });
+        suggestionDictionariesReadyRef.current = true;
       }
 
       let typedWord = pickTypedWordForBoundary(context, typedWordFallback.trim());
@@ -3171,9 +3279,8 @@ function KeyboardBody({
           return;
         }
 
-        const premiumAutocorrect = canUseFeature('autocorrect_full');
         let candidate = getAutocorrectCandidate(typedWord, {
-          lightweight: !premiumAutocorrect,
+          lightweight: false,
           boundary: true,
           context,
           previousWord: extractPreviousWordFromContext(
@@ -3181,14 +3288,6 @@ function KeyboardBody({
             typedWord,
           ),
         });
-        if (
-          candidate &&
-          !isEnglishSymSpellReady() &&
-          candidate.confidence < 0.55 &&
-          !candidate.correction.includes(' ')
-        ) {
-          candidate = null;
-        }
         if (shouldAutoApply(candidate, typedWord)) {
           learnTapMapFromWordCorrection(
             typedWord,
@@ -3269,6 +3368,7 @@ function KeyboardBody({
       refreshSuggestions,
       scheduleAiProofread,
       syncTypingCompositorFromEditor,
+      startSuggestionEngineWarmup,
     ],
   );
 
@@ -4286,12 +4386,14 @@ function KeyboardBody({
             editorContextRef.current,
             livePrefixRef.current,
           );
-          scheduleBackspaceBarFlush();
+          updateLivePrefixPredictiveHitboxes();
+          scheduleDeferredLiveSuggestionBar();
         } else if (text === ' ') {
           livePrefixRef.current = '';
           clearMidWordAutoShift();
         }
         lastTypingAtRef.current = now;
+        markTypingChurn(now + TYPING_HEAVY_DEFER_MS);
         return;
       }
 
@@ -4300,6 +4402,7 @@ function KeyboardBody({
         if (/[a-z]/i.test(text)) {
           lastLetterCommitAtRef.current = Date.now();
           livePrefixRef.current += text;
+          updateLivePrefixPredictiveHitboxes();
         } else if (text === ' ') {
           livePrefixRef.current = '';
           clearMidWordAutoShift();
@@ -4327,7 +4430,8 @@ function KeyboardBody({
           livePrefixRef.current,
         );
         touchIntelligencePreviousKeyRef.current = text.toLowerCase();
-        if (!shouldDeferHeavyTypingSideEffects()) {
+        updateLivePrefixPredictiveHitboxes();
+        if (!shouldDeferNativeTouchIntelligenceSync()) {
           syncTouchIntelligenceToNative();
         }
         if (!burstTyping && !shouldDeferHeavyTypingSideEffects()) {
@@ -4339,7 +4443,8 @@ function KeyboardBody({
           clearMidWordAutoShift();
         }
         touchIntelligencePreviousKeyRef.current = null;
-        if (!shouldDeferHeavyTypingSideEffects()) {
+        updateLivePrefixPredictiveHitboxes();
+        if (!shouldDeferNativeTouchIntelligenceSync()) {
           syncTouchIntelligenceToNative();
         }
         if (text === ' ' && Platform.OS === 'android') {
@@ -4349,6 +4454,7 @@ function KeyboardBody({
         }
       }
       lastTypingAtRef.current = now;
+      markTypingChurn(now + TYPING_HEAVY_DEFER_MS);
 
       if (burstTyping) {
         setBurstTypingActive(true);
@@ -4365,10 +4471,10 @@ function KeyboardBody({
       const deferLiveSuggestionBar =
         burstTyping || shouldDeferLiveSuggestionBar();
 
-      if (!deferLiveSuggestionBar) {
-        if (/[a-z]/i.test(text)) {
-          applyInstantSuggestionBar(livePrefixRef.current);
-        } else if (text === ' ' || text.trim().length === 0) {
+      if (/[a-z]/i.test(text)) {
+        scheduleDeferredLiveSuggestionBar();
+      } else if (!deferLiveSuggestionBar) {
+        if (text === ' ' || text.trim().length === 0) {
           applyInstantSuggestionBar('');
         }
       }
@@ -4406,7 +4512,7 @@ function KeyboardBody({
         }, 450);
       }, LETTER_SIDE_EFFECTS_DEBOUNCE_MS);
     },
-    [applyInstantSuggestionBar, clearMidWordAutoShift, flushTypingIdleSideEffects, getEffectiveEditorContext, myRowSettingOn, scheduleAiPreflight, scheduleBackspaceBarFlush, syncAutoCapitalizeShift, syncTouchIntelligenceToNative],
+    [applyInstantSuggestionBar, clearMidWordAutoShift, flushTypingIdleSideEffects, getEffectiveEditorContext, myRowSettingOn, scheduleAiPreflight, scheduleBackspaceBarFlush, scheduleDeferredLiveSuggestionBar, syncAutoCapitalizeShift, syncTouchIntelligenceToNative, updateLivePrefixPredictiveHitboxes],
   );
 
   const handleMultiTouchKeyCommit = useCallback(
@@ -4619,11 +4725,14 @@ function KeyboardBody({
         lastInstantPrefixRef.current = snapshot.prefix;
         lastFlushedBarPrefixRef.current = snapshot.prefix;
         lastFlushedSuggestionsRef.current = snapshot.suggestions;
+        const typingLight = shouldUseLightSuggestionBar(lastTypingAtRef.current);
         const barState = computeTypingSuggestionBar(snapshot.prefix, {
           fast: true,
+          landscapeLight: typingLight,
           context: getEffectiveEditorContext(snapshot.prefix),
           previousWord: previousWordRef.current,
           suggestionsOnly: true,
+          prefixOnly: typingLight && isBurstTypingActive(),
         });
         lastFlushedAutocorrectRef.current = barState.autocorrectPreview;
         startTransition(() => {
@@ -4886,6 +4995,7 @@ function KeyboardBody({
     }
     try {
       await insertStickerLySticker(sticker);
+      void recordRecentSticker(sticker);
     } catch (error) {
       console.warn('Failed to insert sticker', error);
     }
@@ -4936,10 +5046,23 @@ function KeyboardBody({
     layout === 'letters';
 
   useEffect(() => {
-    if (!nativeFastPathEligible || !layoutContext) {
+    if (!layoutContext) {
       nativeFastPathActiveRef.current = false;
       lastPublishedLandscapeRef.current = null;
       keyboardBridge.setNativeKeyFastPathConfig(JSON.stringify({enabled: false}));
+      return;
+    }
+    if (!nativeFastPathEligible) {
+      nativeFastPathActiveRef.current = false;
+      lastPublishedLandscapeRef.current = null;
+      keyboardBridge.setNativeKeyFastPathConfig(JSON.stringify({enabled: false}));
+      if (theme.predictiveHitboxesEnabled) {
+        updatePredictiveHitboxes(livePrefixRef.current, layoutContext.getLayouts(), {
+          enabled: true,
+          lang: getActiveLanguage(),
+        });
+      }
+      syncTouchIntelligenceToNative(true);
       return;
     }
 
@@ -4986,9 +5109,16 @@ function KeyboardBody({
         keyPreviewStyle === 'popup' || keyPreviewStyle === 'subtle';
       const previewDoodleEnabled = keyPreviewStyle === 'doodle';
 
-      // Native fast path disabled — revert to pure JS typing.
+      // Native fast path disabled — keep JS typing; still publish touch-intel to native.
       nativeFastPathActiveRef.current = false;
       keyboardBridge.setNativeKeyFastPathConfig(JSON.stringify({enabled: false}));
+      if (theme.predictiveHitboxesEnabled) {
+        updatePredictiveHitboxes(livePrefixRef.current, keyLayouts, {
+          enabled: true,
+          lang: getActiveLanguage(),
+        });
+      }
+      syncTouchIntelligenceToNative(true);
       return;
 
       const origin = layoutContext.areaOriginRef.current;
@@ -5122,6 +5252,7 @@ function KeyboardBody({
     keyPreviewStyle,
     syncNativeFastPathCaseState,
     syncNativeFastPathPreviewChrome,
+    syncTouchIntelligenceToNative,
   ]);
 
   useEffect(() => {
@@ -5331,9 +5462,7 @@ function KeyboardBody({
     effectiveLetterKeyHeight ?? theme.keyHeight,
     theme.keyRowMargin,
     theme.imeStripClearance,
-    isEmojiMode && !isGifSearchMode && !isEmojiSearchMode && !isSfxSearchMode
-      ? 1
-      : 0,
+    showEmojiPluginPanel ? 1 : 0,
   );
 
   return (
@@ -5401,6 +5530,12 @@ function KeyboardBody({
           aiAutocorrectSuggestion={aiAutocorrectSuggestion}
           onAiAutocorrectSelect={handleAiAutocorrectSelect}
           isAiAutocorrectProcessing={isAiAutocorrectProcessing}
+          isSuggestionBootstrapLoading={
+            suggestionEngineLoading &&
+            mode.type === 'typing' &&
+            layout === 'letters' &&
+            !zeroLatencyMode
+          }
           onEssentialSelect={handleEssentialSuggestionSelect}
           panelSearch={
             isGifCategory
@@ -5442,6 +5577,10 @@ function KeyboardBody({
                       setEmojiSearchActive(true);
                     },
                     onClear: () => {
+                      if (emojiSearchActive && emojiSearchQuery.trim().length > 0) {
+                        setEmojiSearchActive(false);
+                        return;
+                      }
                       setEmojiSearchQuery('');
                       setEmojiSearchActive(false);
                     },
@@ -5571,13 +5710,17 @@ function KeyboardBody({
             />
           ) : null}
 
-          {isEmojiMode && !isGifSearchMode && !isEmojiSearchMode && !isSfxSearchMode ? (
+          {showEmojiPluginPanel ? (
             <EmojiPanel
               panelTab={emojiPanelTab}
-              emojiSubcategory={emojiSubcategory}
-              onEmojiSubcategorySelect={setEmojiSubcategory}
+              emojiSubcategory={normalizeEmojiSubcategoryId(emojiSubcategory)}
+              onEmojiSubcategorySelect={id =>
+                setEmojiSubcategory(normalizeEmojiSubcategoryId(id))
+              }
               emojiSearchQuery={emojiSearchQuery}
+              emojiSearchActive={emojiSearchActive}
               panelHeight={emojiPanelScrollHeight}
+              contextSnippet={getEffectiveEditorContext('')}
               onSelect={handleEmojiSelect}
               onGifSelect={gif => {
                 void handleGifSelect(gif);
@@ -5602,7 +5745,7 @@ function KeyboardBody({
 
           {mode.type === 'items-menu' ? (
             <ItemsMenuPanel
-              pluginsLocked={!isPluginPremium}
+              canOpenPlugin={canUsePluginMenuItem}
               showUpsell={showUpsell}
               onDismissUpsell={() => setShowUpsell(false)}
               onLockedPluginPress={() => setShowUpsell(true)}
@@ -5754,7 +5897,7 @@ function KeyboardBody({
             />
           ) : null}
 
-          {isEmojiMode && !isGifSearchMode && !isEmojiSearchMode && !isSfxSearchMode ? (
+          {showEmojiPluginPanel ? (
             <EmojiBottomRow
               panelTab={emojiPanelTab}
               onPanelTabSelect={tab => {

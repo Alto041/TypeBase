@@ -14,6 +14,7 @@ import {
   isHardRejectedCorrection,
   isLearnedWordInsisted,
   queryPersonalContextCorrections,
+  queryPersonalPhraseExpectedWords,
 } from '../personalTyping/personalTypingEngine';
 import {applyCaseToWord} from '../suggestions/wordSuggestions';
 import {getAutocorrectSettings} from './autocorrectStore';
@@ -98,7 +99,7 @@ function maxEditDistance(length: number): number {
   if (length <= 3) {
     return 1;
   }
-  if (length <= 8) {
+  if (length <= 5) {
     return 2;
   }
   return 3;
@@ -262,7 +263,19 @@ function gatherCandidates(
   };
 
   for (const personal of queryPersonalContextCorrections(typedLower)) {
-    add(personal.to, levenshtein(typedLower, personal.to), personal.confidence * 90, 'personal');
+    add(personal.to, levenshtein(typedLower, personal.to), personal.confidence * 110, 'personal');
+  }
+
+  if (trailingWords.length > 0) {
+    for (const {word, weight} of queryPersonalPhraseExpectedWords(trailingWords)) {
+      if (Math.abs(word.length - typedLower.length) > maxEdits + 1) {
+        continue;
+      }
+      const edits = levenshtein(typedLower, word);
+      if (edits > 0 && edits <= maxEdits) {
+        add(word, edits, weight * 2.4, 'personal');
+      }
+    }
   }
 
   if (trailingWords.length > 0) {

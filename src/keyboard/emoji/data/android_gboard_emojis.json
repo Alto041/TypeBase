@@ -2,7 +2,7 @@
   "meta": {
     "description": "Android/Gboard-style emoji keyboard data, organized by category tabs.",
     "source": "Unicode Consortium emoji data (CLDR), regrouped to match Gboard's category tabs",
-    "total_emojis": 2069,
+    "total_emojis": 2066,
     "categories_order": [
       "smileys_people",
       "animals_nature",
@@ -12668,7 +12668,7 @@
       "id": "flags",
       "label": "Flags",
       "icon": "🏳️",
-      "count": 270,
+      "count": 267,
       "emojis": [
         {
           "emoji": "🏁",
@@ -12704,20 +12704,6 @@
           "slug": "white_flag",
           "skin_tone_support": false,
           "unicode_version": "0.7"
-        },
-        {
-          "emoji": "🏳️‍🌈",
-          "name": "rainbow flag",
-          "slug": "rainbow_flag",
-          "skin_tone_support": false,
-          "unicode_version": "4.0"
-        },
-        {
-          "emoji": "🏳️‍⚧️",
-          "name": "transgender flag",
-          "slug": "transgender_flag",
-          "skin_tone_support": false,
-          "unicode_version": "13.0"
         },
         {
           "emoji": "🏴‍☠️",
@@ -13486,13 +13472,6 @@
           "emoji": "🇮🇪",
           "name": "flag Ireland",
           "slug": "flag_ireland",
-          "skin_tone_support": false,
-          "unicode_version": "2.0"
-        },
-        {
-          "emoji": "🇮🇱",
-          "name": "flag Israel",
-          "slug": "flag_israel",
           "skin_tone_support": false,
           "unicode_version": "2.0"
         },

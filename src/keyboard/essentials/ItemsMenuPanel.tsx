@@ -44,7 +44,9 @@ type ItemsMenuPanelProps = {
   onSelectResize: () => void;
   onSelectMetrics?: () => void;
   onSelectOneHand?: () => void;
+  /** When false, every tile uses the same lock state (legacy). Prefer canOpenPlugin. */
   pluginsLocked?: boolean;
+  canOpenPlugin?: (pluginId: string) => boolean;
   showUpsell?: boolean;
   onDismissUpsell?: () => void;
   onLockedPluginPress?: () => void;
@@ -160,6 +162,7 @@ export function ItemsMenuPanel({
   onSelectMetrics,
   onSelectOneHand,
   pluginsLocked = false,
+  canOpenPlugin,
   showUpsell = false,
   onDismissUpsell,
   onLockedPluginPress,
@@ -191,22 +194,28 @@ export function ItemsMenuPanel({
   return (
     <View style={[panelStyles.container, styles.container]}>
       <PluginScrollView fadeScrollInset>
-        {plugins.map((plugin, index) => (
+        {plugins.map((plugin, index) => {
+          const locked =
+            canOpenPlugin != null
+              ? !canOpenPlugin(plugin.id)
+              : pluginsLocked;
+          return (
           <PluginTile
             key={plugin.id}
             title={plugin.title}
             Icon={plugin.Icon}
             tileStyle={getTileStyle(index, plugins.length)}
-            locked={pluginsLocked}
+            locked={locked}
             onPress={() => {
-              if (pluginsLocked) {
+              if (locked) {
                 onLockedPluginPress?.();
                 return;
               }
               handlers[plugin.id]?.();
             }}
           />
-        ))}
+          );
+        })}
       </PluginScrollView>
       {showUpsell ? (
         <PremiumUpsellSheet placement="panel" onDismiss={onDismissUpsell ?? (() => {})} />

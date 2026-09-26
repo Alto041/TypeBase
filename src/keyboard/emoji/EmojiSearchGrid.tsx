@@ -10,11 +10,11 @@ import {
 import {useThemedStyles} from '../KeyboardThemeContext';
 import {triggerKeyHaptic} from '../haptics';
 import {chunkEmojis, EMOJI_COLUMNS} from './emojis';
+import {searchEmojisWithChord} from './emojiChord';
 import {
   createEmojiPanelSharedStyles,
   EMOJI_CELL_GAP,
 } from './emojiPanelLayout';
-import {searchEmojis} from './gboardEmojiData';
 
 type EmojiSearchGridProps = {
   width: number;
@@ -35,7 +35,10 @@ export function EmojiSearchGrid({
     () => createEmojiSearchGridStyles(rowHeight),
     [rowHeight],
   );
-  const results = useMemo(() => searchEmojis(query), [query]);
+  const {chord, emojis: results} = useMemo(
+    () => searchEmojisWithChord(query),
+    [query],
+  );
   const rows = useMemo(
     () => chunkEmojis(results, EMOJI_COLUMNS),
     [results],
@@ -88,7 +91,7 @@ export function EmojiSearchGrid({
       <View style={[sharedStyles.emptyState, {width, height}]}>
         <Text style={sharedStyles.emptyTitle}>Search emojis</Text>
         <Text style={sharedStyles.emptyHint}>
-          Tap the search bar above and type a keyword.
+          Type a keyword, or an emoji chord like :) or {'<3'}.
         </Text>
       </View>
     );
@@ -109,7 +112,9 @@ export function EmojiSearchGrid({
     <View style={{width, height}}>
       <View style={sharedStyles.sectionHeader}>
         <Text style={sharedStyles.sectionHeaderText}>
-          {results.length} result{results.length === 1 ? '' : 's'}
+          {chord
+            ? `Chord · ${chord.label}`
+            : `${results.length} result${results.length === 1 ? '' : 's'}`}
         </Text>
       </View>
       <FlatList

@@ -6,6 +6,16 @@ let zeroLatencyModeActive = false;
 let burstTypingActive = false;
 let gamePerformanceModeActive = false;
 let floatingKeyboardDragActive = false;
+/** Monotonic deadline — defer heavy JS while keys are still arriving. */
+let typingChurnUntilMs = 0;
+
+export function markTypingChurn(deadlineMs: number): void {
+  typingChurnUntilMs = Math.max(typingChurnUntilMs, deadlineMs);
+}
+
+export function isTypingChurnActive(now = Date.now()): boolean {
+  return typingChurnUntilMs > now;
+}
 
 export function isFloatingKeyboardDragActive(): boolean {
   return floatingKeyboardDragActive;
@@ -60,7 +70,8 @@ export function shouldDeferHeavyTypingSideEffects(): boolean {
     gamePerformanceModeActive ||
     burstTypingActive ||
     floatingKeyboardDragActive ||
-    isLandscapeTypingProfile()
+    isLandscapeTypingProfile() ||
+    isTypingChurnActive()
   );
 }
 
@@ -71,7 +82,8 @@ export function shouldDeferLiveSuggestionBar(): boolean {
     gamePerformanceModeActive ||
     burstTypingActive ||
     floatingKeyboardDragActive ||
-    isLandscapeTypingProfile()
+    isLandscapeTypingProfile() ||
+    isTypingChurnActive()
   );
 }
 
@@ -84,13 +96,22 @@ export function shouldSkipFrostedKeyboardEffects(): boolean {
   );
 }
 
-/** Skip touch-intel scoring, telemetry, and native context sync. */
+/** Skip tap-map learning and touch-intel telemetry (extreme perf modes only). */
 export function shouldSkipTouchIntelligenceWork(): boolean {
   return (
     zeroLatencyModeActive ||
     gamePerformanceModeActive ||
-    floatingKeyboardDragActive ||
-    isLandscapeTypingProfile()
+    floatingKeyboardDragActive
+  );
+}
+
+/** Defer native touch-intel JSON sync during bursts, churn, and landscape typing. */
+export function shouldDeferNativeTouchIntelligenceSync(): boolean {
+  return (
+    shouldSkipTouchIntelligenceWork() ||
+    isLandscapeTypingProfile() ||
+    burstTypingActive ||
+    isTypingChurnActive()
   );
 }
 

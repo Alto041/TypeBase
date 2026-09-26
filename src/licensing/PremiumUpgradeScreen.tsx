@@ -16,7 +16,6 @@ import AiConfigBlackIcon from '../../assets/Artificial.svg';
 import CheckIcon from '../../assets/check.svg';
 import GestureIcon from '../../assets/gesture.svg';
 import ItemsIcon from '../../assets/items.svg';
-import NextLineIcon from '../../assets/next_line.svg';
 import PersonalIcon from '../../assets/personal.svg';
 import ThemesIcon from '../../assets/themes.svg';
 import {usePremium} from './PremiumContext';
@@ -175,7 +174,7 @@ export function PremiumUpgradeScreen({onBack}: PremiumUpgradeScreenProps) {
         </View>
 
         {!isPremium ? (
-          <View style={styles.actionsRow}>
+          <View style={styles.actionsCol}>
             <Pressable
               style={[styles.unlockBtn, busy !== null && styles.btnDisabled]}
               disabled={busy !== null || loading}
@@ -189,14 +188,14 @@ export function PremiumUpgradeScreen({onBack}: PremiumUpgradeScreenProps) {
               )}
             </Pressable>
             <Pressable
-              style={[styles.restoreBtn, busy !== null && styles.btnDisabled]}
+              style={[styles.restoreTextBtn, busy !== null && styles.btnDisabled]}
               disabled={busy !== null || loading}
               onPress={() => void handleRestore()}
               accessibilityLabel="Restore purchase">
               {busy === 'restore' ? (
-                <ActivityIndicator color="#ffffff" size="small" />
+                <ActivityIndicator color={C.text} size="small" />
               ) : (
-                <NextLineIcon width={20} height={20} color="#ffffff" />
+                <Text style={styles.restoreTextBtnLabel}>Restore purchase</Text>
               )}
             </Pressable>
           </View>
@@ -329,14 +328,11 @@ const styles = StyleSheet.create({
     fontFamily: 'FragmentMono',
     letterSpacing: TEXT_KERNING,
   },
-  actionsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  actionsCol: {
+    gap: 10,
     marginTop: 8,
   },
   unlockBtn: {
-    flex: 1,
     backgroundColor: C.text,
     borderRadius: CARD_R,
     height: ACTION_BTN_SIZE,
@@ -351,13 +347,19 @@ const styles = StyleSheet.create({
     letterSpacing: TEXT_KERNING,
     textTransform: 'uppercase',
   },
-  restoreBtn: {
-    width: ACTION_BTN_SIZE,
-    height: ACTION_BTN_SIZE,
-    borderRadius: CARD_R,
+  restoreTextBtn: {
+    minHeight: 44,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: C.red,
+    paddingVertical: 8,
+  },
+  restoreTextBtnLabel: {
+    color: C.text,
+    fontSize: 13,
+    fontFamily: 'FragmentMono',
+    letterSpacing: TEXT_KERNING,
+    textTransform: 'uppercase',
+    textDecorationLine: 'underline',
   },
   btnDisabled: {
     opacity: 0.7,
