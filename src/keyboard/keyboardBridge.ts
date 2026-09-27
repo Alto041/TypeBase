@@ -84,6 +84,7 @@ type KeyboardModuleType = {
   playCustomTapSound: () => void;
   setKeyboardHeight: (heightDp: number) => void;
   setFloatingKeyboard: (enabled: boolean) => void;
+  syncFloatingKeyboardForOrientation: () => void;
   setTouchpadGestureConsuming: (active: boolean) => void;
   setNativeKeyFastPathConfig: (json: string) => void;
   setKeyPreviewDoodleEnabled: (enabled: boolean) => void;
@@ -609,6 +610,14 @@ export const keyboardBridge: KeyboardModuleType = {
   setFloatingKeyboard: (enabled: boolean) => {
     if (Platform.OS === 'android' && KeyboardModule?.setFloatingKeyboard) {
       KeyboardModule.setFloatingKeyboard(enabled);
+    }
+  },
+  syncFloatingKeyboardForOrientation: () => {
+    if (
+      Platform.OS === 'android' &&
+      KeyboardModule?.syncFloatingKeyboardForOrientation
+    ) {
+      KeyboardModule.syncFloatingKeyboardForOrientation();
     }
   },
   setTouchpadGestureConsuming: (active: boolean) => {

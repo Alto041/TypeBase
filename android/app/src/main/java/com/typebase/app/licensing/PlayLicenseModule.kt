@@ -27,9 +27,9 @@ class PlayLicenseModule(reactContext: ReactApplicationContext) :
   }
 
   @ReactMethod
-  fun openPlayStoreListing(promise: Promise) {
+  fun openAppListing(promise: Promise) {
     try {
-      PlayLicenseManager.openPlayStoreListing(reactApplicationContext)
+      PlayLicenseManager.openAppListing(reactApplicationContext)
       promise.resolve(true)
     } catch (error: Exception) {
       promise.reject("OPEN_PLAY_STORE_FAILED", error)

@@ -66,10 +66,7 @@ function normalizeLayout(raw: unknown): KeyboardLayoutSettings {
       typeof obj['numberRowEnabled'] === 'boolean'
         ? obj['numberRowEnabled']
         : defaults.numberRowEnabled,
-    landscapeFloatingKeyboardEnabled:
-      typeof obj['landscapeFloatingKeyboardEnabled'] === 'boolean'
-        ? obj['landscapeFloatingKeyboardEnabled']
-        : defaults.landscapeFloatingKeyboardEnabled,
+    landscapeFloatingKeyboardEnabled: false,
     myRowEnabled:
       typeof obj['myRowEnabled'] === 'boolean'
         ? obj['myRowEnabled']
@@ -203,6 +200,16 @@ async function loadFromStorage(): Promise<void> {
     keyboardBridge.syncCustomTapSound?.();
   } catch {
     // Tap sound install is optional; typing still works without it.
+  }
+  if (storedLayout?.landscapeFloatingKeyboardEnabled === true) {
+    try {
+      await setKeyboardLayoutSettings({
+        ...cachedLayout,
+        landscapeFloatingKeyboardEnabled: false,
+      });
+    } catch {
+      cachedLayout = {...cachedLayout, landscapeFloatingKeyboardEnabled: false};
+    }
   }
 }
 

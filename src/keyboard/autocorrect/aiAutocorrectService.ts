@@ -1,15 +1,14 @@
+import {
+  resolveOnDeviceTypeLiftHybrid,
+  resolveTokenWithSymSpell,
+} from './typeLiftEngine';
 import {generateOnDeviceText} from '../ai/onDeviceTextAi';
 import {GEMINI_GENERATION_CONFIG} from '../ai/generationConfig';
-import {
-  buildGemmaTypeLiftPrompt,
-  buildGemmaTypeLiftRetryPrompt,
-} from '../ai/gemmaPrompts';
 import {
   cleanOnDeviceTypeLiftOutput,
   isDegenerateTypeLiftOutput,
   isFaithfulTypeLiftCorrection,
 } from './typeLiftFaithfulness';
-import {TYPELIFT_DEFAULT_TONE} from './typeLiftBranding';
 import {hasDictionaryWord} from './dictionaryManager';
 import {shouldAutoCapitalize} from '../autoCapitalize';
 import {getGeminiApiKeyOptional} from '../settings/apiKeysStore';
@@ -433,36 +432,12 @@ function classifyOnDeviceTypeLiftCorrection(
     return {kind: 'none'};
   }
 
-  const distance = levenshtein(
-    normalizedOriginal.toLowerCase(),
-    normalizedCorrection.toLowerCase(),
-  );
-  const autoDistanceLimit = Math.min(
-    120,
-    Math.max(24, Math.ceil(normalizedOriginal.length * 0.85)),
-  );
-
-  if (distance <= autoDistanceLimit) {
-    console.log(LOG_PREFIX, 'auto result (on-device)', {
-      original: normalizedOriginal,
-      correction: normalizedCorrection,
-      distance,
-      autoDistanceLimit,
-    });
-    return {
-      kind: 'auto',
-      original,
-      correction: normalizedCorrection,
-    };
-  }
-
-  console.log(LOG_PREFIX, 'suggestion result (on-device)', {
+  console.log(LOG_PREFIX, 'auto result (on-device)', {
     original: normalizedOriginal,
     correction: normalizedCorrection,
-    distance,
   });
   return {
-    kind: 'suggest',
+    kind: 'auto',
     original,
     correction: normalizedCorrection,
   };
@@ -532,17 +507,13 @@ function classifyCorrection(
 
   if (distance <= autoDistanceLimit && wordDelta <= 3) {
     if (!isFaithfulTypeLiftCorrection(normalizedOriginal, normalizedCorrection, 'auto')) {
-      console.log(LOG_PREFIX, 'suggestion result (auto blocked)', {
+      console.log(LOG_PREFIX, 'reject: auto blocked by faithfulness', {
         original: normalizedOriginal,
         correction: normalizedCorrection,
         distance,
         wordDelta,
       });
-      return {
-        kind: 'suggest',
-        original,
-        correction: normalizedCorrection,
-      };
+      return {kind: 'none'};
     }
     console.log(LOG_PREFIX, 'auto result', {
       original: normalizedOriginal,
@@ -558,17 +529,30 @@ function classifyCorrection(
     };
   }
 
-  console.log(LOG_PREFIX, 'suggestion result', {
+  if (
+    isFaithfulTypeLiftCorrection(normalizedOriginal, normalizedCorrection, 'auto') &&
+    wordDelta <= 4
+  ) {
+    console.log(LOG_PREFIX, 'auto result (longer faithful fix)', {
+      original: normalizedOriginal,
+      correction: normalizedCorrection,
+      distance,
+      wordDelta,
+    });
+    return {
+      kind: 'auto',
+      original,
+      correction: normalizedCorrection,
+    };
+  }
+
+  console.log(LOG_PREFIX, 'reject: not faithful enough for auto', {
     original: normalizedOriginal,
     correction: normalizedCorrection,
     distance,
     wordDelta,
   });
-  return {
-    kind: 'suggest',
-    original,
-    correction: normalizedCorrection,
-  };
+  return {kind: 'none'};
 }
 
 async function generateGeminiProofread(
@@ -615,32 +599,6 @@ async function generateGeminiProofread(
   return raw;
 }
 
-async function runOnDeviceTypeLift(
-  input: string,
-  toneInstruction = TYPELIFT_DEFAULT_TONE,
-): Promise<string | null> {
-  const maxTokens = maxTypeLiftOutputChars(input);
-  const prompt = buildGemmaTypeLiftPrompt(input, toneInstruction);
-  console.log(LOG_PREFIX, 'on-device prompt', {prompt, maxTokens, toneInstruction});
-
-  const raw = await generateOnDeviceText(prompt, {temperature: 0});
-  console.log(LOG_PREFIX, 'on-device raw response', {raw});
-  const parsed = parseOnDeviceTypeLiftResult(raw, input, maxTokens);
-  if (parsed && !isCosmeticOnlyCorrection(input, parsed)) {
-    return parsed;
-  }
-
-  console.log(LOG_PREFIX, 'on-device retry: unchanged output', {
-    input,
-    parsed,
-  });
-  const retryPrompt = buildGemmaTypeLiftRetryPrompt(input, toneInstruction);
-  const retryRaw = await generateOnDeviceText(retryPrompt, {temperature: 0.2});
-  console.log(LOG_PREFIX, 'on-device retry raw response', {raw: retryRaw});
-  const retryParsed = parseOnDeviceTypeLiftResult(retryRaw, input, maxTokens);
-  return retryParsed || null;
-}
-
 async function generateProofread(
   input: string,
   promptBuilder: (value: string) => string = buildGeminiAutocorrectPrompt,
@@ -655,7 +613,7 @@ async function generateProofread(
       return parseOnDeviceTypeLiftResult(raw, input);
     }
 
-    return runOnDeviceTypeLift(input);
+    return null;
   }
 
   const raw = await generateGeminiProofread(input, promptBuilder);
@@ -702,6 +660,40 @@ function isChatbotReply(original: string, candidate: string): boolean {
   return !CHATBOT_REPLY_PATTERNS.some(pattern => pattern.test(trimmedOriginal));
 }
 
+function isRepeatedLetterCollapseTypo(original: string, correction: string): boolean {
+  if (correction.length !== original.length - 1) {
+    return false;
+  }
+  for (let i = 1; i < original.length; i += 1) {
+    if (original[i] === original[i - 1]) {
+      const collapsed = original.slice(0, i) + original.slice(i + 1);
+      if (collapsed === correction) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+function isLegitimateTypoWordFix(original: string, correction: string): boolean {
+  const o = original.toLowerCase();
+  const c = correction.toLowerCase();
+  if (o === c || hasDictionaryWord(o)) {
+    return false;
+  }
+  if (!hasDictionaryWord(c)) {
+    return false;
+  }
+  const distance = levenshtein(o, c);
+  if (distance > 2) {
+    return false;
+  }
+  if (isRepeatedLetterCollapseTypo(o, c)) {
+    return true;
+  }
+  return distance <= 2 && c.length <= o.length + 1;
+}
+
 function isShallowDictionarySwap(originalWord: string, correctionWord: string): boolean {
   const original = originalWord.replace(/[^\p{L}\p{M}']/gu, '');
   const correction = correctionWord.replace(/[^\p{L}\p{M}']/gu, '');
@@ -712,6 +704,10 @@ function isShallowDictionarySwap(originalWord: string, correctionWord: string): 
   const o = original.toLowerCase();
   const c = correction.toLowerCase();
   if (o === c) {
+    return false;
+  }
+
+  if (isLegitimateTypoWordFix(o, c)) {
     return false;
   }
 
@@ -779,7 +775,7 @@ function leavesKnownTyposUnfixed(original: string, correction: string): boolean 
   const words = original.match(/[\p{L}']+/gu) ?? [];
   for (const word of words) {
     const lower = word.toLowerCase();
-    if (lower.length < 4 || TYPOLIFT_SKIP_WORDS.has(lower)) {
+    if (lower.length < 3 || TYPOLIFT_SKIP_WORDS.has(lower)) {
       continue;
     }
     if (hasDictionaryWord(lower)) {
@@ -796,6 +792,17 @@ function leavesKnownTyposUnfixed(original: string, correction: string): boolean 
   }
 
   return false;
+}
+
+function contextBeforeForSnippet(context: string, snippet: string): string {
+  if (context.endsWith(snippet)) {
+    return context.slice(0, context.length - snippet.length);
+  }
+  const trimmedEnd = context.replace(/\s+$/, '');
+  if (trimmedEnd.endsWith(snippet)) {
+    return trimmedEnd.slice(0, trimmedEnd.length - snippet.length);
+  }
+  return context.slice(0, Math.max(0, context.length - snippet.length));
 }
 
 async function generateProofreadWithFallback(
@@ -879,14 +886,17 @@ async function generateProofreadWithFallback(
     return normalized;
   };
 
-  const firstRaw = await generateProofread(input);
-  const first = acceptCandidate(firstRaw);
-  if (first) {
-    return first;
-  }
+  if (onDevice) {
+    try {
+      const hybrid = await resolveOnDeviceTypeLiftHybrid(input, contextBefore);
+      const hybridAccepted = acceptCandidate(hybrid);
+      if (hybridAccepted) {
+        return hybridAccepted;
+      }
+    } catch (error) {
+      console.warn(LOG_PREFIX, 'on-device hybrid failed', error);
+    }
 
-  await ensureAiProviderLoaded();
-  if (getAiProvider() === 'on_device') {
     const apiKey = await getGeminiApiKeyOptional();
     if (apiKey) {
       console.log(LOG_PREFIX, 'cloud fallback', {input});
@@ -902,6 +912,12 @@ async function generateProofreadWithFallback(
       }
     }
     return null;
+  }
+
+  const firstRaw = await generateProofread(input);
+  const first = acceptCandidate(firstRaw);
+  if (first) {
+    return first;
   }
 
   const strongRaw = await generateGeminiProofread(
@@ -927,7 +943,7 @@ export async function proofreadRecentTypingContext(
   }
 
   try {
-    const contextBefore = context.slice(0, context.length - original.length);
+    const contextBefore = contextBeforeForSnippet(context, original);
     const correction = await generateProofreadWithFallback(original, contextBefore);
 
     console.log(LOG_PREFIX, 'parsed correction', {
@@ -966,6 +982,25 @@ export async function proofreadActiveToken(
   }
 
   try {
+    await ensureAiProviderLoaded();
+    const onDevice = getAiProvider() === 'on_device';
+
+    const symSpellFix = resolveTokenWithSymSpell(normalized, '');
+    if (symSpellFix) {
+      const finalized = finalizeTypeLiftCorrection('', normalized, symSpellFix);
+      if (onDevice) {
+        return classifyOnDeviceTypeLiftCorrection(normalized, finalized);
+      }
+      const symResult = classifyCorrection(normalized, finalized);
+      if (symResult.kind !== 'none') {
+        return symResult;
+      }
+    }
+
+    if (onDevice) {
+      return {kind: 'none'};
+    }
+
     const correction = await generateProofread(
       normalized,
       buildTokenAutocorrectPrompt,

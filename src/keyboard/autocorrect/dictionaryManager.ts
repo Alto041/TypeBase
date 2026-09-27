@@ -214,14 +214,16 @@ export function isSymSpellLookupReady(): boolean {
 }
 
 const SYM_SPELL_BOOTSTRAP_WORDS = ENGLISH_ACCURACY_BOOTSTRAP_WORDS;
-const SYM_SEED_CHUNK = 120;
-const SYM_SEED_DELAY_MS = 48;
+/** Sync insert on first open — keep small; full list continues in chunked seed. */
+const SYM_SPELL_SYNC_BOOTSTRAP = 1_500;
+const SYM_SEED_CHUNK = 96;
+const SYM_SEED_DELAY_MS = 72;
 
 function bootstrapEnglishSymSpell(words: readonly string[]): SymSpell {
   ensureEnglishAccuracyBootstrap();
   scheduleEnglishRankMapBuild();
   const en = new SymSpell(90_000, 3, 7);
-  const bootstrapCount = Math.min(SYM_SPELL_BOOTSTRAP_WORDS, words.length);
+  const bootstrapCount = Math.min(SYM_SPELL_SYNC_BOOTSTRAP, words.length);
   for (let i = 0; i < bootstrapCount; i += 1) {
     en.CreateDictionaryEntry(words[i]!, syntheticFrequencyCount(i));
   }
@@ -248,7 +250,7 @@ export function scheduleBackgroundEnglishSymSpellSeed(): void {
   }
 
   const en = bootstrapEnglishSymSpell(words);
-  let index = Math.min(SYM_SPELL_BOOTSTRAP_WORDS, words.length);
+  let index = Math.min(SYM_SPELL_SYNC_BOOTSTRAP, words.length);
 
   const step = (): void => {
     const end = Math.min(index + SYM_SEED_CHUNK, words.length);

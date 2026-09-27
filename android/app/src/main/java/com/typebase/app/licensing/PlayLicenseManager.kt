@@ -1,7 +1,9 @@
 package com.typebase.app.licensing
 
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -111,10 +113,33 @@ object PlayLicenseManager {
     val policy = FirstInstallPolicy(appContext, obfuscator)
     val publicKey = BuildConfig.PLAY_LICENSE_PUBLIC_KEY.trim()
     if (publicKey.isEmpty()) {
+      openAppListing(appContext)
       return
     }
     val checker = LicenseChecker(appContext, policy, publicKey)
     checker.followLastLicensingUrl(appContext)
+  }
+
+  /** Opens this app on Google Play (reviews / feedback). Works without Play Licensing setup. */
+  fun openAppListing(context: Context) {
+    val appContext = context.applicationContext
+    val packageName = appContext.packageName
+    val marketIntent =
+        Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$packageName")).apply {
+          addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+          setPackage("com.android.vending")
+        }
+    try {
+      appContext.startActivity(marketIntent)
+    } catch (_: Exception) {
+      val webIntent =
+          Intent(
+                  Intent.ACTION_VIEW,
+                  Uri.parse("https://play.google.com/store/apps/details?id=$packageName"),
+              )
+              .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      appContext.startActivity(webIntent)
+    }
   }
 
   fun isInstalledFromPlay(context: Context): Boolean {

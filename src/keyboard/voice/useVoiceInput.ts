@@ -17,7 +17,8 @@ import {
 } from './voiceActivationSound';
 import {SpeechmaticsVoiceService} from './speechmaticsService';
 import {getRollingPreviewWords, VOICE_PILL_PREVIEW_MAX_WORDS} from './voiceTranscriptPreview';
-import {applyVoiceHeuristicCleanup} from './voiceCleanupUtils';
+import {polishVoiceTranscriptLocal} from './voiceCleanupUtils';
+import {startVoiceSttWarmup} from './voiceSttWarmup';
 import {voiceRecorder} from './voiceRecorder';
 
 function resolveSttProvider(): VoiceSttProvider {
@@ -174,6 +175,20 @@ export function useVoiceInput() {
     [markVoiceSpeaking, refreshPreview],
   );
 
+  const appendFinalForSession = useCallback(
+    (sessionId: number, text: string) => {
+      if (stoppingRef.current) {
+        appendFinalSegment(text);
+        return;
+      }
+      if (!isVoiceSessionActive(sessionId)) {
+        return;
+      }
+      appendFinalSegment(text);
+    },
+    [appendFinalSegment, isVoiceSessionActive],
+  );
+
   const finishSession = useCallback(async (sttProvider: VoiceSttProvider | null) => {
     const raw = buildSessionRaw(
       sessionFinalsRef.current,
@@ -192,23 +207,23 @@ export function useVoiceInput() {
     isVoiceProcessingRef.current = true;
     setPartialTranscript('');
 
-    let textToInsert = raw;
+    const isParakeet = sttProvider === 'parakeet';
+    let textToInsert = isParakeet
+      ? polishVoiceTranscriptLocal(raw) || raw
+      : raw;
 
     if (canUseFeature('voice')) {
       try {
         const {text} = await cleanupVoiceTranscript(raw, {
-          preferOnDevice: sttProvider === 'parakeet',
+          preferOnDevice: isParakeet,
           allowFillerRemoval: true,
         });
-        textToInsert = text.trim() || raw;
+        textToInsert = text.trim() || textToInsert;
       } catch (error) {
         if (!(error instanceof VoiceCleanupError)) {
           throw error;
         }
-        textToInsert = raw;
       }
-    } else {
-      textToInsert = applyVoiceHeuristicCleanup(raw) || raw;
     }
 
     const toInsert = formatDictationInsert(textToInsert);
@@ -221,32 +236,44 @@ export function useVoiceInput() {
     isVoiceProcessingRef.current = false;
   }, []);
 
-  const teardownVoiceResources = useCallback(async () => {
-    if (speakingTimerRef.current) {
-      clearTimeout(speakingTimerRef.current);
-      speakingTimerRef.current = null;
-    }
-
+  const stopVoiceCapture = useCallback(async () => {
     const activeProvider = activeSttProviderRef.current;
 
     if (activeProvider === 'parakeet') {
       await voiceRecorder.stopParakeetStt().catch(() => {});
     } else if (activeProvider === 'android') {
       await voiceRecorder.stopAndroidStt().catch(() => {});
-    } else {
+    } else if (activeProvider) {
       await voiceRecorder.stop().catch(() => {});
     }
 
-    unsubscribeRef.current?.();
-    unsubscribeRef.current = null;
-
     const service = serviceRef.current;
-    serviceRef.current = null;
     if (service) {
       await service.stop().catch(() => {});
     }
+  }, []);
 
+  const releaseVoiceSubscriptions = useCallback(() => {
+    unsubscribeRef.current?.();
+    unsubscribeRef.current = null;
+    serviceRef.current = null;
     activeSttProviderRef.current = null;
+  }, []);
+
+  const teardownVoiceResources = useCallback(async () => {
+    if (speakingTimerRef.current) {
+      clearTimeout(speakingTimerRef.current);
+      speakingTimerRef.current = null;
+    }
+
+    await stopVoiceCapture();
+    releaseVoiceSubscriptions();
+  }, [releaseVoiceSubscriptions, stopVoiceCapture]);
+
+  const waitForVoiceFinalMs = useCallback(async (ms: number) => {
+    await new Promise<void>(resolve => {
+      setTimeout(resolve, ms);
+    });
   }, []);
 
   const abortInFlightVoice = useCallback(async () => {
@@ -272,7 +299,6 @@ export function useVoiceInput() {
       return;
     }
     stoppingRef.current = true;
-    cancelVoiceSession();
 
     try {
       setIsListening(false);
@@ -280,12 +306,23 @@ export function useVoiceInput() {
       setIsVoiceConnecting(false);
 
       const activeProvider = activeSttProviderRef.current;
-      await teardownVoiceResources();
+      await stopVoiceCapture();
+      if (activeProvider === 'parakeet') {
+        await waitForVoiceFinalMs(120);
+      }
       await finishSession(activeProvider);
+      releaseVoiceSubscriptions();
+      cancelVoiceSession();
     } finally {
       stoppingRef.current = false;
     }
-  }, [cancelVoiceSession, finishSession, teardownVoiceResources]);
+  }, [
+    cancelVoiceSession,
+    finishSession,
+    releaseVoiceSubscriptions,
+    stopVoiceCapture,
+    waitForVoiceFinalMs,
+  ]);
 
   stopListeningRef.current = stopListening;
 
@@ -302,7 +339,21 @@ export function useVoiceInput() {
         return false;
       }
 
+      let activationPlayed = false;
+      const markParakeetActive = () => {
+        if (activationPlayed || !isVoiceSessionActive(sessionId)) {
+          return;
+        }
+        activationPlayed = true;
+        setIsVoiceConnecting(false);
+        setIsListening(true);
+        playVoiceActivationSound();
+      };
+
       unsubscribeRef.current = voiceRecorder.subscribeParakeetStt({
+        onReady: () => {
+          markParakeetActive();
+        },
         onPartial: partial => {
           if (!isVoiceSessionActive(sessionId)) {
             return;
@@ -310,10 +361,7 @@ export function useVoiceInput() {
           updateLivePreview(partial);
         },
         onFinal: text => {
-          if (!isVoiceSessionActive(sessionId)) {
-            return;
-          }
-          appendFinalSegment(text);
+          appendFinalForSession(sessionId, text);
         },
         onError: () => {
           if (!stoppingRef.current && isVoiceSessionActive(sessionId)) {
@@ -331,9 +379,7 @@ export function useVoiceInput() {
           activeSttProviderRef.current = null;
           return false;
         }
-        setIsVoiceConnecting(false);
-        setIsListening(true);
-        playVoiceActivationSound();
+        setTimeout(() => markParakeetActive(), 1500);
         return true;
       } catch {
         unsubscribeRef.current?.();
@@ -343,7 +389,7 @@ export function useVoiceInput() {
         return false;
       }
     },
-    [appendFinalSegment, isVoiceSessionActive, updateLivePreview],
+    [appendFinalForSession, isVoiceSessionActive, updateLivePreview],
   );
 
   const startAndroidListening = useCallback(
@@ -375,10 +421,7 @@ export function useVoiceInput() {
           updateLivePreview(partial);
         },
         onFinal: text => {
-          if (!isVoiceSessionActive(sessionId)) {
-            return;
-          }
-          appendFinalSegment(text);
+          appendFinalForSession(sessionId, text);
         },
         onError: () => {
           if (!stoppingRef.current && isVoiceSessionActive(sessionId)) {
@@ -405,7 +448,7 @@ export function useVoiceInput() {
         return false;
       }
     },
-    [appendFinalSegment, isVoiceSessionActive, updateLivePreview],
+    [appendFinalForSession, isVoiceSessionActive, updateLivePreview],
   );
 
   const startListening = useCallback(async () => {
@@ -477,10 +520,7 @@ export function useVoiceInput() {
         updateLivePreview(partial);
       },
       onFinal: text => {
-        if (!isVoiceSessionActive(sessionId)) {
-          return;
-        }
-        appendFinalSegment(text);
+        appendFinalForSession(sessionId, text);
       },
       onError: () => {
         if (!stoppingRef.current && isVoiceSessionActive(sessionId)) {
@@ -563,7 +603,7 @@ export function useVoiceInput() {
       resetSession();
     }
   }, [
-    appendFinalSegment,
+    appendFinalForSession,
     beginVoiceSession,
     isVoiceProcessing,
     isVoiceSessionActive,
@@ -599,6 +639,7 @@ export function useVoiceInput() {
 
   useEffect(() => {
     preloadVoiceActivationSound();
+    startVoiceSttWarmup();
     return () => {
       void stopListeningRef.current();
     };

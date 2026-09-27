@@ -197,7 +197,6 @@ import {
   recordAiPreflightStale,
 } from './autocorrect/aiAutocorrectTelemetry';
 import {getActiveLanguage, preloadActiveDictionary, scheduleBackgroundEnglishSymSpellSeed} from './autocorrect/dictionaryManager';
-import {scheduleEnglishWordSetBuild} from './autocorrect/englishFrequencyDictionary';
 import {GesturesPanel} from './gestures/GesturesPanel';
 import {TranslatePanel} from './translate/TranslatePanel';
 import {RewritePanel} from './rewrite/RewritePanel';
@@ -373,8 +372,6 @@ const AI_PROOFREAD_DELAY_MS = 2_200;
 const AI_PROOFREAD_MIN_IDLE_MS = 600;
 const AI_PREFLIGHT_MIN_TOKEN_LENGTH = 4;
 const AI_PREFLIGHT_CACHE_LIMIT = 12;
-const AI_AUTO_APPLY_MAX_REPLACE_LENGTH = 72;
-const AI_AUTO_APPLY_MAX_WORDS = 12;
 const NATIVE_FAST_PATH_MIN_KEYS = 20;
 /** Disabled: native fast path + compact typing experiment caused lag in both portrait & landscape. */
 const NATIVE_FAST_PATH_ENABLED = false;
@@ -439,17 +436,6 @@ function getAiAutocorrectContextMatch(
     replaceLength: original.length + trailingWhitespace.length,
     replacementSuffix: trailingWhitespace,
   };
-}
-
-function canAutoApplyAiAutocorrect(original: string): boolean {
-  const trimmed = original.trim();
-  if (!trimmed) {
-    return false;
-  }
-  if (trimmed.length > AI_AUTO_APPLY_MAX_REPLACE_LENGTH) {
-    return false;
-  }
-  return trimmed.split(/\s+/).length <= AI_AUTO_APPLY_MAX_WORDS;
 }
 
 type ControllerFocus = {row: number; col: number};
@@ -665,6 +651,30 @@ function sanitizeSuggestionText(value: string | null | undefined): string | null
 /** Prefix + learned chips in the suggestion bar (trie lookup only — no fuzzy scan). */
 const TYPING_BAR_WORD_LIMIT = 8;
 
+const ENGLISH_PREFIX_STARTERS = [
+  'the',
+  'be',
+  'to',
+  'of',
+  'and',
+  'a',
+  'in',
+  'that',
+  'have',
+  'i',
+] as const;
+
+function englishPrefixStarterCompletions(prefix: string): string[] {
+  if (prefix.length < 1) {
+    return [];
+  }
+  const lower = prefix.toLowerCase();
+  return ENGLISH_PREFIX_STARTERS.filter(word => word.startsWith(lower)).slice(
+    0,
+    TYPING_BAR_WORD_LIMIT,
+  );
+}
+
 function computeTypingSuggestionBar(
   prefix: string,
   options: {
@@ -724,15 +734,20 @@ function computeTypingSuggestionBar(
   let wordSuggestions: string[];
   if (shouldSkipAutocorrectForToken(prefix) || prefix.length < 1) {
     wordSuggestions = [];
-  } else if (preferNativeWords && Platform.OS === 'android') {
-    wordSuggestions = nativeSuggestions ?? [];
   } else {
-    wordSuggestions =
-      nativeSuggestions ??
-      getWordSuggestions(prefix, TYPING_BAR_WORD_LIMIT, {
-        skipFuzzy: suggestionsOnly || landscapeLight,
-        lightweight: true,
-      });
+    const nativeWords =
+      nativeSuggestions && nativeSuggestions.length > 0
+        ? nativeSuggestions
+        : null;
+    const useNativeOnly =
+      preferNativeWords && Platform.OS === 'android' && nativeWords;
+    wordSuggestions = useNativeOnly
+      ? nativeWords
+      : (nativeWords ??
+        getWordSuggestions(prefix, TYPING_BAR_WORD_LIMIT, {
+          skipFuzzy: suggestionsOnly || landscapeLight,
+          lightweight: true,
+        }));
   }
   const reserved = new Set<string>();
   const keepTyped = sanitizeSuggestionText(barAutocorrect.keepTyped);
@@ -1253,7 +1268,6 @@ function KeyboardBody({
 
   useEffect(() => {
     startSuggestionEngineWarmup();
-    scheduleEnglishWordSetBuild();
     return installTouchIntelligenceNativeTelemetry();
   }, []);
 
@@ -2397,6 +2411,7 @@ function KeyboardBody({
       return;
     }
     if (shouldDeferLiveSuggestionBar()) {
+      scheduleDeferredLiveSuggestionBarRef.current();
       return;
     }
     if (layoutRef.current !== 'letters' || modeRef.current.type !== 'typing') {
@@ -2516,11 +2531,9 @@ function KeyboardBody({
       const suggestions =
         barState.suggestions.length > 0
           ? barState.suggestions
-          : preferNativeWords
+          : lastFlushedSuggestionsRef.current.length > 0
             ? lastFlushedSuggestionsRef.current
-            : ['the', 'be', 'to', 'of', 'and', 'a', 'in', 'that', 'have', 'i'].filter(
-                word => word.startsWith(nextPrefix.toLowerCase()),
-              );
+            : englishPrefixStarterCompletions(nextPrefix);
       commitSuggestionBarState(barState, suggestions);
     };
 
@@ -2573,11 +2586,16 @@ function KeyboardBody({
     }
     if (
       prefix === lastFlushedBarPrefixRef.current &&
-      prefix === lastInstantPrefixRef.current
+      prefix === lastInstantPrefixRef.current &&
+      lastFlushedSuggestionsRef.current.length > 0
     ) {
       return;
     }
     const typingLight = shouldUseLightSuggestionBar(lastTypingAtRef.current);
+    const preferNativeWords =
+      nativeFastPathActiveRef.current &&
+      Platform.OS === 'android' &&
+      prefix.length > 0;
     const barState = computeTypingSuggestionBar(prefix, {
       fast: true,
       landscapeLight: typingLight,
@@ -2585,11 +2603,17 @@ function KeyboardBody({
       previousWord: previousWordRef.current,
       suggestionsOnly: true,
       prefixOnly: typingLight && isBurstTypingActive(),
-      preferNativeWords: Platform.OS === 'android',
+      preferNativeWords,
     });
+    const suggestions =
+      barState.suggestions.length > 0
+        ? barState.suggestions
+        : lastFlushedSuggestionsRef.current.length > 0
+          ? lastFlushedSuggestionsRef.current
+          : englishPrefixStarterCompletions(prefix);
     lastInstantPrefixRef.current = prefix;
     lastFlushedBarPrefixRef.current = prefix;
-    lastFlushedSuggestionsRef.current = barState.suggestions;
+    lastFlushedSuggestionsRef.current = suggestions;
     lastFlushedAutocorrectRef.current = barState.autocorrectPreview;
     lastFlushedTypedKeepRef.current = barState.typedKeepSuggestion;
     startTransition(() => {
@@ -2597,7 +2621,7 @@ function KeyboardBody({
       setTypingBarTypedKeep(barState.typedKeepSuggestion);
       setTypingBarAutocorrectPreview(barState.autocorrectPreview);
       autocorrectPreviewRef.current = barState.autocorrectPreview;
-      setTypingBarSuggestions(barState.suggestions);
+      setTypingBarSuggestions(suggestions);
       setTypingBarEssentials([]);
       setTypingBarEssentialTriggerLength(0);
     });
@@ -2845,6 +2869,11 @@ function KeyboardBody({
           if (result.kind === 'suggest') {
             setAiAutocorrectSuggestion(result);
           }
+        })
+        .catch(error => {
+          logAiAutocorrect('preflight failed', {
+            message: error instanceof Error ? error.message : String(error),
+          });
         });
     }, AI_PREFLIGHT_DEBOUNCE_MS);
   }, [getEffectiveEditorContext]);
@@ -2939,33 +2968,20 @@ function KeyboardBody({
               });
               return;
             }
-            if (result.kind === 'auto') {
-              logAiAutocorrect( 'auto result', {
+            if (result.kind === 'auto' || result.kind === 'suggest') {
+              logAiAutocorrect( 'auto apply result', {
+                kind: result.kind,
                 original: result.original,
                 correction: result.correction,
               });
-              if (!canAutoApplyAiAutocorrect(result.original)) {
-                logAiAutocorrect( 'auto deferred: large correction', {
-                  originalLength: result.original.length,
-                  wordCount: result.original.trim().split(/\s+/).length,
-                });
-                setAiAutocorrectSuggestion({
-                  kind: 'suggest',
-                  original: result.original,
-                  correction: result.correction,
-                });
-                lastAiProofreadOriginalRef.current = result.original;
-                return;
-              }
               await applyAiAutocorrectEdit(result);
-              return;
+              lastAiProofreadOriginalRef.current = result.original;
             }
-            logAiAutocorrect( 'suggestion result', {
-              original: result.original,
-              correction: result.correction,
+          } catch (error) {
+            logAiAutocorrect('run failed', {
+              runId,
+              message: error instanceof Error ? error.message : String(error),
             });
-            setAiAutocorrectSuggestion(result);
-            lastAiProofreadOriginalRef.current = result.original;
           } finally {
             if (aiProofreadRunIdRef.current === runId) {
               setIsAiAutocorrectProcessing(false);
@@ -3019,6 +3035,7 @@ function KeyboardBody({
 
   const applyShiftEditorChordSideEffects = useCallback(() => {
     shiftEditorChordUsedRef.current = true;
+    hideAllKeyPreviews();
     triggerKeyHaptic();
     if (clipboardPasteSuggestionRef.current) {
       clearClipboardPasteSuggestion();
@@ -3222,24 +3239,16 @@ function KeyboardBody({
       if (autocorrectOn && typedWord.length >= 2 && contextMatchesTypedWord) {
         const preflight = aiPreflightCacheRef.current.get(typedWord);
         aiPreflightCacheRef.current.delete(typedWord);
-        if (preflight?.kind === 'auto') {
-          if (!canAutoApplyAiAutocorrect(preflight.original)) {
-            setAiAutocorrectSuggestion({
-              kind: 'suggest',
-              original: preflight.original,
-              correction: preflight.correction,
-            });
-          } else {
-            const applied = await applyAiAutocorrectEdit(preflight);
-            if (applied) {
-              applyBoundary();
-              if (!zeroLatency) {
-                requestAnimationFrame(() => {
-                  void refreshSuggestions();
-                });
-              }
-              return;
+        if (preflight?.kind === 'auto' || preflight?.kind === 'suggest') {
+          const applied = await applyAiAutocorrectEdit(preflight);
+          if (applied) {
+            applyBoundary();
+            if (!zeroLatency) {
+              requestAnimationFrame(() => {
+                void refreshSuggestions();
+              });
             }
+            return;
           }
         }
 
@@ -6031,16 +6040,24 @@ export default function KeyboardApp() {
         setDeviceLandscape(landscape === true);
       },
     );
-    return () => orientationSubscription.remove();
+    const shownSubscription = DeviceEventEmitter.addListener('keyboardShown', () => {
+      if (Platform.OS !== 'android') {
+        return;
+      }
+      setDeviceLandscape(keyboardBridge.isDeviceLandscapeSync());
+      keyboardBridge.syncFloatingKeyboardForOrientation();
+    });
+    return () => {
+      orientationSubscription.remove();
+      shownSubscription.remove();
+    };
   }, []);
 
   useEffect(() => {
     if (Platform.OS !== 'android') {
       return;
     }
-    keyboardBridge.setFloatingKeyboard(
-      deviceLandscape && layoutSettings.landscapeFloatingKeyboardEnabled,
-    );
+    keyboardBridge.syncFloatingKeyboardForOrientation();
   }, [deviceLandscape, layoutSettings.landscapeFloatingKeyboardEnabled]);
 
   useEffect(() => {

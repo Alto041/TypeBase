@@ -25,7 +25,6 @@ import AutoCapIcon from './assets/format-letter-case-upper.svg';
 import PersonalIcon from './assets/personal.svg';
 import GestureIcon from './assets/gesture.svg';
 import KeyIcon from './assets/key.svg';
-import BalloonIcon from './assets/balloon.svg';
 
 import {playSwitchOffSound, playSwitchOnSound} from './src/app/switchSound';
 import {
@@ -49,6 +48,7 @@ import {
   type ControllerSettings,
 } from './src/keyboard/controller/controllerSettings';
 import {usePremium} from './src/licensing/PremiumContext';
+import {openAppStoreListing} from './src/licensing/playLicense';
 
 const C = {
   bg: '#f2f2f4',
@@ -88,8 +88,6 @@ export function GeneralSettingsScreen({
   const [letterSymbolAlternatesEnabled, setLetterSymbolAlternatesEnabledState] =
     useState(false);
   const [numberRowEnabled, setNumberRowEnabledState] = useState(false);
-  const [landscapeFloatingEnabled, setLandscapeFloatingEnabledState] =
-    useState(true);
   const [autoCapitalizeEnabled, setAutoCapitalizeEnabledState] = useState(true);
   const [controllerSettings, setControllerSettings] =
     useState<ControllerSettings>(DEFAULT_CONTROLLER_SETTINGS);
@@ -130,7 +128,6 @@ export function GeneralSettingsScreen({
   const developerEyeAnim = useRef(new Animated.Value(0)).current;
   const symbolAlternatesAnim = useRef(new Animated.Value(0)).current;
   const numberRowAnim = useRef(new Animated.Value(0)).current;
-  const landscapeFloatingAnim = useRef(new Animated.Value(1)).current;
   const autoCapitalizeAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -152,9 +149,6 @@ export function GeneralSettingsScreen({
       symbolAlternatesAnim.setValue(layout.letterSymbolAlternatesEnabled ? 1 : 0);
       setNumberRowEnabledState(layout.numberRowEnabled ?? false);
       numberRowAnim.setValue(layout.numberRowEnabled ? 1 : 0);
-      const landscapeFloating = layout.landscapeFloatingKeyboardEnabled ?? true;
-      setLandscapeFloatingEnabledState(landscapeFloating);
-      landscapeFloatingAnim.setValue(landscapeFloating ? 1 : 0);
       setAutoCapitalizeEnabledState(layout.autoCapitalizeEnabled);
       autoCapitalizeAnim.setValue(layout.autoCapitalizeEnabled ? 1 : 0);
       setControllerSettings(layout.controller);
@@ -178,6 +172,11 @@ export function GeneralSettingsScreen({
 
   const handleFeedbackPress = () => {
     void Haptics.selectionAsync().catch(() => {});
+    void openAppStoreListing().catch(() => {
+      Linking.openURL(
+        'https://play.google.com/store/apps/details?id=com.typebase.app',
+      ).catch(() => {});
+    });
   };
 
   const toggleUiSounds = async () => {
@@ -232,16 +231,6 @@ export function GeneralSettingsScreen({
     setNumberRowEnabledState(next);
     void updateKeyboardLayoutSetting('numberRowEnabled', next);
     animateToggle(numberRowAnim, next ? 1 : 0);
-    if (next) playSwitchOnSound();
-    else playSwitchOffSound();
-    void Haptics.selectionAsync().catch(() => {});
-  };
-
-  const toggleLandscapeFloating = async () => {
-    const next = !landscapeFloatingEnabled;
-    setLandscapeFloatingEnabledState(next);
-    void updateKeyboardLayoutSetting('landscapeFloatingKeyboardEnabled', next);
-    animateToggle(landscapeFloatingAnim, next ? 1 : 0);
     if (next) playSwitchOnSound();
     else playSwitchOffSound();
     void Haptics.selectionAsync().catch(() => {});
@@ -398,37 +387,6 @@ export function GeneralSettingsScreen({
             </View>
           </View>
 
-          <View style={[styles.rowCard, styles.middleSettingCard]}>
-            <View style={styles.rowInner}>
-              <BalloonIcon width={ROW_ICON} height={ROW_ICON} color={C.text} />
-              <Text style={styles.rowTitle}>Floating keyboard</Text>
-              <View style={styles.toggleWrap}>
-                <Pressable
-                  onPress={() => void toggleLandscapeFloating()}
-                  style={[
-                    styles.toggleTrack,
-                    landscapeFloatingEnabled && styles.toggleTrackOn,
-                  ]}>
-                  <Animated.View
-                    style={[
-                      styles.toggleThumb,
-                      {
-                        transform: [
-                          {
-                            translateX: landscapeFloatingAnim.interpolate({
-                              inputRange: [0, 1],
-                              outputRange: [0, 18],
-                            }),
-                          },
-                        ],
-                      },
-                    ]}
-                  />
-                </Pressable>
-              </View>
-            </View>
-          </View>
-
           {/* Auto Capitalize — last card, more rounded bottom */}
           <View style={[styles.rowCard, styles.lastSettingCard]}>
             <View style={styles.rowInner}>
@@ -541,7 +499,7 @@ export function GeneralSettingsScreen({
             }}>
             <View style={styles.rowInner}>
               <EngineOutlineIcon width={ROW_ICON} height={ROW_ICON} color={C.text} />
-              <Text style={styles.rowTitle}>Engine Stats</Text>
+              <Text style={styles.rowTitle}>Typing stats</Text>
             </View>
           </Pressable>
 

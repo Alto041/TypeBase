@@ -76,13 +76,9 @@ const CONFIG_SWITCH_H = 56;
 export function AiConfigScreen({
   onBack,
   title = 'AI Config',
-  variant = 'standalone',
-  onContinue,
 }: {
   onBack?: () => void;
   title?: string;
-  variant?: 'standalone' | 'wizard';
-  onContinue?: () => void;
 }) {
   const {canUse} = usePremium();
   const aiConfigLocked = !canUse('ai_config');
@@ -115,28 +111,15 @@ export function AiConfigScreen({
       await ensureVoiceSttProviderLoaded();
       await ensureApiKeysLoaded();
 
-      const keys = getApiKeys();
-      const isFreshSetup = !keys.geminiApiKey && !keys.speechmaticsApiKey;
       const onDeviceSupported = isOnDeviceAiSupported();
-      const shouldApplyWizardDefaults = variant === 'wizard' && isFreshSetup;
 
-      let nextProvider = getAiProvider();
-      let nextVoiceProvider = getVoiceSttProvider();
-
-      if (shouldApplyWizardDefaults) {
-        nextProvider = onDeviceSupported ? 'on_device' : 'gemini';
-        nextVoiceProvider =
-          onDeviceSupported && isParakeetVoiceSupported()
-            ? 'parakeet'
-            : 'android';
-        await setAiProvider(nextProvider);
-        await setVoiceSttProvider(nextVoiceProvider);
-      }
+      const nextProvider = getAiProvider();
+      const nextVoiceProvider = getVoiceSttProvider();
 
       setProvider(nextProvider);
       setVoiceProviderState(nextVoiceProvider);
       voiceProviderAnim.setValue(nextVoiceProvider === 'android' ? 1 : 0);
-      setApiKeysState(keys);
+      setApiKeysState(getApiKeys());
       setIsOnDeviceSupported(onDeviceSupported);
       setIsParakeetSupported(isParakeetVoiceSupported());
 
@@ -153,11 +136,11 @@ export function AiConfigScreen({
     };
 
     loadData();
-  }, [variant, voiceProviderAnim]);
+  }, [voiceProviderAnim]);
 
   // Handle Android back button/gesture
   useEffect(() => {
-    if (variant === 'wizard' || !onBack) {
+    if (!onBack) {
       return;
     }
 
@@ -170,7 +153,7 @@ export function AiConfigScreen({
     );
 
     return () => backHandler.remove();
-  }, [onBack, variant]);
+  }, [onBack]);
 
   const handleProviderChange = async (newProvider: AiProvider) => {
     if (aiConfigLocked) {
@@ -291,33 +274,23 @@ export function AiConfigScreen({
     }
   };
 
-  const isWizard = variant === 'wizard';
-  const Root = isWizard ? View : SafeAreaView;
-
   return (
-    <Root style={[styles.safeArea, isWizard && styles.safeAreaWizard]}>
-      {!isWizard ? <StatusBar barStyle="dark-content" backgroundColor={C.bg} /> : null}
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="dark-content" backgroundColor={C.bg} />
 
       {isLoading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator color={C.text} size="small" />
         </View>
       ) : (
-        <>
-          <ScrollView
-            ref={scrollViewRef}
-            style={isWizard ? styles.scrollViewWizard : undefined}
-            contentContainerStyle={[
-              styles.scrollContent,
-              isWizard && styles.scrollContentWizard,
-            ]}
-            showsVerticalScrollIndicator={false}
-          >
-            <View style={[styles.topRow, isWizard && styles.topRowWizard]}>
-              <Text style={[styles.pageTitle, isWizard && styles.pageTitleWizard]}>
-                {title}
-              </Text>
-            </View>
+        <ScrollView
+          ref={scrollViewRef}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled">
+          <View style={styles.topRow}>
+            <Text style={styles.pageTitle}>{title}</Text>
+          </View>
 
           <View style={styles.configRow}>
             <View style={[styles.configCard, styles.configCardLeft]}>
@@ -338,12 +311,8 @@ export function AiConfigScreen({
                     provider === 'gemini' && styles.configProviderIconSelected,
                     aiConfigLocked && styles.configProviderIconDisabled,
                   ]}
-                  hitSlop={6}
-                >
-                  <CloudIcon
-                    width={CONFIG_PROVIDER_ICON_SIZE}
-                    height={CONFIG_PROVIDER_ICON_SIZE}
-                  />
+                  hitSlop={6}>
+                  <CloudIcon width={CONFIG_PROVIDER_ICON_SIZE} height={CONFIG_PROVIDER_ICON_SIZE} />
                 </Pressable>
                 <Pressable
                   onPress={() => {
@@ -361,12 +330,8 @@ export function AiConfigScreen({
                     provider === 'on_device' && styles.configProviderIconSelected,
                     (!isOnDeviceSupported || aiConfigLocked) && styles.configProviderIconDisabled,
                   ]}
-                  hitSlop={6}
-                >
-                  <DeviceIcon
-                    width={CONFIG_PROVIDER_ICON_SIZE}
-                    height={CONFIG_PROVIDER_ICON_SIZE}
-                  />
+                  hitSlop={6}>
+                  <DeviceIcon width={CONFIG_PROVIDER_ICON_SIZE} height={CONFIG_PROVIDER_ICON_SIZE} />
                 </Pressable>
                 <View
                   style={[
@@ -385,7 +350,9 @@ export function AiConfigScreen({
                     return;
                   }
                   void Haptics.selectionAsync().catch(() => {});
-                  if (!isOnDeviceSupported) return;
+                  if (!isOnDeviceSupported) {
+                    return;
+                  }
                   void handleDownloadModel();
                 }}
                 style={[
@@ -393,8 +360,7 @@ export function AiConfigScreen({
                   styles.configCardRight,
                   (!isOnDeviceSupported || aiConfigLocked) && styles.configCardDisabled,
                 ]}
-                disabled={!isOnDeviceSupported || aiConfigLocked}
-              >
+                disabled={!isOnDeviceSupported || aiConfigLocked}>
                 <Text style={styles.configActionTitle}>DOWNLOAD</Text>
                 <View style={styles.configActionIconCenter}>
                   <DownloadIcon width={26} height={26} />
@@ -414,8 +380,7 @@ export function AiConfigScreen({
                   styles.configCardRight,
                   aiConfigLocked && styles.configCardDisabled,
                 ]}
-                disabled={aiConfigLocked}
-              >
+                disabled={aiConfigLocked}>
                 <Text style={styles.configActionTitle}>API KEY</Text>
                 <View style={styles.configActionIconCenter}>
                   <EditIcon width={26} height={26} />
@@ -424,7 +389,6 @@ export function AiConfigScreen({
             )}
           </View>
 
-          {/* Cloud AI Settings */}
           {provider === 'gemini' && (
             <View
               style={styles.section}
@@ -449,13 +413,10 @@ export function AiConfigScreen({
                   autoCorrect={false}
                 />
               </View>
-              {!isWizard ? (
-                <Text style={styles.inputHint}>Required for cloud AI</Text>
-              ) : null}
+              <Text style={styles.inputHint}>Required for cloud AI</Text>
             </View>
           )}
 
-          {/* On-Device Models */}
           {provider === 'on_device' && isOnDeviceSupported && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>On-Device Models</Text>
@@ -476,7 +437,7 @@ export function AiConfigScreen({
                         <View
                           style={[
                             styles.progressFill,
-                            { width: `${Math.round(downloadProgress * 100)}%` },
+                            {width: `${Math.round(downloadProgress * 100)}%`},
                           ]}
                         />
                       </View>
@@ -488,8 +449,10 @@ export function AiConfigScreen({
                     <Pressable
                       onPress={handleDownloadModel}
                       disabled={aiConfigLocked}
-                      style={[styles.downloadButton, aiConfigLocked && styles.downloadButtonDisabled]}
-                    >
+                      style={[
+                        styles.downloadButton,
+                        aiConfigLocked && styles.downloadButtonDisabled,
+                      ]}>
                       <DownloadIcon width={18} height={18} />
                       <Text style={styles.downloadButtonText}>Download</Text>
                     </Pressable>
@@ -513,7 +476,7 @@ export function AiConfigScreen({
                           <View
                             style={[
                               styles.progressFill,
-                              { width: `${Math.round(parakeetDownloadProgress * 100)}%` },
+                              {width: `${Math.round(parakeetDownloadProgress * 100)}%`},
                             ]}
                           />
                         </View>
@@ -525,8 +488,10 @@ export function AiConfigScreen({
                       <Pressable
                         onPress={handleDownloadParakeetModel}
                         disabled={aiConfigLocked}
-                        style={[styles.downloadButton, aiConfigLocked && styles.downloadButtonDisabled]}
-                      >
+                        style={[
+                          styles.downloadButton,
+                          aiConfigLocked && styles.downloadButtonDisabled,
+                        ]}>
                         <DownloadIcon width={18} height={18} />
                         <Text style={styles.downloadButtonText}>Download</Text>
                       </Pressable>
@@ -580,55 +545,40 @@ export function AiConfigScreen({
             </Text>
           </View>
 
-          {/* Speechmatics API Key */}
           {voiceProvider === 'speechmatics' ? (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Speech-to-Text API Key</Text>
-            <View style={styles.inputCard}>
-              <View style={styles.inputIcon}>
-                <KeyIcon width={20} height={20} />
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Speech-to-Text API Key</Text>
+              <View style={styles.inputCard}>
+                <View style={styles.inputIcon}>
+                  <KeyIcon width={20} height={20} />
+                </View>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter your Speechmatics API key"
+                  placeholderTextColor={C.sub}
+                  value={apiKeys.speechmaticsApiKey}
+                  onChangeText={handleSpeechmaticsKeyChange}
+                  editable={!aiConfigLocked}
+                  secureTextEntry
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
               </View>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter your Speechmatics API key"
-                placeholderTextColor={C.sub}
-                value={apiKeys.speechmaticsApiKey}
-                onChangeText={handleSpeechmaticsKeyChange}
-                editable={!aiConfigLocked}
-                secureTextEntry
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
+              <Text style={styles.inputHint}>Voice typing key</Text>
             </View>
-            <Text style={styles.inputHint}>Voice typing key</Text>
-          </View>
           ) : null}
 
-          {/* Info Section */}
-          {!isWizard ? (
-            <View style={styles.infoSection}>
-              <Text style={styles.infoText}>
-                Keys stay on this device.
+          <View style={styles.infoSection}>
+            <Text style={styles.infoText}>Keys stay on this device.</Text>
+            {aiConfigLocked ? (
+              <Text style={styles.inputHint}>
+                Read-only on free plan. Upgrade to edit AI settings.
               </Text>
-              {aiConfigLocked ? (
-                <Text style={styles.inputHint}>
-                  Read-only on free plan. Upgrade to edit AI settings.
-                </Text>
-              ) : null}
-            </View>
-          ) : null}
+            ) : null}
+          </View>
         </ScrollView>
-
-          {isWizard && onContinue ? (
-            <View style={styles.wizardBottom}>
-              <Pressable style={styles.wizardContinueButton} onPress={onContinue}>
-                <Text style={styles.wizardContinueLabel}>Continue</Text>
-              </Pressable>
-            </View>
-          ) : null}
-        </>
       )}
-    </Root>
+    </SafeAreaView>
   );
 }
 
@@ -636,9 +586,6 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: C.bg,
-  },
-  safeAreaWizard: {
-    backgroundColor: 'transparent',
   },
   loadingContainer: {
     flex: 1,
@@ -651,23 +598,10 @@ const styles = StyleSheet.create({
     paddingBottom: 110,
     gap: 10,
   },
-  scrollContentWizard: {
-    paddingTop: 102,
-    paddingBottom: 24,
-    paddingHorizontal: 24,
-    gap: 24,
-  },
-  scrollViewWizard: {
-    flex: 1,
-  },
   topRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-  },
-  topRowWizard: {
-    justifyContent: 'flex-start',
-    alignItems: 'flex-start',
   },
   backButton: {
     padding: 4,
@@ -679,13 +613,6 @@ const styles = StyleSheet.create({
     letterSpacing: TEXT_KERNING,
     fontWeight: '600',
     fontFamily: 'Geist',
-  },
-  pageTitleWizard: {
-    textAlign: 'left',
-    fontSize: 55,
-    lineHeight: 52,
-    letterSpacing: TEXT_KERNING,
-    marginBottom: 0,
   },
   configRow: {
     flexDirection: 'row',
@@ -1040,26 +967,5 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     fontFamily: 'FragmentMono',
     letterSpacing: TEXT_KERNING,
-  },
-  wizardBottom: {
-    paddingHorizontal: 24,
-    paddingBottom: 28,
-    paddingTop: 8,
-  },
-  wizardContinueButton: {
-    width: '100%',
-    backgroundColor: '#111111',
-    borderRadius: 999,
-    paddingVertical: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  wizardContinueLabel: {
-    fontSize: 15,
-    color: '#FFFFFF',
-    letterSpacing: TEXT_KERNING,
-    textTransform: 'uppercase',
-    fontWeight: '600',
-    fontFamily: 'FragmentMono',
   },
 });

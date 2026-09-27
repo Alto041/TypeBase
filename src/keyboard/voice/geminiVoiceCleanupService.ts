@@ -6,9 +6,8 @@ import {generateOnDeviceText} from '../ai/onDeviceTextAi';
 import {GEMINI_GENERATION_CONFIG} from '../ai/generationConfig';
 import {GEMINI_VOICE_API_URL} from '../translate/geminiConfig';
 import {
-  applyVoiceHeuristicCleanup,
   isFaithfulVoiceCleanup,
-  needsVoicePolish,
+  polishVoiceTranscriptLocal,
   resolveVoiceCleanupText,
 } from './voiceCleanupUtils';
 
@@ -157,6 +156,27 @@ async function polishWithOnDeviceGemma(
   });
 }
 
+const PARAKEET_GEMMA_TIMEOUT_MS = 2800;
+
+async function polishWithOnDeviceGemmaBounded(
+  input: string,
+  options?: VoiceCleanupOptions,
+): Promise<string | null> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      polishWithOnDeviceGemma(input, options),
+      new Promise<null>(resolve => {
+        timeoutId = setTimeout(() => resolve(null), PARAKEET_GEMMA_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
+}
+
 export async function cleanupVoiceTranscript(
   transcript: string,
   options?: VoiceCleanupOptions,
@@ -179,48 +199,39 @@ export async function cleanupVoiceTranscript(
   };
   const useHeuristics = shouldApplyVoiceHeuristics(fillerOptions, aiProvider);
   const workingText = useHeuristics
-    ? applyVoiceHeuristicCleanup(input)
+    ? polishVoiceTranscriptLocal(input)
     : input;
   const heuristicChanged = workingText !== input;
   const isParakeet = Boolean(fillerOptions.preferOnDevice);
 
   if (isParakeet) {
-    const shouldPolishWithGemma =
-      heuristicChanged || needsVoicePolish(workingText);
-
-    if (shouldPolishWithGemma && (await canUseOnDeviceGemma())) {
+    if (await canUseOnDeviceGemma()) {
       try {
-        const gemmaText = await polishWithOnDeviceGemma(workingText, fillerOptions);
-        console.log('[VoiceCleanup]', {
-          stage: 'parakeet+gemma',
-          input,
-          heuristic: heuristicChanged ? workingText : undefined,
-          output: gemmaText,
-        });
-        return {
-          text: gemmaText,
-          detectedLanguageCode: null,
-          usedGemini: false,
-          usedOnDeviceAi: gemmaText !== workingText,
-        };
+        const gemmaText = await polishWithOnDeviceGemmaBounded(
+          workingText,
+          fillerOptions,
+        );
+        if (gemmaText != null) {
+          console.log('[VoiceCleanup]', {
+            stage: 'parakeet+gemma',
+            input,
+            heuristic: heuristicChanged ? workingText : undefined,
+            output: gemmaText,
+          });
+          return {
+            text: gemmaText,
+            detectedLanguageCode: null,
+            usedGemini: false,
+            usedOnDeviceAi: gemmaText !== workingText,
+          };
+        }
+        console.warn('[VoiceCleanup] Parakeet Gemma pass timed out, using local polish');
       } catch (error) {
         console.warn('[VoiceCleanup] Parakeet Gemma pass failed:', error);
         if (!(error instanceof VoiceCleanupError)) {
           throw error;
         }
       }
-    } else if (!shouldPolishWithGemma) {
-      console.log('[VoiceCleanup]', {
-        stage: 'parakeet-skip-gemma',
-        input,
-        output: workingText,
-      });
-      return {
-        text: workingText,
-        detectedLanguageCode: null,
-        usedGemini: false,
-        usedOnDeviceAi: false,
-      };
     }
 
     console.log('[VoiceCleanup]', {

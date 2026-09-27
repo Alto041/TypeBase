@@ -24,6 +24,7 @@ function formatNativeError(error: unknown): string {
 type ParakeetNativeModule = {
   isModelDownloaded: () => Promise<boolean>;
   downloadModels: () => Promise<string>;
+  prepareStt: () => Promise<boolean>;
   startListening: () => Promise<boolean>;
   stopListening: () => Promise<boolean>;
   addListener: (eventName: string) => void;
@@ -51,6 +52,17 @@ export async function downloadParakeetModels(): Promise<string> {
     return await ParakeetModule.downloadModels();
   } catch (error) {
     throw new Error(formatNativeError(error));
+  }
+}
+
+export async function prepareParakeetStt(): Promise<boolean> {
+  if (!ParakeetModule?.prepareStt) {
+    return false;
+  }
+  try {
+    return (await ParakeetModule.prepareStt()) ?? false;
+  } catch {
+    return false;
   }
 }
 

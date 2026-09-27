@@ -295,7 +295,7 @@ object KeyboardInputBridge {
     inputService?.setFloatingKeyboardEnabled(enabled)
   }
 
-  @Volatile private var landscapeFloatingKeyboardEnabled = true
+  @Volatile private var landscapeFloatingKeyboardEnabled = false
 
   fun syncFloatingKeyboardForOrientation() {
     val landscape = isDeviceLandscape()
@@ -366,11 +366,11 @@ object KeyboardInputBridge {
       keyHapticEnabled = layout.optBoolean("keyHapticEnabled", true)
       keyHapticPulseMs = layout.optInt("keyHapticPulseMs", 12).coerceIn(6, 24)
       landscapeFloatingKeyboardEnabled =
-          layout.optBoolean("landscapeFloatingKeyboardEnabled", true)
+          layout.optBoolean("landscapeFloatingKeyboardEnabled", false)
     } catch (_: Exception) {
       keyHapticEnabled = true
       keyHapticPulseMs = 12
-      landscapeFloatingKeyboardEnabled = true
+      landscapeFloatingKeyboardEnabled = false
     }
     syncFloatingKeyboardForOrientation()
   }

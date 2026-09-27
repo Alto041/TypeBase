@@ -1,6 +1,9 @@
 const FILLER_PATTERN =
   /\b(?:um+m?|uh+h?|hmm+|hm+|mm+|er+r?|ah+h?|mhm+|eh+h?)\b/gi;
 
+const SPOKEN_PUNCTUATION_WORD =
+  /\b(?:new line|newline|exclamation point|exclamation mark|question mark|full stop|period|dot|comma|colon|semicolon|open quote|close quote|quote|apostrophe)\b/i;
+
 /** Strip common speech fillers before comparing or as a light pre-clean pass. */
 export function stripSpeechFillers(text: string): string {
   return text
@@ -31,6 +34,19 @@ export function needsVoicePolish(text: string): boolean {
     return true;
   }
 
+  if (SPOKEN_PUNCTUATION_WORD.test(trimmed)) {
+    return true;
+  }
+
+  const words = trimmed.split(/\s+/).filter(Boolean);
+  if (words.length >= 4 && trimmed === trimmed.toLowerCase()) {
+    return true;
+  }
+
+  if (words.length >= 6 && !/[.!?]$/.test(trimmed)) {
+    return true;
+  }
+
   return false;
 }
 
@@ -51,6 +67,52 @@ export function applyVoiceHeuristicCleanup(text: string): string {
     .trim();
 
   return result;
+}
+
+const SPOKEN_PUNCTUATION: ReadonlyArray<[RegExp, string]> = [
+  [/\b(new line|newline)\b/gi, '\n'],
+  [/\b(exclamation point|exclamation mark)\b/gi, '!'],
+  [/\b(question mark)\b/gi, '?'],
+  [/\b(full stop|period|dot)\b/gi, '.'],
+  [/\b(comma)\b/gi, ','],
+  [/\b(colon)\b/gi, ':'],
+  [/\b(semicolon)\b/gi, ';'],
+  [/\b(open quote|close quote|quote)\b/gi, '"'],
+  [/\b(apostrophe)\b/gi, "'"],
+];
+
+function applySpokenPunctuation(text: string): string {
+  let result = text;
+  for (const [pattern, replacement] of SPOKEN_PUNCTUATION) {
+    result = result.replace(pattern, replacement);
+  }
+
+  return result
+    .replace(/\s+([,.!?;:])/g, '$1')
+    .replace(/([,.!?;:])(?=[^\s\n])/g, '$1 ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+function capitalizeSentences(text: string): string {
+  const withStandaloneI = text.replace(/\bi\b/g, 'I');
+  if (!withStandaloneI) {
+    return withStandaloneI;
+  }
+
+  const capped = withStandaloneI.replace(
+    /(^|[.!?]\s+|\n+)([a-z])/g,
+    (_, prefix: string, letter: string) => `${prefix}${letter.toUpperCase()}`,
+  );
+
+  return capped.charAt(0).toUpperCase() + capped.slice(1);
+}
+
+/** Strong on-device polish after Parakeet (no LLM). */
+export function polishVoiceTranscriptLocal(text: string): string {
+  const heuristic = applyVoiceHeuristicCleanup(text);
+  const punctuated = applySpokenPunctuation(heuristic);
+  return capitalizeSentences(punctuated);
 }
 
 function normalizeForComparison(text: string): string {

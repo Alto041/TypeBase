@@ -987,7 +987,10 @@ function KeyComponent({
               : isRewriteGesture
                 ? handleRewritePressOut
                 : isShift && keyGestures?.shiftEditorShortcuts
-                  ? () => keyGestures.onShiftEditorPressOut?.()
+                  ? () => {
+                      hidePressableKeyPreview();
+                      keyGestures.onShiftEditorPressOut?.();
+                    }
                   : isSpaceGesture
                     ? undefined
                     : handlePressOut

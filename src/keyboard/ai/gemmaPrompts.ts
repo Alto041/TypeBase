@@ -86,7 +86,13 @@ Text:
 }
 
 export function buildGemmaParakeetCleanupPrompt(transcript: string): string {
-  return wrapGemmaPrompt(`Fix this dictation. Remove any remaining um/uh/hmm fillers and repeated words. Keep the same meaning. Output only the cleaned sentence.
+  return wrapGemmaPrompt(`Clean up this voice dictation for a mobile keyboard.
+
+Rules:
+- Remove um, uh, hmm, and repeated words.
+- Fix capitalization and end punctuation.
+- Keep the same meaning and wording; do not rephrase or add ideas.
+- Output only the cleaned sentence, no quotes.
 
 "${transcript}"`);
 }

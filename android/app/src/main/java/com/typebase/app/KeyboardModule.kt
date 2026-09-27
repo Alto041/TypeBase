@@ -127,7 +127,7 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
             if (shown) {
               emitter.emit(
                   "keyboardOrientationChange",
-                  KeyboardInputBridge.isDeviceLandscape(reactApplicationContext),
+                  KeyboardInputBridge.isDeviceLandscape(),
               )
             }
           }
@@ -142,7 +142,7 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
             emitter.emit("keyboardSessionStart", null)
             emitter.emit(
                 "keyboardOrientationChange",
-                KeyboardInputBridge.isDeviceLandscape(reactApplicationContext),
+                KeyboardInputBridge.isDeviceLandscape(),
             )
           }
         }
@@ -1282,6 +1282,11 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   @ReactMethod
   fun setFloatingKeyboard(enabled: Boolean) {
     KeyboardInputBridge.setFloatingKeyboard(enabled)
+  }
+
+  @ReactMethod
+  fun syncFloatingKeyboardForOrientation() {
+    KeyboardInputBridge.syncFloatingKeyboardForOrientation()
   }
 
   @ReactMethod

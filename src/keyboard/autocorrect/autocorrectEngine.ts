@@ -272,6 +272,15 @@ function wordRank(word: string): number {
   return 99_999;
 }
 
+/** Prefer bootstrap frequency rank so double-letter fixes work before SymSpell finishes loading. */
+function commonCorrectionWordRank(word: string): number {
+  const staticRank = getEnglishStaticRank(word);
+  if (staticRank != null) {
+    return staticRank;
+  }
+  return wordRank(word);
+}
+
 function isKnownEnglishWord(word: string): boolean {
   const lower = word.toLowerCase();
   if (SUPPLEMENTAL_RANK.has(lower)) {
@@ -963,7 +972,11 @@ function findQuickTypoFixes(
   const candidates: QuickCand[] = [];
 
   const collapsed = findRepeatedLetterCollapse(typed);
-  if (collapsed && collapsed !== typed && wordRank(collapsed) < COMMON_WORD_RANK) {
+  if (
+    collapsed &&
+    collapsed !== typed &&
+    commonCorrectionWordRank(collapsed) < COMMON_WORD_RANK
+  ) {
     candidates.push({word: collapsed, kind: 'collapse'});
   }
 
@@ -1020,7 +1033,7 @@ function findStructuralTypoFix(lower: string): string | null {
   }
 
   const collapsed = findRepeatedLetterCollapse(lower);
-  if (collapsed && wordRank(collapsed) < COMMON_WORD_RANK) {
+  if (collapsed && commonCorrectionWordRank(collapsed) < COMMON_WORD_RANK) {
     return collapsed;
   }
 

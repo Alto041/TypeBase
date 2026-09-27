@@ -78,6 +78,12 @@ export const voiceRecorder = {
     }
     return Promise.resolve(false);
   },
+  prepareParakeetStt: (): Promise<boolean> => {
+    if (parakeetModule?.prepareStt) {
+      return parakeetModule.prepareStt();
+    }
+    return Promise.resolve(false);
+  },
   startParakeetStt: (): Promise<boolean> => {
     if (parakeetModule?.startListening) {
       return parakeetModule.startListening();

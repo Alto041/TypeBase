@@ -426,6 +426,8 @@ class NativeKeyFastPath {
       uppercase = false
       blockAutoShiftReenable = true
       pulseLandscapeAwareHaptic(pointerId)
+      showKeyChromeForKey(key, text, rawX, rawY, localX, localY)
+      sessions[pointerId] = TouchSession(pointerId, key, "")
       return false
     }
     val shiftConsumed =

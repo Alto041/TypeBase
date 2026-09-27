@@ -159,6 +159,7 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
     val frame = container ?: return
     resumeReactForKeyboard()
     mountKeyboardSurface(frame)
+    applyKeyboardSurfaceLayout()
     syncImeCaptionBarVisibility()
     KeyboardInputBridge.notifyKeyboardShown()
   }
@@ -306,6 +307,7 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
         ensureFloatingCardShell(frame)
       }
       ensurePreviewOverlay()
+      frame.post { applyKeyboardSurfaceLayout() }
       return
     }
 
@@ -525,17 +527,37 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
           )
           .toInt()
 
+  private fun isLandscapeConfig(): Boolean =
+      resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+
+  /** Cap keyboard height so the floating card fits inside the landscape IME root. */
+  private fun landscapeFloatingMaxKeyboardHeightPx(): Int {
+    val screenHeight = resources.displayMetrics.heightPixels
+    val maxRoot = (screenHeight * LANDSCAPE_FLOATING_ROOT_MAX_FRACTION).toInt()
+    val verticalTravel = dpToPx(LANDSCAPE_FLOATING_VERTICAL_TRAVEL_DP)
+    val margins = dpToPx(FLOATING_VERTICAL_MARGIN_DP * 2)
+    return (maxRoot - verticalTravel - margins)
+        .coerceAtLeast(keyboardHeightPx(MIN_KEYBOARD_HEIGHT_DP))
+  }
+
+  private fun activeKeyboardHeightPx(): Int {
+    val base = keyboardHeightPx(keyboardHeightDp)
+    if (!floatingKeyboardEnabled || !isLandscapeConfig()) {
+      return base
+    }
+    return base.coerceAtMost(landscapeFloatingMaxKeyboardHeightPx())
+  }
+
   private fun floatingRootHeightPx(keyboardHeightPx: Int, measuredHeightPx: Int = 0): Int {
     val screenHeight = resources.displayMetrics.heightPixels
-    val landscape =
-        resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val landscape = isLandscapeConfig()
     if (landscape) {
       // Avoid a ~full-screen IME layer in landscape; still leave room to drag vertically.
       val verticalTravel = dpToPx(LANDSCAPE_FLOATING_VERTICAL_TRAVEL_DP)
       val maxRoot = (screenHeight * LANDSCAPE_FLOATING_ROOT_MAX_FRACTION).toInt()
-      return (keyboardHeightPx + verticalTravel)
-          .coerceAtMost(maxRoot)
-          .coerceAtLeast(keyboardHeightPx + dpToPx(FLOATING_VERTICAL_MARGIN_DP * 2))
+      val margin = dpToPx(FLOATING_VERTICAL_MARGIN_DP * 2)
+      val desired = keyboardHeightPx + verticalTravel
+      return desired.coerceAtMost(maxRoot).coerceAtLeast(keyboardHeightPx + margin)
     }
     val measured =
         measuredHeightPx.takeIf { it > keyboardHeightPx } ?: ((screenHeight * 0.88f).toInt())
@@ -644,7 +666,7 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
   }
 
   private fun createKeyboardLayoutParams(containerWidth: Int): FrameLayout.LayoutParams {
-    val heightPx = keyboardHeightPx(keyboardHeightDp)
+    val heightPx = activeKeyboardHeightPx()
     if (!floatingKeyboardEnabled) {
       floatingLeftPx = -1
       floatingTopPx = -1
@@ -669,7 +691,8 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
       floatingLeftPx = ((frameWidth - childWidth) / 2).coerceAtLeast(0)
       floatingTopPx =
           if (landscape) {
-            ((frameHeight - childHeight) / 2).coerceAtLeast(margin)
+            // Bottom-anchored in landscape so keys stay visible if height is tight.
+            (frameHeight - childHeight - margin).coerceAtLeast(margin)
           } else {
             (frameHeight - childHeight - margin).coerceAtLeast(0)
           }
@@ -805,6 +828,10 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
     val right = (view.right + tx).coerceAtMost(frame.width)
     val bottom = (view.bottom + ty).coerceAtMost(frame.height)
     if (right <= left || bottom <= top) {
+      frame.post {
+        frame.requestLayout()
+        updateInputViewShown()
+      }
       return
     }
 
@@ -1160,7 +1187,7 @@ class TypeBaseInputService : InputMethodService(), InputManager.InputDeviceListe
   private inner class KeyboardFrameLayout : FrameLayout(this@TypeBaseInputService) {
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
       val width = MeasureSpec.getSize(widthMeasureSpec)
-      val keyboardHeightPx = keyboardHeightPx(keyboardHeightDp)
+      val keyboardHeightPx = activeKeyboardHeightPx()
 
       if (!floatingKeyboardEnabled) {
         keyboardView?.measure(

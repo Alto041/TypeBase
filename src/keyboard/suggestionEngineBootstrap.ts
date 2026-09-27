@@ -1,3 +1,5 @@
+import {InteractionManager} from 'react-native';
+
 import {ensureAutocorrectLoaded} from './autocorrect/autocorrectStore';
 import {
   preloadActiveDictionary,
@@ -6,6 +8,7 @@ import {
 import {preloadContextBigrams} from './autocorrect/contextBigrams';
 import {ensureEnglishAccuracyBootstrap} from './autocorrect/englishFrequencyDictionary';
 import {ensurePersonalTypingLoaded} from './personalTyping/personalTypingEngine';
+import {startVoiceSttWarmup} from './voice/voiceSttWarmup';
 
 /** Settings + personal data — enough for boundary autocorrect without blocking. */
 let minimalReady = false;
@@ -14,6 +17,25 @@ let bootstrapReady = false;
 let warmupPromise: Promise<void> | null = null;
 let minimalWaiters: Array<() => void> = [];
 let heavyWaiters: Array<() => void> = [];
+let deferredDictionaryWarmupScheduled = false;
+
+/** Let the first taps settle before SymSpell / word-set work. */
+const DICTIONARY_WARMUP_DELAY_MS = 900;
+/** Full dictionary + bigrams after autocorrect settings are ready. */
+const HEAVY_WARMUP_DELAY_MS = 6_000;
+
+function scheduleDeferredDictionaryWarmup(): void {
+  if (deferredDictionaryWarmupScheduled) {
+    return;
+  }
+  deferredDictionaryWarmupScheduled = true;
+  InteractionManager.runAfterInteractions(() => {
+    setTimeout(() => {
+      ensureEnglishAccuracyBootstrap();
+      scheduleBackgroundEnglishSymSpellSeed();
+    }, DICTIONARY_WARMUP_DELAY_MS);
+  });
+}
 
 function notifyMinimalReady(): void {
   const waiters = minimalWaiters;
@@ -31,8 +53,8 @@ export function isSuggestionEngineReady(): boolean {
 
 /** Idempotent — safe on every key / keyboardShown. Never blocks the caller. */
 export function startSuggestionEngineWarmup(): void {
-  ensureEnglishAccuracyBootstrap();
-  scheduleBackgroundEnglishSymSpellSeed();
+  scheduleDeferredDictionaryWarmup();
+  startVoiceSttWarmup();
 
   if (minimalReady) {
     if (!bootstrapReady && !warmupPromise) {
@@ -69,6 +91,9 @@ async function runHeavyWarmupPhase(): Promise<void> {
   if (bootstrapReady) {
     return;
   }
+  await new Promise<void>(resolve => {
+    setTimeout(resolve, HEAVY_WARMUP_DELAY_MS);
+  });
   await preloadActiveDictionary();
   bootstrapReady = true;
   preloadContextBigrams();

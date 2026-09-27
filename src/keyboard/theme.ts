@@ -103,7 +103,7 @@ export const DEFAULT_KEYBOARD_LAYOUT_SETTINGS: KeyboardLayoutSettings = {
   letterLayoutId: DEFAULT_LETTER_LAYOUT_ID,
   letterSymbolAlternatesEnabled: true,
   numberRowEnabled: true,
-  landscapeFloatingKeyboardEnabled: true,
+  landscapeFloatingKeyboardEnabled: false,
   myRowEnabled: false,
   myRowPins: [],
   myRowShiftNumbersEnabled: false,

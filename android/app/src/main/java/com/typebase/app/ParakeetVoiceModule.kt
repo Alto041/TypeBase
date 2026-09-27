@@ -113,6 +113,32 @@ class ParakeetVoiceModule(private val reactContext: ReactApplicationContext) :
   }
 
   @ReactMethod
+  fun prepareStt(promise: Promise) {
+    if (
+        !ModelManager.areModelsReady(
+            reactContext,
+            precision = ModelPrecision.INT8,
+            sttModel = SttModel.PARAKEET,
+            sttBackend = SttBackend.ONNX,
+        )
+    ) {
+      promise.resolve(false)
+      return
+    }
+
+    moduleScope.launch(Dispatchers.Default) {
+      try {
+        ensurePipelinePrepared(warmSession = true)
+        withContext(Dispatchers.Main.immediate) { promise.resolve(true) }
+      } catch (error: Throwable) {
+        withContext(Dispatchers.Main.immediate) {
+          promise.reject("PARAKEET_PREPARE_FAILED", error.message, error)
+        }
+      }
+    }
+  }
+
+  @ReactMethod
   fun startListening(promise: Promise) {
     if (isListening.get()) {
       promise.resolve(true)
@@ -139,58 +165,10 @@ class ParakeetVoiceModule(private val reactContext: ReactApplicationContext) :
 
     moduleScope.launch(Dispatchers.Default) {
       try {
-        val modelDir =
-            ModelManager.modelDir(
-                reactContext,
-                precision = ModelPrecision.INT8,
-                sttModel = SttModel.PARAKEET,
-                sttBackend = SttBackend.ONNX,
-            )
-
-        val config =
-            SpeechConfig(
-                modelDir = modelDir,
-                useNnapi = false,
-                sttModel = SttModel.PARAKEET,
-                sttBackend = SttBackend.ONNX,
-                pipelineMode = PipelineMode.TRANSCRIBE_ONLY,
-                emitPartialTranscriptions = true,
-                partialTranscriptionInterval = 0.4f,
-                endOfSpeechSilenceSec = 0.8f,
-            )
-
-        val speechPipeline = SpeechPipeline(config)
-        pipeline = speechPipeline
-
-        eventJob =
-            moduleScope.launch(Dispatchers.Main.immediate) {
-              speechPipeline.events.collect { event ->
-                when (event) {
-                  is SpeechEvent.SessionCreated -> sendParakeetEvent(EVENT_READY, null)
-                  is SpeechEvent.PartialTranscription -> {
-                    val params = Arguments.createMap()
-                    params.putString("text", event.text)
-                    sendParakeetEvent(EVENT_PARTIAL, params)
-                  }
-                  is SpeechEvent.TranscriptionCompleted -> {
-                    val trimmed = event.text.trim()
-                    if (trimmed.isNotEmpty()) {
-                      val params = Arguments.createMap()
-                      params.putString("text", trimmed)
-                      sendParakeetEvent(EVENT_FINAL, params)
-                    }
-                  }
-                  is SpeechEvent.Error -> {
-                    val params = Arguments.createMap()
-                    params.putString("message", event.message)
-                    sendParakeetEvent(EVENT_ERROR, params)
-                  }
-                  else -> {}
-                }
-              }
-            }
-
-        speechPipeline.start()
+        ensurePipelinePrepared(warmSession = false)
+        synchronized(pipelineLock) {
+          pipeline?.start()
+        }
         isListening.set(true)
         shuttingDown.set(false)
         startAudioCapture()
@@ -206,13 +184,87 @@ class ParakeetVoiceModule(private val reactContext: ReactApplicationContext) :
     }
   }
 
+  private suspend fun ensurePipelinePrepared(warmSession: Boolean) {
+    synchronized(pipelineLock) {
+      if (pipeline != null) {
+        if (warmSession && !isListening.get()) {
+          pipeline?.start()
+          pipeline?.stop()
+        }
+        return
+      }
+    }
+
+    val modelDir =
+        ModelManager.modelDir(
+            reactContext,
+            precision = ModelPrecision.INT8,
+            sttModel = SttModel.PARAKEET,
+            sttBackend = SttBackend.ONNX,
+        )
+
+    val config =
+        SpeechConfig(
+            modelDir = modelDir,
+            useNnapi = false,
+            sttModel = SttModel.PARAKEET,
+            sttBackend = SttBackend.ONNX,
+            pipelineMode = PipelineMode.TRANSCRIBE_ONLY,
+            emitPartialTranscriptions = true,
+            partialTranscriptionInterval = 0.4f,
+            endOfSpeechSilenceSec = 0.8f,
+        )
+
+    val speechPipeline = SpeechPipeline(config)
+
+    synchronized(pipelineLock) {
+      pipeline = speechPipeline
+    }
+
+    eventJob =
+        moduleScope.launch(Dispatchers.Main.immediate) {
+          speechPipeline.events.collect { event ->
+            when (event) {
+              is SpeechEvent.SessionCreated -> sendParakeetEvent(EVENT_READY, null)
+              is SpeechEvent.PartialTranscription -> {
+                val params = Arguments.createMap()
+                params.putString("text", event.text)
+                sendParakeetEvent(EVENT_PARTIAL, params)
+              }
+              is SpeechEvent.TranscriptionCompleted -> {
+                val trimmed = event.text.trim()
+                if (trimmed.isNotEmpty()) {
+                  val params = Arguments.createMap()
+                  params.putString("text", trimmed)
+                  sendParakeetEvent(EVENT_FINAL, params)
+                }
+              }
+              is SpeechEvent.Error -> {
+                val params = Arguments.createMap()
+                params.putString("message", event.message)
+                sendParakeetEvent(EVENT_ERROR, params)
+              }
+              else -> {}
+            }
+          }
+        }
+
+    if (warmSession) {
+      speechPipeline.start()
+      speechPipeline.stop()
+    }
+  }
+
   @ReactMethod
   fun stopListening(promise: Promise) {
     mainHandler.post {
       shuttingDown.set(true)
       stopAudioCapture()
-      pipeline?.stop()
-      cleanupPipeline()
+      synchronized(pipelineLock) {
+        pipeline?.stop()
+      }
+      isListening.set(false)
+      shuttingDown.set(false)
       promise.resolve(true)
     }
   }

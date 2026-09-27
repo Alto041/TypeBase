@@ -1,4 +1,4 @@
-import {NativeModules, Platform} from 'react-native';
+import {NativeModules, Platform, Linking} from 'react-native';
 
 export type PlayLicenseStatus = 'licensed' | 'unlicensed' | 'needs_network';
 
@@ -6,6 +6,7 @@ type PlayLicenseModuleType = {
   isLicensedCached: () => Promise<boolean>;
   ensureLicensed: () => Promise<PlayLicenseStatus>;
   openPlayStoreListing: () => Promise<boolean>;
+  openAppListing: () => Promise<boolean>;
 };
 
 const PlayLicense: PlayLicenseModuleType | undefined = NativeModules.PlayLicense;
@@ -29,4 +30,20 @@ export async function openPlayStoreListing(): Promise<void> {
     return;
   }
   await PlayLicense.openPlayStoreListing();
+}
+
+const PLAY_STORE_LISTING_URL =
+  'https://play.google.com/store/apps/details?id=com.typebase.app';
+
+/** Opens the app on Google Play so users can rate or review. */
+export async function openAppStoreListing(): Promise<void> {
+  if (Platform.OS === 'android' && PlayLicense?.openAppListing) {
+    try {
+      await PlayLicense.openAppListing();
+      return;
+    } catch {
+      // Fall through to browser listing.
+    }
+  }
+  await Linking.openURL(PLAY_STORE_LISTING_URL);
 }

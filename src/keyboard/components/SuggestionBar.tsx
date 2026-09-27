@@ -595,7 +595,8 @@ function SuggestionBarComponent({
               <View style={styles.cursor} />
             </View>
           </View>
-        ) : centerTitle ? null : isSuggestionBootstrapLoading ? (
+        ) : centerTitle ? null : isSuggestionBootstrapLoading &&
+          !showWordSuggestions ? (
           <View style={styles.bootstrapLoadingContainer}>
             <ActivityIndicator size="small" color={theme.spaceLabel} />
             <Text style={styles.bootstrapLoadingText} numberOfLines={1}>

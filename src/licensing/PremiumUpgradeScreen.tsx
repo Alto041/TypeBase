@@ -1,7 +1,8 @@
-import React, {useEffect, useState} from 'react';
+import React, {useCallback, useEffect, useState} from 'react';
 import {
   ActivityIndicator,
   BackHandler,
+  Dimensions,
   Pressable,
   ScrollView,
   StatusBar,
@@ -9,15 +10,15 @@ import {
   Text,
   View,
 } from 'react-native';
-import {SafeAreaView} from 'react-native-safe-area-context';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 
-import AiConfigBlackIcon from '../../assets/Artificial.svg';
-import CheckIcon from '../../assets/check.svg';
-import GestureIcon from '../../assets/gesture.svg';
-import ItemsIcon from '../../assets/items.svg';
-import PersonalIcon from '../../assets/personal.svg';
-import ThemesIcon from '../../assets/themes.svg';
+import BackIcon from '../../assets/back.svg';
+import {PremiumGlowBg} from './PremiumGlowBg';
+import {
+  renderTypebaseProIcon,
+  TYPEBASE_PRO_FEATURES,
+} from './typebaseProFeatures';
 import {usePremium} from './PremiumContext';
 
 const C = {
@@ -26,52 +27,33 @@ const C = {
   text: '#111111',
   sub: '#6b6b6b',
   border: '#e8e8ea',
+  accent: '#ffc700',
   red: '#D71921',
-  green: '#2CC642',
-  muted: '#b0b0b5',
 } as const;
 
-const CARD_R = 14;
-const ROW_ICON = 20;
-const ACTION_BTN_SIZE = 52;
-const TEXT_KERNING = -0.7;
+const {height: SCREEN_H} = Dimensions.get('window');
+const HERO_HEIGHT = Math.round(SCREEN_H * 0.44);
 
-const BENEFITS = [
-  {
-    icon: ItemsIcon,
-    title: 'Keyboard plugins',
-    hint: 'Format, clipboard, calculator',
-  },
-  {
-    icon: ThemesIcon,
-    title: 'Themes & styling',
-    hint: 'Themes and customization',
-  },
-  {
-    icon: GestureIcon,
-    title: 'Gestures & swipe',
-    hint: 'Swipe typing',
-  },
-  {
-    icon: PersonalIcon,
-    title: 'My Row & essentials',
-    hint: 'Adaptive symbols · ;shortcuts',
-  },
-  {
-    icon: AiConfigBlackIcon,
-    title: 'AI toolkit',
-    hint: 'Translate, rewrite, voice',
-  },
-] as const;
+const TITLE_FONT = 'Geist';
+const BODY_FONT = 'Inter';
 
 type PremiumUpgradeScreenProps = {
   onBack?: () => void;
 };
 
 export function PremiumUpgradeScreen({onBack}: PremiumUpgradeScreenProps) {
+  const insets = useSafeAreaInsets();
   const {isPremium, loading, price, purchase, restore} = usePremium();
   const [busy, setBusy] = useState<'purchase' | 'restore' | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const t = {
+    bg: C.card,
+    text: C.text,
+    sub: C.sub,
+    border: C.border,
+    kicker: 'rgba(17,17,17,0.5)',
+  };
 
   useEffect(() => {
     if (!onBack) {
@@ -116,268 +98,323 @@ export function PremiumUpgradeScreen({onBack}: PremiumUpgradeScreenProps) {
     }
   };
 
+  const actionLoading = busy !== null || loading;
+  const footerH = 78 + Math.max(insets.bottom, 16) + (error ? 24 : 0);
+
+  const onBackPress = useCallback(() => {
+    void Haptics.selectionAsync().catch(() => {});
+    onBack?.();
+  }, [onBack]);
+
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor={C.bg} />
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}>
-        <Text style={styles.pageTitle}>Premium</Text>
+    <View style={[styles.screen, {backgroundColor: t.bg}]}>
+      <StatusBar barStyle="dark-content" backgroundColor={C.card} />
 
-        {!isPremium ? (
-          <View style={styles.priceCard}>
-            {loading && !price ? (
-              <ActivityIndicator color={C.sub} size="small" />
-            ) : (
-              <>
-                <Text style={styles.priceEyebrow}>One-time</Text>
-                <Text style={styles.priceAmount}>{price ?? '...'}</Text>
-                <Text style={styles.priceCaption}>Pay once, keep forever</Text>
-              </>
-            )}
-          </View>
-        ) : (
-          <View style={styles.priceCard}>
-            <View style={styles.activeRow}>
-              <View style={styles.activeDot} />
-              <Text style={styles.activeLabel}>Active</Text>
-            </View>
-            <Text style={styles.priceCaption}>Full access unlocked</Text>
-          </View>
-        )}
+      <View
+        style={[
+          styles.heroBand,
+          {height: HERO_HEIGHT, paddingTop: Math.max(insets.top, 16)},
+        ]}>
+        <PremiumGlowBg />
+        {onBack ? (
+          <Pressable
+            onPress={onBackPress}
+            style={[styles.backBtn, {top: Math.max(insets.top, 12)}]}
+            accessibilityRole="button"
+            accessibilityLabel="Back">
+            <BackIcon width={22} height={22} color={C.text} />
+          </Pressable>
+        ) : null}
+        <View style={styles.heroInner}>
+          <Text style={[styles.kicker, {color: t.kicker}]}>TYPEBASE PREMIUM</Text>
+          <Text style={[styles.heroTitle, {color: t.text}]}>Everything unlocked.</Text>
+          <Text style={[styles.heroTitle, styles.heroTitleAccent, {color: t.text}]}>
+            Yours to keep.
+          </Text>
+          <Text style={[styles.heroBody, {color: t.sub}]}>
+            Pay once for this phone. No subscriptions — full keyboard power whenever you type.
+          </Text>
+        </View>
+      </View>
 
-        <View style={styles.benefitStack}>
-          {BENEFITS.map((benefit, index) => {
-            const positionStyle =
-              index === 0
-                ? styles.firstBenefitCard
-                : index === BENEFITS.length - 1
-                  ? styles.lastBenefitCard
-                  : styles.middleBenefitCard;
-            const Icon = benefit.icon;
+      <View
+        style={[
+          styles.contentSheet,
+          {backgroundColor: t.bg, borderTopColor: 'rgba(0,0,0,0.06)'},
+        ]}>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={[styles.scrollContent, {paddingBottom: footerH + 28}]}
+          showsVerticalScrollIndicator={false}
+          bounces>
+          <Text style={[styles.sheetTitle, {color: t.text}]}>Here&apos;s what you get</Text>
+          <Text style={[styles.sheetSub, {color: t.sub}]}>
+            All {TYPEBASE_PRO_FEATURES.length} areas, one purchase, on this device.
+          </Text>
 
-            return (
-              <View key={benefit.title} style={[styles.benefitCard, positionStyle]}>
-                <View style={styles.benefitInner}>
-                  <Icon width={ROW_ICON} height={ROW_ICON} color={C.text} />
-                  <View style={styles.benefitTextCol}>
-                    <Text style={styles.benefitTitle}>{benefit.title}</Text>
-                    <Text style={styles.benefitHint}>{benefit.hint}</Text>
+          <View style={[styles.toolsCard, {borderColor: t.border}]}>
+            {TYPEBASE_PRO_FEATURES.map((feature, i) => (
+              <View key={feature.key}>
+                <View style={styles.featureRow}>
+                  <View style={[styles.featureIcon, {backgroundColor: '#f7f7f8'}]}>
+                    {renderTypebaseProIcon(feature.key, t.text)}
                   </View>
-                  {isPremium ? (
-                    <CheckIcon width={16} height={16} color={C.green} />
-                  ) : null}
+                  <View style={styles.featureCopy}>
+                    <Text style={[styles.featureName, {color: t.text}]}>{feature.name}</Text>
+                    <Text style={[styles.featureDesc, {color: t.sub}]}>{feature.desc}</Text>
+                  </View>
                 </View>
+                {i < TYPEBASE_PRO_FEATURES.length - 1 ? (
+                  <View style={[styles.featureDivider, {backgroundColor: t.border}]} />
+                ) : null}
               </View>
-            );
-          })}
+            ))}
+          </View>
+
+          <Text style={[styles.footNote, {color: t.sub}]}>
+            {isPremium
+              ? "You're all set — Premium is active on this phone."
+              : 'Already bought it? Tap restore and you\u2019re back in.'}
+          </Text>
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+        </ScrollView>
+      </View>
+
+      <View
+        style={[
+          styles.stickyFooter,
+          {
+            backgroundColor: t.bg,
+            paddingBottom: Math.max(insets.bottom, 16),
+            borderTopColor: t.border,
+          },
+        ]}>
+        <View style={styles.actionRow}>
+          <Pressable
+            onPress={() => void handlePurchase()}
+            disabled={actionLoading || isPremium}
+            accessibilityRole="button"
+            accessibilityLabel={
+              isPremium
+                ? 'Premium unlocked'
+                : price
+                  ? `Get Premium for ${price}`
+                  : 'Get Premium'
+            }
+            style={[styles.buyBtn, (actionLoading || isPremium) && styles.btnDisabled]}>
+            {busy === 'purchase' ? (
+              <ActivityIndicator color="#111111" />
+            ) : isPremium ? (
+              <Text style={styles.buyBtnMain}>You&apos;re in</Text>
+            ) : (
+              <Text style={styles.buyBtnMain}>
+                Get Premium{price ? ` · ${price}` : ''}
+              </Text>
+            )}
+          </Pressable>
+
+          <Pressable
+            onPress={() => void handleRestore()}
+            disabled={actionLoading || isPremium}
+            accessibilityRole="button"
+            accessibilityLabel="Restore purchase"
+            style={[
+              styles.restoreBtn,
+              {borderColor: t.border},
+              actionLoading && styles.btnDisabled,
+            ]}>
+            {busy === 'restore' ? (
+              <ActivityIndicator color={t.text} size="small" />
+            ) : (
+              <Text style={[styles.restoreGlyph, {color: t.text}]}>↻</Text>
+            )}
+          </Pressable>
         </View>
 
-        {!isPremium ? (
-          <View style={styles.actionsCol}>
-            <Pressable
-              style={[styles.unlockBtn, busy !== null && styles.btnDisabled]}
-              disabled={busy !== null || loading}
-              onPress={() => void handlePurchase()}>
-              {busy === 'purchase' ? (
-                <ActivityIndicator color="#ffffff" />
-              ) : (
-                <Text style={styles.unlockBtnText}>
-                  {price ? `Unlock for ${price}` : 'Unlock TypeBase'}
-                </Text>
-              )}
-            </Pressable>
-            <Pressable
-              style={[styles.restoreTextBtn, busy !== null && styles.btnDisabled]}
-              disabled={busy !== null || loading}
-              onPress={() => void handleRestore()}
-              accessibilityLabel="Restore purchase">
-              {busy === 'restore' ? (
-                <ActivityIndicator color={C.text} size="small" />
-              ) : (
-                <Text style={styles.restoreTextBtnLabel}>Restore purchase</Text>
-              )}
-            </Pressable>
-          </View>
+        {!isPremium && !actionLoading ? (
+          <Text style={[styles.priceFootnote, {color: t.sub}]}>
+            pay once, keep it forever · Quivox Engineering
+          </Text>
         ) : null}
-
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-
-        <Text style={styles.footerNote}>
-          {isPremium
-            ? 'Premium is linked to your Google account on this device.'
-            : 'A Quivox Engineering product'}
-        </Text>
-      </ScrollView>
-    </SafeAreaView>
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: C.bg,
+  screen: {flex: 1},
+  heroBand: {
+    overflow: 'hidden',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 22,
+    paddingBottom: 36,
   },
-  scrollContent: {
-    paddingHorizontal: 18,
-    paddingTop: 72,
-    paddingBottom: 110,
-    gap: 10,
-  },
-  pageTitle: {
-    fontSize: 40,
-    color: C.text,
-    letterSpacing: -2.5,
-    fontFamily: 'FragmentMono',
-    marginBottom: 4,
-  },
-  priceCard: {
-    backgroundColor: C.card,
-    borderRadius: CARD_R,
-    paddingHorizontal: 18,
-    paddingVertical: 20,
-    gap: 4,
-    marginBottom: 4,
-    minHeight: 88,
+  backBtn: {
+    position: 'absolute',
+    left: 16,
+    zIndex: 3,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    alignItems: 'center',
     justifyContent: 'center',
   },
-  priceEyebrow: {
-    fontSize: 11,
-    color: C.sub,
-    fontFamily: 'FragmentMono',
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
+  heroInner: {
+    gap: 10,
+    zIndex: 2,
   },
-  priceAmount: {
-    fontSize: 32,
-    lineHeight: 36,
-    color: C.text,
-    fontFamily: 'Geist',
-    fontWeight: '400',
+  kicker: {
+    fontFamily: BODY_FONT,
+    fontSize: 11,
+    letterSpacing: 1.4,
+    marginBottom: 2,
+  },
+  heroTitle: {
+    fontSize: 40,
+    lineHeight: 44,
+    fontFamily: TITLE_FONT,
     letterSpacing: -1.5,
   },
-  priceCaption: {
-    fontSize: 13,
-    color: C.sub,
-    fontFamily: 'Inter',
-    letterSpacing: -0.2,
-    marginTop: 2,
+  heroTitleAccent: {
+    marginTop: -4,
   },
-  activeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  activeDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: C.green,
-  },
-  activeLabel: {
-    fontSize: 16,
-    color: C.text,
-    fontFamily: 'FragmentMono',
-    letterSpacing: TEXT_KERNING,
-    textTransform: 'uppercase',
-  },
-  benefitStack: {
-    gap: 4,
-  },
-  benefitCard: {
-    backgroundColor: C.card,
-    borderRadius: CARD_R,
-    paddingHorizontal: 14,
-    paddingVertical: 4,
-  },
-  firstBenefitCard: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    borderBottomLeftRadius: 8,
-    borderBottomRightRadius: 8,
-  },
-  middleBenefitCard: {
-    borderRadius: 10,
-  },
-  lastBenefitCard: {
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
-    borderTopLeftRadius: 8,
-    borderTopRightRadius: 8,
-  },
-  benefitInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    minHeight: 56,
-  },
-  benefitTextCol: {
-    flex: 1,
-    gap: 2,
-  },
-  benefitTitle: {
-    color: C.text,
-    fontSize: 14,
-    fontFamily: 'FragmentMono',
-    letterSpacing: TEXT_KERNING,
-    textTransform: 'uppercase',
-  },
-  benefitHint: {
-    color: C.sub,
-    fontSize: 12,
-    fontFamily: 'FragmentMono',
-    letterSpacing: TEXT_KERNING,
-  },
-  actionsCol: {
-    gap: 10,
-    marginTop: 8,
-  },
-  unlockBtn: {
-    backgroundColor: C.text,
-    borderRadius: CARD_R,
-    height: ACTION_BTN_SIZE,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-  },
-  unlockBtnText: {
-    color: '#ffffff',
+  heroBody: {
     fontSize: 15,
-    fontFamily: 'FragmentMono',
-    letterSpacing: TEXT_KERNING,
-    textTransform: 'uppercase',
+    lineHeight: 23,
+    fontFamily: BODY_FONT,
+    maxWidth: 320,
+    marginTop: 4,
   },
-  restoreTextBtn: {
-    minHeight: 44,
+  contentSheet: {
+    flex: 1,
+    marginTop: -26,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    overflow: 'hidden',
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  scroll: {flex: 1},
+  scrollContent: {
+    paddingHorizontal: 18,
+    paddingTop: 28,
+  },
+  sheetTitle: {
+    fontFamily: TITLE_FONT,
+    fontSize: 22,
+    lineHeight: 27,
+    marginBottom: 6,
+    letterSpacing: -0.8,
+  },
+  sheetSub: {
+    fontFamily: BODY_FONT,
+    fontSize: 14,
+    lineHeight: 21,
+    marginBottom: 20,
+  },
+  toolsCard: {
+    borderRadius: 20,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 16,
+    paddingVertical: 4,
+    marginBottom: 16,
+  },
+  featureRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 14,
+    paddingVertical: 14,
+  },
+  featureIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
   },
-  restoreTextBtnLabel: {
-    color: C.text,
+  featureCopy: {
+    flex: 1,
+    gap: 3,
+    paddingTop: 1,
+  },
+  featureName: {
+    fontFamily: BODY_FONT,
+    fontSize: 15,
+    lineHeight: 19,
+    fontWeight: '500',
+  },
+  featureDesc: {
+    fontFamily: BODY_FONT,
     fontSize: 13,
-    fontFamily: 'FragmentMono',
-    letterSpacing: TEXT_KERNING,
-    textTransform: 'uppercase',
-    textDecorationLine: 'underline',
+    lineHeight: 18,
   },
-  btnDisabled: {
-    opacity: 0.7,
+  featureDivider: {
+    height: StyleSheet.hairlineWidth,
+    marginLeft: 54,
+  },
+  footNote: {
+    fontSize: 12,
+    lineHeight: 16,
+    textAlign: 'center',
+    fontFamily: BODY_FONT,
+    marginTop: 4,
   },
   error: {
     color: C.red,
     fontSize: 13,
     textAlign: 'center',
-    fontFamily: 'FragmentMono',
-    letterSpacing: TEXT_KERNING,
+    fontFamily: BODY_FONT,
+    marginTop: 8,
   },
-  footerNote: {
+  stickyFooter: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: 18,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  actionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  buyBtn: {
+    flex: 1,
+    minHeight: 54,
+    borderRadius: 999,
+    backgroundColor: C.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+  },
+  buyBtnMain: {
+    color: '#111111',
+    fontSize: 16,
+    lineHeight: 20,
+    fontFamily: BODY_FONT,
+    fontWeight: '600',
+  },
+  restoreBtn: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  restoreGlyph: {
+    fontSize: 26,
+    lineHeight: 28,
+  },
+  priceFootnote: {
+    marginTop: 8,
     textAlign: 'center',
-    fontSize: 11,
-    color: C.muted,
-    letterSpacing: TEXT_KERNING,
-    fontFamily: 'FragmentMono',
-    marginTop: 4,
-    paddingHorizontal: 8,
+    fontFamily: BODY_FONT,
+    fontSize: 12,
+    lineHeight: 16,
   },
+  btnDisabled: {opacity: 0.55},
 });
