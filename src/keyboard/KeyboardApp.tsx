@@ -242,6 +242,10 @@ import {
 } from './editor/shiftEditorShortcuts';
 import {deferKeyboardSideEffect, triggerKeyHaptic} from './haptics';
 import {isLandscapeTypingProfile, setLandscapeTypingProfile} from './landscapeTypingProfile';
+import {
+  isCompactNativeTypingActive,
+  setCompactNativeTypingActive,
+} from './compactNativeTyping';
 import {keyboardBridge} from './keyboardBridge';
 import {getKeyReactTag, subscribeKeyReactTags} from './keyReactTags';
 import {
@@ -373,10 +377,10 @@ const AI_PROOFREAD_MIN_IDLE_MS = 600;
 const AI_PREFLIGHT_MIN_TOKEN_LENGTH = 4;
 const AI_PREFLIGHT_CACHE_LIMIT = 12;
 const NATIVE_FAST_PATH_MIN_KEYS = 20;
-/** Disabled: native fast path + compact typing experiment caused lag in both portrait & landscape. */
-const NATIVE_FAST_PATH_ENABLED = false;
-/** Landscape native compact session — off until preview + JS sync are stable. */
-const LANDSCAPE_NATIVE_COMPACT_TYPING_ENABLED = false;
+const NATIVE_FAST_PATH_ENABLED = true;
+/** Commit letters in Kotlin and skip RN dispatch — portrait only (landscape uses JS typing). */
+const COMPACT_NATIVE_TYPING_ENABLED = true;
+const COMPACT_NATIVE_TYPING_PORTRAIT_ONLY = true;
 
 function buildNativeFastPathReactTagsSignature(
   keyLayouts: {id: string}[],
@@ -833,6 +837,9 @@ function KeyboardBody({
   const lastPublishedFastPathLayoutEpochRef = useRef(-1);
   const lastPublishedLandscapeRef = useRef<boolean | null>(null);
   const lastPublishedReactTagsSignatureRef = useRef('');
+  const lastPublishedFastPathSignatureRef = useRef('');
+  const [compactTypingNativeActive, setCompactTypingNativeActive] =
+    useState(false);
   const instantSuggestionRafRef = useRef<number | null>(null);
   const instantSuggestionLastFlushAtRef = useRef(0);
   const nativeSideEffectDedupRef = useRef<{text: string; at: number} | null>(null);
@@ -1545,6 +1552,7 @@ function KeyboardBody({
     zeroLatencyModeRef.current = false;
     setZeroLatencyRuntimeActive(false);
     keyboardBridge.setNativeZeroLatencyMode(false);
+    lastPublishedFastPathSignatureRef.current = '';
 
     setMode({type: 'typing'});
     setLayout('letters');
@@ -1680,6 +1688,7 @@ function KeyboardBody({
     keyboardBridge.updateTouchIntelligenceContext(JSON.stringify({enabled: false}));
 
     setZeroLatencyMode(true);
+    lastPublishedFastPathSignatureRef.current = '';
   }, []);
 
   const deactivatePerformanceModes = useCallback(() => {
@@ -1693,6 +1702,7 @@ function KeyboardBody({
     keyboardBridge.setGamePerformanceMode(false);
     setGamePerformanceActive(false);
     keyboardBridge.setNativeZeroLatencyMode(false);
+    lastPublishedFastPathSignatureRef.current = '';
     setZeroLatencyMode(false);
     if (wasZeroLatency) {
       syncTouchIntelligenceToNative();
@@ -1708,6 +1718,7 @@ function KeyboardBody({
     setGamePerformanceModeActive(true);
     keyboardBridge.setGamePerformanceMode(true);
     setGamePerformanceActive(true);
+    lastPublishedFastPathSignatureRef.current = '';
   }, []);
 
   /** Landscape: keep multi-touch but disable heavy touch intelligence. */
@@ -1954,8 +1965,9 @@ function KeyboardBody({
     lastAiProofreadOriginalRef.current = null;
     setAiAutocorrectSuggestion(current => (current === null ? current : null));
     setIsAiAutocorrectProcessing(current => (current ? false : current));
-    if (stoppedTypingRef.current) {
-      stoppedTypingRef.current = false;
+    const wasStopped = stoppedTypingRef.current;
+    stoppedTypingRef.current = false;
+    if (wasStopped) {
       setStoppedTyping(false);
     }
     if (typingIdleTimerRef.current) {
@@ -1963,8 +1975,10 @@ function KeyboardBody({
     }
     typingIdleTimerRef.current = setTimeout(() => {
       typingIdleTimerRef.current = null;
-      stoppedTypingRef.current = true;
-      setStoppedTyping(true);
+      if (!stoppedTypingRef.current) {
+        stoppedTypingRef.current = true;
+        setStoppedTyping(true);
+      }
     }, 450);
   }, []);
 
@@ -2914,11 +2928,15 @@ function KeyboardBody({
         aiProofreadTimerRef.current = null;
         void (async () => {
           const idleMs = Date.now() - lastTypingAtRef.current;
-          if (idleMs < AI_PROOFREAD_MIN_IDLE_MS) {
+          if (idleMs < AI_PROOFREAD_MIN_IDLE_MS || !stoppedTypingRef.current) {
             logAiAutocorrect( 'run skipped: still typing', {
               idleMs,
               runId,
+              stoppedTyping: stoppedTypingRef.current,
             });
+            if (!stoppedTypingRef.current) {
+              scheduleAiProofread(AI_PROOFREAD_MIN_IDLE_MS);
+            }
             return;
           }
           if (
@@ -4090,17 +4108,26 @@ function KeyboardBody({
           }
           backspaceSyncSeqRef.current += 1;
           livePrefixRef.current = livePrefixRef.current.slice(0, -1);
-          if (!isLandscapeTypingProfile()) {
+          if (
+            !isLandscapeTypingProfile() &&
+            !isCompactNativeTypingActive()
+          ) {
             refreshTouchIntelligenceFromLivePrefix();
           }
           lastTypingAtRef.current = Date.now();
           if (autocorrectPreviewRef.current) {
             autocorrectPreviewRef.current = null;
-            if (!isLandscapeTypingProfile()) {
+            if (
+              !isLandscapeTypingProfile() &&
+              !isCompactNativeTypingActive()
+            ) {
               setTypingBarAutocorrectPreview(null);
             }
           }
-          if (!isLandscapeTypingProfile()) {
+          if (
+            !isLandscapeTypingProfile() &&
+            !isCompactNativeTypingActive()
+          ) {
             setTypingBarTypedKeep(current => (current ? null : current));
           }
           scheduleBackspaceBarFlush();
@@ -4382,6 +4409,14 @@ function KeyboardBody({
         return;
       }
 
+      if (isCompactNativeTypingActive()) {
+        hasTypedInFieldRef.current = true;
+        const now = Date.now();
+        lastTypingAtRef.current = now;
+        markTypingChurn(now + TYPING_HEAVY_DEFER_MS);
+        return;
+      }
+
       if (isLandscapeTypingProfile()) {
         hasTypedInFieldRef.current = true;
         const now = Date.now();
@@ -4590,6 +4625,9 @@ function KeyboardBody({
       if (!text || modeRef.current.type !== 'typing') {
         return;
       }
+      if (isCompactNativeTypingActive()) {
+        return;
+      }
       if (
         layoutRef.current === 'letters' &&
         isShiftEditorShortcutEligible({
@@ -4789,6 +4827,12 @@ function KeyboardBody({
           setShiftOn(shiftOnRef.current);
           setCapsLocked(capsLockedRef.current);
           syncNativeFastPathCaseState();
+          editorContextRef.current = getEffectiveEditorContext(prefix);
+          previousWordRef.current = derivePreviousWordFromEditor(
+            editorContextRef.current,
+            prefix,
+          );
+          flushTypingIdleSideEffects();
         }
         if (reason === 'space' || reason === 'enter' || reason === 'backspace') {
           startTransition(() => {
@@ -4854,7 +4898,13 @@ function KeyboardBody({
       boundarySubscription.remove();
       shiftSubscription.remove();
     };
-  }, [applyInstantSuggestionBar, commitTypedWordBoundary, syncNativeFastPathCaseState]);
+  }, [
+    applyInstantSuggestionBar,
+    commitTypedWordBoundary,
+    flushTypingIdleSideEffects,
+    getEffectiveEditorContext,
+    syncNativeFastPathCaseState,
+  ]);
 
   const handleWordCommitted = useCallback(
     (word: string, options?: {textAlreadyInserted?: boolean}) => {
@@ -5058,12 +5108,16 @@ function KeyboardBody({
     if (!layoutContext) {
       nativeFastPathActiveRef.current = false;
       lastPublishedLandscapeRef.current = null;
+      setCompactTypingNativeActive(false);
+      setCompactNativeTypingActive(false);
       keyboardBridge.setNativeKeyFastPathConfig(JSON.stringify({enabled: false}));
       return;
     }
     if (!nativeFastPathEligible) {
       nativeFastPathActiveRef.current = false;
       lastPublishedLandscapeRef.current = null;
+      setCompactTypingNativeActive(false);
+      setCompactNativeTypingActive(false);
       keyboardBridge.setNativeKeyFastPathConfig(JSON.stringify({enabled: false}));
       if (theme.predictiveHitboxesEnabled) {
         updatePredictiveHitboxes(livePrefixRef.current, layoutContext.getLayouts(), {
@@ -5082,29 +5136,28 @@ function KeyboardBody({
         return;
       }
 
+      layoutContext.refreshAreaBounds();
+
       const keyLayouts = layoutContext
         .getLayouts()
         .filter(({keyDef}) => {
           if (keyDef.type === 'spacer') {
             return false;
           }
-          if (theme.isLandscape) {
-            const type = keyDef.type;
-            if (
-              type === 'backspace' ||
-              type === 'space' ||
-              type === 'shift' ||
-              type === 'enter' ||
-              type === 'enter-backspace'
-            ) {
-              return true;
-            }
-            if (!keyDef.value || type === 'comma' || type === 'period') {
-              return false;
-            }
-            return keyDef.value.length > 0;
+          const type = keyDef.type;
+          if (
+            type === 'backspace' ||
+            type === 'space' ||
+            type === 'shift' ||
+            type === 'enter' ||
+            type === 'enter-backspace' ||
+            type === 'numbers' ||
+            type === 'symbols' ||
+            type === 'letters'
+          ) {
+            return true;
           }
-          if (!keyDef.value || keyDef.type === 'comma' || keyDef.type === 'period') {
+          if (!keyDef.value || type === 'comma' || type === 'period') {
             return false;
           }
           return keyDef.value.length > 0;
@@ -5118,33 +5171,55 @@ function KeyboardBody({
         keyPreviewStyle === 'popup' || keyPreviewStyle === 'subtle';
       const previewDoodleEnabled = keyPreviewStyle === 'doodle';
 
-      // Native fast path disabled — keep JS typing; still publish touch-intel to native.
-      nativeFastPathActiveRef.current = false;
-      keyboardBridge.setNativeKeyFastPathConfig(JSON.stringify({enabled: false}));
-      if (theme.predictiveHitboxesEnabled) {
-        updatePredictiveHitboxes(livePrefixRef.current, keyLayouts, {
-          enabled: true,
-          lang: getActiveLanguage(),
-        });
+      if (keyLayouts.length < NATIVE_FAST_PATH_MIN_KEYS) {
+        nativeFastPathActiveRef.current = false;
+        setCompactTypingNativeActive(false);
+        setCompactNativeTypingActive(false);
+        keyboardBridge.setNativeKeyFastPathConfig(JSON.stringify({enabled: false}));
+        if (theme.predictiveHitboxesEnabled) {
+          updatePredictiveHitboxes(livePrefixRef.current, keyLayouts, {
+            enabled: true,
+            lang: getActiveLanguage(),
+          });
+        }
+        syncTouchIntelligenceToNative(true);
+        return;
       }
-      syncTouchIntelligenceToNative(true);
-      return;
 
       const origin = layoutContext.areaOriginRef.current;
+      const compactTyping =
+        COMPACT_NATIVE_TYPING_ENABLED &&
+        (!COMPACT_NATIVE_TYPING_PORTRAIT_ONLY || !landscape);
+      const nativeFastPathEnabled = nativeFastPathEligible && compactTyping;
+      const fastPathSignature = [
+        landscape,
+        layoutEpoch,
+        reactTagsSignature,
+        shiftOnRef.current,
+        capsLockedRef.current,
+        keyPreviewStyle,
+        zeroLatencyModeRef.current,
+        gamePerformanceModeRef.current,
+        compactTyping,
+      ].join('|');
+
+      if (
+        nativeFastPathEnabled &&
+        fastPathSignature === lastPublishedFastPathSignatureRef.current &&
+        nativeFastPathActiveRef.current
+      ) {
+        return;
+      }
+
       if (layoutEpoch !== lastPublishedFastPathLayoutEpochRef.current) {
-        if (!theme.isLandscape) {
+        if (!compactTyping && theme.predictiveHitboxesEnabled) {
           updatePredictiveHitboxes(livePrefixRef.current, keyLayouts, {
-            enabled: theme.predictiveHitboxesEnabled,
+            enabled: true,
             lang: getActiveLanguage(),
           });
         }
         lastPublishedFastPathLayoutEpochRef.current = layoutEpoch;
       }
-      const landscapeCompactNative =
-        theme.isLandscape && LANDSCAPE_NATIVE_COMPACT_TYPING_ENABLED;
-      const nativeFastPathEnabled =
-        nativeFastPathEligible && landscapeCompactNative;
-      const compactTyping = landscapeCompactNative;
       const touchIntelligence = compactTyping
         ? {
             enabled: false,
@@ -5159,15 +5234,25 @@ function KeyboardBody({
             keyExpansions: [] as ReturnType<typeof serializeKeyExpansionsForNative>,
           }
         : getTouchIntelligenceNativeConfig();
-      if (landscape) {
+      if (landscape && nativeFastPathEnabled) {
         recordCompactTypingFastPathPublish();
       }
       if (!nativeFastPathEnabled) {
         nativeFastPathActiveRef.current = false;
+        setCompactTypingNativeActive(false);
+        setCompactNativeTypingActive(false);
         keyboardBridge.setNativeKeyFastPathConfig(JSON.stringify({enabled: false}));
         lastPublishedLandscapeRef.current = landscape;
         lastPublishedReactTagsSignatureRef.current = reactTagsSignature;
         lastPublishedFastPathLayoutEpochRef.current = layoutEpoch;
+        lastPublishedFastPathSignatureRef.current = '';
+        if (theme.predictiveHitboxesEnabled) {
+          updatePredictiveHitboxes(livePrefixRef.current, keyLayouts, {
+            enabled: true,
+            lang: getActiveLanguage(),
+          });
+        }
+        syncTouchIntelligenceToNative(true);
         return;
       }
 
@@ -5209,9 +5294,13 @@ function KeyboardBody({
       if (!autoShiftConsumedMidWordRef.current) {
         syncNativeFastPathCaseState();
       }
+      keyboardBridge.syncCompactTypingPrefix(livePrefixRef.current);
       nativeFastPathActiveRef.current = true;
+      setCompactTypingNativeActive(true);
+      setCompactNativeTypingActive(true);
       lastPublishedLandscapeRef.current = landscape;
       lastPublishedReactTagsSignatureRef.current = reactTagsSignature;
+      lastPublishedFastPathSignatureRef.current = fastPathSignature;
     };
 
     let publishDebounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -5270,6 +5359,7 @@ function KeyboardBody({
       zeroLatencyModeRef.current = false;
       setZeroLatencyRuntimeActive(false);
       keyboardBridge.setNativeZeroLatencyMode(false);
+    lastPublishedFastPathSignatureRef.current = '';
       keyboardBridge.setNativeKeyFastPathConfig(JSON.stringify({enabled: false}));
     };
   }, []);
@@ -5310,6 +5400,7 @@ function KeyboardBody({
     zeroLatencyModeRef.current = false;
     setZeroLatencyRuntimeActive(false);
     keyboardBridge.setNativeZeroLatencyMode(false);
+    lastPublishedFastPathSignatureRef.current = '';
     setZeroLatencyMode(false);
   }, [mode.type, syncTouchIntelligenceToNative]);
 
@@ -5460,8 +5551,11 @@ function KeyboardBody({
 
   const isNumpadLayout = layout === 'numpad';
   const useCompactLayout = isNumpadLayout || theme.isLandscape;
-  /** Native IME skips RN dispatch on compact hits; do not block touches in JS (fallback Pressable). */
-  const compactTypingNativeActive = false;
+  /** Native IME skips RN dispatch on compact hits; gate passthrough until native confirms. */
+  const compactTypingNativeActiveForKeys =
+    compactTypingNativeActive &&
+    (Platform.OS !== 'android' ||
+      keyboardBridge.isCompactTypingConsumingTouches());
   const frostedKeyboardVisible =
     theme.frostedGlass &&
     showKeys &&
@@ -5960,11 +6054,10 @@ function KeyboardBody({
                         : keyGestures
                     }
                     multiTouchEnabled={
-                      !theme.isLandscape &&
-                      (mode.type === 'typing' ||
-                        isGifSearchMode ||
-                        isEmojiSearchMode ||
-                        isSfxSearchMode)
+                      mode.type === 'typing' ||
+                      isGifSearchMode ||
+                      isEmojiSearchMode ||
+                      isSfxSearchMode
                     }
                     keyHeight={
                       effectiveLetterKeyHeight ?? numberRowLayoutBoost?.keyHeight
@@ -5980,7 +6073,7 @@ function KeyboardBody({
                     }
                     typeLiftProcessing={isAiAutocorrectProcessing}
                     predictiveHitboxTick={predictiveHitboxTick}
-                    compactTypingNativeActive={compactTypingNativeActive}
+                    compactTypingNativeActive={compactTypingNativeActiveForKeys}
                   />
             </View>
           ) : null}

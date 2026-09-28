@@ -397,25 +397,13 @@ class NativeKeyFastPath {
         return compactTyping
       }
       "shift" -> {
-        KeyboardInputBridge.notifyCompactTypingShiftPress()
-        pulseLandscapeAwareHaptic(pointerId)
-        showKeyChromeForKey(key, "⇧", rawX, rawY, localX, localY)
-        sessions[pointerId] = TouchSession(pointerId, key, "")
-        return compactTyping
+        return false
       }
-      "enter" -> {
-        if (livePrefix.isNotEmpty()) {
-          val typedWord = livePrefix.toString()
-          KeyboardInputBridge.notifyCompactTypingBoundary("", typedWord)
-        }
-        KeyboardInputBridge.submitEnterFromCompactTyping()
-        livePrefix.clear()
-        NativeSuggestionBarEngine.clearPrefix()
-        pulseLandscapeAwareHaptic(pointerId)
-        showKeyChromeForKey(key, "↵", rawX, rawY, localX, localY)
-        sessions[pointerId] = TouchSession(pointerId, key, "")
-        pushCompactStateSync("enter")
-        return compactTyping
+      "enter", "enter-backspace" -> {
+        return false
+      }
+      "numbers", "symbols", "letters" -> {
+        return false
       }
     }
 
@@ -447,6 +435,7 @@ class NativeKeyFastPath {
         }
       } else if (!zeroLatency && compactTyping) {
         livePrefix.append(text.lowercase())
+        NativeSuggestionBarEngine.appendLetter(text)
       }
     }
 
@@ -566,7 +555,10 @@ class NativeKeyFastPath {
               "backspace" -> "\u232b"
               "space" -> " "
               "shift" -> "shift"
-              "enter" -> "enter"
+              "enter", "enter-backspace" -> "enter"
+              "numbers" -> "123"
+              "symbols" -> "sym"
+              "letters" -> "abc"
               else -> ""
             }
       }

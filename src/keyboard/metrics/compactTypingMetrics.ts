@@ -1,5 +1,16 @@
 import {DeviceEventEmitter, Platform} from 'react-native';
 
+/**
+ * Release APK manual checklist (compact native typing):
+ * - Type a sentence: nativeCommits + reactTouchBlocks rise (Engine Stats / compactTypingMetrics)
+ * - fastPathConfigPublishes stays low during sentence
+ * - Space autocorrect after rotate
+ * - Shift mid-word + shift-off stickiness
+ * - Backspace hold/repeat
+ * - Zero-latency toggle still works
+ * - TypeLift runs only after typing pause (no jank while bursting keys)
+ */
+
 import {keyboardBridge} from '../keyboardBridge';
 
 export type CompactTypingMetricsSnapshot = {

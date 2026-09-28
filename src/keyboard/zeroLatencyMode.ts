@@ -1,6 +1,7 @@
 import {keyboardBridge} from './keyboardBridge';
 
 import {isLandscapeTypingProfile} from './landscapeTypingProfile';
+import {isCompactNativeTypingActive} from './compactNativeTyping';
 
 let zeroLatencyModeActive = false;
 let burstTypingActive = false;
@@ -71,6 +72,7 @@ export function shouldDeferHeavyTypingSideEffects(): boolean {
     burstTypingActive ||
     floatingKeyboardDragActive ||
     isLandscapeTypingProfile() ||
+    isCompactNativeTypingActive() ||
     isTypingChurnActive()
   );
 }
@@ -83,6 +85,7 @@ export function shouldDeferLiveSuggestionBar(): boolean {
     burstTypingActive ||
     floatingKeyboardDragActive ||
     isLandscapeTypingProfile() ||
+    isCompactNativeTypingActive() ||
     isTypingChurnActive()
   );
 }
@@ -91,8 +94,7 @@ export function shouldSkipFrostedKeyboardEffects(): boolean {
   return (
     zeroLatencyModeActive ||
     gamePerformanceModeActive ||
-    floatingKeyboardDragActive ||
-    isLandscapeTypingProfile()
+    floatingKeyboardDragActive
   );
 }
 
@@ -110,6 +112,7 @@ export function shouldDeferNativeTouchIntelligenceSync(): boolean {
   return (
     shouldSkipTouchIntelligenceWork() ||
     isLandscapeTypingProfile() ||
+    isCompactNativeTypingActive() ||
     burstTypingActive ||
     isTypingChurnActive()
   );
@@ -121,6 +124,7 @@ export function shouldSkipNativeSuggestionTracking(): boolean {
     zeroLatencyModeActive ||
     gamePerformanceModeActive ||
     floatingKeyboardDragActive ||
-    isLandscapeTypingProfile()
+    isLandscapeTypingProfile() ||
+    isCompactNativeTypingActive()
   );
 }

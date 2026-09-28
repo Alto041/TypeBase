@@ -1,5 +1,6 @@
 import React, {memo, useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
+  findNodeHandle,
   PanResponder,
   PixelRatio,
   Pressable,
@@ -11,6 +12,7 @@ import {
 import BackKeyIcon from '../../../assets/back-key.svg';
 import BackspaceIcon from '../../../assets/keyboard_backspace.svg';
 import {triggerKeyHaptic} from '../haptics';
+import {registerKeyReactTag} from '../keyReactTags';
 import {useKeyLayoutContext} from '../gesture/KeyLayoutContext';
 import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
 import {keyboardBridge} from '../keyboardBridge';
@@ -59,7 +61,6 @@ function BackspaceKeyComponent({
   const theme = useKeyboardTheme();
   const styles = useThemedStyles(createBackspaceKeyStyles);
   const keyHeight = keyHeightProp ?? theme.keyHeight;
-  const measureInNativeFastPath = theme.isLandscape;
   const keyOuterRef = useRef<View>(null);
   const keyGesturesRef = useRef(keyGestures);
   const [pressed, setPressed] = useState(false);
@@ -217,7 +218,7 @@ function BackspaceKeyComponent({
   useEffect(() => () => clearRepeat(), [clearRepeat]);
 
   const measureKey = useCallback(() => {
-    if (!layoutContext || !measureInNativeFastPath) {
+    if (!layoutContext) {
       return;
     }
     const keyView = keyOuterRef.current;
@@ -237,6 +238,10 @@ function BackspaceKeyComponent({
         centerX: x + width / 2,
         centerY: y + height / 2,
       });
+      const tag = findNodeHandle(keyView);
+      if (tag) {
+        registerKeyReactTag(keyDef.id, tag);
+      }
     };
 
     if (keysArea) {
@@ -261,30 +266,19 @@ function BackspaceKeyComponent({
         },
       );
     }
-  }, [keyDef, layoutContext, measureInNativeFastPath]);
+  }, [keyDef, layoutContext]);
 
   useEffect(() => {
-    if (!measureInNativeFastPath) {
-      layoutContext?.unregisterKey(keyDef.id);
+    if (!layoutContext) {
       return;
     }
     measureKey();
-    return () => {
-      layoutContext?.unregisterKey(keyDef.id);
-    };
-  }, [keyDef.id, layoutContext, measureInNativeFastPath, measureKey]);
-
-  useEffect(() => {
-    if (!layoutContext || !measureInNativeFastPath) {
-      return;
-    }
     const timer = setTimeout(measureKey, 0);
-    return () => clearTimeout(timer);
-  }, [
-    measureKey,
-    layoutContext,
-    layoutContext?.layoutEpoch,
-  ]);
+    return () => {
+      clearTimeout(timer);
+      layoutContext.unregisterKey(keyDef.id);
+    };
+  }, [keyDef.id, layoutContext, layoutContext?.layoutEpoch, measureKey]);
 
   const iconColor = isEnterBackspace ? theme.iconOnEnter : theme.icon;
   const icon = isEnterBackspace ? (

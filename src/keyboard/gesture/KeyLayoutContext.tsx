@@ -64,6 +64,7 @@ export function KeyLayoutProvider({
 }: KeyLayoutProviderProps) {
   const keysAreaRef = useRef<ViewType>(null);
   const layoutsRef = useRef<Map<string, KeyBounds>>(new Map());
+  const pendingRegistryEpochBumpRef = useRef(false);
   const areaOriginRef = useRef({pageX: 0, pageY: 0});
   const [areaBounds, setAreaBounds] = useState<AreaBounds>(EMPTY_BOUNDS);
   const [layoutEpoch, setLayoutEpoch] = useState(0);
@@ -149,7 +150,15 @@ export function KeyLayoutProvider({
   );
 
   const registerKey = useCallback((layout: KeyBounds) => {
+    const had = layoutsRef.current.has(layout.id);
     layoutsRef.current.set(layout.id, layout);
+    if (!had && !pendingRegistryEpochBumpRef.current) {
+      pendingRegistryEpochBumpRef.current = true;
+      requestAnimationFrame(() => {
+        pendingRegistryEpochBumpRef.current = false;
+        setLayoutEpoch(epoch => epoch + 1);
+      });
+    }
   }, []);
 
   const unregisterKey = useCallback((id: string) => {

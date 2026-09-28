@@ -7,7 +7,6 @@ import {
   StatusBar,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   useWindowDimensions,
   View,
@@ -56,6 +55,7 @@ import {
 import {PremiumProvider, usePremium} from './src/licensing/PremiumContext';
 import {PremiumUpgradeScreen} from './src/licensing/PremiumUpgradeScreen';
 import {ensurePlayLicensed} from './src/licensing/playLicense';
+import {LaunchpadTestInput} from './LaunchpadTestInput';
 
 const C = {
   bg: '#f2f2f4',
@@ -665,14 +665,7 @@ function LaunchpadScreen({
         <Text style={styles.pageTitle}>Launchpad</Text>
 
         <View style={styles.testSection}>
-          <View style={styles.testInputBox}>
-            <TextInput
-              style={styles.testInputField}
-              placeholder="TEST KEYBOARD HERE"
-              placeholderTextColor="#000000"
-              multiline
-            />
-          </View>
+          <LaunchpadTestInput />
 
           <View style={styles.configRow}>
             <Pressable
@@ -1201,21 +1194,6 @@ const styles = StyleSheet.create({
 
   testSection: {
     gap: 8,
-  },
-  testInputBox: {
-    backgroundColor: '#DDDCDC',
-    borderRadius: 24,
-    padding: 12,
-    minHeight: 64,
-  },
-  testInputField: {
-    fontFamily: 'FragmentMono',
-    fontSize: 15,
-    color: C.text,
-    textAlign: 'center',
-    textAlignVertical: 'center',
-    minHeight: 40,
-    letterSpacing: TEXT_KERNING,
   },
 
   configRow: {

@@ -1,6 +1,7 @@
 import React, {memo} from 'react';
 import {StyleSheet, View, type StyleProp, type ViewStyle} from 'react-native';
 import type {KeyDefinition} from '../layouts/qwerty';
+import {compactNativeBlocksKeyTouches} from '../compactNativeTyping';
 import {useThemedStyles} from '../KeyboardThemeContext';
 import type {KeyboardTheme} from '../theme';
 import {BackspaceKey} from './BackspaceKey';
@@ -34,6 +35,11 @@ function renderRowKey(
   props: SharedRowProps,
   style: StyleProp<ViewStyle>,
 ) {
+  const compactBlocksThisKey = compactNativeBlocksKeyTouches(
+    keyDef,
+    props.compactTypingNativeActive ?? false,
+  );
+
   if (isBackspaceKeyType(keyDef)) {
     return (
       <BackspaceKey
@@ -43,7 +49,7 @@ function renderRowKey(
         keyGestures={props.keyGestures}
         keyHeight={props.keyHeight}
         style={style}
-        compactTypingNativeActive={props.compactTypingNativeActive}
+        compactTypingNativeActive={compactBlocksThisKey}
       />
     );
   }
@@ -78,7 +84,7 @@ function renderRowKey(
       typeLiftProcessing={
         keyDef.type === 'space' ? props.typeLiftProcessing : false
       }
-      compactTypingNativeActive={props.compactTypingNativeActive}
+      compactTypingNativeActive={compactBlocksThisKey}
       style={style}
     />
   );
