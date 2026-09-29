@@ -134,8 +134,12 @@ import {
 } from './gesture/touchIntelligence';
 import {
   hydrateTapMapFromStorage,
+  learnTapMapFromKeyTap,
   learnTapMapFromWordCorrection,
+  getTapMapNativeSignature,
+  serializeTapMapOffsetsForNative,
   setTapMapLayoutProvider,
+  subscribeTapMapChanges,
 } from './gesture/tapMap';
 import {
   serializeKeyExpansionsForNative,
@@ -381,6 +385,20 @@ const NATIVE_FAST_PATH_ENABLED = true;
 /** Commit letters in Kotlin and skip RN dispatch — portrait only (landscape uses JS typing). */
 const COMPACT_NATIVE_TYPING_ENABLED = true;
 const COMPACT_NATIVE_TYPING_PORTRAIT_ONLY = true;
+
+function nativeTypingOriginReady(bounds: {
+  pageX: number;
+  pageY: number;
+  width: number;
+  height: number;
+}): boolean {
+  return (
+    bounds.width > 0 &&
+    bounds.height > 0 &&
+    Number.isFinite(bounds.pageX) &&
+    Number.isFinite(bounds.pageY)
+  );
+}
 
 function buildNativeFastPathReactTagsSignature(
   keyLayouts: {id: string}[],
@@ -4893,10 +4911,34 @@ function KeyboardBody({
       },
     );
 
+    const letterTapSubscription = DeviceEventEmitter.addListener(
+      'compactLetterTap',
+      (payload: {letter?: string; localX?: number; localY?: number}) => {
+        if (layoutRef.current !== 'letters' || modeRef.current.type !== 'typing') {
+          return;
+        }
+        if (shouldSkipTouchIntelligenceWork()) {
+          return;
+        }
+        const letter =
+          typeof payload?.letter === 'string' ? payload.letter.trim().toLowerCase() : '';
+        if (letter.length !== 1 || !/[a-z]/.test(letter)) {
+          return;
+        }
+        const localX = Number(payload?.localX);
+        const localY = Number(payload?.localY);
+        if (!Number.isFinite(localX) || !Number.isFinite(localY)) {
+          return;
+        }
+        learnTapMapFromKeyTap(letter, localX, localY);
+      },
+    );
+
     return () => {
       stateSubscription.remove();
       boundarySubscription.remove();
       shiftSubscription.remove();
+      letterTapSubscription.remove();
     };
   }, [
     applyInstantSuggestionBar,
@@ -5136,171 +5178,198 @@ function KeyboardBody({
         return;
       }
 
-      layoutContext.refreshAreaBounds();
-
-      const keyLayouts = layoutContext
-        .getLayouts()
-        .filter(({keyDef}) => {
-          if (keyDef.type === 'spacer') {
-            return false;
+      layoutContext.refreshAreaBounds(
+        measuredBounds => {
+          if (cancelled) {
+            return;
           }
-          const type = keyDef.type;
-          if (
-            type === 'backspace' ||
-            type === 'space' ||
-            type === 'shift' ||
-            type === 'enter' ||
-            type === 'enter-backspace' ||
-            type === 'numbers' ||
-            type === 'symbols' ||
-            type === 'letters'
-          ) {
-            return true;
-          }
-          if (!keyDef.value || type === 'comma' || type === 'period') {
-            return false;
-          }
-          return keyDef.value.length > 0;
-        });
 
-      const layoutEpoch = layoutContext.layoutEpoch;
-      const landscape = theme.isLandscape;
-      const reactTagsSignature = buildNativeFastPathReactTagsSignature(keyLayouts);
-      const previewPopupEnabled = keyPreviewStyle === 'popup';
-      const previewPressedEnabled =
-        keyPreviewStyle === 'popup' || keyPreviewStyle === 'subtle';
-      const previewDoodleEnabled = keyPreviewStyle === 'doodle';
+          const origin = {
+            pageX: measuredBounds.pageX,
+            pageY: measuredBounds.pageY,
+          };
+          const originReady = nativeTypingOriginReady(measuredBounds);
 
-      if (keyLayouts.length < NATIVE_FAST_PATH_MIN_KEYS) {
-        nativeFastPathActiveRef.current = false;
-        setCompactTypingNativeActive(false);
-        setCompactNativeTypingActive(false);
-        keyboardBridge.setNativeKeyFastPathConfig(JSON.stringify({enabled: false}));
-        if (theme.predictiveHitboxesEnabled) {
-          updatePredictiveHitboxes(livePrefixRef.current, keyLayouts, {
-            enabled: true,
-            lang: getActiveLanguage(),
+        const keyLayouts = layoutContext
+          .getLayouts()
+          .filter(({keyDef}) => {
+            if (keyDef.type === 'spacer') {
+              return false;
+            }
+            const type = keyDef.type;
+            if (
+              type === 'backspace' ||
+              type === 'space' ||
+              type === 'shift' ||
+              type === 'enter' ||
+              type === 'enter-backspace' ||
+              type === 'numbers' ||
+              type === 'symbols' ||
+              type === 'letters'
+            ) {
+              return true;
+            }
+            if (!keyDef.value || type === 'comma' || type === 'period') {
+              return false;
+            }
+            return keyDef.value.length > 0;
           });
-        }
-        syncTouchIntelligenceToNative(true);
-        return;
-      }
 
-      const origin = layoutContext.areaOriginRef.current;
-      const compactTyping =
-        COMPACT_NATIVE_TYPING_ENABLED &&
-        (!COMPACT_NATIVE_TYPING_PORTRAIT_ONLY || !landscape);
-      const nativeFastPathEnabled = nativeFastPathEligible && compactTyping;
-      const fastPathSignature = [
-        landscape,
-        layoutEpoch,
-        reactTagsSignature,
-        shiftOnRef.current,
-        capsLockedRef.current,
-        keyPreviewStyle,
-        zeroLatencyModeRef.current,
-        gamePerformanceModeRef.current,
-        compactTyping,
-      ].join('|');
+        const layoutEpoch = layoutContext.layoutEpoch;
+        const landscape = theme.isLandscape;
+        const reactTagsSignature =
+          buildNativeFastPathReactTagsSignature(keyLayouts);
+        const previewPopupEnabled = keyPreviewStyle === 'popup';
+        const previewPressedEnabled =
+          keyPreviewStyle === 'popup' || keyPreviewStyle === 'subtle';
+        const previewDoodleEnabled = keyPreviewStyle === 'doodle';
 
-      if (
-        nativeFastPathEnabled &&
-        fastPathSignature === lastPublishedFastPathSignatureRef.current &&
-        nativeFastPathActiveRef.current
-      ) {
-        return;
-      }
-
-      if (layoutEpoch !== lastPublishedFastPathLayoutEpochRef.current) {
-        if (!compactTyping && theme.predictiveHitboxesEnabled) {
-          updatePredictiveHitboxes(livePrefixRef.current, keyLayouts, {
-            enabled: true,
-            lang: getActiveLanguage(),
-          });
-        }
-        lastPublishedFastPathLayoutEpochRef.current = layoutEpoch;
-      }
-      const touchIntelligence = compactTyping
-        ? {
-            enabled: false,
-            previousKeyLetter: null,
-            wordPrefix: '',
-            lastTapX: 0,
-            lastTapY: 0,
-            lastTapAtMs: 0,
-            predictiveNeutralMode: true,
-            topPredictedLetter: null,
-            topExpansionKeyId: null,
-            keyExpansions: [] as ReturnType<typeof serializeKeyExpansionsForNative>,
+        if (keyLayouts.length < NATIVE_FAST_PATH_MIN_KEYS) {
+          nativeFastPathActiveRef.current = false;
+          setCompactTypingNativeActive(false);
+          setCompactNativeTypingActive(false);
+          keyboardBridge.setNativeKeyFastPathConfig(
+            JSON.stringify({enabled: false}),
+          );
+          if (theme.predictiveHitboxesEnabled) {
+            updatePredictiveHitboxes(livePrefixRef.current, keyLayouts, {
+              enabled: true,
+              lang: getActiveLanguage(),
+            });
           }
-        : getTouchIntelligenceNativeConfig();
-      if (landscape && nativeFastPathEnabled) {
-        recordCompactTypingFastPathPublish();
-      }
-      if (!nativeFastPathEnabled) {
-        nativeFastPathActiveRef.current = false;
-        setCompactTypingNativeActive(false);
-        setCompactNativeTypingActive(false);
-        keyboardBridge.setNativeKeyFastPathConfig(JSON.stringify({enabled: false}));
+          syncTouchIntelligenceToNative(true);
+          return;
+        }
+
+        const compactTyping =
+          COMPACT_NATIVE_TYPING_ENABLED &&
+          (!COMPACT_NATIVE_TYPING_PORTRAIT_ONLY || !landscape) &&
+          originReady;
+        const nativeFastPathEnabled = nativeFastPathEligible && compactTyping;
+        const fastPathSignature = [
+          landscape,
+          layoutEpoch,
+          reactTagsSignature,
+          shiftOnRef.current,
+          capsLockedRef.current,
+          keyPreviewStyle,
+          zeroLatencyModeRef.current,
+          gamePerformanceModeRef.current,
+          compactTyping,
+          Math.round(origin.pageX),
+          Math.round(origin.pageY),
+          getTapMapNativeSignature(),
+        ].join('|');
+
+        if (
+          nativeFastPathEnabled &&
+          fastPathSignature === lastPublishedFastPathSignatureRef.current &&
+          nativeFastPathActiveRef.current
+        ) {
+          return;
+        }
+
+        if (layoutEpoch !== lastPublishedFastPathLayoutEpochRef.current) {
+          if (!compactTyping && theme.predictiveHitboxesEnabled) {
+            updatePredictiveHitboxes(livePrefixRef.current, keyLayouts, {
+              enabled: true,
+              lang: getActiveLanguage(),
+            });
+          }
+          lastPublishedFastPathLayoutEpochRef.current = layoutEpoch;
+        }
+        const touchIntelligence = compactTyping
+          ? {
+              enabled: false,
+              previousKeyLetter: null,
+              wordPrefix: '',
+              lastTapX: 0,
+              lastTapY: 0,
+              lastTapAtMs: 0,
+              predictiveNeutralMode: true,
+              topPredictedLetter: null,
+              topExpansionKeyId: null,
+              keyExpansions: [] as ReturnType<
+                typeof serializeKeyExpansionsForNative
+              >,
+            }
+          : getTouchIntelligenceNativeConfig();
+        if (landscape && nativeFastPathEnabled) {
+          recordCompactTypingFastPathPublish();
+        }
+        if (!nativeFastPathEnabled) {
+          nativeFastPathActiveRef.current = false;
+          setCompactTypingNativeActive(false);
+          setCompactNativeTypingActive(false);
+          keyboardBridge.setNativeKeyFastPathConfig(
+            JSON.stringify({enabled: false}),
+          );
+          lastPublishedLandscapeRef.current = landscape;
+          lastPublishedReactTagsSignatureRef.current = reactTagsSignature;
+          lastPublishedFastPathLayoutEpochRef.current = layoutEpoch;
+          lastPublishedFastPathSignatureRef.current = '';
+          if (theme.predictiveHitboxesEnabled) {
+            updatePredictiveHitboxes(livePrefixRef.current, keyLayouts, {
+              enabled: true,
+              lang: getActiveLanguage(),
+            });
+          }
+          syncTouchIntelligenceToNative(true);
+          return;
+        }
+
+        keyboardBridge.setNativeKeyFastPathConfig(
+          JSON.stringify({
+            enabled: true,
+            commitOnDown: true,
+            compactTyping,
+            shiftEditorShortcuts:
+              gestureSettingsRef.current.shiftEditorShortcuts,
+            shiftEditorHeld: shiftEditorHeldRef.current,
+            shiftOn: shiftOnRef.current,
+            capsLocked: capsLockedRef.current,
+            zeroLatency: zeroLatencyModeRef.current,
+            gamePerformance: gamePerformanceModeRef.current,
+            areaPageX: origin.pageX,
+            areaPageY: origin.pageY,
+            hitSlopHorizontal: theme.keyHitSlop.horizontal,
+            hitSlopVertical: theme.keyHitSlop.vertical,
+            previewPopupEnabled,
+            previewPressedEnabled,
+            previewDoodleEnabled,
+            layout,
+            tapMap: serializeTapMapOffsetsForNative(),
+            touchIntelligence,
+            keyExpansions: touchIntelligence.keyExpansions,
+            keys: keyLayouts.map(
+              ({id, keyDef, x, y, width, height, centerX, centerY}) => ({
+                id,
+                type: keyDef.type ?? 'char',
+                value: keyDef.value,
+                x,
+                y,
+                width,
+                height,
+                centerX,
+                centerY,
+                reactTag: getKeyReactTag(id) ?? 0,
+              }),
+            ),
+          }),
+        );
+        if (!autoShiftConsumedMidWordRef.current) {
+          syncNativeFastPathCaseState();
+        }
+        keyboardBridge.syncCompactTypingPrefix(livePrefixRef.current);
+        nativeFastPathActiveRef.current = true;
+        setCompactTypingNativeActive(true);
+        setCompactNativeTypingActive(true);
         lastPublishedLandscapeRef.current = landscape;
         lastPublishedReactTagsSignatureRef.current = reactTagsSignature;
-        lastPublishedFastPathLayoutEpochRef.current = layoutEpoch;
-        lastPublishedFastPathSignatureRef.current = '';
-        if (theme.predictiveHitboxesEnabled) {
-          updatePredictiveHitboxes(livePrefixRef.current, keyLayouts, {
-            enabled: true,
-            lang: getActiveLanguage(),
-          });
-        }
-        syncTouchIntelligenceToNative(true);
-        return;
-      }
-
-      keyboardBridge.setNativeKeyFastPathConfig(
-        JSON.stringify({
-          enabled: true,
-          commitOnDown: true,
-          compactTyping,
-          shiftEditorShortcuts: gestureSettingsRef.current.shiftEditorShortcuts,
-          shiftEditorHeld: shiftEditorHeldRef.current,
-          shiftOn: shiftOnRef.current,
-          capsLocked: capsLockedRef.current,
-          zeroLatency: zeroLatencyModeRef.current,
-          gamePerformance: gamePerformanceModeRef.current,
-          areaPageX: origin.pageX,
-          areaPageY: origin.pageY,
-          hitSlopHorizontal: theme.keyHitSlop.horizontal,
-          hitSlopVertical: theme.keyHitSlop.vertical,
-          previewPopupEnabled,
-          previewPressedEnabled,
-          previewDoodleEnabled,
-          layout,
-          touchIntelligence,
-          keyExpansions: touchIntelligence.keyExpansions,
-          keys: keyLayouts.map(({id, keyDef, x, y, width, height, centerX, centerY}) => ({
-            id,
-            type: keyDef.type ?? 'char',
-            value: keyDef.value,
-            x,
-            y,
-            width,
-            height,
-            centerX,
-            centerY,
-            reactTag: getKeyReactTag(id) ?? 0,
-          })),
-        }),
+        lastPublishedFastPathSignatureRef.current = fastPathSignature;
+        },
+        {originRefOnly: true},
       );
-      if (!autoShiftConsumedMidWordRef.current) {
-        syncNativeFastPathCaseState();
-      }
-      keyboardBridge.syncCompactTypingPrefix(livePrefixRef.current);
-      nativeFastPathActiveRef.current = true;
-      setCompactTypingNativeActive(true);
-      setCompactNativeTypingActive(true);
-      lastPublishedLandscapeRef.current = landscape;
-      lastPublishedReactTagsSignatureRef.current = reactTagsSignature;
-      lastPublishedFastPathSignatureRef.current = fastPathSignature;
     };
 
     let publishDebounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -5320,11 +5389,18 @@ function KeyboardBody({
       }, 32);
     };
 
+    const shownSubscription = DeviceEventEmitter.addListener('keyboardShown', () => {
+      layoutContext.refreshAreaBounds();
+      schedulePublishConfig();
+    });
+
     schedulePublishConfig();
     const unsubscribeTags = subscribeKeyReactTags(schedulePublishConfig);
+    const unsubscribeTapMap = subscribeTapMapChanges(schedulePublishConfig);
 
     return () => {
       cancelled = true;
+      shownSubscription.remove();
       if (publishDebounceTimer != null) {
         clearTimeout(publishDebounceTimer);
       }
@@ -5332,11 +5408,13 @@ function KeyboardBody({
         cancelAnimationFrame(publishRaf);
       }
       unsubscribeTags();
+      unsubscribeTapMap();
     };
   }, [
     layout,
-    layoutContext,
     layoutContext?.layoutEpoch,
+    layoutContext?.areaBounds.width,
+    layoutContext?.areaBounds.height,
     mode.type,
     nativeFastPathEligible,
     gestureEnabled,

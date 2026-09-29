@@ -74,6 +74,8 @@ object KeyboardInputBridge {
   private val compactTypingBoundaryListeners =
       CopyOnWriteArrayList<(String, String) -> Unit>()
   private val compactTypingShiftListeners = CopyOnWriteArrayList<() -> Unit>()
+  private val compactLetterTapListeners =
+      CopyOnWriteArrayList<(String, Float, Float) -> Unit>()
   private val editorShortcutListeners = CopyOnWriteArrayList<(String) -> Unit>()
   private val touchIntelligenceHitListeners =
       CopyOnWriteArrayList<(TouchIntelligence.HitAnalysis) -> Unit>()
@@ -1284,6 +1286,17 @@ object KeyboardInputBridge {
   fun addCompactTypingShiftListener(listener: () -> Unit): () -> Unit {
     compactTypingShiftListeners.add(listener)
     return { compactTypingShiftListeners.remove(listener) }
+  }
+
+  fun notifyCompactLetterTap(letter: String, localX: Float, localY: Float) {
+    compactLetterTapListeners.forEach { listener -> listener(letter, localX, localY) }
+  }
+
+  fun addCompactLetterTapListener(
+      listener: (String, Float, Float) -> Unit,
+  ): () -> Unit {
+    compactLetterTapListeners.add(listener)
+    return { compactLetterTapListeners.remove(listener) }
   }
 
   fun isCompactTypingConsumingTouches(): Boolean =

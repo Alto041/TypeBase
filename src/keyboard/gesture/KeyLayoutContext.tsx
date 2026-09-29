@@ -37,7 +37,10 @@ export type KeyLayoutContextValue = {
   /** Bumps when key bounds should be re-measured (layout settings, IME resize, …). */
   layoutEpoch: number;
   onKeysAreaLayout: (event: LayoutChangeEvent) => void;
-  refreshAreaBounds: () => void;
+  refreshAreaBounds: (
+    afterMeasure?: (bounds: AreaBounds) => void,
+    options?: {originRefOnly?: boolean},
+  ) => void;
   requestRemeasure: () => void;
   pageToLocalPoint: (
     pageX: number,
@@ -74,10 +77,10 @@ export function KeyLayoutProvider({
     areaOriginRef.current = {pageX: bounds.pageX, pageY: bounds.pageY};
     setAreaBounds(current => {
       if (
-        current.pageX === bounds.pageX &&
-        current.pageY === bounds.pageY &&
-        current.width === bounds.width &&
-        current.height === bounds.height
+        Math.round(current.pageX) === Math.round(bounds.pageX) &&
+        Math.round(current.pageY) === Math.round(bounds.pageY) &&
+        Math.round(current.width) === Math.round(bounds.width) &&
+        Math.round(current.height) === Math.round(bounds.height)
       ) {
         return current;
       }
@@ -85,14 +88,38 @@ export function KeyLayoutProvider({
     });
   }, []);
 
-  const refreshAreaBounds = useCallback(() => {
-    const keysArea = keysAreaRef.current;
-    if (!keysArea) {
-      return;
-    }
+  const refreshAreaBounds = useCallback(
+    (
+      afterMeasure?: (bounds: AreaBounds) => void,
+      options?: {originRefOnly?: boolean},
+    ) => {
+      if (typeof afterMeasure !== 'function' && afterMeasure != null) {
+        return;
+      }
 
-    measureKeysArea(keysArea, applyAreaBounds);
-  }, [applyAreaBounds]);
+      const keysArea = keysAreaRef.current;
+      if (!keysArea) {
+        if (typeof afterMeasure === 'function') {
+          afterMeasure({
+            pageX: areaOriginRef.current.pageX,
+            pageY: areaOriginRef.current.pageY,
+            width: areaBounds.width,
+            height: areaBounds.height,
+          });
+        }
+        return;
+      }
+
+      measureKeysArea(keysArea, bounds => {
+        areaOriginRef.current = {pageX: bounds.pageX, pageY: bounds.pageY};
+        if (!options?.originRefOnly) {
+          applyAreaBounds(bounds);
+        }
+        afterMeasure?.(bounds);
+      });
+    },
+    [applyAreaBounds, areaBounds.height, areaBounds.width],
+  );
 
   const requestRemeasure = useCallback(() => {
     refreshAreaBounds();

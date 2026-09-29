@@ -9,6 +9,7 @@ import {
   isFaithfulVoiceCleanup,
   polishVoiceTranscriptLocal,
   resolveVoiceCleanupText,
+  stripTrailingVoiceNewlines,
 } from './voiceCleanupUtils';
 
 export class VoiceCleanupError extends Error {
@@ -79,7 +80,7 @@ function parseCleanupResult(
   }
 
   return {
-    text: parsed.text.trim(),
+    text: stripTrailingVoiceNewlines(parsed.text.trim()),
     detectedLanguageCode:
       typeof parsed.detectedLanguageCode === 'string'
         ? parsed.detectedLanguageCode
@@ -112,12 +113,15 @@ function parseOnDeviceCleanupResult(
   const quotedMatch = unquoted.match(/"([^"]{3,})"/);
   if (quotedMatch) {
     return {
-      text: stripMalformedModelQuotes(quotedMatch[1]),
+      text: stripTrailingVoiceNewlines(stripMalformedModelQuotes(quotedMatch[1])),
       detectedLanguageCode: null,
     };
   }
 
-  return {text: stripMalformedModelQuotes(unquoted), detectedLanguageCode: null};
+  return {
+    text: stripTrailingVoiceNewlines(stripMalformedModelQuotes(unquoted)),
+    detectedLanguageCode: null,
+  };
 }
 
 function shouldApplyVoiceHeuristics(

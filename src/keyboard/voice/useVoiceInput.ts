@@ -17,7 +17,7 @@ import {
 } from './voiceActivationSound';
 import {SpeechmaticsVoiceService} from './speechmaticsService';
 import {getRollingPreviewWords, VOICE_PILL_PREVIEW_MAX_WORDS} from './voiceTranscriptPreview';
-import {polishVoiceTranscriptLocal} from './voiceCleanupUtils';
+import {polishVoiceTranscriptLocal, stripTrailingVoiceNewlines} from './voiceCleanupUtils';
 import {startVoiceSttWarmup} from './voiceSttWarmup';
 import {voiceRecorder} from './voiceRecorder';
 
@@ -30,7 +30,7 @@ function resolveSttProvider(): VoiceSttProvider {
 }
 
 function formatDictationInsert(text: string): string {
-  const trimmed = text.trim();
+  const trimmed = stripTrailingVoiceNewlines(text.trim());
   if (!trimmed) {
     return '';
   }

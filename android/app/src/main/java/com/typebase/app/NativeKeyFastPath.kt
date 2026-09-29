@@ -160,6 +160,7 @@ class NativeKeyFastPath {
       }
       keys = parseKeys(obj.optJSONArray("keys") ?: JSONArray())
       keyById = keys.associateBy { it.id }
+      touchIntelligence.updateTapMapFromJson(obj.optJSONArray("tapMap"))
       touchIntelligence.updateConfig(
           obj.optJSONObject("touchIntelligence"),
           hitSlopHorizontal,
@@ -440,6 +441,9 @@ class NativeKeyFastPath {
     }
 
     sessions[pointerId] = TouchSession(pointerId, key, text)
+    if (compactTyping && text.length == 1 && text[0].isLetter()) {
+      KeyboardInputBridge.notifyCompactLetterTap(text.lowercase(), localX, localY)
+    }
     if (!zeroLatency && !gamePerformance && !compactTyping) {
       touchIntelligence.recordTap(text, localX, localY, eventTime)
     }

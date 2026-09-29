@@ -62,6 +62,7 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   private var removeCompactTypingStateListener: (() -> Unit)? = null
   private var removeCompactTypingBoundaryListener: (() -> Unit)? = null
   private var removeCompactTypingShiftListener: (() -> Unit)? = null
+  private var removeCompactLetterTapListener: (() -> Unit)? = null
   private var clipboardListener: ClipboardManager.OnPrimaryClipChangedListener? = null
   private val backspaceHandler = Handler(Looper.getMainLooper())
   private var backspaceHoldRunnable: Runnable? = null
@@ -306,6 +307,18 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
                 .emit("compactTypingShiftPress", null)
           }
         }
+    removeCompactLetterTapListener =
+        KeyboardInputBridge.addCompactLetterTapListener { letter, localX, localY ->
+          if (reactApplicationContext.hasActiveReactInstance()) {
+            val event = Arguments.createMap()
+            event.putString("letter", letter)
+            event.putDouble("localX", localX.toDouble())
+            event.putDouble("localY", localY.toDouble())
+            reactApplicationContext
+                .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                .emit("compactLetterTap", event)
+          }
+        }
     try {
       val layoutJson =
           learnedWordsPrefs()
@@ -377,6 +390,8 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     removeCompactTypingBoundaryListener = null
     removeCompactTypingShiftListener?.invoke()
     removeCompactTypingShiftListener = null
+    removeCompactLetterTapListener?.invoke()
+    removeCompactLetterTapListener = null
     clipboardListener?.let { listener ->
       val clipboardManager =
           reactApplicationContext.getSystemService(Context.CLIPBOARD_SERVICE) as

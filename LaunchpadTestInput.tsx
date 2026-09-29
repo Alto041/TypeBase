@@ -9,20 +9,23 @@ import {
 
 const KERNING = -0.7;
 
-/** Idle copy — Quivox engineering + TypeBase product (Launchpad tone). */
+/** Idle lines — Quivox × TypeBase, dry / playful (Launchpad mono voice). */
 const IDLE_FACTS = [
-  'QUIVOX ENGINEERING · LETTERS COMMIT ON TOUCH-DOWN',
-  'TYPEBASE · SYM SPELL + CONTEXT AT SPACE',
-  'QUIVOX · MULTI-TOUCH WITHOUT GHOST KEYS',
-  'TYPEBASE · ON-DEVICE GEMMA WHEN CLOUD IS OFF',
-  'QUIVOX ENGINEERING · NATIVE PREFIX BAR OFF THE JS THREAD',
-  'TYPEBASE · PLUGINS, VOICE, SNIPPETS IN ONE IME',
+  'TAP HERE. YOUR OTHER KEYBOARD IS NERVOUS.',
+  'QUIVOX BUILT THE ENGINE. TYPEBASE THROWS THE PARTY.',
+  'THIS GRAY BOX? THAT IS WHERE TYPING HAPPENS.',
+  'TYPEBASE: SNIPPETS, GIFS, VOICE — ONE KEYBOARD.',
+  'QUIVOX ENGINEERING — FAST KEYS, QUIET EGO.',
+  'YOU FOUND THE TEST FIELD. LEGEND.',
+  'TYPEBASE PREMIUM: FEWER TYPOS, MORE SHOWOFF.',
+  'HI. WE MADE A KEYBOARD ON PURPOSE.',
 ] as const;
 
-const TYPE_MS = 32;
-const HOLD_MS = 2_400;
-const DELETE_MS = 14;
-const PAUSE_MS = 480;
+const TYPE_MS = 78;
+const HOLD_MS = 5_200;
+const DELETE_MS = 36;
+const PAUSE_MS = 1_400;
+const CURSOR_BLINK_MS = 780;
 
 type LaunchpadTestInputProps = {
   placeholder?: string;
@@ -74,7 +77,8 @@ export function LaunchpadTestInput({
             return;
           }
           setTypedLine(fact.slice(0, i));
-          await delay(TYPE_MS);
+          const wobble = (i % 4) * 12;
+          await delay(TYPE_MS + wobble);
         }
 
         await delay(HOLD_MS);
@@ -108,7 +112,7 @@ export function LaunchpadTestInput({
     }
     const blink = setInterval(() => {
       setShowCursor(current => !current);
-    }, 530);
+    }, CURSOR_BLINK_MS);
     return () => clearInterval(blink);
   }, [showIdleTypewriter]);
 

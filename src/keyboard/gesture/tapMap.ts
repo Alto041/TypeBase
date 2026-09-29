@@ -3,9 +3,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type {KeyBounds} from './types';
 
 const STORAGE_KEY = '@typebase/tap_map_v1';
-const MAX_OFFSET_PX = 16;
-const LEARN_RATE = 0.16;
-const MIN_SAMPLES_TO_APPLY = 2;
+const MAX_OFFSET_PX = 14;
+const LEARN_RATE = 0.12;
+const LEARN_RATE_WORD_CORRECTION = 0.08;
+const MIN_SAMPLES_TO_APPLY = 4;
 const PERSIST_DEBOUNCE_MS = 45_000;
 
 export type TapMapEntry = {
@@ -27,6 +28,62 @@ let dirty = false;
 let persistTimer: ReturnType<typeof setTimeout> | null = null;
 let layoutProvider: LayoutProvider | null = null;
 const offsets = new Map<string, TapMapEntry>();
+let tapMapRevision = 0;
+const changeListeners = new Set<() => void>();
+
+function notifyTapMapChanged(): void {
+  tapMapRevision += 1;
+  for (const listener of changeListeners) {
+    listener();
+  }
+}
+
+export function getTapMapRevision(): number {
+  return tapMapRevision;
+}
+
+export function subscribeTapMapChanges(listener: () => void): () => void {
+  changeListeners.add(listener);
+  return () => {
+    changeListeners.delete(listener);
+  };
+}
+
+/** Stable signature for native fast-path republish when offsets change. */
+export function getTapMapNativeSignature(): string {
+  if (!enabled || offsets.size === 0) {
+    return '';
+  }
+  const parts: string[] = [];
+  for (const letter of [...offsets.keys()].sort()) {
+    const entry = offsets.get(letter);
+    if (!entry || entry.samples < MIN_SAMPLES_TO_APPLY) {
+      continue;
+    }
+    parts.push(
+      `${letter}:${Math.round(entry.dx)}:${Math.round(entry.dy)}:${entry.samples}`,
+    );
+  }
+  return parts.join('|');
+}
+
+export function serializeTapMapOffsetsForNative(): Array<{
+  letter: string;
+  dx: number;
+  dy: number;
+}> {
+  if (!enabled) {
+    return [];
+  }
+  const out: Array<{letter: string; dx: number; dy: number}> = [];
+  for (const [letter, entry] of offsets) {
+    if (entry.samples < MIN_SAMPLES_TO_APPLY) {
+      continue;
+    }
+    out.push({letter, dx: entry.dx, dy: entry.dy});
+  }
+  return out;
+}
 
 function clampOffset(value: number): number {
   return Math.max(-MAX_OFFSET_PX, Math.min(MAX_OFFSET_PX, value));
@@ -86,6 +143,44 @@ function absorbTapOffset(
         samples: 1,
       };
   offsets.set(normalized, next);
+  notifyTapMapChanged();
+  schedulePersist();
+}
+
+function absorbTapOffsetWithRate(
+  letter: string,
+  tapX: number,
+  tapY: number,
+  layout: KeyBounds,
+  learnRate: number,
+): void {
+  if (!enabled) {
+    return;
+  }
+  const normalized = letter.toLowerCase();
+  if (!/[a-z]/.test(normalized)) {
+    return;
+  }
+
+  const centerX = layout.x + layout.width / 2;
+  const centerY = layout.y + layout.height / 2;
+  const targetDx = clampOffset(tapX - centerX);
+  const targetDy = clampOffset(tapY - centerY);
+
+  const existing = offsets.get(normalized);
+  const next: TapMapEntry = existing
+    ? {
+        dx: clampOffset(existing.dx + (targetDx - existing.dx) * learnRate),
+        dy: clampOffset(existing.dy + (targetDy - existing.dy) * learnRate),
+        samples: existing.samples + 1,
+      }
+    : {
+        dx: clampOffset(targetDx * learnRate),
+        dy: clampOffset(targetDy * learnRate),
+        samples: 1,
+      };
+  offsets.set(normalized, next);
+  notifyTapMapChanged();
   schedulePersist();
 }
 
@@ -154,6 +249,7 @@ export async function hydrateTapMapFromStorage(): Promise<void> {
         samples: Math.max(0, entry.samples),
       });
     }
+    notifyTapMapChanged();
   } catch {
     // Ignore corrupt storage.
   }
@@ -161,6 +257,7 @@ export async function hydrateTapMapFromStorage(): Promise<void> {
 
 export async function clearTapMap(): Promise<void> {
   offsets.clear();
+  notifyTapMapChanged();
   dirty = false;
   if (persistTimer) {
     clearTimeout(persistTimer);
@@ -258,13 +355,20 @@ export function learnTapMapFromWordCorrection(
     }
     const layout = findLayoutForLetter(letterLayouts, intendedChar);
     if (layout) {
-      absorbTapOffset(intendedChar, tap.x, tap.y, layout);
+      absorbTapOffsetWithRate(
+        intendedChar,
+        tap.x,
+        tap.y,
+        layout,
+        LEARN_RATE_WORD_CORRECTION,
+      );
     }
   }
 }
 
 export function resetTapMapForTests(): void {
   offsets.clear();
+  tapMapRevision = 0;
   enabled = true;
   dirty = false;
   layoutProvider = null;

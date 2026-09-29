@@ -71,8 +71,42 @@ class TouchIntelligence {
   private var keyByLetter = emptyMap<String, KeyGeometry>()
   private var keyExpansions = emptyMap<String, KeyExpansion>()
   private var letterProbabilities = emptyMap<String, Float>()
+  private var tapMapOffsets = emptyMap<String, Pair<Float, Float>>()
   private var neighborMap: Map<String, Set<String>> = emptyMap()
   private var neighborRadius = 0f
+
+  fun setTapMapOffsets(offsets: Map<String, Pair<Float, Float>>) {
+    tapMapOffsets = offsets
+  }
+
+  fun updateTapMapFromJson(array: org.json.JSONArray?) {
+    tapMapOffsets = parseTapMapOffsets(array)
+  }
+
+  private fun parseTapMapOffsets(
+      array: org.json.JSONArray?,
+  ): Map<String, Pair<Float, Float>> {
+    if (array == null || array.length() == 0) {
+      return emptyMap()
+    }
+    val out = LinkedHashMap<String, Pair<Float, Float>>()
+    for (index in 0 until array.length()) {
+      val item = array.optJSONObject(index) ?: continue
+      val letter = item.optString("letter", "").lowercase()
+      if (letter.length != 1 || !letter[0].isLetter()) {
+        continue
+      }
+      val dx = item.optDouble("dx", 0.0).toFloat().coerceIn(-16f, 16f)
+      val dy = item.optDouble("dy", 0.0).toFloat().coerceIn(-16f, 16f)
+      out[letter] = dx to dy
+    }
+    return out
+  }
+
+  private fun tapOffsetForKey(key: KeyGeometry): Pair<Float, Float> {
+    val letter = letterForKey(key) ?: return 0f to 0f
+    return tapMapOffsets[letter] ?: (0f to 0f)
+  }
 
   fun updateConfig(
       touchIntelligence: JSONObject?,
@@ -501,7 +535,9 @@ class TouchIntelligence {
       if (!pointInSlop(key, localX, localY)) {
         continue
       }
-      val centerDistance = hypot(localX - key.centerX, localY - key.centerY)
+      val (dx, dy) = tapOffsetForKey(key)
+      val centerDistance =
+          hypot(localX - key.centerX - dx, localY - key.centerY - dy)
       val priority = letterProbability(letterForKey(key))
       if (gapMatch != null) {
         val distanceDelta = kotlin.math.abs(centerDistance - nearestCenter)
@@ -751,38 +787,50 @@ class TouchIntelligence {
     if (!pointInside(key, x, y)) {
       return false
     }
+    val (dx, dy) = tapOffsetForKey(key)
     val halfW = max((key.right - key.left) / 2f, 1f)
     val halfH = max((key.bottom - key.top) / 2f, 1f)
-    val normDist = hypot((x - key.centerX) / halfW, (y - key.centerY) / halfH)
+    val normDist =
+        hypot((x - key.centerX - dx) / halfW, (y - key.centerY - dy) / halfH)
     return normDist <= CONFIDENT_STRICT_CENTER_RATIO
   }
 
   private fun pointInside(key: KeyGeometry, x: Float, y: Float): Boolean {
-    return x >= key.left && x <= key.right && y >= key.top && y <= key.bottom
+    val (dx, dy) = tapOffsetForKey(key)
+    return x >= key.left + dx &&
+        x <= key.right + dx &&
+        y >= key.top + dy &&
+        y <= key.bottom + dy
   }
 
   private fun pointInSlop(key: KeyGeometry, x: Float, y: Float): Boolean {
     val expansion = keyExpansion(key)
-    return x >= key.left - expansion.left &&
-        x <= key.right + expansion.right &&
-        y >= key.top - expansion.top &&
-        y <= key.bottom + expansion.bottom
+    val (dx, dy) = tapOffsetForKey(key)
+    return x >= key.left - expansion.left + dx &&
+        x <= key.right + expansion.right + dx &&
+        y >= key.top - expansion.top + dy &&
+        y <= key.bottom + expansion.bottom + dy
   }
 
   private fun distanceToRect(key: KeyGeometry, x: Float, y: Float): Float {
-    val dx =
+    val (dx, dy) = tapOffsetForKey(key)
+    val left = key.left + dx
+    val right = key.right + dx
+    val top = key.top + dy
+    val bottom = key.bottom + dy
+    val distX =
         when {
-          x < key.left -> key.left - x
-          x > key.right -> x - key.right
+          x < left -> left - x
+          x > right -> x - right
           else -> 0f
         }
-    val dy =
+    val distY =
         when {
-          y < key.top -> key.top - y
-          y > key.bottom -> y - key.bottom
+          y < top -> top - y
+          y > bottom -> y - bottom
           else -> 0f
         }
-    return hypot(dx, dy)
+    return hypot(distX, distY)
   }
 
   private fun computeNeighborRadius(keys: List<KeyGeometry>): Float {

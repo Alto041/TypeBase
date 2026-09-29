@@ -14,6 +14,11 @@ export function stripSpeechFillers(text: string): string {
     .trim();
 }
 
+/** Voice dictation should not commit a trailing newline (common from STT / "new line" / LLM). */
+export function stripTrailingVoiceNewlines(text: string): string {
+  return text.replace(/[\r\n]+$/g, '');
+}
+
 /** True when the transcript likely still needs an AI polish pass. */
 export function needsVoicePolish(text: string): boolean {
   const trimmed = text.trim();
@@ -82,16 +87,19 @@ const SPOKEN_PUNCTUATION: ReadonlyArray<[RegExp, string]> = [
 ];
 
 function applySpokenPunctuation(text: string): string {
-  let result = text;
+  // STT often hallucinates "new line" at end-of-utterance; don't commit a paragraph break.
+  let result = text.replace(/\s*(?:new line|newline)\s*$/gi, '');
   for (const [pattern, replacement] of SPOKEN_PUNCTUATION) {
     result = result.replace(pattern, replacement);
   }
 
-  return result
-    .replace(/\s+([,.!?;:])/g, '$1')
-    .replace(/([,.!?;:])(?=[^\s\n])/g, '$1 ')
-    .replace(/\s{2,}/g, ' ')
-    .trim();
+  return stripTrailingVoiceNewlines(
+    result
+      .replace(/\s+([,.!?;:])/g, '$1')
+      .replace(/([,.!?;:])(?=[^\s\n])/g, '$1 ')
+      .replace(/\s{2,}/g, ' ')
+      .trim(),
+  );
 }
 
 function capitalizeSentences(text: string): string {
@@ -112,7 +120,7 @@ function capitalizeSentences(text: string): string {
 export function polishVoiceTranscriptLocal(text: string): string {
   const heuristic = applyVoiceHeuristicCleanup(text);
   const punctuated = applySpokenPunctuation(heuristic);
-  return capitalizeSentences(punctuated);
+  return stripTrailingVoiceNewlines(capitalizeSentences(punctuated));
 }
 
 function normalizeForComparison(text: string): string {
@@ -205,7 +213,7 @@ export function resolveVoiceCleanupText(
   const trimmedOriginal = original.trim();
   const trimmedCleaned = cleaned.trim();
   if (!trimmedCleaned) {
-    return trimmedOriginal;
+    return stripTrailingVoiceNewlines(trimmedOriginal);
   }
 
   const defillerized = stripSpeechFillers(trimmedOriginal);
@@ -216,17 +224,17 @@ export function resolveVoiceCleanupText(
     isPunctuationOnlyDrift(trimmedOriginal, trimmedCleaned) &&
     !removedFillers
   ) {
-    return trimmedOriginal;
+    return stripTrailingVoiceNewlines(trimmedOriginal);
   }
 
   if (isFaithfulVoiceCleanup(trimmedOriginal, trimmedCleaned)) {
-    return trimmedCleaned;
+    return stripTrailingVoiceNewlines(trimmedCleaned);
   }
   if (
     options?.allowFillerRemoval &&
     isFaithfulVoiceCleanup(defillerized, trimmedCleaned)
   ) {
-    return trimmedCleaned;
+    return stripTrailingVoiceNewlines(trimmedCleaned);
   }
-  return trimmedOriginal;
+  return stripTrailingVoiceNewlines(trimmedOriginal);
 }

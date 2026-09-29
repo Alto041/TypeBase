@@ -273,6 +273,7 @@ export function annotateLastTouchIntelligenceCommit(
     geometric &&
     normalized.length === 1 &&
     geometric !== normalized &&
+    !record.appliedRerank &&
     localX != null &&
     localY != null
   ) {
