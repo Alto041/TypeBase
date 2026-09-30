@@ -18,13 +18,15 @@ import {
   TYPELIFT_BRAND_NAME,
   TYPELIFT_SETTING_HINT,
 } from './typeLiftBranding';
-import {AUTOCORRECT_REMEMBERS, type AutocorrectSettings} from './types';
+import {AUTOCORRECT_REMEMBERS, type AutocorrectIntensity, type AutocorrectSettings} from './types';
+import {AutocorrectIntensitySettingBlock} from './AutocorrectIntensityControl';
 
 type AutocorrectPanelProps = {
   settings: AutocorrectSettings;
   onToggleEnabled: (enabled: boolean) => void;
   onToggleAutoApply: (autoApplyOnSpace: boolean) => void;
   onToggleAiAutoCorrect: (enabled: boolean) => void;
+  onIntensityChange: (intensity: AutocorrectIntensity) => void;
   onLearnedDataReset?: () => void;
 };
 
@@ -86,6 +88,7 @@ export function AutocorrectPanel({
   onToggleEnabled,
   onToggleAutoApply,
   onToggleAiAutoCorrect,
+  onIntensityChange,
   onLearnedDataReset,
 }: AutocorrectPanelProps) {
   const panelStyles = usePluginPanelStyles();
@@ -151,6 +154,14 @@ export function AutocorrectPanel({
             hint="Replace typos when you press space. Off keeps your exact word."
             enabled={settings.autoApplyOnSpace}
             onToggle={() => onToggleAutoApply(!settings.autoApplyOnSpace)}
+          />
+        </View>
+
+        <View style={[styles.card, styles.cardMiddle]}>
+          <AutocorrectIntensitySettingBlock
+            intensity={settings.intensity}
+            onChange={onIntensityChange}
+            disabled={!settings.enabled}
           />
         </View>
 

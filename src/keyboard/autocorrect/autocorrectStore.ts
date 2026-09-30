@@ -1,6 +1,9 @@
 import {keyboardBridge} from '../keyboardBridge';
+import {clearAutocorrectRuntimeCaches} from './autocorrectRuntimeCache';
 import {
   DEFAULT_AUTOCORRECT_SETTINGS,
+  normalizeAutocorrectIntensity,
+  type AutocorrectIntensity,
   type AutocorrectSettings,
 } from './types';
 import {canUseFeature} from '../../licensing/entitlements';
@@ -35,6 +38,7 @@ function normalizeSettings(raw: Partial<AutocorrectSettings>): AutocorrectSettin
     contextCorrectionEnabled:
       raw.contextCorrectionEnabled ??
       DEFAULT_AUTOCORRECT_SETTINGS.contextCorrectionEnabled,
+    intensity: normalizeAutocorrectIntensity(raw.intensity),
   });
 }
 
@@ -96,5 +100,13 @@ export async function setAiAutoCorrectEnabled(
   aiAutoCorrectEnabled: boolean,
 ): Promise<void> {
   cached = {...cached, aiAutoCorrectEnabled};
+  await persistSettings();
+}
+
+export async function setAutocorrectIntensity(
+  intensity: AutocorrectIntensity,
+): Promise<void> {
+  cached = {...cached, intensity: normalizeAutocorrectIntensity(intensity)};
+  clearAutocorrectRuntimeCaches();
   await persistSettings();
 }

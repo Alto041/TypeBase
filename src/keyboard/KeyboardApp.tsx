@@ -169,7 +169,9 @@ import {
   setAiAutoCorrectEnabled,
   setAutoApplyOnSpace,
   setAutocorrectEnabled,
+  setAutocorrectIntensity,
 } from './autocorrect/autocorrectStore';
+import {getAiPreflightSkipMinConfidence} from './autocorrect/autocorrectIntensityProfile';
 import {
   extractPreviousWordFromContext,
   getAutocorrectCandidate,
@@ -2868,7 +2870,7 @@ function KeyboardBody({
         lightweight: true,
         skipFrequentScan: true,
       });
-      if (localCandidate && localCandidate.confidence >= 0.82) {
+      if (localCandidate && localCandidate.confidence >= getAiPreflightSkipMinConfidence()) {
         return;
       }
       const startedAt = Date.now();
@@ -5627,6 +5629,16 @@ function KeyboardBody({
     [reloadAutocorrect],
   );
 
+  const handleAutocorrectIntensityChange = useCallback(
+    (intensity: AutocorrectSettings['intensity']) => {
+      void setAutocorrectIntensity(intensity).then(() => {
+        void reloadAutocorrect();
+        void refreshSuggestions();
+      });
+    },
+    [reloadAutocorrect, refreshSuggestions],
+  );
+
   const isNumpadLayout = layout === 'numpad';
   const useCompactLayout = isNumpadLayout || theme.isLandscape;
   /** Native IME skips RN dispatch on compact hits; gate passthrough until native confirms. */
@@ -6031,6 +6043,7 @@ function KeyboardBody({
               onToggleEnabled={handleAutocorrectToggle}
               onToggleAutoApply={handleAutoApplyToggle}
               onToggleAiAutoCorrect={handleAiAutoCorrectToggle}
+              onIntensityChange={handleAutocorrectIntensityChange}
               onLearnedDataReset={() => {
                 void reloadAutocorrect();
                 refreshSuggestions();

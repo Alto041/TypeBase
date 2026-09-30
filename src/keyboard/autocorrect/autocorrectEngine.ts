@@ -37,6 +37,14 @@ import {
   shouldAutoApplyPunctuation,
   applyCaseToPunctuation,
 } from './punctuationCorrections';
+import {
+  getMinAutoConfidence,
+  getMinSuggestionBarConfidence,
+  getProperNounAutoApplyMinConfidence,
+  getPunctuationAutoApplyThreshold,
+  shouldRejectFuzzyForIntensity,
+} from './autocorrectIntensityProfile';
+import {registerAutocorrectRuntimeCacheClear} from './autocorrectRuntimeCache';
 
 /** Manual rank overrides for slang / contractions. */
 const SUPPLEMENTAL_RANK = new Map<string, number>([
@@ -67,9 +75,6 @@ const SUPPLEMENTAL_RANK = new Map<string, number>([
 
 // SymSpell lookup + prefix index — no fixed word slice or letter buckets.
 
-const MIN_AUTO_CONFIDENCE = 0.55;
-/** Show a bar correction only when confidence is at least this (may still block auto-apply). */
-const MIN_SUGGESTION_BAR_CONFIDENCE = 0.51;
 /** Only consider the top N SymSpell hits — quality over quantity. */
 const HIGH_ACCURACY_SYMSPELL_LIMIT = 8;
 /** On space/punctuation commit, search deeper for long-word typos (everyibe → everyone). */
@@ -324,12 +329,13 @@ function isEnglishLikeLang(lang = getActiveLanguage()): boolean {
 }
 
 function getEffectiveMinAutoConfidence(learnedUses: number, fromExactFix: boolean): number {
+  const base = getMinAutoConfidence();
   const lang = getActiveLanguage();
-  if (isEnglishLikeLang(lang)) return MIN_AUTO_CONFIDENCE;
-  if (learnedUses >= 1 || fromExactFix) return MIN_AUTO_CONFIDENCE;
+  if (isEnglishLikeLang(lang)) return base;
+  if (learnedUses >= 1 || fromExactFix) return base;
   // Italian (and future dedicated dicts) still allow good 1-edit cases,
   // but we avoid borderline auto-corrects for words the user may have intended.
-  return 0.55;
+  return Math.max(base, 0.55);
 }
 const MISSING_SPACE_MIN_LENGTH = 6;
 const MISSING_SPACE_STRONG_RANK = 12_000;
@@ -1092,7 +1098,7 @@ function pickBestSymSpellTypoFix(
       continue;
     }
     const confidence = toConfidence(lower, hit.word, hit.edits, learnedUses, rank);
-    if (confidence < MIN_SUGGESTION_BAR_CONFIDENCE) {
+    if (confidence < getMinSuggestionBarConfidence()) {
       continue;
     }
     const score =
@@ -2116,7 +2122,7 @@ export function getAutocorrectCandidate(
     const punctFix = getPunctuationCorrection(typed, options?.previousWord);
     if (
       punctFix &&
-      shouldAutoApplyPunctuation(punctFix, typed, 0.90)
+      shouldAutoApplyPunctuation(punctFix, typed, getPunctuationAutoApplyThreshold())
     ) {
       return {
         correction: applyCaseToPunctuation(punctFix.correction, typed),
@@ -2267,12 +2273,20 @@ export function getAutocorrectCandidate(
       );
       const minConfidence = basicTierAutocorrect
         ? boundaryLookup
-          ? MIN_AUTO_CONFIDENCE
-          : Math.max(MIN_AUTO_CONFIDENCE, 0.54)
+          ? getMinAutoConfidence()
+          : Math.max(getMinAutoConfidence(), 0.54)
         : boundaryLookup && lower.length >= 8
-          ? 0.52
-          : MIN_AUTO_CONFIDENCE;
-      if (confidence >= minConfidence) {
+          ? Math.min(getMinAutoConfidence(), 0.52)
+          : getMinAutoConfidence();
+      if (
+        confidence >= minConfidence &&
+        !shouldRejectFuzzyForIntensity(
+          symFix.edits,
+          learnedUses,
+          boundaryLookup,
+          confidence,
+        )
+      ) {
         return {
           correction: applyCaseToWord(symFix.word, typed),
           confidence,
@@ -2365,6 +2379,17 @@ export function getAutocorrectCandidate(
       best.staticRank,
     );
     if (confidence < getEffectiveMinAutoConfidence(best.learnedUses, false)) {
+      continue;
+    }
+
+    if (
+      shouldRejectFuzzyForIntensity(
+        best.edits,
+        best.learnedUses,
+        options?.boundary === true,
+        confidence,
+      )
+    ) {
       continue;
     }
 
@@ -2523,7 +2548,7 @@ export function getSuggestionBarAutocorrect(
     if (
       contextFix &&
       contextFix.correction.toLowerCase() !== typed.toLowerCase() &&
-      contextFix.confidence >= MIN_SUGGESTION_BAR_CONFIDENCE
+      contextFix.confidence >= getMinSuggestionBarConfidence()
     ) {
       const result = {
         keepTyped: offerKeepTyped ? typed : null,
@@ -2614,7 +2639,7 @@ export function getSuggestionBarAutocorrect(
   });
   const correction =
     candidate &&
-    candidate.confidence >= MIN_SUGGESTION_BAR_CONFIDENCE &&
+    candidate.confidence >= getMinSuggestionBarConfidence() &&
     candidate.correction.toLowerCase() !== typed.toLowerCase()
       ? candidate.correction
       : null;
@@ -2655,7 +2680,7 @@ export function shouldAutoApply(
   // even when auto-caps makes the typed token look like a name.
   if (
     isProbablyProperNoun(typedWord) &&
-    candidate.confidence < 0.88 &&
+    candidate.confidence < getProperNounAutoApplyMinConfidence() &&
     !candidate.correction.includes(' ')
   ) {
     return false;
@@ -2663,3 +2688,10 @@ export function shouldAutoApply(
 
   return true;
 }
+
+export function clearAutocorrectRuntimeCaches(): void {
+  symTypoFixCache.clear();
+  suggestionBarAutocorrectCache.clear();
+}
+
+registerAutocorrectRuntimeCacheClear(clearAutocorrectRuntimeCaches);

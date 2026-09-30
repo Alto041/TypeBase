@@ -18,6 +18,7 @@ import {
 } from '../personalTyping/personalTypingEngine';
 import {applyCaseToWord} from '../suggestions/wordSuggestions';
 import {getAutocorrectSettings} from './autocorrectStore';
+import {getContextConfidenceMin} from './autocorrectIntensityProfile';
 
 export type ContextCorrectionCandidate = {
   correction: string;
@@ -50,8 +51,6 @@ export type ContextCorrectionDebugState = {
   at: number;
 };
 
-const MIN_CONTEXT_CONFIDENCE = 0.48;
-const MIN_CONTEXT_CONFIDENCE_BOUNDARY = 0.52;
 const MAX_SYMSPELL_CANDIDATES = 8;
 const MAX_SYMSPELL_CANDIDATES_LIGHT = 5;
 const MAX_BIGRAM_SEEDS_LIGHT = 10;
@@ -202,7 +201,7 @@ function toConfidence(
     confidence -= 0.08;
   }
   confidence = Math.max(0, Math.min(0.97, confidence));
-  const min = boundary ? MIN_CONTEXT_CONFIDENCE_BOUNDARY : MIN_CONTEXT_CONFIDENCE;
+  const min = getContextConfidenceMin(boundary);
   return confidence >= min ? confidence : 0;
 }
 

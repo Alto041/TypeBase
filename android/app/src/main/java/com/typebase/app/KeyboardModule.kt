@@ -2497,6 +2497,6 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     private const val DEFAULT_GESTURE_SETTINGS =
         """{"swipeTyping":true,"spaceCursorSwipe":true,"backspaceWordSwipe":true,"backspaceSentenceHold":false,"commaLauncher":true,"shiftEditorShortcuts":true,"trackpadMode":true,"launcherAppPackage":"com.typebase.app"}"""
     private const val DEFAULT_AUTOCORRECT_SETTINGS =
-        """{"enabled":true,"autoApplyOnSpace":true}"""
+        """{"enabled":true,"autoApplyOnSpace":true,"intensity":"medium"}"""
   }
 }

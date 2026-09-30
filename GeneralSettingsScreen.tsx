@@ -28,6 +28,14 @@ import KeyIcon from './assets/key.svg';
 
 import {playSwitchOffSound, playSwitchOnSound} from './src/app/switchSound';
 import {
+  ensureAutocorrectLoaded,
+  getAutocorrectSettings,
+  reloadAutocorrectFromStorage,
+  setAutocorrectIntensity,
+} from './src/keyboard/autocorrect/autocorrectStore';
+import {AutocorrectIntensityControl} from './src/keyboard/autocorrect/AutocorrectIntensityControl';
+import type {AutocorrectIntensity} from './src/keyboard/autocorrect/types';
+import {
   getTouchIntelligenceTelemetrySummary,
   subscribeTouchIntelligenceTelemetry,
 } from './src/keyboard/gesture/touchIntelligenceTelemetry';
@@ -89,6 +97,8 @@ export function GeneralSettingsScreen({
     useState(false);
   const [numberRowEnabled, setNumberRowEnabledState] = useState(false);
   const [autoCapitalizeEnabled, setAutoCapitalizeEnabledState] = useState(true);
+  const [autocorrectIntensity, setAutocorrectIntensityState] =
+    useState<AutocorrectIntensity>('medium');
   const [controllerSettings, setControllerSettings] =
     useState<ControllerSettings>(DEFAULT_CONTROLLER_SETTINGS);
   const [tapMapSamples, setTapMapSamples] = useState(
@@ -152,6 +162,10 @@ export function GeneralSettingsScreen({
       setAutoCapitalizeEnabledState(layout.autoCapitalizeEnabled);
       autoCapitalizeAnim.setValue(layout.autoCapitalizeEnabled ? 1 : 0);
       setControllerSettings(layout.controller);
+    });
+
+    void ensureAutocorrectLoaded().then(() => {
+      setAutocorrectIntensityState(getAutocorrectSettings().intensity);
     });
   }, []);
 
@@ -475,7 +489,26 @@ export function GeneralSettingsScreen({
             </View>
           </View>
 
-          {/* Personal typing */}
+          {/* Autocorrect intensity */}
+          <View style={[styles.rowCard, styles.middleSettingCard, styles.intensityCard]}>
+            <View style={[styles.rowInner, styles.intensityRowInner]}>
+              <KeyIcon width={ROW_ICON} height={ROW_ICON} color={C.text} />
+              <Text style={styles.rowTitle}>Autocorrect intensity</Text>
+            </View>
+            <AutocorrectIntensityControl
+              appearance="settings"
+              showTitle={false}
+              intensity={autocorrectIntensity}
+              onChange={next => {
+                void Haptics.selectionAsync().catch(() => {});
+                setAutocorrectIntensityState(next);
+                void setAutocorrectIntensity(next).then(() =>
+                  reloadAutocorrectFromStorage(),
+                );
+              }}
+            />
+          </View>
+
           <Pressable
             style={[styles.rowCard, styles.middleSettingCard]}
             onPress={() => {
@@ -628,6 +661,13 @@ const styles = StyleSheet.create({
   },
   middleSettingCard: {
     borderRadius: 10,
+  },
+  intensityCard: {
+    paddingBottom: 14,
+    gap: 4,
+  },
+  intensityRowInner: {
+    minHeight: 48,
   },
   rowCardStatic: {
     paddingVertical: 8,
