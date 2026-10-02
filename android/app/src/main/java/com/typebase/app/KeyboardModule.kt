@@ -289,11 +289,14 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
           }
         }
     removeCompactTypingBoundaryListener =
-        KeyboardInputBridge.addCompactTypingBoundaryListener { boundary, typedWord ->
+        KeyboardInputBridge.addCompactTypingBoundaryListener { boundary, typedWord, appliedCorrection ->
           if (reactApplicationContext.hasActiveReactInstance()) {
             val event = Arguments.createMap()
             event.putString("boundary", boundary)
             event.putString("typedWord", typedWord)
+            if (!appliedCorrection.isNullOrBlank()) {
+              event.putString("appliedCorrection", appliedCorrection)
+            }
             reactApplicationContext
                 .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
                 .emit("compactTypingBoundary", event)
@@ -1671,6 +1674,7 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
               .putString(LEARNED_PHRASES_KEY, "{}")
               .putString(PERSONAL_TYPING_PROFILE_KEY, "{}")
               .commit()
+      PersonalContextMemory.clear(reactApplicationContext)
       promise.resolve(saved)
     } catch (error: Exception) {
       promise.reject("CLEAR_LEARNED_AUTOCORRECT_FAILED", error)
@@ -1695,9 +1699,20 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
           .edit()
           .putString(PERSONAL_TYPING_PROFILE_KEY, json)
           .apply()
+      PersonalContextMemory.mergeFromProfileJson(reactApplicationContext, json)
       promise.resolve(true)
     } catch (error: Exception) {
       promise.reject("SET_PERSONAL_TYPING_PROFILE_FAILED", error)
+    }
+  }
+
+  @ReactMethod
+  fun recordContextWordPair(previousWord: String, nextWord: String, promise: Promise) {
+    try {
+      PersonalContextMemory.recordFollow(reactApplicationContext, previousWord, nextWord)
+      promise.resolve(true)
+    } catch (error: Exception) {
+      promise.reject("RECORD_CONTEXT_WORD_PAIR_FAILED", error)
     }
   }
 
@@ -2497,6 +2512,6 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     private const val DEFAULT_GESTURE_SETTINGS =
         """{"swipeTyping":true,"spaceCursorSwipe":true,"backspaceWordSwipe":true,"backspaceSentenceHold":false,"commaLauncher":true,"shiftEditorShortcuts":true,"trackpadMode":true,"launcherAppPackage":"com.typebase.app"}"""
     private const val DEFAULT_AUTOCORRECT_SETTINGS =
-        """{"enabled":true,"autoApplyOnSpace":true,"intensity":"medium"}"""
+        """{"enabled":true,"autoApplyOnSpace":true,"contextCorrectionEnabled":true,"intensity":"medium"}"""
   }
 }

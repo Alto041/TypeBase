@@ -2,6 +2,7 @@ package com.typebase.app
 
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.view.MotionEvent
 import org.json.JSONArray
 import org.json.JSONObject
@@ -88,16 +89,21 @@ class NativeKeyFastPath {
   private val compactSyncHandler = Handler(Looper.getMainLooper())
   private var compactIdleSyncRunnable: Runnable? = null
   private var livePrefix = StringBuilder()
+  private var previousCommittedWord: String = ""
 
   fun isCompactTyping(): Boolean = enabled && compactTyping
 
   fun syncLivePrefixFromJs(prefix: String) {
     livePrefix.clear()
     livePrefix.append(prefix.take(28))
+    if (enabled && keys.isNotEmpty()) {
+      touchIntelligence.syncWordPrefixFromEditor(livePrefix.toString())
+    }
   }
 
   private fun clearCompactSessionState() {
     livePrefix.clear()
+    previousCommittedWord = ""
     compactIdleSyncRunnable?.let { compactSyncHandler.removeCallbacks(it) }
     compactIdleSyncRunnable = null
     KeyboardInputBridge.stopCompactBackspaceRepeat()
@@ -178,7 +184,8 @@ class NativeKeyFastPath {
       }
       lastConfigJson = json
       CompactTypingTelemetry.recordFastPathConfigPublish()
-    } catch (_: Exception) {
+    } catch (error: Exception) {
+      Log.e(TAG, "NativeKeyFastPath updateConfig failed", error)
       enabled = false
       zeroLatency = false
       gamePerformance = false
@@ -333,24 +340,32 @@ class NativeKeyFastPath {
     val rawY = event.rawYForIndex(index)
     val localX = rawX - areaPageX
     val localY = rawY - areaPageY
-    val key =
-        if (zeroLatency || gamePerformance || compactTyping) {
-          touchIntelligence.geometricHitTest(localX, localY)?.let { geometry ->
-            keyById[geometry.id]
-          }
+    val hitResult =
+        if (zeroLatency || gamePerformance) {
+          val geometry = touchIntelligence.geometricHitTest(localX, localY)
+          TouchIntelligence.HitResult(geometry, null)
         } else {
-          touchIntelligence
-              .hitTestWithAnalysis(localX, localY, event.eventTime)
-              .key
-              ?.let { geometry -> keyById[geometry.id] }
+          touchIntelligence.hitTestWithAnalysis(localX, localY, event.eventTime)
         }
+    val key =
+        hitResult.key?.let { geometry -> keyById[geometry.id] }
             ?: return false
 
     if (!commitOnDown) {
       return false
     }
 
-    val blockReact = handleKeyDown(key, pointerId, localX, localY, rawX, rawY, event.eventTime)
+    val blockReact =
+        handleKeyDown(
+            key,
+            pointerId,
+            localX,
+            localY,
+            rawX,
+            rawY,
+            event.eventTime,
+            hitResult.analysis,
+        )
     if (blockReact) {
       CompactTypingTelemetry.recordNativeCommit()
       CompactTypingTelemetry.recordReactTouchBlocked()
@@ -366,6 +381,7 @@ class NativeKeyFastPath {
       rawX: Float,
       rawY: Float,
       eventTime: Long,
+      hitAnalysis: TouchIntelligence.HitAnalysis? = null,
   ): Boolean {
     when (key.type) {
       "backspace" -> {
@@ -373,6 +389,7 @@ class NativeKeyFastPath {
         if (livePrefix.isNotEmpty()) {
           livePrefix.deleteCharAt(livePrefix.length - 1)
         }
+        touchIntelligence.syncWordPrefixFromEditor(livePrefix.toString())
         NativeSuggestionBarEngine.syncPrefix(livePrefix.toString())
         KeyboardInputBridge.startCompactBackspaceRepeat()
         pulseLandscapeAwareHaptic(pointerId)
@@ -384,15 +401,52 @@ class NativeKeyFastPath {
       }
       "space" -> {
         val connection = KeyboardInputBridge.getInputConnection() ?: return false
-        connection.commitText(" ", 1)
         val typedWord = livePrefix.toString()
         livePrefix.clear()
+        touchIntelligence.syncWordPrefixFromEditor("")
         NativeSuggestionBarEngine.clearPrefix()
+        val appContext = KeyboardInputBridge.inputService?.applicationContext
+        var appliedCorrection: String? = null
+        if (
+            compactTyping &&
+                typedWord.isNotBlank() &&
+                !zeroLatency &&
+                appContext != null
+        ) {
+          appliedCorrection =
+              NativeBoundaryAutocorrect.applyContextOnSpace(
+                  appContext,
+                  typedWord,
+                  previousCommittedWord,
+              )
+        }
+        if (appliedCorrection != null) {
+          connection.deleteSurroundingText(typedWord.length, 0)
+          connection.commitText("$appliedCorrection ", 1)
+          val committed = appliedCorrection.trim().lowercase()
+          if (previousCommittedWord.isNotBlank()) {
+            appContext?.let { ctx ->
+              PersonalContextMemory.recordFollow(ctx, previousCommittedWord, committed)
+            }
+          }
+          previousCommittedWord = committed
+        } else {
+          connection.commitText(" ", 1)
+          if (typedWord.isNotBlank()) {
+            val committed = typedWord.trim().lowercase()
+            if (previousCommittedWord.isNotBlank()) {
+              appContext?.let { ctx ->
+                PersonalContextMemory.recordFollow(ctx, previousCommittedWord, committed)
+              }
+            }
+            previousCommittedWord = committed
+          }
+        }
         pulseLandscapeAwareHaptic(pointerId)
         showKeyChromeForKey(key, " ", rawX, rawY, localX, localY)
         sessions[pointerId] = TouchSession(pointerId, key, " ")
         if (compactTyping && typedWord.isNotBlank()) {
-          KeyboardInputBridge.notifyCompactTypingBoundary(" ", typedWord)
+          KeyboardInputBridge.notifyCompactTypingBoundary(" ", typedWord, appliedCorrection)
         }
         pushCompactStateSync("space")
         return compactTyping
@@ -443,9 +497,21 @@ class NativeKeyFastPath {
     sessions[pointerId] = TouchSession(pointerId, key, text)
     if (compactTyping && text.length == 1 && text[0].isLetter()) {
       KeyboardInputBridge.notifyCompactLetterTap(text.lowercase(), localX, localY)
+      pushCompactStateSync("letter")
     }
-    if (!zeroLatency && !gamePerformance && !compactTyping) {
+    if (!zeroLatency && !gamePerformance) {
       touchIntelligence.recordTap(text, localX, localY, eventTime)
+    }
+    if (
+        !zeroLatency &&
+            !gamePerformance &&
+            hitAnalysis != null &&
+            text.length == 1 &&
+            text[0].isLetter()
+    ) {
+      compactSyncHandler.post {
+        KeyboardInputBridge.notifyTouchIntelligenceHit(hitAnalysis)
+      }
     }
     if (!compactTyping) {
       synchronized(pendingJsCommitsLock) {
@@ -658,8 +724,7 @@ class NativeKeyFastPath {
   private fun pulseLandscapeAwareHaptic(pointerId: Int) {
     when {
       zeroLatency -> KeyboardInputBridge.performSubtleKeyHapticForPointer(pointerId)
-      gamePerformance || compactTyping ->
-          KeyboardInputBridge.performLightKeyHapticForPointer(pointerId)
+      gamePerformance -> KeyboardInputBridge.performLightKeyHapticForPointer(pointerId)
       else -> KeyboardInputBridge.performKeyHapticForPointer(pointerId)
     }
   }
@@ -681,5 +746,9 @@ class NativeKeyFastPath {
 
   private fun MotionEvent.rawYForIndex(index: Int): Float {
     return rawY + getY(index) - y
+  }
+
+  private companion object {
+    const val TAG = "NativeKeyFastPath"
   }
 }

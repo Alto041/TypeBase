@@ -72,7 +72,7 @@ object KeyboardInputBridge {
   private val compactTypingStateListeners =
       CopyOnWriteArrayList<(String, Boolean, Boolean, String) -> Unit>()
   private val compactTypingBoundaryListeners =
-      CopyOnWriteArrayList<(String, String) -> Unit>()
+      CopyOnWriteArrayList<(String, String, String?) -> Unit>()
   private val compactTypingShiftListeners = CopyOnWriteArrayList<() -> Unit>()
   private val compactLetterTapListeners =
       CopyOnWriteArrayList<(String, Float, Float) -> Unit>()
@@ -1269,12 +1269,20 @@ object KeyboardInputBridge {
     return { compactTypingStateListeners.remove(listener) }
   }
 
-  fun notifyCompactTypingBoundary(boundary: String, typedWord: String) {
+  fun notifyCompactTypingBoundary(
+      boundary: String,
+      typedWord: String,
+      appliedCorrection: String? = null,
+  ) {
     CompactTypingTelemetry.recordBoundaryAutocorrect()
-    compactTypingBoundaryListeners.forEach { listener -> listener(boundary, typedWord) }
+    compactTypingBoundaryListeners.forEach { listener ->
+      listener(boundary, typedWord, appliedCorrection)
+    }
   }
 
-  fun addCompactTypingBoundaryListener(listener: (String, String) -> Unit): () -> Unit {
+  fun addCompactTypingBoundaryListener(
+      listener: (String, String, String?) -> Unit,
+  ): () -> Unit {
     compactTypingBoundaryListeners.add(listener)
     return { compactTypingBoundaryListeners.remove(listener) }
   }

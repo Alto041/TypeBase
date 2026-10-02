@@ -1,4 +1,4 @@
-import {InteractionManager} from 'react-native';
+import {InteractionManager, Platform} from 'react-native';
 import {
   canUsePersonalTypingEngine,
   canUsePersonalTypingSettings,
@@ -15,6 +15,7 @@ import {
 } from './learnedText';
 import type {
   CorrectionPairEntry,
+  LearnedFollowEntry,
   LearnedPhraseEntry,
   LearnedWordEntry,
   LearningSource,
@@ -70,6 +71,7 @@ function emptyProfile(): PersonalTypingProfile {
     phrases: {},
     corrections: {},
     punctuation: {},
+    follows: {},
     updatedAt: 0,
   };
 }
@@ -301,6 +303,21 @@ function mergeLoadedProfile(loaded: PersonalTypingProfile): void {
       }
     }
   }
+  if (loaded.follows) {
+    if (!profile.follows) {
+      profile.follows = {};
+    }
+    for (const [prev, bucket] of Object.entries(loaded.follows)) {
+      const currentBucket = profile.follows[prev] ?? {};
+      for (const [next, entry] of Object.entries(bucket)) {
+        const current = currentBucket[next];
+        if (!current || entry.lastUsed > current.lastUsed) {
+          currentBucket[next] = entry;
+        }
+      }
+      profile.follows[prev] = currentBucket;
+    }
+  }
 }
 
 export function resetPersonalTypingCache(): void {
@@ -337,6 +354,9 @@ export function ensurePersonalTypingLoaded(): Promise<void> {
         const parsed = JSON.parse(raw) as PersonalTypingProfile;
         if (parsed?.version === PROFILE_VERSION) {
           mergeLoadedProfile(parsed);
+          if (Platform.OS === 'android') {
+            void keyboardBridge.setPersonalTypingProfile(JSON.stringify(profile));
+          }
           return;
         }
       } catch {
@@ -402,6 +422,134 @@ export function shouldPersonallyOfferKeepTyped(word: string): boolean {
   }
   const entry = profile.words[normalized];
   return (entry?.confidence ?? 0) < 0.32 && uses <= 1;
+}
+
+const MAX_FOLLOWS_PER_PREV = 28;
+const MAX_FOLLOW_PREV_KEYS = 1800;
+
+function followScoreValue(entry: LearnedFollowEntry): number {
+  return Math.round(entry.uses * (0.35 + entry.confidence * 0.65) * 12);
+}
+
+function upsertContextFollow(
+  previousWord: string,
+  nextWord: string,
+  source: LearningSource,
+): void {
+  if (!canUsePersonalTypingEngine()) {
+    return;
+  }
+  const prev = normalizeLearnedWord(previousWord);
+  const next = normalizeLearnedWord(nextWord);
+  if (!prev || !next || prev === next || next.length < 2) {
+    return;
+  }
+  if (!profile.follows) {
+    profile.follows = {};
+  }
+  const now = Date.now();
+  const bucket = profile.follows[prev] ?? {};
+  const existing = bucket[next];
+  bucket[next] = existing
+    ? {
+        ...existing,
+        uses: existing.uses + 1,
+        confidence: bumpConfidence(existing.confidence, source),
+        lastUsed: now,
+      }
+    : {
+        uses: 1,
+        confidence: INITIAL_CONFIDENCE[source],
+        lastUsed: now,
+      };
+  profile.follows[prev] = bucket;
+  trimFollowBucket(bucket);
+  trimFollowPreviousKeys();
+  schedulePersist();
+}
+
+function trimFollowBucket(bucket: Record<string, LearnedFollowEntry>): void {
+  const keys = Object.keys(bucket);
+  if (keys.length <= MAX_FOLLOWS_PER_PREV) {
+    return;
+  }
+  keys
+    .sort((a, b) => followScoreValue(bucket[b]!) - followScoreValue(bucket[a]!))
+    .slice(MAX_FOLLOWS_PER_PREV)
+    .forEach(key => {
+      delete bucket[key];
+    });
+}
+
+function trimFollowPreviousKeys(): void {
+  if (!profile.follows) {
+    return;
+  }
+  const keys = Object.keys(profile.follows);
+  if (keys.length <= MAX_FOLLOW_PREV_KEYS) {
+    return;
+  }
+  const keep = keys
+    .sort((a, b) => {
+      const sum = (key: string) =>
+        Object.values(profile.follows![key] ?? {}).reduce(
+          (total, entry) => total + followScoreValue(entry),
+          0,
+        );
+      return sum(b) - sum(a);
+    })
+    .slice(0, MAX_FOLLOW_PREV_KEYS);
+  const next: Record<string, Record<string, LearnedFollowEntry>> = {};
+  for (const key of keep) {
+    next[key] = profile.follows[key]!;
+  }
+  profile.follows = next;
+}
+
+/** Learn which word you typed after `previousWord` (personal context bigrams). */
+export function observeContextWordPair(
+  previousWord: string,
+  nextWord: string,
+  source: LearningSource = 'typed',
+): void {
+  upsertContextFollow(previousWord, nextWord, source);
+}
+
+export function getPersonalFollowScore(
+  previousWord: string,
+  nextWord: string,
+): number {
+  if (!canUsePersonalTypingEngine()) {
+    return 0;
+  }
+  const prev = normalizeLearnedWord(previousWord);
+  const next = normalizeLearnedWord(nextWord);
+  if (!prev || !next) {
+    return 0;
+  }
+  const entry = profile.follows?.[prev]?.[next];
+  return entry ? followScoreValue(entry) : 0;
+}
+
+export function queryPersonalFollowers(
+  previousWord: string,
+  limit = 14,
+): ReadonlyArray<{word: string; score: number}> {
+  if (!canUsePersonalTypingEngine()) {
+    return [];
+  }
+  const prev = normalizeLearnedWord(previousWord);
+  if (!prev) {
+    return [];
+  }
+  const bucket = profile.follows?.[prev];
+  if (!bucket) {
+    return [];
+  }
+  return Object.entries(bucket)
+    .map(([word, entry]) => ({word, score: followScoreValue(entry)}))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit);
 }
 
 export function isHardRejectedCorrection(typed: string, candidate: string): boolean {

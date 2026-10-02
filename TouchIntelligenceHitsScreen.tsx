@@ -3,6 +3,7 @@ import {
   BackHandler,
   FlatList,
   Pressable,
+  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
@@ -15,6 +16,7 @@ import {
   loadTouchIntelligenceHitsSnapshot,
   subscribeTouchIntelligenceTelemetry,
   type TouchIntelligenceHitRecord,
+  type TouchIntelligenceTelemetrySummary,
 } from './src/keyboard/gesture/touchIntelligenceTelemetry';
 
 const C = {
@@ -25,7 +27,11 @@ const C = {
   green: '#2CC642',
   muted: '#b0b0b5',
   red: '#D71921',
+  border: '#e8e8ea',
 } as const;
+
+const CARD_R = 14;
+const TEXT_KERNING = -0.7;
 
 type CorrectionRow = {
   id: string;
@@ -49,6 +55,32 @@ function parseCorrection(record: TouchIntelligenceHitRecord): CorrectionRow | nu
   };
 }
 
+function StatCard({
+  label,
+  value,
+  first,
+  last,
+}: {
+  label: string;
+  value: number;
+  first?: boolean;
+  last?: boolean;
+}) {
+  return (
+    <View
+      style={[
+        styles.rowCard,
+        first ? styles.firstSettingCard : null,
+        last ? styles.lastSettingCard : null,
+      ]}>
+      <View style={styles.rowInner}>
+        <Text style={styles.rowSubLabel}>{label}</Text>
+        <Text style={styles.rowValue}>{value}</Text>
+      </View>
+    </View>
+  );
+}
+
 function CorrectionText({word, from, to}: Pick<CorrectionRow, 'word' | 'from' | 'to'>) {
   return (
     <Text style={styles.rowText}>
@@ -57,15 +89,23 @@ function CorrectionText({word, from, to}: Pick<CorrectionRow, 'word' | 'from' | 
   );
 }
 
+const EMPTY_SUMMARY: TouchIntelligenceTelemetrySummary = {
+  recordingEnabled: true,
+  totalHits: 0,
+  rerankCandidates: 0,
+  appliedReranks: 0,
+  confidentFastPathHits: 0,
+  nativeCommits: 0,
+  jsCommits: 0,
+  mismatchCommits: 0,
+  predictiveActiveHits: 0,
+  neutralModeHits: 0,
+};
+
 export function TouchIntelligenceHitsScreen({onBack}: {onBack: () => void}) {
   const [hits, setHits] = useState<TouchIntelligenceHitRecord[]>([]);
-  const [summary, setSummary] = useState({
-    totalHits: 0,
-    nativeCommits: 0,
-    appliedReranks: 0,
-    predictiveActiveHits: 0,
-    neutralModeHits: 0,
-  });
+  const [summary, setSummary] =
+    useState<TouchIntelligenceTelemetrySummary>(EMPTY_SUMMARY);
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -84,13 +124,7 @@ export function TouchIntelligenceHitsScreen({onBack}: {onBack: () => void}) {
         return;
       }
       setHits(snapshot.hits);
-      setSummary({
-        totalHits: snapshot.summary.totalHits,
-        nativeCommits: snapshot.summary.nativeCommits,
-        appliedReranks: snapshot.summary.appliedReranks,
-        predictiveActiveHits: snapshot.summary.predictiveActiveHits,
-        neutralModeHits: snapshot.summary.neutralModeHits,
-      });
+      setSummary(snapshot.summary);
     };
 
     void refresh();
@@ -119,41 +153,51 @@ export function TouchIntelligenceHitsScreen({onBack}: {onBack: () => void}) {
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={C.bg} />
-      <View style={styles.header}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}>
         <View style={styles.titleRow}>
-          <Text style={styles.title}>Touch hits</Text>
+          <Text style={styles.pageTitle}>Touch hits</Text>
           <View style={styles.betaTag}>
             <Text style={styles.betaTagText}>BETA</Text>
           </View>
         </View>
-        <Text style={styles.summary}>
-          {corrections.length} fixes · {summary.totalHits} analyzed ·{' '}
-          {summary.nativeCommits} native · {summary.predictiveActiveHits} predictive ·{' '}
-          {summary.neutralModeHits} neutral
-        </Text>
-        <Pressable onPress={clearTouchIntelligenceHits}>
-          <Text style={styles.clear}>Clear</Text>
-        </Pressable>
-      </View>
 
-      {corrections.length === 0 ? (
-        <Text style={styles.empty}>
-          Type with the keyboard. Every letter tap is analyzed on-device; when a
-          near-miss gets corrected you'll see the word and what changed, like
-          hope (r → e).
-        </Text>
-      ) : (
-        <FlatList
-          data={corrections}
-          keyExtractor={item => item.id}
-          contentContainerStyle={styles.list}
-          renderItem={({item}) => (
-            <View style={styles.row}>
-              <CorrectionText word={item.word} from={item.from} to={item.to} />
-            </View>
-          )}
-        />
-      )}
+        <View style={styles.cardStack}>
+          <StatCard
+            label="Letter fixes (reranked)"
+            value={summary.appliedReranks}
+            first
+          />
+          <StatCard label="Taps analyzed" value={summary.totalHits} />
+          <StatCard label="Rerank candidates" value={summary.rerankCandidates} />
+          <StatCard label="Native path" value={summary.nativeCommits} />
+          <StatCard label="Predictive-assisted" value={summary.predictiveActiveHits} />
+          <StatCard label="Confident fast path" value={summary.confidentFastPathHits} last />
+        </View>
+
+        <View style={styles.listHeader}>
+          <Text style={styles.listTitle}>Recent fixes</Text>
+          <Pressable onPress={clearTouchIntelligenceHits}>
+            <Text style={styles.clear}>Clear</Text>
+          </Pressable>
+        </View>
+
+        {corrections.length === 0 ? (
+          <Text style={styles.empty}>
+            Type with the keyboard. When a near-miss gets corrected you will see entries
+            like hope (r → e).
+          </Text>
+        ) : (
+          <View style={styles.listCard}>
+            {corrections.slice(0, 80).map(item => (
+              <View key={item.id} style={styles.row}>
+                <CorrectionText word={item.word} from={item.from} to={item.to} />
+              </View>
+            ))}
+          </View>
+        )}
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -163,29 +207,30 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: C.bg,
   },
-  header: {
+  scrollContent: {
     paddingHorizontal: 18,
     paddingTop: 72,
-    paddingBottom: 12,
-    gap: 6,
+    paddingBottom: 110,
+    gap: 10,
   },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    marginBottom: 8,
   },
-  title: {
-    fontSize: 32,
+  pageTitle: {
+    fontSize: 40,
     color: C.text,
+    letterSpacing: -2.5,
     fontFamily: 'FragmentMono',
-    letterSpacing: -1.5,
   },
   betaTag: {
     backgroundColor: C.red,
     borderRadius: 6,
     paddingHorizontal: 8,
     paddingVertical: 3,
-    marginTop: 6,
+    marginTop: 10,
   },
   betaTagText: {
     color: '#FFFFFF',
@@ -194,40 +239,91 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: 0.6,
   },
-  summary: {
-    fontSize: 13,
-    color: C.sub,
-    fontFamily: 'FragmentMono',
+  cardStack: {
+    gap: 4,
+    marginBottom: 4,
   },
-  clear: {
-    fontSize: 13,
-    color: C.muted,
-    fontFamily: 'FragmentMono',
-    marginTop: 4,
-  },
-  empty: {
-    paddingHorizontal: 18,
-    fontSize: 13,
-    color: C.sub,
-    fontFamily: 'FragmentMono',
-    lineHeight: 20,
-  },
-  list: {
-    paddingHorizontal: 18,
-    paddingBottom: 40,
-    gap: 6,
-  },
-  row: {
+  rowCard: {
     backgroundColor: C.card,
-    borderRadius: 10,
+    borderRadius: CARD_R,
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: 4,
   },
-  rowText: {
+  firstSettingCard: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderBottomLeftRadius: 8,
+    borderBottomRightRadius: 8,
+  },
+  lastSettingCard: {
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+  },
+  rowInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    minHeight: 52,
+  },
+  rowSubLabel: {
+    color: C.sub,
+    fontSize: 14,
+    fontFamily: 'FragmentMono',
+    letterSpacing: TEXT_KERNING,
+    flex: 1,
+  },
+  rowValue: {
+    color: C.text,
+    fontSize: 14,
+    fontFamily: 'FragmentMono',
+    letterSpacing: TEXT_KERNING,
+  },
+  listHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 4,
+    marginTop: 6,
+  },
+  listTitle: {
     fontSize: 16,
     color: C.text,
     fontFamily: 'FragmentMono',
-    lineHeight: 22,
+    textTransform: 'uppercase',
+    letterSpacing: TEXT_KERNING,
+  },
+  clear: {
+    fontSize: 14,
+    color: C.red,
+    fontFamily: 'FragmentMono',
+  },
+  empty: {
+    fontSize: 14,
+    color: C.sub,
+    fontFamily: 'FragmentMono',
+    lineHeight: 20,
+    paddingHorizontal: 4,
+    marginTop: 8,
+  },
+  listCard: {
+    backgroundColor: C.card,
+    borderRadius: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    gap: 4,
+  },
+  row: {
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: C.border,
+  },
+  rowText: {
+    fontSize: 15,
+    color: C.text,
+    fontFamily: 'FragmentMono',
+    letterSpacing: TEXT_KERNING,
   },
   arrow: {
     color: C.green,

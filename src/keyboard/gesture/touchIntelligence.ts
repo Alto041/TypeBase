@@ -116,6 +116,22 @@ export function clearWordLetterTapsForTapMap(): void {
   wordLetterTaps.length = 0;
 }
 
+export function getTouchIntelligenceNativeBootstrapConfig(): TouchIntelligenceNativeConfig {
+  const typing = getTouchIntelligenceTypingContext();
+  return {
+    enabled: true,
+    previousKeyLetter: typing.previousKeyLetter,
+    wordPrefix: typing.wordPrefix.slice(0, 28),
+    lastTapX: lastTap?.localX ?? 0,
+    lastTapY: lastTap?.localY ?? 0,
+    lastTapAtMs: lastTap?.timestampMs ?? 0,
+    predictiveNeutralMode: true,
+    topPredictedLetter: null,
+    topExpansionKeyId: null,
+    keyExpansions: [],
+  };
+}
+
 export function getTouchIntelligenceNativeConfig(): TouchIntelligenceNativeConfig {
   const typing = getTouchIntelligenceTypingContext();
   const hitboxState = getPredictiveHitboxState();

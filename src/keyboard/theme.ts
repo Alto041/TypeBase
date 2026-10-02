@@ -158,6 +158,36 @@ export function usesFrostedGlassTheme(design: KeyboardDesign): boolean {
   return design === 'typebase';
 }
 
+/** Voice dictation pill — Quivox uses solid caps; Nothing matches that (not frosted rgba). */
+export function voiceFlowPillBackground(
+  design: KeyboardDesign,
+  scheme: KeyboardColorScheme,
+  letterKey: string,
+): string {
+  if (design === 'quivox') {
+    return letterKey;
+  }
+  if (usesNothingKeyboardLayout(design)) {
+    return scheme === 'dark' ? '#2A2A2A' : '#F6F6F6';
+  }
+  return letterKey;
+}
+
+export function voiceFlowStopButtonBackground(
+  design: KeyboardDesign,
+  scheme: KeyboardColorScheme,
+  modifierKey: string,
+): string {
+  if (design === 'quivox' || usesNothingKeyboardLayout(design)) {
+    return scheme === 'dark' ? '#343434' : '#D9D9D9';
+  }
+  return modifierKey;
+}
+
+export function voiceFlowUsesQuivoxStyleFill(design: KeyboardDesign): boolean {
+  return design === 'quivox' || usesNothingKeyboardLayout(design);
+}
+
 type KeyboardPalette = {
   container: string;
   letterKey: string;

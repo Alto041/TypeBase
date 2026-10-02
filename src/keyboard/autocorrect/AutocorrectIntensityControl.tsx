@@ -122,9 +122,6 @@ export function AutocorrectIntensityControl({
           onChange(next);
         }}
       />
-      {isSettings && !showTitle ? (
-        <Text style={styles.hint}>{hint}</Text>
-      ) : null}
     </View>
   );
 }

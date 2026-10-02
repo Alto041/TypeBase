@@ -14,6 +14,7 @@ import {
   clearTapMap,
   getTapMapSnapshot,
   hydrateTapMapFromStorage,
+  subscribeTapMapChanges,
   type TapMapEntry,
 } from './src/keyboard/gesture/tapMap';
 
@@ -30,7 +31,7 @@ const C = {
 const CARD_R = 14;
 const ROW_GAP = 8;
 const TEXT_KERNING = -0.7;
-const MIN_SAMPLES = 3;
+const MIN_SAMPLES = 4;
 
 const ROWS = [
   ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'],
@@ -132,8 +133,14 @@ export function TapMapScreen({onBack}: {onBack: () => void}) {
         setSnapshot(getTapMapSnapshot());
       }
     });
+    const unsubscribe = subscribeTapMapChanges(() => {
+      if (!cancelled) {
+        setSnapshot(getTapMapSnapshot());
+      }
+    });
     return () => {
       cancelled = true;
+      unsubscribe();
     };
   }, []);
 
@@ -176,13 +183,35 @@ export function TapMapScreen({onBack}: {onBack: () => void}) {
         <View style={styles.cardStack}>
           <View style={[styles.rowCard, styles.firstSettingCard]}>
             <View style={styles.rowInner}>
+              <Text style={styles.rowSubLabel}>Words helped (autocorrect)</Text>
+              <Text style={styles.rowValue}>
+                {snapshot.impact.wordsHelpedByCorrections}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.rowCard}>
+            <View style={styles.rowInner}>
+              <Text style={styles.rowSubLabel}>Letters retargeted</Text>
+              <Text style={styles.rowValue}>
+                {snapshot.impact.lettersRetargetedFromCorrections}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.rowCard}>
+            <View style={styles.rowInner}>
+              <Text style={styles.rowSubLabel}>Near-miss keys fixed</Text>
+              <Text style={styles.rowValue}>{snapshot.impact.keysFixedFromMisses}</Text>
+            </View>
+          </View>
+          <View style={styles.rowCard}>
+            <View style={styles.rowInner}>
               <Text style={styles.rowSubLabel}>Keys learned</Text>
               <Text style={styles.rowValue}>{learnedCount}</Text>
             </View>
           </View>
           <View style={[styles.rowCard, styles.lastSettingCard]}>
             <View style={styles.rowInner}>
-              <Text style={styles.rowSubLabel}>Total taps</Text>
+              <Text style={styles.rowSubLabel}>Total tap samples</Text>
               <Text style={styles.rowValue}>{snapshot.totalSamples}</Text>
             </View>
           </View>

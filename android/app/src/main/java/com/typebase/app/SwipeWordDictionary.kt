@@ -113,6 +113,71 @@ object SwipeWordDictionary {
   fun isKnownWord(word: String): Boolean =
     staticRank.containsKey(word.trim().lowercase())
 
+  fun getWordRank(word: String): Int? = staticRank[word.trim().lowercase()]
+
+  /** Near-words by edit distance, frequency-ordered. */
+  fun findEditDistanceCandidates(
+      context: Context,
+      typed: String,
+      maxEdits: Int,
+      limit: Int,
+  ): List<Pair<String, Int>> {
+    ensureLoaded(context)
+    val lower = typed.trim().lowercase()
+    if (lower.length < 2 || !lower.all { it in 'a'..'z' }) {
+      return emptyList()
+    }
+    val hits = ArrayList<Pair<String, Int>>(limit.coerceAtLeast(4))
+    for (delta in -maxEdits..maxEdits) {
+      val length = lower.length + delta
+      if (length !in 2..MAX_SWIPE_WORD_LENGTH) {
+        continue
+      }
+      for ((word, _) in wordsByLength[length]) {
+        val edits = levenshteinDistance(lower, word)
+        if (edits in 1..maxEdits) {
+          hits.add(word to edits)
+        }
+      }
+    }
+    hits.sortBy { (word, edits) ->
+      val rank = staticRank[word] ?: Int.MAX_VALUE
+      rank * 10 + edits
+    }
+    val seen = HashSet<String>()
+    val out = ArrayList<Pair<String, Int>>(limit.coerceAtLeast(1))
+    for (pair in hits) {
+      if (seen.add(pair.first)) {
+        out.add(pair)
+        if (out.size >= limit) {
+          break
+        }
+      }
+    }
+    return out
+  }
+
+  private fun levenshteinDistance(a: String, b: String): Int {
+    if (a == b) {
+      return 0
+    }
+    if (kotlin.math.abs(a.length - b.length) > 3) {
+      return 99
+    }
+    val row = IntArray(b.length + 1) { it }
+    for (i in 1..a.length) {
+      var previous = i - 1
+      row[0] = i
+      for (j in 1..b.length) {
+        val temp = row[j]
+        val cost = if (a[i - 1] == b[j - 1]) 0 else 1
+        row[j] = minOf(row[j] + 1, row[j - 1] + 1, previous + cost)
+        previous = temp
+      }
+    }
+    return row[b.length]
+  }
+
   /** Frequency-ordered prefix completions for the live suggestion bar. */
   fun getPrefixCompletions(context: Context, prefix: String, limit: Int = 8): List<String> {
     ensureLoaded(context)

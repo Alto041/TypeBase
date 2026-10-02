@@ -30,7 +30,12 @@ import StopIcon from '../../../assets/stop.svg';
 import {triggerKeyHaptic} from '../haptics';
 import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
 import type {KeyboardTheme} from '../theme';
-import {keyboardTypefaceStyle} from '../theme';
+import {
+  keyboardTypefaceStyle,
+  voiceFlowPillBackground,
+  voiceFlowStopButtonBackground,
+  voiceFlowUsesQuivoxStyleFill,
+} from '../theme';
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 
@@ -209,6 +214,8 @@ type VoiceFlowFillArtProps = {
   variant: VoiceFillVariant;
   gradientStops: VoiceGradientStops;
   rainbowShift?: number;
+  quivoxStyleFill: boolean;
+  pillFadeColor: string;
 };
 
 function VoiceFlowFillArt({
@@ -217,6 +224,8 @@ function VoiceFlowFillArt({
   variant,
   gradientStops,
   rainbowShift = 0,
+  quivoxStyleFill,
+  pillFadeColor,
 }: VoiceFlowFillArtProps) {
   const animatedClipProps = useAnimatedProps(() => {
     const energy = waveEnergy.value;
@@ -267,15 +276,27 @@ function VoiceFlowFillArt({
             </LinearGradient>
           </>
         ) : (
-          <LinearGradient id="voiceFlowFill" x1="0" y1="1" x2="0" y2="0">
-            <Stop offset="0" stopColor={gradientStops.bottom} stopOpacity="1" />
-            <Stop offset="0.14" stopColor={gradientStops.lower} stopOpacity="0.96" />
-            <Stop offset="0.32" stopColor={gradientStops.mid} stopOpacity="0.72" />
-            <Stop offset="0.52" stopColor={gradientStops.upper} stopOpacity="0.36" />
-            <Stop offset="0.72" stopColor={gradientStops.highlight} stopOpacity="0.12" />
-            <Stop offset="0.9" stopColor="#FFFDE7" stopOpacity="0.04" />
-            <Stop offset="1" stopColor="#FFFFFF" stopOpacity="0" />
-          </LinearGradient>
+          <>
+            <LinearGradient id="voiceFlowFill" x1="0" y1="1" x2="0" y2="0">
+              <Stop offset="0" stopColor={gradientStops.bottom} stopOpacity="1" />
+              <Stop offset="0.14" stopColor={gradientStops.lower} stopOpacity="0.96" />
+              <Stop offset="0.32" stopColor={gradientStops.mid} stopOpacity="0.78" />
+              <Stop offset="0.5" stopColor={gradientStops.upper} stopOpacity="0.42" />
+              <Stop offset="0.68" stopColor={gradientStops.highlight} stopOpacity="0.18" />
+              <Stop offset="0.84" stopColor={gradientStops.highlight} stopOpacity="0.06" />
+              <Stop offset="1" stopColor={pillFadeColor} stopOpacity="0" />
+            </LinearGradient>
+            {quivoxStyleFill ? (
+              <LinearGradient id="voiceFlowPillFade" x1="0" y1="0" x2="0" y2="1">
+                <Stop offset="0" stopColor={pillFadeColor} stopOpacity="0.88" />
+                <Stop offset="0.2" stopColor={pillFadeColor} stopOpacity="0.62" />
+                <Stop offset="0.4" stopColor={pillFadeColor} stopOpacity="0.32" />
+                <Stop offset="0.62" stopColor={pillFadeColor} stopOpacity="0.1" />
+                <Stop offset="0.82" stopColor={pillFadeColor} stopOpacity="0.02" />
+                <Stop offset="1" stopColor={pillFadeColor} stopOpacity="0" />
+              </LinearGradient>
+            ) : null}
+          </>
         )}
 
         <Pattern
@@ -309,6 +330,14 @@ function VoiceFlowFillArt({
             width={WAVE_VIEW_WIDTH}
             height={WAVE_VIEW_HEIGHT}
             fill="url(#voiceFlowTopFade)"
+          />
+        ) : quivoxStyleFill ? (
+          <Rect
+            x="0"
+            y="0"
+            width={WAVE_VIEW_WIDTH}
+            height={WAVE_VIEW_HEIGHT}
+            fill="url(#voiceFlowPillFade)"
           />
         ) : null}
         <Rect
@@ -350,6 +379,12 @@ export function VoiceFlowVisualization({
 }: VoiceFlowVisualizationProps) {
   const theme = useKeyboardTheme();
   const styles = useThemedStyles(createVoiceFlowStyles);
+  const quivoxStyleFill = voiceFlowUsesQuivoxStyleFill(theme.design);
+  const pillFadeColor = voiceFlowPillBackground(
+    theme.design,
+    theme.scheme,
+    theme.letterKey,
+  );
   const isAppleRainbow = theme.design === 'macintosh';
   const fillVariant: VoiceFillVariant = isAppleRainbow ? 'appleRainbow' : 'cycling';
   const voicePalette = useMemo(() => voicePaletteForTheme(theme), [
@@ -662,6 +697,8 @@ export function VoiceFlowVisualization({
               variant={fillVariant}
               gradientStops={gradientStops}
               rainbowShift={rainbowShiftJs}
+              quivoxStyleFill={quivoxStyleFill}
+              pillFadeColor={pillFadeColor}
             />
           </View>
         </Animated.View>
@@ -718,7 +755,11 @@ function createVoiceFlowStyles(theme: KeyboardTheme) {
     pill: {
       minHeight: 48,
       borderRadius: 999,
-      backgroundColor: theme.letterKey,
+      backgroundColor: voiceFlowPillBackground(
+        theme.design,
+        theme.scheme,
+        theme.letterKey,
+      ),
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: theme.borderSubtle,
       overflow: 'hidden',
@@ -759,7 +800,11 @@ function createVoiceFlowStyles(theme: KeyboardTheme) {
       width: 36,
       height: 36,
       borderRadius: 18,
-      backgroundColor: theme.modifierKey,
+      backgroundColor: voiceFlowStopButtonBackground(
+        theme.design,
+        theme.scheme,
+        theme.modifierKey,
+      ),
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: theme.borderSubtle,
       alignItems: 'center',

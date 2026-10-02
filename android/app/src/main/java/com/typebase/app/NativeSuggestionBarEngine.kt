@@ -35,7 +35,10 @@ object NativeSuggestionBarEngine {
   @Volatile private var latestSnapshot: Snapshot? = null
 
   fun preload(context: Context) {
-    executor.execute { SwipeWordDictionary.ensureLoaded(context) }
+    executor.execute {
+      SwipeWordDictionary.ensureLoaded(context)
+      ContextBigrams.ensureLoaded(context)
+    }
   }
 
   fun syncPrefix(prefix: String) {

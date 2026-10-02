@@ -29,12 +29,20 @@ export type CorrectionPairEntry = {
   lastUsed: number;
 };
 
+/** Words you actually type after a given previous word (personal context bigrams). */
+export type LearnedFollowEntry = {
+  uses: number;
+  confidence: number;
+  lastUsed: number;
+};
+
 export type PersonalTypingProfile = {
   version: 1;
   words: Record<string, LearnedWordEntry>;
   phrases: Record<string, LearnedPhraseEntry>;
   corrections: Record<string, CorrectionPairEntry>;
   punctuation: Record<string, number>;
+  follows?: Record<string, Record<string, LearnedFollowEntry>>;
   updatedAt: number;
 };
 

@@ -47,6 +47,42 @@ let nextId = 1;
 const records: TouchIntelligenceHitRecord[] = [];
 const listeners = new Set<() => void>();
 
+let lastTapMapMismatchLearnAt = 0;
+let lastTapMapMismatchLearnX = 0;
+let lastTapMapMismatchLearnY = 0;
+
+/** When touch scoring commits a different letter than raw geometry, nudge tap map + impact stats. */
+function maybeLearnTapMapFromTouchMismatch(
+  committedLetter: string | null | undefined,
+  geometricLetter: string | null | undefined,
+  localX: number,
+  localY: number,
+): void {
+  const committed = committedLetter?.trim().toLowerCase() ?? '';
+  const geometric = geometricLetter?.trim().toLowerCase() ?? '';
+  if (
+    committed.length !== 1 ||
+    geometric.length !== 1 ||
+    !/[a-z]/.test(committed) ||
+    !/[a-z]/.test(geometric) ||
+    committed === geometric
+  ) {
+    return;
+  }
+  const now = Date.now();
+  if (
+    now - lastTapMapMismatchLearnAt < 120 &&
+    Math.abs(localX - lastTapMapMismatchLearnX) < 6 &&
+    Math.abs(localY - lastTapMapMismatchLearnY) < 6
+  ) {
+    return;
+  }
+  lastTapMapMismatchLearnAt = now;
+  lastTapMapMismatchLearnX = localX;
+  lastTapMapMismatchLearnY = localY;
+  learnTapMapFromMismatch(committed, localX, localY);
+}
+
 function notify(): void {
   for (const listener of listeners) {
     listener();
@@ -176,6 +212,15 @@ export function recordTouchIntelligenceAnalysis(
     records.length = MAX_RECORDS;
   }
 
+  const committed =
+    records[0].committedLetter ?? records[0].predictedLetter ?? null;
+  maybeLearnTapMapFromTouchMismatch(
+    committed,
+    records[0].geometricLetter,
+    records[0].localX,
+    records[0].localY,
+  );
+
   void persistTouchIntelligenceRecord(records[0]);
   notify();
 }
@@ -268,17 +313,12 @@ export function annotateLastTouchIntelligenceCommit(
     normalized.length === 1 ? normalized : committedLetter;
   record.source = source;
 
-  const geometric = record.geometricLetter?.toLowerCase() ?? null;
-  if (
-    geometric &&
-    normalized.length === 1 &&
-    geometric !== normalized &&
-    !record.appliedRerank &&
-    localX != null &&
-    localY != null
-  ) {
-    learnTapMapFromMismatch(normalized, localX, localY);
-  }
+  maybeLearnTapMapFromTouchMismatch(
+    record.committedLetter,
+    record.geometricLetter,
+    record.localX,
+    record.localY,
+  );
 
   void persistTouchIntelligenceRecord(record);
   notify();

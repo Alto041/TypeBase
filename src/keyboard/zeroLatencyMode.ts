@@ -51,9 +51,9 @@ export function shouldSkipKeyPressEffects(): boolean {
   return zeroLatencyModeActive;
 }
 
-/** Skip native popup/pressed chrome during zero-latency and landscape typing. */
+/** Skip native popup/pressed chrome during zero-latency only. */
 export function shouldSkipKeyPreviewEffects(): boolean {
-  return zeroLatencyModeActive || isLandscapeTypingProfile();
+  return zeroLatencyModeActive;
 }
 
 export function isGamePerformanceModeActive(): boolean {
@@ -107,11 +107,10 @@ export function shouldSkipTouchIntelligenceWork(): boolean {
   );
 }
 
-/** Defer native touch-intel JSON sync during bursts, churn, and landscape typing. */
+/** Defer native touch-intel JSON sync during compact typing (native keeps prefix) and bursts. */
 export function shouldDeferNativeTouchIntelligenceSync(): boolean {
   return (
     shouldSkipTouchIntelligenceWork() ||
-    isLandscapeTypingProfile() ||
     isCompactNativeTypingActive() ||
     burstTypingActive ||
     isTypingChurnActive()

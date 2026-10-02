@@ -492,7 +492,7 @@ export function GeneralSettingsScreen({
           {/* Autocorrect intensity */}
           <View style={[styles.rowCard, styles.middleSettingCard, styles.intensityCard]}>
             <View style={[styles.rowInner, styles.intensityRowInner]}>
-              <KeyIcon width={ROW_ICON} height={ROW_ICON} color={C.text} />
+              <EngineOutlineIcon width={ROW_ICON} height={ROW_ICON} color={C.text} />
               <Text style={styles.rowTitle}>Autocorrect intensity</Text>
             </View>
             <AutocorrectIntensityControl

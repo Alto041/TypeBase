@@ -31,6 +31,8 @@ import {
 } from './dictionaryManager';
 import {getHinglishPhraseCorrection, isHinglishHeadword} from './hinglishDictionary';
 import {getContextCorrectionCandidate} from './contextCorrectionEngine';
+import {getBigramFollowScore} from './contextBigrams';
+import {getPersonalFollowScore} from '../personalTyping/personalTypingEngine';
 import {extractTrailingWords} from './learnedPhrases';
 import {
   getPunctuationCorrection,
@@ -84,6 +86,9 @@ const BASIC_BOUNDARY_SYMSPELL_LIMIT = 32;
 const COMMON_WORD_RANK = 4000;
 /** Dictionary headwords rarer than this can still be autocorrected (e.g. beng → being). */
 const OBSCURE_WORD_RANK_THRESHOLD = 20_000;
+/** 1-edit fixes after a prior word need real bigram support (blocks thik→this after "the"). */
+const BOUNDARY_MIN_BIGRAM_ONE_EDIT = 4;
+const BIGRAM_RANKING_WEIGHT = 120;
 /** Skip fuzzy autocorrect for long random key-mash tokens (perf + no useful fix). */
 export const MAX_LIVE_AUTOCORRECT_LENGTH = 28;
 
@@ -249,13 +254,59 @@ function contextFollowBias(previousWord: string, candidate: string): number {
   }
   const follows = CONTEXT_FOLLOW_WORDS[previousWord];
   if (!follows) {
-    return 0;
+    return bigramRankingBias(previousWord, candidate);
   }
   const lower = candidate.toLowerCase();
   if (follows.includes(lower)) {
     return -6_000;
   }
-  return 0;
+  return bigramRankingBias(previousWord, candidate);
+}
+
+function bigramRankingBias(previousWord: string, candidate: string): number {
+  const prev = previousWord.trim().toLowerCase();
+  if (!prev) {
+    return 0;
+  }
+  const next = candidate.toLowerCase();
+  const staticScore = getBigramFollowScore(prev, next);
+  const personal = getPersonalFollowScore(prev, next);
+  const combined =
+    personal > 0
+      ? staticScore + personal * 3 + Math.min(personal, 48)
+      : staticScore;
+  return -combined * BIGRAM_RANKING_WEIGHT;
+}
+
+/** Gate 1-edit space corrections so frequency alone cannot pick the wrong neighbor word. */
+function boundaryOneEditAllowed(
+  previousWord: string,
+  typed: string,
+  candidate: string,
+  edits: number,
+): boolean {
+  if (edits !== 1 || !previousWord.trim()) {
+    return true;
+  }
+  const bg = getBigramFollowScore(previousWord, candidate.toLowerCase());
+  const personal = getPersonalFollowScore(previousWord, candidate.toLowerCase());
+  const combined =
+    personal > 0 ? bg + personal * 3 + Math.min(personal, 48) : bg;
+  if (combined >= BOUNDARY_MIN_BIGRAM_ONE_EDIT) {
+    return true;
+  }
+  if (isAdjacentTransposition(typed, candidate)) {
+    return true;
+  }
+  if (
+    typed.length >= 3 &&
+    candidate.length >= 3 &&
+    typed.slice(1) === candidate.slice(1) &&
+    isCommonAutocorrectTarget(wordRank(candidate))
+  ) {
+    return true;
+  }
+  return false;
 }
 
 function wordRank(word: string): number {
@@ -288,6 +339,9 @@ function commonCorrectionWordRank(word: string): number {
 
 function isKnownEnglishWord(word: string): boolean {
   const lower = word.toLowerCase();
+  if (isPreserveTypedWord(lower)) {
+    return true;
+  }
   if (SUPPLEMENTAL_RANK.has(lower)) {
     return true;
   }
@@ -603,6 +657,12 @@ function findBestSingleWordCorrection(
       continue;
     }
     if (!isValidCorrectionWord(match.word)) {
+      continue;
+    }
+    if (
+      previousWord.trim() &&
+      !boundaryOneEditAllowed(previousWord, typed, match.word, match.edits)
+    ) {
       continue;
     }
     const staticRank =
@@ -1094,6 +1154,12 @@ function pickBestSymSpellTypoFix(
     if (
       shouldRejectFuzzyCorrection(lower, hit.word, hit.edits, learnedUses, rank) ||
       !isPlausibleTypo(lower, hit.word, hit.edits, rank)
+    ) {
+      continue;
+    }
+    if (
+      previousWord.trim() &&
+      !boundaryOneEditAllowed(previousWord, lower, hit.word, hit.edits)
     ) {
       continue;
     }
@@ -2264,6 +2330,17 @@ export function getAutocorrectCandidate(
       ) &&
       isPlausibleTypo(lower, symFix.word, symFix.edits, symFix.staticRank)
     ) {
+      if (
+        previousWord.trim() &&
+        !boundaryOneEditAllowed(
+          previousWord,
+          lower,
+          symFix.word,
+          symFix.edits,
+        )
+      ) {
+        // fall through — do not auto-apply frequency-only neighbor swaps
+      } else {
       const confidence = toConfidence(
         lower,
         symFix.word,
@@ -2291,6 +2368,7 @@ export function getAutocorrectCandidate(
           correction: applyCaseToWord(symFix.word, typed),
           confidence,
         };
+      }
       }
     }
   }

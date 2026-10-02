@@ -2,6 +2,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import type {KeyBounds} from './types';
 
+export type TapMapEntry = {
+  dx: number;
+  dy: number;
+  samples: number;
+};
+
 const STORAGE_KEY = '@typebase/tap_map_v1';
 const MAX_OFFSET_PX = 14;
 const LEARN_RATE = 0.12;
@@ -9,16 +15,26 @@ const LEARN_RATE_WORD_CORRECTION = 0.08;
 const MIN_SAMPLES_TO_APPLY = 4;
 const PERSIST_DEBOUNCE_MS = 45_000;
 
-export type TapMapEntry = {
-  dx: number;
-  dy: number;
-  samples: number;
+export type TapMapImpactStats = {
+  /** Autocorrect swaps that retargeted at least one letter on the tap map. */
+  wordsHelpedByCorrections: number;
+  /** Per-letter offset updates from autocorrect-driven tap map learning. */
+  lettersRetargetedFromCorrections: number;
+  /** Near-miss taps where we nudged the map toward the key you meant. */
+  keysFixedFromMisses: number;
+};
+
+const DEFAULT_IMPACT_STATS: TapMapImpactStats = {
+  wordsHelpedByCorrections: 0,
+  lettersRetargetedFromCorrections: 0,
+  keysFixedFromMisses: 0,
 };
 
 export type TapMapSnapshot = {
   letters: Record<string, TapMapEntry>;
   totalSamples: number;
   enabled: boolean;
+  impact: TapMapImpactStats;
 };
 
 type LayoutProvider = () => readonly KeyBounds[];
@@ -28,6 +44,7 @@ let dirty = false;
 let persistTimer: ReturnType<typeof setTimeout> | null = null;
 let layoutProvider: LayoutProvider | null = null;
 const offsets = new Map<string, TapMapEntry>();
+let impactStats: TapMapImpactStats = {...DEFAULT_IMPACT_STATS};
 let tapMapRevision = 0;
 const changeListeners = new Set<() => void>();
 
@@ -207,7 +224,7 @@ async function persistTapMap(): Promise<void> {
     }
     await AsyncStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify({version: 1, enabled, letters}),
+      JSON.stringify({version: 1, enabled, letters, impact: impactStats}),
     );
   } catch {
     // Tap map must never block typing.
@@ -239,6 +256,18 @@ export async function hydrateTapMapFromStorage(): Promise<void> {
     };
     enabled = payload.enabled !== false;
     offsets.clear();
+    const impact = payload.impact as Partial<TapMapImpactStats> | undefined;
+    impactStats = {
+      wordsHelpedByCorrections: Math.max(
+        0,
+        Number(impact?.wordsHelpedByCorrections) || 0,
+      ),
+      lettersRetargetedFromCorrections: Math.max(
+        0,
+        Number(impact?.lettersRetargetedFromCorrections) || 0,
+      ),
+      keysFixedFromMisses: Math.max(0, Number(impact?.keysFixedFromMisses) || 0),
+    };
     for (const [letter, entry] of Object.entries(payload.letters ?? {})) {
       if (!entry || typeof entry.samples !== 'number') {
         continue;
@@ -249,7 +278,14 @@ export async function hydrateTapMapFromStorage(): Promise<void> {
         samples: Math.max(0, entry.samples),
       });
     }
-    notifyTapMapChanged();
+    if (
+      offsets.size > 0 ||
+      impactStats.wordsHelpedByCorrections > 0 ||
+      impactStats.lettersRetargetedFromCorrections > 0 ||
+      impactStats.keysFixedFromMisses > 0
+    ) {
+      notifyTapMapChanged();
+    }
   } catch {
     // Ignore corrupt storage.
   }
@@ -257,6 +293,7 @@ export async function hydrateTapMapFromStorage(): Promise<void> {
 
 export async function clearTapMap(): Promise<void> {
   offsets.clear();
+  impactStats = {...DEFAULT_IMPACT_STATS};
   notifyTapMapChanged();
   dirty = false;
   if (persistTimer) {
@@ -284,7 +321,7 @@ export function getTapMapSnapshot(): TapMapSnapshot {
     letters[letter] = entry;
     totalSamples += entry.samples;
   }
-  return {letters, totalSamples, enabled};
+  return {letters, totalSamples, enabled, impact: {...impactStats}};
 }
 
 export function learnTapMapFromKeyTap(
@@ -307,6 +344,12 @@ export function learnTapMapFromMismatch(
   tapY: number,
 ): void {
   learnTapMapFromKeyTap(intendedLetter, tapX, tapY);
+  impactStats = {
+    ...impactStats,
+    keysFixedFromMisses: impactStats.keysFixedFromMisses + 1,
+  };
+  notifyTapMapChanged();
+  schedulePersist();
 }
 
 export function learnTapMapFromWordCorrection(
@@ -338,6 +381,7 @@ export function learnTapMapFromWordCorrection(
   const typedSuffix = from.slice(diffStart);
   const correctedSuffix = to.slice(diffStart);
   const relevantTaps = letterTaps.slice(-typedSuffix.length);
+  let lettersLearned = 0;
 
   for (
     let i = 0;
@@ -362,12 +406,25 @@ export function learnTapMapFromWordCorrection(
         layout,
         LEARN_RATE_WORD_CORRECTION,
       );
+      lettersLearned += 1;
     }
+  }
+
+  if (lettersLearned > 0) {
+    impactStats = {
+      ...impactStats,
+      wordsHelpedByCorrections: impactStats.wordsHelpedByCorrections + 1,
+      lettersRetargetedFromCorrections:
+        impactStats.lettersRetargetedFromCorrections + lettersLearned,
+    };
+    notifyTapMapChanged();
+    schedulePersist();
   }
 }
 
 export function resetTapMapForTests(): void {
   offsets.clear();
+  impactStats = {...DEFAULT_IMPACT_STATS};
   tapMapRevision = 0;
   enabled = true;
   dirty = false;

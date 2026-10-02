@@ -11,9 +11,11 @@ import {
 import {getBigramFollowScore, getTopBigramFollowers} from './contextBigrams';
 import {extractTrailingWords} from './learnedPhrases';
 import {
+  getPersonalFollowScore,
   isHardRejectedCorrection,
   isLearnedWordInsisted,
   queryPersonalContextCorrections,
+  queryPersonalFollowers,
   queryPersonalPhraseExpectedWords,
 } from '../personalTyping/personalTypingEngine';
 import {applyCaseToWord} from '../suggestions/wordSuggestions';
@@ -55,6 +57,22 @@ const MAX_SYMSPELL_CANDIDATES = 8;
 const MAX_SYMSPELL_CANDIDATES_LIGHT = 5;
 const MAX_BIGRAM_SEEDS_LIGHT = 10;
 const MAX_BIGRAM_SEEDS_FULL = 16;
+const MIN_BIGRAM_FOR_ONE_EDIT = 4;
+const MIN_ONE_EDIT_SCORE_MARGIN = 12;
+
+function combinedContextFollowScore(previousWord: string, candidate: string): number {
+  const prev = previousWord.trim().toLowerCase();
+  const next = candidate.trim().toLowerCase();
+  if (!prev || !next) {
+    return 0;
+  }
+  const staticScore = getBigramFollowScore(prev, next);
+  const personal = getPersonalFollowScore(prev, next);
+  if (personal <= 0) {
+    return staticScore;
+  }
+  return staticScore + personal * 3 + Math.min(personal, 48);
+}
 const RESULT_CACHE_TTL_MS = 280;
 const RESULT_CACHE_MAX = 72;
 
@@ -163,7 +181,7 @@ function scoreCandidateInContext(
 
   if (trailingWords.length > 0) {
     const previous = trailingWords[trailingWords.length - 1]!;
-    bigram = getBigramFollowScore(previous, candidateLower);
+    bigram = combinedContextFollowScore(previous, candidateLower);
     score += bigram * 3.2;
 
     if (trailingWords.length >= 2) {
@@ -172,11 +190,11 @@ function scoreCandidateInContext(
     }
   }
 
-  // Baseline for plausible typos so SymSpell hits still win without a strong bigram.
+  // Baseline for plausible typos — keep modest so bigrams drive confusable pairs.
   if (edits === 1) {
-    score += 32;
+    score += 10;
   } else if (edits === 2) {
-    score += 14;
+    score += 6;
   }
   score -= edits * 6;
 
@@ -288,12 +306,34 @@ function gatherCandidates(
         add(word, edits, score * 0.15, 'bigram');
       }
     }
+    for (const {word, score} of queryPersonalFollowers(previous, bigramLimit)) {
+      if (Math.abs(word.length - typedLower.length) > maxEdits + 1) {
+        continue;
+      }
+      const edits = levenshtein(typedLower, word);
+      if (edits > 0 && edits <= maxEdits) {
+        add(word, edits, score * 0.22, 'personal');
+      }
+    }
   }
 
   if (!lightweight) {
     const symHits = lookupCandidatesSync(typedLower, maxEdits, MAX_SYMSPELL_CANDIDATES);
     for (const hit of symHits) {
       if (hit.word.includes(' ')) {
+        continue;
+      }
+      const bigram =
+        trailingWords.length > 0
+          ? combinedContextFollowScore(
+              trailingWords[trailingWords.length - 1]!,
+              hit.word.toLowerCase(),
+            )
+          : 0;
+      if (hit.edits === 1 && bigram < MIN_BIGRAM_FOR_ONE_EDIT) {
+        continue;
+      }
+      if (hit.edits >= 2 && trailingWords.length > 0 && bigram <= 0) {
         continue;
       }
       add(hit.word, hit.edits, 0, 'bigram');
@@ -306,6 +346,19 @@ function gatherCandidates(
     );
     for (const hit of symHits) {
       if (hit.word.includes(' ')) {
+        continue;
+      }
+      const bigram =
+        trailingWords.length > 0
+          ? combinedContextFollowScore(
+              trailingWords[trailingWords.length - 1]!,
+              hit.word.toLowerCase(),
+            )
+          : 0;
+      if (hit.edits === 1 && bigram < MIN_BIGRAM_FOR_ONE_EDIT) {
+        continue;
+      }
+      if (hit.edits >= 2 && trailingWords.length > 0 && bigram <= 0) {
         continue;
       }
       add(hit.word, hit.edits, 0, 'bigram');
@@ -472,6 +525,22 @@ export function getContextCorrectionCandidate(
   }
 
   runners.sort((a, b) => b.rawScore - a.rawScore);
+
+  if (best && runners.length >= 2) {
+    const top = runners[0]!;
+    const second = runners[1]!;
+    if (
+      top.edits === 1 &&
+      top.bigram < MIN_BIGRAM_FOR_ONE_EDIT
+    ) {
+      best = null;
+    } else if (
+      top.edits === 1 &&
+      top.rawScore - second.rawScore < MIN_ONE_EDIT_SCORE_MARGIN
+    ) {
+      best = null;
+    }
+  }
 
   publishDebugState({
     typedWord: typed,

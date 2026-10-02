@@ -15,6 +15,7 @@ type KeyboardModuleType = {
   clearLearnedAutocorrectData: () => Promise<boolean>;
   getPersonalTypingProfile: () => Promise<string>;
   setPersonalTypingProfile: (json: string) => Promise<boolean>;
+  recordContextWordPair: (previousWord: string, nextWord: string) => Promise<boolean>;
   syncLearnedAutocorrectCounts: (
     words: Record<string, number>,
     phrases: Record<string, number>,
@@ -255,6 +256,15 @@ export const keyboardBridge: KeyboardModuleType = {
   setPersonalTypingProfile: (json: string) => {
     if (Platform.OS === 'android' && KeyboardModule?.setPersonalTypingProfile) {
       return KeyboardModule.setPersonalTypingProfile(json) as Promise<boolean>;
+    }
+    return Promise.resolve(false);
+  },
+  recordContextWordPair: (previousWord: string, nextWord: string) => {
+    if (Platform.OS === 'android' && KeyboardModule?.recordContextWordPair) {
+      return KeyboardModule.recordContextWordPair(
+        previousWord,
+        nextWord,
+      ) as Promise<boolean>;
     }
     return Promise.resolve(false);
   },

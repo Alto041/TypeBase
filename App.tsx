@@ -1,6 +1,7 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {
   Animated,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -35,6 +36,7 @@ import ActionsIcon from './assets/actions.svg';
 import AddIcon from './assets/add.svg';
 import RemoveIcon from './assets/remove.svg';
 import PremiumIcon from './assets/premium.svg';
+import AlertIcon from './assets/alert-outline (1).svg';
 
 import { CustomizeScreen, ThemesScreen } from './KeyboardCustomization';
 import { GeneralSettingsScreen } from './GeneralSettingsScreen';
@@ -601,6 +603,13 @@ function LaunchpadScreen({
 }) {
   const {isPremium, loading} = usePremium();
   const [quickActionsExpanded, setQuickActionsExpanded] = useState(false);
+  const [legacyPremiumNoticeOpen, setLegacyPremiumNoticeOpen] = useState(false);
+
+  const openLegacyPremiumEmail = () => {
+    void Linking.openURL(
+      'mailto:support@quivox.dev?subject=TypeBase%20Premium%20transaction%20ID',
+    );
+  };
 
   const launchpadRows = [
     ...(!loading && isPremium
@@ -662,7 +671,29 @@ function LaunchpadScreen({
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={C.bg} />
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.pageTitle}>Launchpad</Text>
+        <View style={styles.launchpadTitleRow}>
+          <Text style={styles.pageTitle}>Launchpad</Text>
+          <Pressable
+            onPress={() => setLegacyPremiumNoticeOpen(open => !open)}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel="Previous premium purchase help"
+            style={styles.launchpadAlertButton}>
+            <AlertIcon width={22} height={22} color={C.text} />
+          </Pressable>
+        </View>
+
+        {legacyPremiumNoticeOpen ? (
+          <View style={styles.legacyPremiumCard}>
+            <Text style={styles.legacyPremiumBody}>
+              If you were a Premium user before and paid for TypeBase, email us your
+              transaction ID and we will help restore your access.
+            </Text>
+            <Pressable onPress={openLegacyPremiumEmail}>
+              <Text style={styles.legacyPremiumEmail}>support@quivox.dev</Text>
+            </Pressable>
+          </View>
+        ) : null}
 
         <View style={styles.testSection}>
           <LaunchpadTestInput />
@@ -848,8 +879,41 @@ const styles = StyleSheet.create({
   pageTitle: {
     fontSize: 40,
     color: C.text,
-    marginBottom: 8,
+    marginBottom: 0,
     letterSpacing: TEXT_KERNING,
+    fontFamily: 'FragmentMono',
+  },
+  launchpadTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  launchpadAlertButton: {
+    padding: 4,
+    marginTop: 6,
+  },
+  legacyPremiumCard: {
+    backgroundColor: C.card,
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 10,
+    marginBottom: 4,
+  },
+  legacyPremiumBody: {
+    color: C.text,
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: 'FragmentMono',
+    letterSpacing: TEXT_KERNING,
+  },
+  legacyPremiumEmail: {
+    color: C.text,
+    fontSize: 14,
+    fontFamily: 'FragmentMono',
+    letterSpacing: TEXT_KERNING,
+    textDecorationLine: 'underline',
   },
   keyboardShortcut: {
     flexDirection: 'row',

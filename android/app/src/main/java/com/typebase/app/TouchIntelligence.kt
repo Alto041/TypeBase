@@ -236,6 +236,16 @@ class TouchIntelligence {
     return letterProbabilities[letter.lowercase()] ?: 0f
   }
 
+  fun syncWordPrefixFromEditor(prefix: String) {
+    val normalized = prefix.trim().lowercase().take(28)
+    val previous = normalized.lastOrNull()?.takeIf { it.isLetter() }?.toString()
+    context =
+        context.copy(
+            wordPrefix = normalized,
+            previousKeyLetter = previous,
+        )
+  }
+
   fun recordTap(letter: String, localX: Float, localY: Float, timestampMs: Long) {
     val normalized = letter.trim().lowercase()
     if (normalized.length != 1) {
@@ -267,11 +277,16 @@ class TouchIntelligence {
   }
 
   private fun mergeWordPrefix(incoming: String, current: String): String {
-    val next = incoming.trim().lowercase()
-    val existing = current.trim().lowercase()
+    val next = incoming.trim().lowercase().take(28)
+    val existing = current.trim().lowercase().take(28)
     return when {
       next.isEmpty() -> existing
-      next.length >= existing.length -> next
+      existing.isEmpty() -> next
+      next.startsWith(existing) -> next
+      existing.startsWith(next) -> existing
+      next.length > existing.length -> next
+      next.length < existing.length -> existing
+      next == existing -> next
       else -> existing
     }
   }
