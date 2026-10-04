@@ -205,6 +205,12 @@ export function TapMapScreen({onBack}: {onBack: () => void}) {
           </View>
           <View style={styles.rowCard}>
             <View style={styles.rowInner}>
+              <Text style={styles.rowSubLabel}>Walking taps fixed</Text>
+              <Text style={styles.rowValue}>{snapshot.impact.walkingTapsFixed}</Text>
+            </View>
+          </View>
+          <View style={styles.rowCard}>
+            <View style={styles.rowInner}>
               <Text style={styles.rowSubLabel}>Keys learned</Text>
               <Text style={styles.rowValue}>{learnedCount}</Text>
             </View>

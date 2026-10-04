@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   PermissionsAndroid,
   Platform,
   Image,
@@ -209,6 +210,7 @@ export function HomeDockScreen() {
         ? 'ENDS'
         : `${trialDaysLeft} Days Left`
     : null;
+
   const t = {
     bg: isDark ? '#0f0f10' : C.bg,
     card: isDark ? '#1F1F1F' : C.card,
@@ -230,9 +232,11 @@ export function HomeDockScreen() {
         showsVerticalScrollIndicator={false}
         bounces
       >
-        <Text style={[styles.pageTitle, { color: t.text, fontFamily: headingFontFamily, textTransform: headingTextTransform, letterSpacing: headingLetterSpacing }]}>
-          Homepage
-        </Text>
+        <View style={styles.pageTitleRow}>
+          <Text style={[styles.pageTitle, { color: t.text, fontFamily: headingFontFamily, textTransform: headingTextTransform, letterSpacing: headingLetterSpacing }]}>
+            Homepage
+          </Text>
+        </View>
 
         {/* Toggles */}
         <View style={styles.stack}>
@@ -512,8 +516,16 @@ const styles = StyleSheet.create({
   pageTitle: {
     fontSize: 40,
     color: C.text,
-    marginBottom: 20,
+    marginBottom: 0,
     fontFamily: TITLE_FONT,
+    flex: 1,
+  },
+  pageTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+    gap: 8,
   },
   stack: {
     marginBottom: 12,

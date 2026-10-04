@@ -22,8 +22,9 @@ import StopIcon from '../../../assets/stop.svg';
 import AppleComputerLogo from '../../../assets/Apple_Computer_Logo_rainbow.svg';
 import UndoIcon from '../../../assets/undo.svg';
 import RedoIcon from '../../../assets/redo.svg';
+import SearchIcon from '../../../assets/search.svg';
 import ClipboardIcon from '../../../assets/plugins/clipboard.svg';
-import SearchIcon from '../../../assets/enter.svg';
+import FootPrintIcon from '../../../assets/foot-print.svg';
 import TranslateIcon from '../../../assets/plugins/translate.svg';
 import {TYPELIFT_BRAND_NAME} from '../autocorrect/typeLiftBranding';
 import {VoiceEqualizerIcon} from './VoiceEqualizerIcon';
@@ -36,7 +37,7 @@ import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
 import {applyCaseToWord} from '../suggestions/wordSuggestions';
 import type {KeyboardTheme} from '../theme';
 import {
-  KEYBOARD_AI_ICON_COLOR,
+  keyboardAiIconColor,
   keyboardKeyChromeStyle,
   keyboardTypefaceStyle,
 } from '../theme';
@@ -311,6 +312,8 @@ type SuggestionBarProps = {
   onUndo?: () => void;
   onRedo?: () => void;
   zeroLatencyActive?: boolean;
+  /** Small indicator while Walk Mode adapts hit targets. */
+  walkModeActive?: boolean;
   gifSearch?: PanelSearchBarState;
   panelSearch?: PanelSearchBarState;
 };
@@ -355,6 +358,7 @@ function SuggestionBarComponent({
   onUndo,
   onRedo,
   zeroLatencyActive = false,
+  walkModeActive = false,
   gifSearch,
   panelSearch: panelSearchProp,
 }: SuggestionBarProps) {
@@ -778,7 +782,7 @@ function SuggestionBarComponent({
               <ArtificialIcon
                 width={toolbarIconSize}
                 height={toolbarIconSize}
-                color={KEYBOARD_AI_ICON_COLOR}
+                color={keyboardAiIconColor(theme)}
               />
             ) : (
               <EmojiIcon
@@ -810,6 +814,15 @@ function SuggestionBarComponent({
       {showZeroLatencyBadge ? (
         <View style={styles.centerTitleOverlay} pointerEvents="none">
           <ZeroLatencyTitle textStyle={styles.zeroLatencyTitle} />
+        </View>
+      ) : null}
+      {walkModeActive && !showZeroLatencyBadge && !centerTitle && !isFormMode ? (
+        <View style={styles.walkModeIconWrap} pointerEvents="none">
+          <FootPrintIcon
+            width={11}
+            height={11}
+            color={theme.essentialsAccent}
+          />
         </View>
       ) : null}
       {centerTitle ? (
@@ -976,6 +989,12 @@ function createSuggestionBarStyles(theme: KeyboardTheme) {
     ...keyboardTypefaceStyle(theme, '600'),
     letterSpacing: 0.8,
     textAlign: 'center',
+  },
+  walkModeIconWrap: {
+    position: 'absolute',
+    top: 7,
+    right: 10,
+    zIndex: 12,
   },
   formCenter: {
     flex: 1,

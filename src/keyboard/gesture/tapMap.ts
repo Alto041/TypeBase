@@ -22,17 +22,22 @@ export type TapMapImpactStats = {
   lettersRetargetedFromCorrections: number;
   /** Near-miss taps where we nudged the map toward the key you meant. */
   keysFixedFromMisses: number;
+  /** Neighbor / touch-intel fixes while Walk Mode was active. */
+  walkingTapsFixed: number;
 };
 
 const DEFAULT_IMPACT_STATS: TapMapImpactStats = {
   wordsHelpedByCorrections: 0,
   lettersRetargetedFromCorrections: 0,
   keysFixedFromMisses: 0,
+  walkingTapsFixed: 0,
 };
 
 export type TapMapSnapshot = {
   letters: Record<string, TapMapEntry>;
+  walkingLetters: Record<string, TapMapEntry>;
   totalSamples: number;
+  walkingTotalSamples: number;
   enabled: boolean;
   impact: TapMapImpactStats;
 };
@@ -44,6 +49,7 @@ let dirty = false;
 let persistTimer: ReturnType<typeof setTimeout> | null = null;
 let layoutProvider: LayoutProvider | null = null;
 const offsets = new Map<string, TapMapEntry>();
+const walkingOffsets = new Map<string, TapMapEntry>();
 let impactStats: TapMapImpactStats = {...DEFAULT_IMPACT_STATS};
 let tapMapRevision = 0;
 const changeListeners = new Set<() => void>();
@@ -66,14 +72,16 @@ export function subscribeTapMapChanges(listener: () => void): () => void {
   };
 }
 
-/** Stable signature for native fast-path republish when offsets change. */
-export function getTapMapNativeSignature(): string {
-  if (!enabled || offsets.size === 0) {
+function signatureForMap(
+  map: Map<string, TapMapEntry>,
+  prefix: string,
+): string {
+  if (!enabled || map.size === 0) {
     return '';
   }
   const parts: string[] = [];
-  for (const letter of [...offsets.keys()].sort()) {
-    const entry = offsets.get(letter);
+  for (const letter of [...map.keys()].sort()) {
+    const entry = map.get(letter);
     if (!entry || entry.samples < MIN_SAMPLES_TO_APPLY) {
       continue;
     }
@@ -81,10 +89,24 @@ export function getTapMapNativeSignature(): string {
       `${letter}:${Math.round(entry.dx)}:${Math.round(entry.dy)}:${entry.samples}`,
     );
   }
-  return parts.join('|');
+  if (parts.length === 0) {
+    return '';
+  }
+  return `${prefix}|${parts.join('|')}`;
 }
 
-export function serializeTapMapOffsetsForNative(): Array<{
+/** Stable signature for native fast-path republish when offsets change. */
+export function getTapMapNativeSignature(useWalkingMap = false): string {
+  return signatureForMap(useWalkingMap ? walkingOffsets : offsets, 'n');
+}
+
+export function getWalkingTapMapNativeSignature(): string {
+  return signatureForMap(walkingOffsets, 'w');
+}
+
+export function serializeTapMapOffsetsForNative(
+  useWalkingMap = false,
+): Array<{
   letter: string;
   dx: number;
   dy: number;
@@ -92,8 +114,9 @@ export function serializeTapMapOffsetsForNative(): Array<{
   if (!enabled) {
     return [];
   }
+  const map = useWalkingMap ? walkingOffsets : offsets;
   const out: Array<{letter: string; dx: number; dy: number}> = [];
-  for (const [letter, entry] of offsets) {
+  for (const [letter, entry] of map) {
     if (entry.samples < MIN_SAMPLES_TO_APPLY) {
       continue;
     }
@@ -133,6 +156,7 @@ function absorbTapOffset(
   tapX: number,
   tapY: number,
   layout: KeyBounds,
+  target: Map<string, TapMapEntry>,
 ): void {
   if (!enabled) {
     return;
@@ -147,7 +171,7 @@ function absorbTapOffset(
   const targetDx = clampOffset(tapX - centerX);
   const targetDy = clampOffset(tapY - centerY);
 
-  const existing = offsets.get(normalized);
+  const existing = target.get(normalized);
   const next: TapMapEntry = existing
     ? {
         dx: clampOffset(existing.dx + (targetDx - existing.dx) * LEARN_RATE),
@@ -159,7 +183,7 @@ function absorbTapOffset(
         dy: clampOffset(targetDy * LEARN_RATE),
         samples: 1,
       };
-  offsets.set(normalized, next);
+  target.set(normalized, next);
   notifyTapMapChanged();
   schedulePersist();
 }
@@ -170,6 +194,7 @@ function absorbTapOffsetWithRate(
   tapY: number,
   layout: KeyBounds,
   learnRate: number,
+  target: Map<string, TapMapEntry>,
 ): void {
   if (!enabled) {
     return;
@@ -184,7 +209,7 @@ function absorbTapOffsetWithRate(
   const targetDx = clampOffset(tapX - centerX);
   const targetDy = clampOffset(tapY - centerY);
 
-  const existing = offsets.get(normalized);
+  const existing = target.get(normalized);
   const next: TapMapEntry = existing
     ? {
         dx: clampOffset(existing.dx + (targetDx - existing.dx) * learnRate),
@@ -196,7 +221,7 @@ function absorbTapOffsetWithRate(
         dy: clampOffset(targetDy * learnRate),
         samples: 1,
       };
-  offsets.set(normalized, next);
+  target.set(normalized, next);
   notifyTapMapChanged();
   schedulePersist();
 }
@@ -222,9 +247,19 @@ async function persistTapMap(): Promise<void> {
     for (const [letter, entry] of offsets) {
       letters[letter] = entry;
     }
+    const walkingLetters: Record<string, TapMapEntry> = {};
+    for (const [letter, entry] of walkingOffsets) {
+      walkingLetters[letter] = entry;
+    }
     await AsyncStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify({version: 1, enabled, letters, impact: impactStats}),
+      JSON.stringify({
+        version: 2,
+        enabled,
+        letters,
+        walkingLetters,
+        impact: impactStats,
+      }),
     );
   } catch {
     // Tap map must never block typing.
@@ -256,6 +291,7 @@ export async function hydrateTapMapFromStorage(): Promise<void> {
     };
     enabled = payload.enabled !== false;
     offsets.clear();
+    walkingOffsets.clear();
     const impact = payload.impact as Partial<TapMapImpactStats> | undefined;
     impactStats = {
       wordsHelpedByCorrections: Math.max(
@@ -267,6 +303,7 @@ export async function hydrateTapMapFromStorage(): Promise<void> {
         Number(impact?.lettersRetargetedFromCorrections) || 0,
       ),
       keysFixedFromMisses: Math.max(0, Number(impact?.keysFixedFromMisses) || 0),
+      walkingTapsFixed: Math.max(0, Number(impact?.walkingTapsFixed) || 0),
     };
     for (const [letter, entry] of Object.entries(payload.letters ?? {})) {
       if (!entry || typeof entry.samples !== 'number') {
@@ -278,11 +315,26 @@ export async function hydrateTapMapFromStorage(): Promise<void> {
         samples: Math.max(0, entry.samples),
       });
     }
+    const walkingPayload = payload as {walkingLetters?: Record<string, TapMapEntry>};
+    for (const [letter, entry] of Object.entries(
+      walkingPayload.walkingLetters ?? {},
+    )) {
+      if (!entry || typeof entry.samples !== 'number') {
+        continue;
+      }
+      walkingOffsets.set(letter.toLowerCase(), {
+        dx: clampOffset(Number(entry.dx) || 0),
+        dy: clampOffset(Number(entry.dy) || 0),
+        samples: Math.max(0, entry.samples),
+      });
+    }
     if (
       offsets.size > 0 ||
+      walkingOffsets.size > 0 ||
       impactStats.wordsHelpedByCorrections > 0 ||
       impactStats.lettersRetargetedFromCorrections > 0 ||
-      impactStats.keysFixedFromMisses > 0
+      impactStats.keysFixedFromMisses > 0 ||
+      impactStats.walkingTapsFixed > 0
     ) {
       notifyTapMapChanged();
     }
@@ -293,6 +345,7 @@ export async function hydrateTapMapFromStorage(): Promise<void> {
 
 export async function clearTapMap(): Promise<void> {
   offsets.clear();
+  walkingOffsets.clear();
   impactStats = {...DEFAULT_IMPACT_STATS};
   notifyTapMapChanged();
   dirty = false;
@@ -303,15 +356,40 @@ export async function clearTapMap(): Promise<void> {
   await AsyncStorage.removeItem(STORAGE_KEY).catch(() => {});
 }
 
-export function getTapMapOffset(letter: string): {dx: number; dy: number} {
+/** Clears only walking offsets and walking-specific impact counters. */
+export async function clearWalkingTapMap(): Promise<void> {
+  walkingOffsets.clear();
+  impactStats = {
+    ...impactStats,
+    walkingTapsFixed: 0,
+  };
+  notifyTapMapChanged();
+  dirty = true;
+  schedulePersist();
+}
+
+export function getTapMapOffset(
+  letter: string,
+  useWalkingMap = false,
+): {dx: number; dy: number} {
   if (!enabled) {
     return {dx: 0, dy: 0};
   }
-  const entry = offsets.get(letter.toLowerCase());
+  const map = useWalkingMap ? walkingOffsets : offsets;
+  const entry = map.get(letter.toLowerCase());
   if (!entry || entry.samples < MIN_SAMPLES_TO_APPLY) {
     return {dx: 0, dy: 0};
   }
   return {dx: entry.dx, dy: entry.dy};
+}
+
+export function recordWalkingTapFixed(): void {
+  impactStats = {
+    ...impactStats,
+    walkingTapsFixed: impactStats.walkingTapsFixed + 1,
+  };
+  notifyTapMapChanged();
+  schedulePersist();
 }
 
 export function getTapMapSnapshot(): TapMapSnapshot {
@@ -321,7 +399,20 @@ export function getTapMapSnapshot(): TapMapSnapshot {
     letters[letter] = entry;
     totalSamples += entry.samples;
   }
-  return {letters, totalSamples, enabled, impact: {...impactStats}};
+  const walkingLetters: Record<string, TapMapEntry> = {};
+  let walkingTotalSamples = 0;
+  for (const [letter, entry] of walkingOffsets) {
+    walkingLetters[letter] = entry;
+    walkingTotalSamples += entry.samples;
+  }
+  return {
+    letters,
+    walkingLetters,
+    totalSamples,
+    walkingTotalSamples,
+    enabled,
+    impact: {...impactStats},
+  };
 }
 
 export function learnTapMapFromKeyTap(
@@ -329,25 +420,35 @@ export function learnTapMapFromKeyTap(
   tapX: number,
   tapY: number,
   layouts?: readonly KeyBounds[],
+  options?: {walking?: boolean},
 ): void {
   const letterLayouts = layouts ?? layoutProvider?.() ?? [];
   const layout = findLayoutForLetter(letterLayouts, intendedLetter);
   if (!layout) {
     return;
   }
-  absorbTapOffset(intendedLetter, tapX, tapY, layout);
+  const target = options?.walking ? walkingOffsets : offsets;
+  absorbTapOffset(intendedLetter, tapX, tapY, layout, target);
 }
 
 export function learnTapMapFromMismatch(
   intendedLetter: string,
   tapX: number,
   tapY: number,
+  options?: {walking?: boolean},
 ): void {
-  learnTapMapFromKeyTap(intendedLetter, tapX, tapY);
-  impactStats = {
-    ...impactStats,
-    keysFixedFromMisses: impactStats.keysFixedFromMisses + 1,
-  };
+  learnTapMapFromKeyTap(intendedLetter, tapX, tapY, undefined, options);
+  if (options?.walking) {
+    impactStats = {
+      ...impactStats,
+      walkingTapsFixed: impactStats.walkingTapsFixed + 1,
+    };
+  } else {
+    impactStats = {
+      ...impactStats,
+      keysFixedFromMisses: impactStats.keysFixedFromMisses + 1,
+    };
+  }
   notifyTapMapChanged();
   schedulePersist();
 }
@@ -357,6 +458,7 @@ export function learnTapMapFromWordCorrection(
   corrected: string,
   letterTaps: ReadonlyArray<{letter: string; x: number; y: number}>,
   layouts?: readonly KeyBounds[],
+  options?: {walking?: boolean},
 ): void {
   const from = typed.trim().toLowerCase();
   const to = corrected.trim().toLowerCase();
@@ -405,6 +507,7 @@ export function learnTapMapFromWordCorrection(
         tap.y,
         layout,
         LEARN_RATE_WORD_CORRECTION,
+        options?.walking ? walkingOffsets : offsets,
       );
       lettersLearned += 1;
     }
@@ -424,6 +527,7 @@ export function learnTapMapFromWordCorrection(
 
 export function resetTapMapForTests(): void {
   offsets.clear();
+  walkingOffsets.clear();
   impactStats = {...DEFAULT_IMPACT_STATS};
   tapMapRevision = 0;
   enabled = true;

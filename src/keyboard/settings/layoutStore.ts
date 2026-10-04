@@ -4,7 +4,7 @@ import {normalizeLetterLayoutId} from '../layouts/resolveLetterLayout';
 import {ensureCustomLayoutsLoaded} from './customLayoutStore';
 import {
   DEFAULT_TAP_SOUND_FILE,
-  ensureBundledDefaultTapSound,
+  ensureAllBundledTapSounds,
 } from './tapSoundStore';
 import {
   isValidMyRowPin,
@@ -136,6 +136,14 @@ function normalizeLayout(raw: unknown): KeyboardLayoutSettings {
       typeof obj['predictiveHitboxesEnabled'] === 'boolean'
         ? obj['predictiveHitboxesEnabled']
         : defaults.predictiveHitboxesEnabled,
+    walkModeEnabled:
+      typeof obj['walkModeEnabled'] === 'boolean'
+        ? obj['walkModeEnabled']
+        : defaults.walkModeEnabled,
+    walkModeDebugCompare:
+      typeof obj['walkModeDebugCompare'] === 'boolean'
+        ? obj['walkModeDebugCompare']
+        : defaults.walkModeDebugCompare,
     keyPreviewStyle:
       obj['keyPreviewStyle'] === 'popup' || obj['keyPreviewStyle'] === 'subtle'
         ? obj['keyPreviewStyle']
@@ -179,7 +187,7 @@ async function loadFromStorage(): Promise<void> {
       cachedLayout.customTapSoundFile === 'haptic.wav' ||
       cachedLayout.customTapSoundFile === '1.mp3' ||
       cachedLayout.customTapSoundFile === 'typebase_keytap_soft.mp3');
-  // Migrate older bundled defaults to the current soft key tap sound (WAV).
+  // Migrate legacy defaults to the current bundled soft tap (WAV).
   if (needsDefaultTapMigration) {
     try {
       await setKeyboardLayoutSettings({
@@ -196,7 +204,7 @@ async function loadFromStorage(): Promise<void> {
     }
   }
   try {
-    await ensureBundledDefaultTapSound(needsDefaultTapMigration);
+    await ensureAllBundledTapSounds(needsDefaultTapMigration);
     keyboardBridge.syncCustomTapSound?.();
   } catch {
     // Tap sound install is optional; typing still works without it.

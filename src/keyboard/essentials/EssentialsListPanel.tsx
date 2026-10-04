@@ -71,7 +71,7 @@ export function EssentialsListPanel({
             <Text style={panelStyles.emptyTitle}>No essentials</Text>
             <Text style={panelStyles.emptyHint}>
               Launchpad → Essentials. Type ;keyword + space. Built-ins: ;date ;time
-              ;clipboard ;cursor.
+              ;clipboard.
             </Text>
           </View>
         ) : (

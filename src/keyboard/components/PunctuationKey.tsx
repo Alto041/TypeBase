@@ -15,7 +15,7 @@ import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
 import type {KeyDefinition} from '../layouts/qwerty';
 import type {KeyboardTheme} from '../theme';
 import {
-  KEYBOARD_AI_ICON_COLOR,
+  keyboardAiIconColor,
   keyboardKeyChromeStyle,
   keyboardKeyPressMotionStyle,
 } from '../theme';
@@ -265,7 +265,7 @@ function PunctuationKeyComponent({
   const content = showLauncher ? (
     <ClipboardQuickIcon width={22} height={22} color={featureIconColor} />
   ) : showRewrite ? (
-    <ArtificialIcon width={18} height={17} color={KEYBOARD_AI_ICON_COLOR} />
+    <ArtificialIcon width={18} height={17} color={keyboardAiIconColor(theme)} />
   ) : (
     <Text style={styles.keyLabel}>{label ?? ''}</Text>
   );

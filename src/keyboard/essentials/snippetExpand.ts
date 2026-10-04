@@ -2,15 +2,14 @@ import {getClipboardItems} from '../clipboard/clipboardStore';
 
 /** `{date}` or easy-to-type `;date` (semicolon + name, word boundary). */
 const PLACEHOLDER_PATTERN =
-  /\{(date|time|clipboard|cursor)\}|;(date|time|clipboard|cursor)\b/gi;
+  /\{(date|time|clipboard)\}|;(date|time|clipboard)\b/gi;
 const PLACEHOLDER_TEST =
-  /\{(date|time|clipboard|cursor)\}|;(date|time|clipboard|cursor)\b/i;
+  /\{(date|time|clipboard)\}|;(date|time|clipboard)\b/i;
 
 export const BUILTIN_PLACEHOLDER_KEYS = [
   'date',
   'time',
   'clipboard',
-  'cursor',
 ] as const;
 
 export type BuiltinPlaceholderKey = (typeof BUILTIN_PLACEHOLDER_KEYS)[number];
@@ -51,8 +50,6 @@ function formatPlaceholder(key: string, context: SnippetExpandContext): string {
       });
     case 'clipboard':
       return context.clipboardText ?? '';
-    case 'cursor':
-      return '';
     default:
       return key.startsWith(';') ? key : `{${key}}`;
   }

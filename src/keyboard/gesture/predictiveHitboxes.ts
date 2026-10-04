@@ -1,5 +1,7 @@
 import {KEY_HIT_SLOP, PREDICTIVE_HITBOX_EXPANSION} from '../theme';
 import {getTapMapOffset} from './tapMap';
+import {isWalkModeTypingActive} from './walkModeRuntime';
+import {WALK_MODE_HIT_SLOP_MULTIPLIER} from './walkModeTypingProfile';
 import type {KeyBounds} from './types';
 import {
   getNextLetterDistribution,
@@ -231,7 +233,8 @@ function applyTapMapShift(
   if (!letter) {
     return bounds;
   }
-  const {dx, dy} = getTapMapOffset(letter);
+  const useWalking = isWalkModeTypingActive();
+  const {dx, dy} = getTapMapOffset(letter, useWalking);
   if (dx === 0 && dy === 0) {
     return bounds;
   }
@@ -248,18 +251,21 @@ export function expandedKeyBounds(
   fallbackSlop?: {horizontal: number; vertical: number},
 ): {left: number; right: number; top: number; bottom: number} {
   const letter = keyLetter(layout);
+  const walkSlop = isWalkModeTypingActive() ? WALK_MODE_HIT_SLOP_MULTIPLIER : 1;
   const slop = activeState.expansions.get(layout.id);
   if (slop) {
-    const tap = letter ? getTapMapOffset(letter) : {dx: 0, dy: 0};
+    const tap = letter
+      ? getTapMapOffset(letter, isWalkModeTypingActive())
+      : {dx: 0, dy: 0};
     return {
-      left: layout.x - slop.left + tap.dx,
-      right: layout.x + layout.width + slop.right + tap.dx,
-      top: layout.y - slop.top + tap.dy,
-      bottom: layout.y + layout.height + slop.bottom + tap.dy,
+      left: layout.x - slop.left * walkSlop + tap.dx,
+      right: layout.x + layout.width + slop.right * walkSlop + tap.dx,
+      top: layout.y - slop.top * walkSlop + tap.dy,
+      bottom: layout.y + layout.height + slop.bottom * walkSlop + tap.dy,
     };
   }
-  const horizontal = fallbackSlop?.horizontal ?? KEY_HIT_SLOP.horizontal;
-  const vertical = fallbackSlop?.vertical ?? KEY_HIT_SLOP.vertical;
+  const horizontal = (fallbackSlop?.horizontal ?? KEY_HIT_SLOP.horizontal) * walkSlop;
+  const vertical = (fallbackSlop?.vertical ?? KEY_HIT_SLOP.vertical) * walkSlop;
   return applyTapMapShift(
     {
       left: layout.x - horizontal,

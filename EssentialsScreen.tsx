@@ -365,7 +365,7 @@ export function EssentialsScreen({
         </Pressable>
 
         <View style={styles.builtinRow}>
-          {(['date', 'time', 'clipboard', 'cursor'] as const).map(key => (
+          {(['date', 'time', 'clipboard'] as const).map(key => (
             <View key={key} style={styles.builtinChip}>
               <Text style={styles.builtinChipText}>;{key}</Text>
             </View>

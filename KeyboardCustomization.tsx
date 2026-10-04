@@ -40,10 +40,16 @@ import {
 } from './src/keyboard/settings/layoutStore';
 import {keyboardBridge} from './src/keyboard/keyboardBridge';
 import {
+  DEFAULT_TAP_SOUND_FILE,
   importCustomTapSound,
   installDefaultTapSoundSettings,
+  isBundledTapSoundFile,
+  labelForTapSoundFile,
   previewCustomTapSound,
+  selectBundledTapSound,
 } from './src/keyboard/settings/tapSoundStore';
+import type {BundledTapSoundFileName} from './src/keyboard/settings/tapSoundPresets';
+import {TapSoundPresetControl} from './src/keyboard/settings/TapSoundPresetControl';
 import {
   clearCustomKeyboardFont,
   importCustomKeyboardFont,
@@ -505,11 +511,25 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
     if (loading) {
       return;
     }
-    if (!layout.customTapSoundFile) {
-      Alert.alert('Import a sound', 'Upload a short audio clip before enabling custom tap sounds.');
+    if (!canUse('keyboard_customize')) {
+      Alert.alert('Premium feature', 'Unlock TypeBase to customize key sizing and sounds.');
       return;
     }
     const next = !layout.customTapSoundEnabled;
+    if (next && !layout.customTapSoundFile) {
+      void selectBundledTapSound(DEFAULT_TAP_SOUND_FILE).then(() => {
+        setLayout(current => ({
+          ...current,
+          customTapSoundFile: DEFAULT_TAP_SOUND_FILE,
+          customTapSoundEnabled: true,
+        }));
+        animateTapSoundToggle(true);
+        playSwitchOnSound();
+        void previewCustomTapSound();
+      });
+      void Haptics.selectionAsync().catch(() => {});
+      return;
+    }
     setLayout(current => ({...current, customTapSoundEnabled: next}));
     void updateKeyboardLayoutSetting('customTapSoundEnabled', next);
     animateTapSoundToggle(next);
@@ -520,6 +540,32 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
       playSwitchOffSound();
     }
     void Haptics.selectionAsync().catch(() => {});
+  };
+
+  const handleSelectTapSoundPreset = async (fileName: BundledTapSoundFileName) => {
+    if (!canUse('keyboard_customize')) {
+      Alert.alert('Premium feature', 'Unlock TypeBase to customize key sizing and sounds.');
+      return;
+    }
+    if (loading) {
+      return;
+    }
+    try {
+      await selectBundledTapSound(fileName);
+      setLayout(current => ({
+        ...current,
+        customTapSoundFile: fileName,
+        customTapSoundEnabled: true,
+      }));
+      animateTapSoundToggle(true);
+      void previewCustomTapSound();
+      void Haptics.selectionAsync().catch(() => {});
+    } catch (error) {
+      Alert.alert(
+        'Tap sound',
+        error instanceof Error ? error.message : 'Could not switch tap sound.',
+      );
+    }
   };
 
   const handleImportTapSound = async () => {
@@ -556,6 +602,11 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
 
   const customTapSoundEnabled = layout.customTapSoundEnabled;
   const customTapSoundFile = layout.customTapSoundFile;
+  const selectedBundledTapSound: BundledTapSoundFileName | null = isBundledTapSoundFile(
+    customTapSoundFile,
+  )
+    ? customTapSoundFile
+    : null;
 
   // Knob geometry (for Key Height circular control)
   const KNOB_SIZE = 130;   // larger hit area for easier control (finger can land around the visual)
@@ -1141,51 +1192,55 @@ export function CustomizeScreen({onBack}: {onBack: () => void}) {
             </Pressable>
           </View>
 
-          <View style={styles.themeToggleContainer}>
-            <GraphicEqIcon width={20} height={20} color={C.text} />
-            <View style={styles.tapSoundTextCol}>
-              <Text style={styles.tapSoundTitle}>Custom Tap Sound</Text>
-              {customTapSoundFile ? (
-                <Text style={styles.tapSoundFileName} numberOfLines={1}>
-                  {customTapSoundFile}
-                </Text>
-              ) : (
+          <View style={styles.tapSoundBlock}>
+            <View style={styles.tapSoundHeaderRow}>
+              <GraphicEqIcon width={20} height={20} color={C.text} />
+              <View style={styles.tapSoundTextCol}>
+                <Text style={styles.tapSoundTitle}>Key tap sound</Text>
                 <Text style={styles.tapSoundHint}>
-                  Built-in haptic sound · or import your own
+                  {customTapSoundFile
+                    ? labelForTapSoundFile(customTapSoundFile)
+                    : 'Pick a sound below'}
                 </Text>
-              )}
+              </View>
+              <Pressable
+                onPress={() => void handleImportTapSound()}
+                disabled={loading || importingTapSound}
+                style={styles.tapSoundUploadBtn}
+                hitSlop={8}
+                accessibilityLabel="Import custom tap sound">
+                {importingTapSound ? (
+                  <ActivityIndicator color={C.text} size="small" />
+                ) : (
+                  <UploadIcon width={18} height={18} />
+                )}
+              </Pressable>
+              <Pressable
+                onPress={toggleCustomTapSound}
+                style={[styles.toggleTrack, customTapSoundEnabled && styles.toggleTrackOn]}
+                disabled={loading}>
+                <Animated.View
+                  style={[
+                    styles.toggleThumb,
+                    {
+                      transform: [
+                        {
+                          translateX: tapSoundAnim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0, 18],
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
+                />
+              </Pressable>
             </View>
-            <Pressable
-              onPress={() => void handleImportTapSound()}
-              disabled={loading || importingTapSound}
-              style={styles.tapSoundUploadBtn}
-              hitSlop={8}>
-              {importingTapSound ? (
-                <ActivityIndicator color={C.text} size="small" />
-              ) : (
-                <UploadIcon width={18} height={18} />
-              )}
-            </Pressable>
-            <Pressable
-              onPress={toggleCustomTapSound}
-              style={[styles.toggleTrack, customTapSoundEnabled && styles.toggleTrackOn]}
-              disabled={loading}>
-              <Animated.View
-                style={[
-                  styles.toggleThumb,
-                  {
-                    transform: [
-                      {
-                        translateX: tapSoundAnim.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [0, 18],
-                        }),
-                      },
-                    ],
-                  },
-                ]}
-              />
-            </Pressable>
+            <TapSoundPresetControl
+              value={selectedBundledTapSound}
+              disabled={loading}
+              onChange={fileName => void handleSelectTapSoundPreset(fileName)}
+            />
           </View>
 
           {/* Reset all settings row */}
@@ -2331,6 +2386,20 @@ const styles = StyleSheet.create({
     color: C.text,
     letterSpacing: TEXT_KERNING,
     marginLeft: 10,
+  },
+  tapSoundBlock: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingTop: 14,
+    paddingBottom: 14,
+    marginTop: 4,
+    gap: 10,
+    marginBottom: 4,
+  },
+  tapSoundHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   tapSoundTextCol: {
     flex: 1,

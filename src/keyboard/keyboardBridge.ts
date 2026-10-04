@@ -89,6 +89,7 @@ type KeyboardModuleType = {
   setTouchpadGestureConsuming: (active: boolean) => void;
   setNativeKeyFastPathConfig: (json: string) => void;
   setKeyPreviewDoodleEnabled: (enabled: boolean) => void;
+  setWalkModeFeatureEnabled: (enabled: boolean) => void;
   updateTouchIntelligenceContext: (json: string) => void;
   setNativeZeroLatencyMode: (enabled: boolean) => void;
   setGamePerformanceMode: (enabled: boolean) => void;
@@ -643,6 +644,11 @@ export const keyboardBridge: KeyboardModuleType = {
   setKeyPreviewDoodleEnabled: (enabled: boolean) => {
     if (Platform.OS === 'android' && KeyboardModule?.setKeyPreviewDoodleEnabled) {
       KeyboardModule.setKeyPreviewDoodleEnabled(enabled);
+    }
+  },
+  setWalkModeFeatureEnabled: (enabled: boolean) => {
+    if (Platform.OS === 'android' && KeyboardModule?.setWalkModeFeatureEnabled) {
+      KeyboardModule.setWalkModeFeatureEnabled(enabled);
     }
   },
   updateTouchIntelligenceContext: (json: string) => {

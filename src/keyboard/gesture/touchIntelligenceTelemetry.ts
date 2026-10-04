@@ -1,7 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {getPredictiveHitboxState} from './predictiveHitboxes';
-import {learnTapMapFromMismatch} from './tapMap';
+import {learnTapMapFromMismatch, recordWalkingTapFixed} from './tapMap';
+import {isWalkModeTypingActive} from './walkModeRuntime';
+import {recordWalkModeDebugTap} from './walkModeDebug';
 
 export type TouchIntelligenceHitRecord = {
   id: string;
@@ -80,7 +82,9 @@ function maybeLearnTapMapFromTouchMismatch(
   lastTapMapMismatchLearnAt = now;
   lastTapMapMismatchLearnX = localX;
   lastTapMapMismatchLearnY = localY;
-  learnTapMapFromMismatch(committed, localX, localY);
+  learnTapMapFromMismatch(committed, localX, localY, {
+    walking: isWalkModeTypingActive(),
+  });
 }
 
 function notify(): void {
@@ -220,6 +224,14 @@ export function recordTouchIntelligenceAnalysis(
     records[0].localX,
     records[0].localY,
   );
+  if (analysis.appliedRerank && isWalkModeTypingActive()) {
+    recordWalkModeDebugTap({
+      geometricLetter: records[0].geometricLetter,
+      committedLetter: committed ?? '',
+      rerankedWhileWalking: true,
+      walkingActive: true,
+    });
+  }
 
   void persistTouchIntelligenceRecord(records[0]);
   notify();
@@ -284,6 +296,18 @@ export function recordNativeTouchIntelligenceHit(
     committedLetter: predictedLetter,
     source: 'native',
   });
+  if (Boolean(payload.appliedRerank) && isWalkModeTypingActive()) {
+    recordWalkingTapFixed();
+    recordWalkModeDebugTap({
+      geometricLetter:
+        typeof payload.geometricLetter === 'string'
+          ? payload.geometricLetter
+          : null,
+      committedLetter: predictedLetter,
+      rerankedWhileWalking: true,
+      walkingActive: true,
+    });
+  }
 }
 
 export function annotateLastTouchIntelligenceCommit(

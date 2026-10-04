@@ -14,10 +14,15 @@ object KeyTapSoundPlayer {
   private const val LAYOUT_KEY = "keyboard_layout"
   private const val DESIGN_KEY = "keyboard_design"
   private const val TAP_SOUND_DIR = "keyboard_tap_sounds"
-  private const val DEFAULT_TAP_SOUND_FILE = "typebase_keytap_soft.wav"
+  private const val DEFAULT_TAP_SOUND_FILE = "keytap_soft.wav"
   private const val LEGACY_DEFAULT_TAP_SOUND_FILE = "1.mp3"
-  private const val DEFAULT_TAP_ASSET = "sounds/Key/typebase_keytap_soft.wav"
-  private const val DEFAULT_LOADED_TOKEN = "asset:$DEFAULT_TAP_ASSET"
+  private val BUNDLED_TAP_ASSETS =
+      mapOf(
+          "keytap_soft.wav" to "sounds/keytap_soft.wav",
+          "keytap_soft_low.wav" to "sounds/keytap_soft_low.wav",
+          "keytap_soft_high.wav" to "sounds/keytap_soft_high.wav",
+          "typebase_keytap_soft.wav" to "sounds/Key/typebase_keytap_soft.wav",
+      )
   private const val MACINTOSH_ASSET = "sounds/mac-sfx.mp3"
   private const val MACINTOSH_LOADED_TOKEN = "asset:$MACINTOSH_ASSET"
   /** Left/right gain for key taps (SoundPool). */
@@ -76,8 +81,8 @@ object KeyTapSoundPlayer {
         return
       }
 
-      if (isBundledDefaultTapSound(fileName)) {
-        loadDefaultTapSound(appContext)
+      if (isBundledTapSound(fileName)) {
+        loadBundledTapSound(appContext, fileName)
         return
       }
 
@@ -102,10 +107,18 @@ object KeyTapSoundPlayer {
     }
   }
 
-  private fun isBundledDefaultTapSound(fileName: String): Boolean {
-    return fileName == DEFAULT_TAP_SOUND_FILE ||
-        fileName == LEGACY_DEFAULT_TAP_SOUND_FILE ||
-        fileName == "typebase_keytap_soft.mp3"
+  private fun isBundledTapSound(fileName: String): Boolean {
+    if (BUNDLED_TAP_ASSETS.containsKey(fileName)) {
+      return true
+    }
+    return fileName == LEGACY_DEFAULT_TAP_SOUND_FILE || fileName == "typebase_keytap_soft.mp3"
+  }
+
+  private fun bundledAssetPath(fileName: String): String? {
+    if (fileName == "typebase_keytap_soft.mp3") {
+      return BUNDLED_TAP_ASSETS["typebase_keytap_soft.wav"]
+    }
+    return BUNDLED_TAP_ASSETS[fileName]
   }
 
   private fun tapSoundStorageDir(appContext: Context): File {
@@ -117,40 +130,45 @@ object KeyTapSoundPlayer {
   }
 
   /** Prefer JS-copied file; otherwise extract bundled WAV into app files (IME-safe). */
-  private fun resolveDefaultTapSoundFile(appContext: Context): File? {
+  private fun resolveBundledTapSoundFile(appContext: Context, fileName: String): File? {
     val dir = tapSoundStorageDir(appContext)
-    val preferred = File(dir, DEFAULT_TAP_SOUND_FILE)
+    val preferred = File(dir, fileName)
     if (preferred.exists() && preferred.isFile && preferred.length() > 64) {
       return preferred
     }
 
-    val legacyMp3 = File(dir, "typebase_keytap_soft.mp3")
-    if (legacyMp3.exists() && legacyMp3.isFile && legacyMp3.length() > 64) {
-      return legacyMp3
+    if (fileName == "typebase_keytap_soft.mp3") {
+      val legacyMp3 = File(dir, "typebase_keytap_soft.mp3")
+      if (legacyMp3.exists() && legacyMp3.isFile && legacyMp3.length() > 64) {
+        return legacyMp3
+      }
     }
 
+    val assetPath = bundledAssetPath(fileName) ?: return null
     try {
-      appContext.assets.open(DEFAULT_TAP_ASSET).use { input ->
+      appContext.assets.open(assetPath).use { input ->
         preferred.outputStream().use { output -> input.copyTo(output) }
       }
       if (preferred.exists() && preferred.length() > 64) {
         return preferred
       }
     } catch (error: Exception) {
-      Log.w(TAG, "Failed to extract default tap sound asset", error)
+      Log.w(TAG, "Failed to extract bundled tap sound asset ($fileName)", error)
     }
     return null
   }
 
-  private fun loadDefaultTapSound(appContext: Context) {
-    val soundFile = resolveDefaultTapSoundFile(appContext)
+  private fun loadBundledTapSound(appContext: Context, fileName: String) {
+    val soundFile = resolveBundledTapSoundFile(appContext, fileName)
     if (soundFile == null) {
       release()
       enabled = false
       loadedFile = null
       return
     }
-    loadTapSoundFile(appContext, soundFile, DEFAULT_LOADED_TOKEN)
+    val assetPath = bundledAssetPath(fileName) ?: soundFile.absolutePath
+    val loadedToken = "asset:$assetPath"
+    loadTapSoundFile(appContext, soundFile, loadedToken)
   }
 
   private fun loadTapSoundFile(

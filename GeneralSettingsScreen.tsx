@@ -24,7 +24,8 @@ import NumberRowIcon from './assets/123.svg';
 import AutoCapIcon from './assets/format-letter-case-upper.svg';
 import PersonalIcon from './assets/personal.svg';
 import GestureIcon from './assets/gesture.svg';
-import KeyIcon from './assets/key.svg';
+import TapMapIcon from './assets/tap-map.svg';
+import FootPrintIcon from './assets/foot-print.svg';
 
 import {playSwitchOffSound, playSwitchOnSound} from './src/app/switchSound';
 import {
@@ -39,7 +40,7 @@ import {
   getTouchIntelligenceTelemetrySummary,
   subscribeTouchIntelligenceTelemetry,
 } from './src/keyboard/gesture/touchIntelligenceTelemetry';
-import {getTapMapSnapshot, hydrateTapMapFromStorage} from './src/keyboard/gesture/tapMap';
+import {getTapMapSnapshot, hydrateTapMapFromStorage, subscribeTapMapChanges} from './src/keyboard/gesture/tapMap';
 import {
   ensureUiSoundsLoaded,
   getUiSoundsEnabled,
@@ -77,6 +78,7 @@ export function GeneralSettingsScreen({
   onOpenConsole,
   onOpenEngineStats,
   onOpenTapMap,
+  onOpenWalkMode,
   onOpenTouchHits,
   onOpenPersonalTyping,
   onOpenPremium,
@@ -85,6 +87,7 @@ export function GeneralSettingsScreen({
   onOpenConsole?: () => void;
   onOpenEngineStats?: () => void;
   onOpenTapMap?: () => void;
+  onOpenWalkMode?: () => void;
   onOpenTouchHits?: () => void;
   onOpenPersonalTyping?: () => void;
   onOpenPremium?: () => void;
@@ -104,19 +107,35 @@ export function GeneralSettingsScreen({
   const [tapMapSamples, setTapMapSamples] = useState(
     () => getTapMapSnapshot().totalSamples,
   );
+  const [walkMapSamples, setWalkMapSamples] = useState(
+    () => getTapMapSnapshot().walkingTotalSamples,
+  );
   const [touchHitCount, setTouchHitCount] = useState(
     () => getTouchIntelligenceTelemetrySummary().totalHits,
   );
 
   useEffect(() => {
     void hydrateTapMapFromStorage().then(() => {
-      setTapMapSamples(getTapMapSnapshot().totalSamples);
+      const snap = getTapMapSnapshot();
+      setTapMapSamples(snap.totalSamples);
+      setWalkMapSamples(snap.walkingTotalSamples);
     });
+    const refreshTapMap = () => {
+      const snap = getTapMapSnapshot();
+      setTapMapSamples(snap.totalSamples);
+      setWalkMapSamples(snap.walkingTotalSamples);
+    };
+    refreshTapMap();
+    const unsubTap = subscribeTapMapChanges(refreshTapMap);
     const refreshTouch = () => {
       setTouchHitCount(getTouchIntelligenceTelemetrySummary().totalHits);
     };
     refreshTouch();
-    return subscribeTouchIntelligenceTelemetry(refreshTouch);
+    const unsubTouch = subscribeTouchIntelligenceTelemetry(refreshTouch);
+    return () => {
+      unsubTap();
+      unsubTouch();
+    };
   }, []);
 
   const tapMapHint = useMemo(() => {
@@ -125,6 +144,13 @@ export function GeneralSettingsScreen({
     }
     return 'Per-key offsets';
   }, [tapMapSamples]);
+
+  const walkModeHint = useMemo(() => {
+    if (walkMapSamples > 0) {
+      return `${walkMapSamples} walk taps`;
+    }
+    return 'While walking';
+  }, [walkMapSamples]);
 
   const touchHitsHint = useMemo(() => {
     if (touchHitCount > 0) {
@@ -441,9 +467,18 @@ export function GeneralSettingsScreen({
             style={[styles.rowCard, styles.firstSettingCard]}
             onPress={() => onOpenTapMap?.()}>
             <View style={styles.rowInner}>
-              <KeyIcon width={ROW_ICON} height={ROW_ICON} color={C.text} />
+              <TapMapIcon width={ROW_ICON} height={ROW_ICON} color={C.text} />
               <Text style={styles.rowTitle}>Tap map</Text>
               <Text style={styles.rowValue}>{tapMapHint}</Text>
+            </View>
+          </Pressable>
+          <Pressable
+            style={[styles.rowCard, styles.middleSettingCard]}
+            onPress={() => onOpenWalkMode?.()}>
+            <View style={styles.rowInner}>
+              <FootPrintIcon width={ROW_ICON} height={ROW_ICON} color={C.text} />
+              <Text style={styles.rowTitle}>Walk mode</Text>
+              <Text style={styles.rowValue}>{walkModeHint}</Text>
             </View>
           </Pressable>
           <Pressable

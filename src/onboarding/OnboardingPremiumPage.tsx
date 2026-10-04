@@ -9,7 +9,6 @@ import {
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 
-import CheckIcon from '../../assets/check.svg';
 import {PremiumGlowBg} from '../licensing/PremiumGlowBg';
 import {usePremium} from '../licensing/PremiumContext';
 
@@ -24,17 +23,9 @@ const C = {
 
 const TITLE_FONT = 'Geist';
 const BODY_FONT = 'Inter';
-const BULLET_ICON = 22;
-
-const BULLETS = [
-  {text: 'Every paid extra is yours from day one. All of it, not one piece at a time.'},
-  {text: 'Use AI on your phone when you\u2019d rather not send words to the cloud.'},
-  {text: 'Themes, plugins, gestures, stickers, typing sounds. The fun stuff.'},
-];
 
 const HERO_MINI_FEATURES = [
-  'The full keyboard',
-  'AI on your phone, if you want it',
+  'Everything unlocked on this phone',
   'Pay once. No subscription.',
 ] as const;
 
@@ -151,24 +142,13 @@ export function OnboardingPremiumDrawer({
         {paddingBottom: Math.max(bottomInset, 14) + 10},
       ]}>
       <View style={styles.copyBlock}>
-        <Text style={styles.title}>Want the full keyboard?</Text>
+        <Text style={styles.title}>Want everything unlocked?</Text>
         <Text style={styles.body}>
-          One payment on this phone. Keep every premium piece. No monthly bill.
+          One payment on this phone, and you keep it all. Or skip for now the keyboard still works.
         </Text>
       </View>
 
-      <View style={styles.bullets}>
-        {BULLETS.map(bullet => (
-          <View key={bullet.text} style={styles.bulletRow}>
-            <View style={styles.bulletIconSlot}>
-              <CheckIcon width={14} height={14} color={C.accent} />
-            </View>
-            <Text style={styles.bulletText}>{bullet.text}</Text>
-          </View>
-        ))}
-      </View>
-
-      <View style={styles.footerRow}>
+      <View style={[styles.footerRow, styles.footerRowFlush]}>
         <Pressable
           onPress={onSkip}
           disabled={actionBusy}
@@ -250,6 +230,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 26,
     paddingTop: 20,
     paddingHorizontal: 22,
+    width: '100%',
     shadowColor: '#000000',
     shadowOpacity: 0.2,
     shadowRadius: 20,
@@ -263,7 +244,7 @@ const styles = StyleSheet.create({
     bottom: 0,
   },
   copyBlock: {
-    marginBottom: 16,
+    marginBottom: 18,
     gap: 6,
   },
   title: {
@@ -279,36 +260,14 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     color: C.sub,
   },
-  bullets: {
-    gap: 13,
-    marginBottom: 16,
-    paddingTop: 14,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(255,255,255,0.12)',
-  },
-  bulletRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-  },
-  bulletIconSlot: {
-    width: BULLET_ICON,
-    height: BULLET_ICON,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  bulletText: {
-    flex: 1,
-    fontFamily: BODY_FONT,
-    fontSize: 13,
-    lineHeight: 20,
-    color: 'rgba(255,255,255,0.88)',
-  },
   footerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginTop: 4,
+  },
+  footerRowFlush: {
+    marginTop: 6,
   },
   skipText: {
     fontFamily: BODY_FONT,

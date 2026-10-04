@@ -167,6 +167,7 @@ class NativeKeyFastPath {
       keys = parseKeys(obj.optJSONArray("keys") ?: JSONArray())
       keyById = keys.associateBy { it.id }
       touchIntelligence.updateTapMapFromJson(obj.optJSONArray("tapMap"))
+      touchIntelligence.setWalkModeActive(obj.optBoolean("walkModeActive", false))
       touchIntelligence.updateConfig(
           obj.optJSONObject("touchIntelligence"),
           hitSlopHorizontal,
@@ -423,6 +424,7 @@ class NativeKeyFastPath {
         if (appliedCorrection != null) {
           connection.deleteSurroundingText(typedWord.length, 0)
           connection.commitText("$appliedCorrection ", 1)
+          KeyboardInputBridge.notifyWalkModeTypingActivity()
           val committed = appliedCorrection.trim().lowercase()
           if (previousCommittedWord.isNotBlank()) {
             appContext?.let { ctx ->
@@ -432,15 +434,14 @@ class NativeKeyFastPath {
           previousCommittedWord = committed
         } else {
           connection.commitText(" ", 1)
-          if (typedWord.isNotBlank()) {
-            val committed = typedWord.trim().lowercase()
-            if (previousCommittedWord.isNotBlank()) {
-              appContext?.let { ctx ->
-                PersonalContextMemory.recordFollow(ctx, previousCommittedWord, committed)
-              }
+          KeyboardInputBridge.notifyWalkModeTypingActivity()
+          val committed = typedWord.trim().lowercase()
+          if (previousCommittedWord.isNotBlank()) {
+            appContext?.let { ctx ->
+              PersonalContextMemory.recordFollow(ctx, previousCommittedWord, committed)
             }
-            previousCommittedWord = committed
           }
+          previousCommittedWord = committed
         }
         pulseLandscapeAwareHaptic(pointerId)
         showKeyChromeForKey(key, " ", rawX, rawY, localX, localY)
@@ -696,6 +697,7 @@ class NativeKeyFastPath {
     val connection = KeyboardInputBridge.getInputConnection() ?: return false
 
     connection.commitText(text, 1)
+    KeyboardInputBridge.notifyWalkModeTypingActivity()
 
     if (shiftConsumed) {
       shiftOn = false

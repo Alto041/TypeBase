@@ -72,8 +72,13 @@ class TouchIntelligence {
   private var keyExpansions = emptyMap<String, KeyExpansion>()
   private var letterProbabilities = emptyMap<String, Float>()
   private var tapMapOffsets = emptyMap<String, Pair<Float, Float>>()
+  private var walkModeActive = false
   private var neighborMap: Map<String, Set<String>> = emptyMap()
   private var neighborRadius = 0f
+
+  fun setWalkModeActive(active: Boolean) {
+    walkModeActive = active
+  }
 
   fun setTapMapOffsets(offsets: Map<String, Pair<Float, Float>>) {
     tapMapOffsets = offsets
@@ -215,13 +220,25 @@ class TouchIntelligence {
   }
 
   private fun keyExpansion(key: KeyGeometry): KeyExpansion {
-    return keyExpansions[key.id]
-        ?: KeyExpansion(
-            left = hitSlopHorizontal,
-            right = hitSlopHorizontal,
-            top = hitSlopVertical,
-            bottom = hitSlopVertical,
-        )
+    val base =
+        keyExpansions[key.id]
+            ?: KeyExpansion(
+                left = hitSlopHorizontal,
+                right = hitSlopHorizontal,
+                top = hitSlopVertical,
+                bottom = hitSlopVertical,
+            )
+    if (!walkModeActive) {
+      return base
+    }
+    val mult = WALK_SLOP_MULTIPLIER
+    return KeyExpansion(
+        left = base.left * mult,
+        right = base.right * mult,
+        top = base.top * mult,
+        bottom = base.bottom * mult,
+        probability = base.probability,
+    )
   }
 
   private fun maxSlopForKey(key: KeyGeometry): Float {
@@ -432,9 +449,16 @@ class TouchIntelligence {
     val geoPrefixProb = if (geoLetter != null) letterProbability(geoLetter) else 0f
     val bestPrefixProb = if (bestLetter != null) letterProbability(bestLetter) else 0f
     val prefixFavorsBest =
-        bestPrefixProb > 0.32f && bestPrefixProb > geoPrefixProb + 0.12f
+        if (walkModeActive) {
+          bestPrefixProb > 0.24f && bestPrefixProb > geoPrefixProb + 0.08f
+        } else {
+          bestPrefixProb > 0.32f && bestPrefixProb > geoPrefixProb + 0.12f
+        }
 
     var requiredMargin = MIN_RERANK_MARGIN * (1f - touchAmbiguity * 0.95f)
+    if (walkModeActive) {
+      requiredMargin *= 0.55f
+    }
     if (prefixFavorsBest) {
       requiredMargin *= max(0.25f, 1f - (bestPrefixProb - geoPrefixProb) * 1.4f)
     }
@@ -451,7 +475,7 @@ class TouchIntelligence {
         geometric != null &&
             bestKey.id != geometric.id &&
             prefixFavorsBest &&
-            bestPrefixProb >= 0.45f &&
+            bestPrefixProb >= (if (walkModeActive) 0.34f else 0.45f) &&
             isNeighborKey(geometric, bestKey) &&
             bestScore >= geometricScoreValue
     ) {
@@ -901,6 +925,7 @@ class TouchIntelligence {
     private const val WEIGHT_WORD_PREFIX = 0.25f
     private const val CONFIDENT_STRICT_CENTER_RATIO = 0.12f
     private const val MIN_RERANK_MARGIN = 0.002f
+    private const val WALK_SLOP_MULTIPLIER = 1.22f
 
     private val LETTER_BIGRAM_WEIGHTS =
         mapOf(

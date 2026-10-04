@@ -61,6 +61,10 @@ object KeyboardInputBridge {
 
   private val prefersNumpadListeners = CopyOnWriteArrayList<(Boolean) -> Unit>()
   private val keyboardVisibilityListeners = CopyOnWriteArrayList<(Boolean) -> Unit>()
+  private val walkModeStateListeners = CopyOnWriteArrayList<(Boolean) -> Unit>()
+  @Volatile private var walkMotionDetector: WalkMotionDetector? = null
+  @Volatile private var walkModeFeatureEnabled = true
+  @Volatile private var keyboardWindowVisible = false
   private val keyboardSessionStartListeners = CopyOnWriteArrayList<() -> Unit>()
   private val editorContextListeners = CopyOnWriteArrayList<(String) -> Unit>()
   private val floatingKeyboardDragListeners = CopyOnWriteArrayList<(Boolean) -> Unit>()
@@ -809,11 +813,64 @@ object KeyboardInputBridge {
   }
 
   fun notifyKeyboardShown() {
+    keyboardWindowVisible = true
     keyboardVisibilityListeners.forEach { listener -> listener(true) }
+    startWalkMotionSampling()
   }
 
   fun notifyKeyboardHidden() {
+    keyboardWindowVisible = false
     keyboardVisibilityListeners.forEach { listener -> listener(false) }
+    stopWalkMotionSampling()
+  }
+
+  fun setWalkModeFeatureEnabled(enabled: Boolean) {
+    walkModeFeatureEnabled = enabled
+    if (!enabled) {
+      stopWalkMotionSampling()
+    } else if (keyboardWindowVisible) {
+      startWalkMotionSampling()
+    }
+  }
+
+  fun isWalkModeFeatureEnabled(): Boolean = walkModeFeatureEnabled
+
+  fun isWalkingActive(): Boolean =
+      walkModeFeatureEnabled && (walkMotionDetector?.isWalking() == true)
+
+  fun notifyWalkModeTypingActivity() {
+    walkMotionDetector?.noteTypingActivity()
+  }
+
+  fun addWalkModeStateListener(listener: (Boolean) -> Unit): () -> Unit {
+    walkModeStateListeners.add(listener)
+    return { walkModeStateListeners.remove(listener) }
+  }
+
+  private fun ensureWalkMotionDetector(context: Context) {
+    if (walkMotionDetector != null) {
+      return
+    }
+    walkMotionDetector =
+        WalkMotionDetector(context.applicationContext) { active ->
+          if (!walkModeFeatureEnabled) {
+            return@WalkMotionDetector
+          }
+          walkModeStateListeners.forEach { listener -> listener(active) }
+        }
+  }
+
+  private fun startWalkMotionSampling() {
+    if (!walkModeFeatureEnabled) {
+      return
+    }
+    val context = inputService?.applicationContext ?: return
+    ensureWalkMotionDetector(context)
+    walkMotionDetector?.start()
+  }
+
+  private fun stopWalkMotionSampling() {
+    walkMotionDetector?.stop()
   }
 
   fun addKeyboardVisibilityListener(listener: (Boolean) -> Unit): () -> Unit {

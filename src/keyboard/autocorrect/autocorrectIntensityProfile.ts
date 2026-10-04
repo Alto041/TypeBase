@@ -19,6 +19,10 @@ export type AutocorrectIntensityProfile = {
   properNounAutoApplyMinConfidence: number;
   aiPreflightSkipMinConfidence: number;
   fuzzyStrictness: 'relaxed' | 'normal' | 'strict';
+  /** Min bigram follow score to accept a 1-edit context fix. */
+  contextMinBigramOneEdit: number;
+  /** Required raw-score gap between 1st and 2nd context runner. */
+  contextOneEditScoreMargin: number;
 };
 
 const PROFILES: Record<AutocorrectIntensity, AutocorrectIntensityProfile> = {
@@ -31,6 +35,8 @@ const PROFILES: Record<AutocorrectIntensity, AutocorrectIntensityProfile> = {
     properNounAutoApplyMinConfidence: 0.92,
     aiPreflightSkipMinConfidence: 0.88,
     fuzzyStrictness: 'strict',
+    contextMinBigramOneEdit: 4,
+    contextOneEditScoreMargin: 14,
   },
   medium: {
     minAutoConfidence: LEGACY_MIN_AUTO_CONFIDENCE,
@@ -41,16 +47,20 @@ const PROFILES: Record<AutocorrectIntensity, AutocorrectIntensityProfile> = {
     properNounAutoApplyMinConfidence: LEGACY_PROPER_NOUN_AUTO_APPLY_MIN,
     aiPreflightSkipMinConfidence: LEGACY_AI_PREFLIGHT_SKIP_MIN,
     fuzzyStrictness: 'normal',
+    contextMinBigramOneEdit: 3,
+    contextOneEditScoreMargin: 10,
   },
   high: {
     minAutoConfidence: 0.48,
     minSuggestionBarConfidence: 0.46,
-    minContextConfidence: 0.42,
-    minContextConfidenceBoundary: 0.46,
+    minContextConfidence: 0.4,
+    minContextConfidenceBoundary: 0.44,
     punctuationAutoApplyThreshold: 0.85,
     properNounAutoApplyMinConfidence: 0.82,
     aiPreflightSkipMinConfidence: 0.78,
     fuzzyStrictness: 'relaxed',
+    contextMinBigramOneEdit: 2,
+    contextOneEditScoreMargin: 6,
   },
 };
 
@@ -110,6 +120,9 @@ export function shouldRejectFuzzyForIntensity(
   }
   if (fuzzyStrictness === 'relaxed') {
     if (edits >= 3 && !boundary) {
+      return true;
+    }
+    if (edits >= 2 && boundary && confidence < minAutoConfidence + 0.06) {
       return true;
     }
     return false;

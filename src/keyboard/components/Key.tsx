@@ -51,7 +51,7 @@ import {useKeyboardTheme, useThemedStyles} from '../KeyboardThemeContext';
 import type {KeyDefinition} from '../layouts/qwerty';
 import type {KeyboardTheme} from '../theme';
 import {
-  KEYBOARD_AI_ICON_COLOR,
+  keyboardAiIconColor,
   keyboardKeyChromeStyle,
   keyboardKeyPressMotionStyle,
   keyboardGeistTypefaceStyle,
@@ -72,6 +72,8 @@ const KEY_HIT_SLOP = {top: 3, left: 2, bottom: 3, right: 2};
 
 export type KeyGesturesConfig = {
   zeroLatencyMode: boolean;
+  /** Brief “walk” label on the space bar when walk typing activates. */
+  walkModeSpaceHint?: boolean;
   spaceCursorSwipe: boolean;
   backspaceWordSwipe: boolean;
   backspaceSentenceHold: boolean;
@@ -149,6 +151,7 @@ function KeyComponent({
   const isQuivox = theme.design === 'quivox';
   const isApple = theme.design === 'apple';
   const isSpaceKey = keyDef.type === 'space';
+  const walkSpaceHint = isSpaceKey && keyGestures?.walkModeSpaceHint === true;
   const showZeroLatencyRipple =
     isSpaceKey && Boolean(keyGestures?.zeroLatencyMode);
   const showTypeLiftAnimation =
@@ -207,6 +210,9 @@ function KeyComponent({
       ? keyDef.value!.toUpperCase()
       : keyDef.value!.toLowerCase()
     : keyDef.label;
+  const spaceBarLabel = walkSpaceHint
+    ? 'walk'
+    : displayLabel ?? (isSpaceKey ? 'space' : '');
   const symbolHint = isTextKey ? getLetterSymbolHint(keyDef) : null;
 
   const borderRadius =
@@ -535,28 +541,28 @@ function KeyComponent({
   ) : showLauncher ? (
     <ClipboardQuickIcon width={22} height={22} color={featureIconColor} />
   ) : showRewrite ? (
-    <ArtificialIcon width={18} height={17} color={KEYBOARD_AI_ICON_COLOR} />
+    <ArtificialIcon width={18} height={17} color={keyboardAiIconColor(theme)} />
   ) : keyDef.type === 'emoji' ? (
     <EmojiIcon width={22} height={22} color={theme.icon} />
   ) : isSpaceKey && theme.design === 'typebase' ? (
     <Text style={[styles.keyLabel, styles.spaceLabel]}>
-      {displayLabel ?? 'space'}
-      <Text style={styles.spaceNothingMark}> (R)</Text>
+      {spaceBarLabel}
+      {!walkSpaceHint ? (
+        <Text style={styles.spaceNothingMark}> (R)</Text>
+      ) : null}
     </Text>
   ) : isSpaceKey && isApple ? (
-    <Text style={[styles.keyLabel, styles.spaceLabel]}>
-      {displayLabel ?? 'space'}
-    </Text>
+    <Text style={[styles.keyLabel, styles.spaceLabel]}>{spaceBarLabel}</Text>
   ) : isSpaceKey && theme.design === 'macintosh' ? (
     <View style={styles.spaceMacintoshRow}>
-      <Text style={[styles.keyLabel, styles.spaceLabel]}>
-        {displayLabel ?? 'space'}
-      </Text>
-      <View style={styles.spaceMacintoshApple}>
-        <AppleIcon width={18} height={18} color={theme.spaceKeyLabel} />
-      </View>
+      <Text style={[styles.keyLabel, styles.spaceLabel]}>{spaceBarLabel}</Text>
+      {!walkSpaceHint ? (
+        <View style={styles.spaceMacintoshApple}>
+          <AppleIcon width={18} height={18} color={theme.spaceKeyLabel} />
+        </View>
+      ) : null}
     </View>
-  ) : isSpaceKey && isQuivox ? (
+  ) : isSpaceKey && isQuivox && !walkSpaceHint ? (
     <View style={styles.spaceQuivoxLogo}>
       <QuivoxIcon
         width={QUIVOX_SPACE_LOGO_WIDTH}
@@ -565,6 +571,8 @@ function KeyComponent({
         fill={theme.spaceKeyLabel}
       />
     </View>
+  ) : isSpaceKey && isQuivox && walkSpaceHint ? (
+    <Text style={[styles.keyLabel, styles.spaceLabel]}>{spaceBarLabel}</Text>
   ) : (
     <>
       <Text
@@ -574,7 +582,7 @@ function KeyComponent({
           isAbcKey && styles.abcLabel,
           keyDef.type === 'space' && styles.spaceLabel,
         ]}>
-        {displayLabel ?? ''}
+        {isSpaceKey ? spaceBarLabel : displayLabel ?? ''}
       </Text>
       {symbolHint ? (
         <Text style={[styles.symbolHint, keyboardGeistTypefaceStyle('500')]}>

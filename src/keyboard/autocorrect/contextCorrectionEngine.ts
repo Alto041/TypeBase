@@ -20,7 +20,7 @@ import {
 } from '../personalTyping/personalTypingEngine';
 import {applyCaseToWord} from '../suggestions/wordSuggestions';
 import {getAutocorrectSettings} from './autocorrectStore';
-import {getContextConfidenceMin} from './autocorrectIntensityProfile';
+import {getContextConfidenceMin, getAutocorrectIntensityProfile} from './autocorrectIntensityProfile';
 
 export type ContextCorrectionCandidate = {
   correction: string;
@@ -59,6 +59,8 @@ const MAX_BIGRAM_SEEDS_LIGHT = 10;
 const MAX_BIGRAM_SEEDS_FULL = 16;
 const MIN_BIGRAM_FOR_ONE_EDIT = 4;
 const MIN_ONE_EDIT_SCORE_MARGIN = 12;
+const MIN_BIGRAM_KNOWN_TYPED_WORD = 8;
+const MIN_KNOWN_TYPED_SCORE_MARGIN = 16;
 
 function combinedContextFollowScore(previousWord: string, candidate: string): number {
   const prev = previousWord.trim().toLowerCase();
@@ -131,13 +133,39 @@ function isProtectedKnownWord(lower: string): boolean {
   if (isEnglishLikeLang(lang)) {
     if (isEnglishDictionaryWord(lower)) {
       const rank = getEnglishStaticRank(lower);
-      return rank == null || rank < 20_000;
+      // Only skip outright for ultra-common words (the, and, I). Other dictionary
+      // words can still be wrong-in-context (their/there, then/than).
+      return rank != null && rank < 1200;
     }
     return hasDictionaryWord(lower);
   }
   const base = getBaseWords(lang);
   const idx = base.indexOf(lower);
-  return idx >= 0 && idx < 8_000;
+  return idx >= 0 && idx < 4_000;
+}
+
+function typedWordIsCommonDictionary(lower: string): boolean {
+  if (!isEnglishDictionaryWord(lower)) {
+    return false;
+  }
+  const rank = getEnglishStaticRank(lower);
+  return rank != null && rank < 12_000;
+}
+
+function contextThresholds(boundary: boolean): {
+  minBigramOneEdit: number;
+  oneEditScoreMargin: number;
+} {
+  const profile = getAutocorrectIntensityProfile();
+  const minBigramOneEdit = profile.contextMinBigramOneEdit;
+  const oneEditScoreMargin = profile.contextOneEditScoreMargin;
+  if (boundary) {
+    return {
+      minBigramOneEdit: Math.max(1, minBigramOneEdit - 1),
+      oneEditScoreMargin: Math.max(4, oneEditScoreMargin - 2),
+    };
+  }
+  return {minBigramOneEdit, oneEditScoreMargin};
 }
 
 function buildTrailingWords(
@@ -529,14 +557,26 @@ export function getContextCorrectionCandidate(
   if (best && runners.length >= 2) {
     const top = runners[0]!;
     const second = runners[1]!;
-    if (
-      top.edits === 1 &&
-      top.bigram < MIN_BIGRAM_FOR_ONE_EDIT
-    ) {
+    const {minBigramOneEdit, oneEditScoreMargin} = contextThresholds(
+      options?.boundary ?? false,
+    );
+    if (top.edits === 1 && top.bigram < minBigramOneEdit && top.rawScore < 28) {
       best = null;
     } else if (
       top.edits === 1 &&
-      top.rawScore - second.rawScore < MIN_ONE_EDIT_SCORE_MARGIN
+      top.rawScore - second.rawScore < oneEditScoreMargin
+    ) {
+      best = null;
+    }
+  }
+
+  if (best && typedWordIsCommonDictionary(typedLower)) {
+    const top = runners[0];
+    if (
+      !top ||
+      top.bigram < MIN_BIGRAM_KNOWN_TYPED_WORD ||
+      (runners.length >= 2 &&
+        top.rawScore - runners[1]!.rawScore < MIN_KNOWN_TYPED_SCORE_MARGIN)
     ) {
       best = null;
     }

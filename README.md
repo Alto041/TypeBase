@@ -29,7 +29,10 @@ Inspired by [SitePen's React Native input extensions demo](https://github.com/Si
 - Number and symbol layouts
 - Shift, backspace, space, and enter keys
 - Dark theme keyboard UI
+- Walk mode (on-device step detection, walking tap map)
 - Setup screen in the main app
+
+**Current release:** 2.0.0 (Android `versionCode` 33)
 
 ## Prerequisites
 

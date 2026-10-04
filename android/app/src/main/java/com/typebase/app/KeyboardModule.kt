@@ -63,6 +63,7 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
   private var removeCompactTypingBoundaryListener: (() -> Unit)? = null
   private var removeCompactTypingShiftListener: (() -> Unit)? = null
   private var removeCompactLetterTapListener: (() -> Unit)? = null
+  private var removeWalkModeStateListener: (() -> Unit)? = null
   private var clipboardListener: ClipboardManager.OnPrimaryClipChangedListener? = null
   private val backspaceHandler = Handler(Looper.getMainLooper())
   private var backspaceHoldRunnable: Runnable? = null
@@ -322,6 +323,16 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
                 .emit("compactLetterTap", event)
           }
         }
+    removeWalkModeStateListener =
+        KeyboardInputBridge.addWalkModeStateListener { active ->
+          if (reactApplicationContext.hasActiveReactInstance()) {
+            val event = Arguments.createMap()
+            event.putBoolean("active", active)
+            reactApplicationContext
+                .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                .emit("walkModeStateChanged", event)
+          }
+        }
     try {
       val layoutJson =
           learnedWordsPrefs()
@@ -395,6 +406,8 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     removeCompactTypingShiftListener = null
     removeCompactLetterTapListener?.invoke()
     removeCompactLetterTapListener = null
+    removeWalkModeStateListener?.invoke()
+    removeWalkModeStateListener = null
     clipboardListener?.let { listener ->
       val clipboardManager =
           reactApplicationContext.getSystemService(Context.CLIPBOARD_SERVICE) as
@@ -966,11 +979,13 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
             !before.endsWith(' ')
     val text = if (needsLeadingSpace) " $trimmed " else "$trimmed "
     connection.commitText(text, 1)
+    KeyboardInputBridge.notifyWalkModeTypingActivity()
   }
 
   @ReactMethod
   fun insertText(text: String) {
     KeyboardInputBridge.getInputConnection()?.commitText(text, 1)
+    KeyboardInputBridge.notifyWalkModeTypingActivity()
   }
 
   @ReactMethod
@@ -978,11 +993,17 @@ class KeyboardModule(reactContext: ReactApplicationContext) :
     // Haptic is fired by the press layer (triggerKeyHaptic), not on text commit,
     // to avoid double feedback per key press.
     KeyboardInputBridge.getInputConnection()?.commitText(text, 1)
+    KeyboardInputBridge.notifyWalkModeTypingActivity()
   }
 
   @ReactMethod
   fun setNativeKeyFastPathConfig(json: String) {
     KeyboardInputBridge.setNativeKeyFastPathConfig(json)
+  }
+
+  @ReactMethod
+  fun setWalkModeFeatureEnabled(enabled: Boolean) {
+    KeyboardInputBridge.setWalkModeFeatureEnabled(enabled)
   }
 
   @ReactMethod

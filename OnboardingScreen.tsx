@@ -3,16 +3,13 @@ import {
   Animated,
   Dimensions,
   FlatList,
-  Image,
   Pressable,
   StatusBar,
   StyleSheet,
   Text,
   View,
-  type ImageSourcePropType,
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import * as Haptics from 'expo-haptics';
 
 import ArtificialIcon from './assets/Artificial.svg';
 import BackIcon from './assets/back.svg';
@@ -20,10 +17,13 @@ import ArrowForwardIcon from './assets/onboarding/arrow-forward.svg';
 import CheckIcon from './assets/check.svg';
 import FormatPaintIcon from './assets/onboarding/format-paint.svg';
 import FlagCheckeredIcon from './assets/onboarding/flag-checkered.svg';
-import DownasaurIcon from './assets/onboarding/google-downasaur.svg';
-import LiquidSpotIcon from './assets/onboarding/liquid-spot.svg';
 import PackageVariantIcon from './assets/onboarding/package-variant.svg';
+import StickerIcon from './assets/sticker.svg';
 import {keyboardBridge} from './src/keyboard/keyboardBridge';
+import {
+  OnboardingIconHero,
+  type OnboardingIconHeroConfig,
+} from './src/onboarding/OnboardingIconHero';
 import {
   OnboardingPremiumDrawer,
   OnboardingPremiumHero,
@@ -31,12 +31,7 @@ import {
 import {hapticTap} from './lib/haptics';
 import {applyOnboardingAiDefaults} from './src/onboarding/applyOnboardingAiDefaults';
 
-const OnboardingImage1 = require('./assets/onboarding/onboarding1.png');
-const OnboardingImage2 = require('./assets/onboarding/onboarding2.png');
-const OnboardingImage3 = require('./assets/onboarding/onboarding3.png');
-
-const {width: SCREEN_W} = Dimensions.get('window');
-const ONBOARDING3_ASPECT = 4096 / 2663;
+const {width: SCREEN_W, height: SCREEN_H} = Dimensions.get('window');
 
 const C = {
   bg: '#f2f2f4',
@@ -59,15 +54,12 @@ type Bullet = {
   text: string;
 };
 
-type HeroMode = 'feature' | 'backdrop';
 type PageVariant = 'default' | 'premium';
 
 type OnboardingPage = {
   id: string;
   variant?: PageVariant;
-  image?: ImageSourcePropType;
-  heroMode?: HeroMode;
-  heroAspect?: number;
+  hero?: OnboardingIconHeroConfig;
   title: string;
   body: string;
   bullets?: Bullet[];
@@ -78,54 +70,38 @@ type OnboardingPage = {
 const ONBOARDING_PAGES: OnboardingPage[] = [
   {
     id: 'intro',
-    image: OnboardingImage1,
-    heroMode: 'feature',
+    hero: {
+      kind: 'icon',
+      Icon: FlagCheckeredIcon,
+      kicker: 'First step',
+      headline: 'Switch to TypeBase',
+      glow: true,
+    },
     title: 'Welcome to TypeBase',
     body:
-      'Your everyday keyboard, with extra tools when you want them. No clutter when you don\u2019t.',
-    bullets: [
-      {
-        PlayfulIcon: FlagCheckeredIcon,
-        text: 'Tap Next and we\u2019ll open settings so you can switch to TypeBase.',
-      },
-      {
-        PlayfulIcon: DownasaurIcon,
-        text: 'Autocorrect, clipboard, and little helpers stay on the keyboard.',
-      },
-      {
-        PlayfulIcon: FormatPaintIcon,
-        text: 'Themes and layout options are there when you feel like tuning things.',
-      },
-    ],
+      'Hit Next and we\u2019ll open settings so you can pick TypeBase as your keyboard.',
     openKeyboardSettingsOnNext: true,
   },
   {
     id: 'ai',
-    image: OnboardingImage2,
-    heroMode: 'feature',
-    title: 'Help while you write',
+    hero: {
+      kind: 'icon',
+      Icon: ArtificialIcon,
+      kicker: 'Optional',
+      headline: 'A little help typing',
+    },
+    title: 'AI when you want it',
     body:
-      'Translate, tidy up a sentence, or talk instead of type. You choose what runs on your phone or online.',
-    bullets: [
-      {
-        PlayfulIcon: ArtificialIcon,
-        text: 'On-device AI keeps more of what you type on your phone.',
-      },
-      {
-        PlayfulIcon: LiquidSpotIcon,
-        text: 'The keyboard remembers phrases you actually use.',
-      },
-      {
-        PlayfulIcon: PackageVariantIcon,
-        text: 'Set it up later in Settings \u2192 AI Config. No rush.',
-      },
-    ],
+      'Translate, polish a line, or talk instead of type. Turn it on later in Setting',
   },
   {
     id: 'tools',
-    image: OnboardingImage3,
-    heroMode: 'backdrop',
-    heroAspect: ONBOARDING3_ASPECT,
+    hero: {
+      kind: 'icons',
+      icons: [FormatPaintIcon, PackageVariantIcon, StickerIcon],
+      kicker: 'Customize',
+      headline: 'Your mix',
+    },
     title: 'Your keyboard, your mix',
     body:
       'Stickers, sounds, shortcuts, plugins. Turn on what you love and leave the rest off.',
@@ -232,42 +208,17 @@ type PageProps = {
 function OnboardingPageBackground({page, drawerReserve = 0}: PageProps) {
   if (page.variant === 'premium') {
     return (
-      <View style={pageStyles.pagePremium}>
+      <View style={pageStyles.page}>
         <OnboardingPremiumHero drawerReserve={drawerReserve} />
       </View>
     );
   }
 
-  const heroMode = page.heroMode ?? 'backdrop';
-
-  if (heroMode === 'backdrop' && page.image) {
-    return (
-      <View style={pageStyles.pageBackdrop}>
-        <View style={pageStyles.heroBand} pointerEvents="none">
-          <Image
-            source={page.image}
-            style={[
-              pageStyles.heroImageFitHeight,
-              {aspectRatio: page.heroAspect ?? ONBOARDING3_ASPECT},
-            ]}
-            resizeMode="cover"
-          />
-        </View>
-      </View>
-    );
+  if (!page.hero) {
+    return <View style={[pageStyles.page, {height: SCREEN_H}]} />;
   }
 
-  return (
-    <View style={pageStyles.page}>
-      <View style={[pageStyles.heroArea, pageStyles.heroAreaFeature]} pointerEvents="none">
-        {page.image ? (
-          <Image source={page.image} style={pageStyles.heroImageFeature} resizeMode="contain" />
-        ) : (
-          <View style={pageStyles.heroPlaceholder} />
-        )}
-      </View>
-    </View>
-  );
+  return <OnboardingIconHero hero={page.hero} drawerReserve={drawerReserve} />;
 }
 
 function OnboardingPageProgress({
@@ -400,13 +351,7 @@ export function OnboardingScreen({onComplete}: OnboardingScreenProps) {
   };
 
   const activePage = ONBOARDING_PAGES[currentStep];
-  const usesLightProgress =
-    activePage?.id === 'intro' ||
-    activePage?.id === 'ai' ||
-    activePage?.id === 'premium';
-  const progressInactiveColor = usesLightProgress
-    ? 'rgba(17,17,17,0.28)'
-    : 'rgba(255,255,255,0.85)';
+  const progressInactiveColor = 'rgba(17,17,17,0.28)';
 
   return (
     <Animated.View style={[styles.screen, {opacity: fadeAnim}]}>
@@ -427,10 +372,7 @@ export function OnboardingScreen({onComplete}: OnboardingScreenProps) {
         ref={flatListRef}
         data={ONBOARDING_PAGES}
         renderItem={({item}) => (
-          <OnboardingPageBackground
-            page={item}
-            drawerReserve={item.variant === 'premium' ? drawerReserve : 0}
-          />
+          <OnboardingPageBackground page={item} drawerReserve={drawerReserve} />
         )}
         keyExtractor={item => item.id}
         horizontal
@@ -475,8 +417,6 @@ export function OnboardingScreen({onComplete}: OnboardingScreenProps) {
           styles.drawerShell,
           {
             height: drawerHeightAnim,
-            backgroundColor:
-              activePage?.variant === 'premium' ? C.drawer : 'transparent',
           },
         ]}>
         {activePage?.variant === 'premium' ? (
@@ -533,7 +473,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    overflow: 'hidden',
+    overflow: 'visible',
     justifyContent: 'flex-end',
   },
   backButton: {
@@ -552,45 +492,8 @@ const styles = StyleSheet.create({
 const pageStyles = StyleSheet.create({
   page: {
     width: SCREEN_W,
-    flex: 1,
+    height: SCREEN_H,
     backgroundColor: '#ffffff',
-  },
-  pageBackdrop: {
-    width: SCREEN_W,
-    flex: 1,
-    backgroundColor: '#0d1218',
-  },
-  pagePremium: {
-    width: SCREEN_W,
-    flex: 1,
-    backgroundColor: '#ffffff',
-  },
-  heroBand: {
-    flex: 1,
-    overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  heroImageFitHeight: {
-    height: '100%',
-  },
-  heroArea: {
-    ...StyleSheet.absoluteFill,
-    overflow: 'hidden',
-  },
-  heroAreaFeature: {
-    backgroundColor: '#ffffff',
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-  },
-  heroImageFeature: {
-    width: SCREEN_W * 2.08,
-    height: '118%',
-    transform: [{translateY: -88}],
-  },
-  heroPlaceholder: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: C.bg,
   },
 });
 

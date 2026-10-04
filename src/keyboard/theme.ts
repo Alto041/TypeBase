@@ -22,7 +22,7 @@ const KEY_ROW_MARGIN = 12;
 const KEY_GAP = 5;
 const KEY_RADIUS = 6;
 
-/** AI spark icon — always black on keyboard UI, every theme. */
+/** AI spark icon — black on most keyboard themes; Apple uses palette icon color. */
 export const KEYBOARD_AI_ICON_COLOR = '#000000';
 
 export type KeyboardLayoutSettings = {
@@ -89,6 +89,10 @@ export type KeyboardLayoutSettings = {
   controller: ControllerSettings;
   /** When true, expand key hit regions based on predicted next letters. */
   predictiveHitboxesEnabled: boolean;
+  /** When true, adapt hit targets and tap map while walking (accelerometer on-device). */
+  walkModeEnabled: boolean;
+  /** Hidden: compare neighbor-key slip rates with Walk Mode on vs off. */
+  walkModeDebugCompare: boolean;
   /** Key preview behavior while typing. */
   keyPreviewStyle: 'popup' | 'subtle' | 'doodle';
 };
@@ -112,7 +116,7 @@ export const DEFAULT_KEYBOARD_LAYOUT_SETTINGS: KeyboardLayoutSettings = {
   keyboardHeightOffset: 0,
   bottomClearanceAdjust: 0,
   customTapSoundEnabled: false,
-  customTapSoundFile: 'typebase_keytap_soft.wav',
+  customTapSoundFile: 'keytap_soft.wav',
   keyHapticEnabled: true,
   keyHapticPulseMs: 11,
   autoCapitalizeEnabled: true,
@@ -120,6 +124,8 @@ export const DEFAULT_KEYBOARD_LAYOUT_SETTINGS: KeyboardLayoutSettings = {
   customFontFile: null,
   controller: DEFAULT_CONTROLLER_SETTINGS,
   predictiveHitboxesEnabled: true,
+  walkModeEnabled: true,
+  walkModeDebugCompare: false,
   keyPreviewStyle: 'doodle',
 };
 
@@ -802,6 +808,13 @@ export function keyboardKeyChromeStyle(
 }
 
 export type KeyboardTheme = ReturnType<typeof createKeyboardTheme>;
+
+export function keyboardAiIconColor(theme: KeyboardTheme): string {
+  if (theme.design === 'apple') {
+    return theme.icon;
+  }
+  return KEYBOARD_AI_ICON_COLOR;
+}
 
 /** Bundled Geist face (assets/Geist-VariableFont_wght.ttf) — used for symbol hints & alternates. */
 export const KEYBOARD_GEIST_FONT_FAMILY = 'Geist' as const;

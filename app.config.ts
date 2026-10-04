@@ -3,7 +3,7 @@ import type {ExpoConfig} from 'expo/config';
 const config: ExpoConfig = {
   name: 'TypeBase',
   slug: 'typebase',
-  version: '1.0.0',
+  version: '2.0.0',
   scheme: ['typebase', 'exp+typebase'],
   orientation: 'portrait',
   userInterfaceStyle: 'automatic',

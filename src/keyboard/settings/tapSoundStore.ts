@@ -4,12 +4,16 @@ import {Image, Platform} from 'react-native';
 import {pickDocumentAsync} from '../../../lib/pickDocumentAsync';
 import {keyboardBridge} from '../keyboardBridge';
 import {updateKeyboardLayoutSetting} from './layoutStore';
+import {
+  BUNDLED_TAP_SOUND_PRESETS,
+  bundledTapSoundAsset,
+  isBundledTapSoundFile,
+  type BundledTapSoundFileName,
+} from './tapSoundPresets';
 
 export const TAP_SOUND_DIR_NAME = 'keyboard_tap_sounds';
-export const DEFAULT_TAP_SOUND_FILE = 'typebase_keytap_soft.wav';
+export const DEFAULT_TAP_SOUND_FILE: BundledTapSoundFileName = 'keytap_soft.wav';
 const TAP_SOUND_BASENAME = 'custom_tap';
-
-const DEFAULT_TAP_SOUND_ASSET = require('../../../assets/sounds/Key/typebase_keytap_soft.wav');
 
 const AUDIO_MIME_TYPES = [
   'audio/*',
@@ -59,7 +63,7 @@ async function ensureTapSoundDir(): Promise<void> {
   }
 }
 
-async function removeExistingTapSounds(): Promise<void> {
+async function removeNonBundledTapSounds(): Promise<void> {
   const dir = tapSoundDir();
   const info = await FileSystem.getInfoAsync(dir);
   if (!info.exists) {
@@ -68,7 +72,9 @@ async function removeExistingTapSounds(): Promise<void> {
   try {
     const entries = await FileSystem.readDirectoryAsync(dir);
     await Promise.all(
-      entries.map(entry => FileSystem.deleteAsync(`${dir}/${entry}`, {idempotent: true})),
+      entries
+        .filter(entry => !isBundledTapSoundFile(entry))
+        .map(entry => FileSystem.deleteAsync(`${dir}/${entry}`, {idempotent: true})),
     );
   } catch {
     // Ignore cleanup failures.
@@ -82,14 +88,22 @@ export function resolveCustomTapSoundPath(fileName: string | null | undefined): 
   return `${tapSoundDir()}/${fileName}`;
 }
 
-/** Copies the bundled default key tap sound into keyboard storage if needed. */
-export async function ensureBundledDefaultTapSound(force = false): Promise<void> {
+/** Copies one bundled preset into keyboard storage if missing (or when forced). */
+export async function ensureBundledTapSound(
+  fileName: BundledTapSoundFileName,
+  force = false,
+): Promise<void> {
   if (Platform.OS !== 'android' || !FileSystem.documentDirectory) {
     return;
   }
 
+  const asset = bundledTapSoundAsset(fileName);
+  if (!asset) {
+    return;
+  }
+
   await ensureTapSoundDir();
-  const destination = `${tapSoundDir()}/${DEFAULT_TAP_SOUND_FILE}`;
+  const destination = `${tapSoundDir()}/${fileName}`;
   const info = await FileSystem.getInfoAsync(destination);
   if (info.exists && !force) {
     return;
@@ -98,18 +112,36 @@ export async function ensureBundledDefaultTapSound(force = false): Promise<void>
     await FileSystem.deleteAsync(destination, {idempotent: true});
   }
 
-  const bundledUri = Image.resolveAssetSource(DEFAULT_TAP_SOUND_ASSET)?.uri;
+  const bundledUri = Image.resolveAssetSource(asset)?.uri;
   if (!bundledUri) {
-    throw new Error('Bundled tap sound could not be loaded.');
+    throw new Error(`Bundled tap sound could not be loaded (${fileName}).`);
   }
   await FileSystem.copyAsync({from: bundledUri, to: destination});
 }
 
-export async function installDefaultTapSoundSettings(): Promise<void> {
-  await ensureBundledDefaultTapSound();
-  await updateKeyboardLayoutSetting('customTapSoundFile', DEFAULT_TAP_SOUND_FILE);
+export async function ensureAllBundledTapSounds(force = false): Promise<void> {
+  for (const preset of BUNDLED_TAP_SOUND_PRESETS) {
+    await ensureBundledTapSound(preset.fileName, force);
+  }
+}
+
+/** @deprecated Use ensureAllBundledTapSounds */
+export async function ensureBundledDefaultTapSound(force = false): Promise<void> {
+  await ensureAllBundledTapSounds(force);
+}
+
+export async function selectBundledTapSound(fileName: BundledTapSoundFileName): Promise<void> {
+  if (Platform.OS !== 'android') {
+    throw new Error('Custom tap sounds are only supported on Android.');
+  }
+  await ensureBundledTapSound(fileName);
+  await updateKeyboardLayoutSetting('customTapSoundFile', fileName);
   await updateKeyboardLayoutSetting('customTapSoundEnabled', true);
   keyboardBridge.syncCustomTapSound?.();
+}
+
+export async function installDefaultTapSoundSettings(): Promise<void> {
+  await selectBundledTapSound(DEFAULT_TAP_SOUND_FILE);
 }
 
 export async function importCustomTapSound(): Promise<string> {
@@ -127,7 +159,7 @@ export async function importCustomTapSound(): Promise<string> {
 
   const asset = result.assets[0];
   await ensureTapSoundDir();
-  await removeExistingTapSounds();
+  await removeNonBundledTapSounds();
 
   const ext = extensionFromAsset(asset.name, asset.mimeType);
   const fileName = `${TAP_SOUND_BASENAME}.${ext}`;
@@ -142,7 +174,7 @@ export async function importCustomTapSound(): Promise<string> {
 }
 
 export async function clearCustomTapSound(): Promise<void> {
-  await removeExistingTapSounds();
+  await removeNonBundledTapSounds();
   await updateKeyboardLayoutSetting('customTapSoundFile', null);
   await updateKeyboardLayoutSetting('customTapSoundEnabled', false);
   keyboardBridge.syncCustomTapSound?.();
@@ -157,7 +189,7 @@ export async function installTapSoundFromLocalFile(
   }
 
   await ensureTapSoundDir();
-  await removeExistingTapSounds();
+  await removeNonBundledTapSounds();
 
   const safeId = soundId.replace(/[^a-z0-9_-]/gi, '_').slice(0, 48) || 'sound';
   const fileName = `myinstants_${safeId}.mp3`;
@@ -195,3 +227,6 @@ export async function installTapSoundFromUrl(
 export async function previewCustomTapSound(): Promise<void> {
   keyboardBridge.playCustomTapSound?.();
 }
+
+export {BUNDLED_TAP_SOUND_PRESETS, isBundledTapSoundFile, labelForTapSoundFile} from './tapSoundPresets';
+export type {BundledTapSoundFileName} from './tapSoundPresets';

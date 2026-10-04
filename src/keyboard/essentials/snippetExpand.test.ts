@@ -13,7 +13,7 @@ describe('snippetExpand', () => {
 
   it('expands brace placeholders', () => {
     const now = new Date('2026-09-21T14:30:00');
-    const out = expandSnippetValue('{date} @ {time} | {clipboard} {cursor}', {
+    const out = expandSnippetValue('{date} @ {time} | {clipboard}', {
       now,
       clipboardText: 'clip',
     });

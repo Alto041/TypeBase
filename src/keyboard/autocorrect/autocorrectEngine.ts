@@ -30,9 +30,11 @@ import {
   symSpellRank,
 } from './dictionaryManager';
 import {getHinglishPhraseCorrection, isHinglishHeadword} from './hinglishDictionary';
-import {getContextCorrectionCandidate} from './contextCorrectionEngine';
+import {getContextCorrectionCandidate, type ContextCorrectionCandidate} from './contextCorrectionEngine';
 import {getBigramFollowScore} from './contextBigrams';
 import {getPersonalFollowScore} from '../personalTyping/personalTypingEngine';
+import {isWalkModeTypingActive} from '../gesture/walkModeRuntime';
+import {walkModeAutocorrectScale} from '../gesture/walkModeTypingProfile';
 import {extractTrailingWords} from './learnedPhrases';
 import {
   getPunctuationCorrection,
@@ -295,6 +297,14 @@ function boundaryOneEditAllowed(
   if (combined >= BOUNDARY_MIN_BIGRAM_ONE_EDIT) {
     return true;
   }
+  if (
+    isWalkModeTypingActive() &&
+    combined >=
+      BOUNDARY_MIN_BIGRAM_ONE_EDIT *
+        walkModeAutocorrectScale(getAutocorrectSettings().intensity)
+  ) {
+    return true;
+  }
   if (isAdjacentTransposition(typed, candidate)) {
     return true;
   }
@@ -390,6 +400,54 @@ function getEffectiveMinAutoConfidence(learnedUses: number, fromExactFix: boolea
   // Italian (and future dedicated dicts) still allow good 1-edit cases,
   // but we avoid borderline auto-corrects for words the user may have intended.
   return Math.max(base, 0.55);
+}
+
+function shouldUseContextAutocorrectFix(
+  typedLower: string,
+  contextFix: ContextCorrectionCandidate,
+  boundary: boolean,
+): boolean {
+  const correction = contextFix.correction.split(/\s+/)[0]!.toLowerCase();
+  if (!correction || correction === typedLower) {
+    return false;
+  }
+  const learnedUses = getLearnedCounts().get(typedLower) ?? 0;
+  const edits = levenshtein(typedLower, correction);
+  const staticRank = wordRank(correction);
+  if (
+    shouldRejectFuzzyCorrection(
+      typedLower,
+      correction,
+      edits,
+      learnedUses,
+      staticRank,
+    )
+  ) {
+    return false;
+  }
+  if (
+    isDictionaryOneEditSubstitution(typedLower, correction, edits) &&
+    contextFix.confidence < 0.86
+  ) {
+    return false;
+  }
+  if (
+    !isPlausibleTypo(typedLower, correction, edits, staticRank) &&
+    contextFix.confidence < 0.9
+  ) {
+    return false;
+  }
+  if (
+    shouldRejectFuzzyForIntensity(
+      edits,
+      learnedUses,
+      boundary,
+      contextFix.confidence,
+    )
+  ) {
+    return false;
+  }
+  return true;
 }
 const MISSING_SPACE_MIN_LENGTH = 6;
 const MISSING_SPACE_STRONG_RANK = 12_000;
@@ -2221,10 +2279,18 @@ export function getAutocorrectCandidate(
         lightweight: options.lightweight,
       });
       if (contextFix && contextFix.correction.toLowerCase() !== lower) {
-        return {
-          correction: applyCaseToWord(contextFix.correction, typed),
-          confidence: contextFix.confidence,
-        };
+        if (
+          shouldUseContextAutocorrectFix(
+            lower,
+            contextFix,
+            options.boundary === true,
+          )
+        ) {
+          return {
+            correction: applyCaseToWord(contextFix.correction, typed),
+            confidence: contextFix.confidence,
+          };
+        }
       }
     }
   }
@@ -2626,7 +2692,12 @@ export function getSuggestionBarAutocorrect(
     if (
       contextFix &&
       contextFix.correction.toLowerCase() !== typed.toLowerCase() &&
-      contextFix.confidence >= getMinSuggestionBarConfidence()
+      contextFix.confidence >= getMinSuggestionBarConfidence() &&
+      shouldUseContextAutocorrectFix(
+        typed.toLowerCase(),
+        contextFix,
+        !fast,
+      )
     ) {
       const result = {
         keepTyped: offerKeepTyped ? typed : null,

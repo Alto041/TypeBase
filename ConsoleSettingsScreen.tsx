@@ -22,6 +22,7 @@ import {
   getKeyboardLayoutSettings,
   updateKeyboardLayoutSetting,
 } from './src/keyboard/settings/layoutStore';
+import {getWalkModeDebugSummary} from './src/keyboard/gesture/walkModeDebug';
 import {
   CONTROLLER_ACTION_LABELS,
   CONTROLLER_BUTTON_LABELS,
@@ -52,6 +53,10 @@ export function ConsoleSettingsScreen({
 }) {
   const [controllerSettings, setControllerSettings] =
     useState<ControllerSettings>(DEFAULT_CONTROLLER_SETTINGS);
+  const [walkDebugCompare, setWalkDebugCompare] = useState(false);
+  const [walkDebugSummary, setWalkDebugSummary] = useState(getWalkModeDebugSummary);
+
+  const walkDebugAnim = useRef(new Animated.Value(0)).current;
 
   const controllerEnabledAnim = useRef(new Animated.Value(0)).current;
 
@@ -60,8 +65,12 @@ export function ConsoleSettingsScreen({
       const layout = getKeyboardLayoutSettings();
       setControllerSettings(layout.controller);
       controllerEnabledAnim.setValue(layout.controller.enabled ? 1 : 0);
+      const debugOn = layout.walkModeDebugCompare === true;
+      setWalkDebugCompare(debugOn);
+      walkDebugAnim.setValue(debugOn ? 1 : 0);
+      setWalkDebugSummary(getWalkModeDebugSummary());
     });
-  }, [controllerEnabledAnim]);
+  }, [controllerEnabledAnim, walkDebugAnim]);
 
   // Handle Android back button/gesture to return to settings list
   useEffect(() => {
@@ -108,6 +117,16 @@ export function ConsoleSettingsScreen({
       },
     };
     persistControllerSettings(next);
+    void Haptics.selectionAsync().catch(() => {});
+  };
+
+  const toggleWalkDebugCompare = async () => {
+    const next = !walkDebugCompare;
+    setWalkDebugCompare(next);
+    void updateKeyboardLayoutSetting('walkModeDebugCompare', next);
+    animateToggle(walkDebugAnim, next ? 1 : 0);
+    if (next) playSwitchOnSound();
+    else playSwitchOffSound();
     void Haptics.selectionAsync().catch(() => {});
   };
 
@@ -183,6 +202,64 @@ export function ConsoleSettingsScreen({
             </View>
           ))}
         </View>
+
+        <Text style={styles.sectionLabel}>Walk Mode debug</Text>
+        <View style={styles.stack}>
+          <View style={styles.rowCard}>
+            <View style={styles.rowInner}>
+              <View style={styles.rowTextCol}>
+                <Text style={styles.rowTitle}>Compare wrong-key rates</Text>
+                <Text style={styles.rowHint}>
+                  Logs neighbor slips while walking vs still
+                </Text>
+              </View>
+              <View style={styles.toggleWrap}>
+                <Pressable
+                  onPress={toggleWalkDebugCompare}
+                  style={[
+                    styles.toggleTrack,
+                    walkDebugCompare && styles.toggleTrackOn,
+                  ]}>
+                  <Animated.View
+                    style={[
+                      styles.toggleThumb,
+                      {
+                        transform: [
+                          {
+                            translateX: walkDebugAnim.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [0, 18],
+                            }),
+                          },
+                        ],
+                      },
+                    ]}
+                  />
+                </Pressable>
+              </View>
+            </View>
+          </View>
+          {walkDebugCompare ? (
+            <>
+              <View style={styles.rowCard}>
+                <View style={styles.rowInner}>
+                  <Text style={styles.rowTitle}>Fixes while walking</Text>
+                  <Text style={styles.rowValue}>
+                    {walkDebugSummary.withWalkFixes}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.rowCard}>
+                <View style={styles.rowInner}>
+                  <Text style={styles.rowTitle}>Slips while still</Text>
+                  <Text style={styles.rowValue}>
+                    {walkDebugSummary.neighborSlipsWhileStill}
+                  </Text>
+                </View>
+              </View>
+            </>
+          ) : null}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -233,6 +310,14 @@ const styles = StyleSheet.create({
     fontFamily: 'FragmentMono',
     fontWeight: '600',
     letterSpacing: 0.6,
+  },
+  sectionLabel: {
+    fontSize: 13,
+    color: C.sub,
+    fontFamily: 'FragmentMono',
+    letterSpacing: TEXT_KERNING,
+    marginTop: 8,
+    marginBottom: 4,
   },
   stack: {
     gap: ROW_GAP,

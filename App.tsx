@@ -43,6 +43,7 @@ import { GeneralSettingsScreen } from './GeneralSettingsScreen';
 import { ConsoleSettingsScreen } from './ConsoleSettingsScreen';
 import { EngineStatsScreen } from './EngineStatsScreen';
 import { TapMapScreen } from './TapMapScreen';
+import { WalkModeScreen } from './WalkModeScreen';
 import { TouchIntelligenceHitsScreen } from './TouchIntelligenceHitsScreen';
 import { PersonalTypingScreen } from './PersonalTypingScreen';
 import { EssentialsScreen } from './EssentialsScreen';
@@ -309,6 +310,7 @@ function SetupScreen() {
   const [showConsoleSettings, setShowConsoleSettings] = useState(false);
   const [showEngineStats, setShowEngineStats] = useState(false);
   const [showTapMap, setShowTapMap] = useState(false);
+  const [showWalkMode, setShowWalkMode] = useState(false);
   const [showTouchHits, setShowTouchHits] = useState(false);
   const [showPersonalTyping, setShowPersonalTyping] = useState(false);
   const [showEssentials, setShowEssentials] = useState(false);
@@ -325,6 +327,7 @@ function SetupScreen() {
       setShowConsoleSettings(false);
       setShowEngineStats(false);
       setShowTapMap(false);
+      setShowWalkMode(false);
       setShowTouchHits(false);
       setShowPersonalTyping(false);
       setShowEssentials(false);
@@ -370,6 +373,14 @@ function SetupScreen() {
 
   const closeTapMap = () => {
     transitionTo(() => setShowTapMap(false));
+  };
+
+  const openWalkMode = () => {
+    transitionTo(() => setShowWalkMode(true));
+  };
+
+  const closeWalkMode = () => {
+    transitionTo(() => setShowWalkMode(false));
   };
 
   const openTouchHits = () => {
@@ -470,6 +481,14 @@ function SetupScreen() {
     );
   }
 
+  if (showWalkMode) {
+    return (
+      <View style={styles.setupRoot}>
+        <WalkModeScreen onBack={closeWalkMode} />
+      </View>
+    );
+  }
+
   if (showTouchHits) {
     return (
       <View style={styles.setupRoot}>
@@ -510,6 +529,7 @@ function SetupScreen() {
           onOpenConsole={openConsoleSettings}
           onOpenEngineStats={openEngineStats}
           onOpenTapMap={openTapMap}
+          onOpenWalkMode={openWalkMode}
           onOpenTouchHits={openTouchHits}
           onOpenPersonalTyping={openPersonalTyping}
           onOpenPremium={openPremiumUpgrade}
@@ -673,17 +693,19 @@ function LaunchpadScreen({
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.launchpadTitleRow}>
           <Text style={styles.pageTitle}>Launchpad</Text>
-          <Pressable
-            onPress={() => setLegacyPremiumNoticeOpen(open => !open)}
-            hitSlop={12}
-            accessibilityRole="button"
-            accessibilityLabel="Previous premium purchase help"
-            style={styles.launchpadAlertButton}>
-            <AlertIcon width={22} height={22} color={C.text} />
-          </Pressable>
+          {!loading && !isPremium ? (
+            <Pressable
+              onPress={() => setLegacyPremiumNoticeOpen(open => !open)}
+              hitSlop={12}
+              accessibilityRole="button"
+              accessibilityLabel="Previous premium purchase help"
+              style={styles.launchpadAlertButton}>
+              <AlertIcon width={22} height={22} color={C.text} />
+            </Pressable>
+          ) : null}
         </View>
 
-        {legacyPremiumNoticeOpen ? (
+        {!loading && !isPremium && legacyPremiumNoticeOpen ? (
           <View style={styles.legacyPremiumCard}>
             <Text style={styles.legacyPremiumBody}>
               If you were a Premium user before and paid for TypeBase, email us your

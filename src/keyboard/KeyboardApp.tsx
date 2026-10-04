@@ -142,6 +142,12 @@ import {
   subscribeTapMapChanges,
 } from './gesture/tapMap';
 import {
+  setWalkModeFeatureEnabled,
+  setWalkingActive,
+  subscribeWalkModeTypingActive,
+} from './gesture/walkModeRuntime';
+import {setWalkModeDebugCompare} from './gesture/walkModeDebug';
+import {
   serializeKeyExpansionsForNative,
   updatePredictiveHitboxes,
 } from './gesture/predictiveHitboxes';
@@ -582,6 +588,7 @@ type LetterKeyboardRowsProps = {
   typeLiftProcessing?: boolean;
   predictiveHitboxTick?: number;
   compactTypingNativeActive?: boolean;
+  walkModeTypingActive?: boolean;
 };
 
 const LetterKeyboardRows = React.memo(function LetterKeyboardRows({
@@ -610,6 +617,7 @@ const LetterKeyboardRows = React.memo(function LetterKeyboardRows({
   typeLiftProcessing,
   predictiveHitboxTick = 0,
   compactTypingNativeActive = false,
+  walkModeTypingActive = false,
 }: LetterKeyboardRowsProps) {
   const theme = useKeyboardTheme();
   const styles = useThemedStyles(createKeyboardAppStyles);
@@ -630,10 +638,12 @@ const LetterKeyboardRows = React.memo(function LetterKeyboardRows({
       onNativeFastPathShiftConsumed={onNativeFastPathShiftConsumed}
       shouldConsumeShiftForCommit={shouldConsumeShiftForCommit}
       onSpaceLongPress={onSpaceLongPress}>
-      {theme.developerEyeEnabled && theme.predictiveHitboxesEnabled ? (
+      {theme.developerEyeEnabled &&
+      (theme.predictiveHitboxesEnabled || walkModeTypingActive) ? (
         <PredictiveHitboxOverlay
           visible={layout === 'letters'}
           revision={predictiveHitboxTick}
+          walkModeActive={walkModeTypingActive}
         />
       ) : null}
       {rows.map((row, index) => (
@@ -887,6 +897,13 @@ function KeyboardBody({
   const stoppedTypingRef = useRef(true);
   const [zeroLatencyMode, setZeroLatencyMode] = useState(false);
   const zeroLatencyModeRef = useRef(false);
+  const [walkModeTypingActive, setWalkModeTypingActive] = useState(false);
+  const walkModeTypingActiveRef = useRef(false);
+  const walkModePrevActiveRef = useRef(false);
+  const walkSpaceHintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const [walkModeSpaceHint, setWalkModeSpaceHint] = useState(false);
   const [gamePerformanceActive, setGamePerformanceActive] = useState(false);
   const gamePerformanceModeRef = useRef(false);
   const autoGamePerformanceRef = useRef(false);
@@ -1315,6 +1332,85 @@ function KeyboardBody({
   useEffect(() => {
     void hydrateTouchIntelligenceHitsFromStorage();
     void hydrateTapMapFromStorage();
+  }, []);
+
+  useEffect(() => {
+    const syncWalkSettings = () => {
+      const layout = getKeyboardLayoutSettings();
+      const enabled = layout.walkModeEnabled !== false;
+      setWalkModeFeatureEnabled(enabled);
+      keyboardBridge.setWalkModeFeatureEnabled(enabled);
+      setWalkModeDebugCompare(layout.walkModeDebugCompare === true);
+      if (!enabled) {
+        setWalkingActive(false);
+        walkModeTypingActiveRef.current = false;
+        setWalkModeTypingActive(false);
+      }
+    };
+    void ensureLayoutLoaded().then(syncWalkSettings);
+    const layoutSub = DeviceEventEmitter.addListener(
+      KEYBOARD_LAYOUT_CHANGED_EVENT,
+      syncWalkSettings,
+    );
+    const walkSub = DeviceEventEmitter.addListener(
+      'walkModeStateChanged',
+      (payload: {active?: boolean}) => {
+        const layout = getKeyboardLayoutSettings();
+        if (layout.walkModeEnabled === false) {
+          setWalkingActive(false);
+          walkModeTypingActiveRef.current = false;
+          setWalkModeTypingActive(false);
+          return;
+        }
+        const next = payload?.active === true;
+        setWalkingActive(next);
+        walkModeTypingActiveRef.current = next;
+        setWalkModeTypingActive(next);
+        syncTouchIntelligenceToNative(true);
+      },
+    );
+    const unsubWalk = subscribeWalkModeTypingActive(active => {
+      walkModeTypingActiveRef.current = active;
+      setWalkModeTypingActive(active);
+    });
+    return () => {
+      layoutSub.remove();
+      walkSub.remove();
+      unsubWalk();
+    };
+  }, []);
+
+  useEffect(() => {
+    const wasActive = walkModePrevActiveRef.current;
+    if (wasActive !== walkModeTypingActive) {
+      setPredictiveHitboxTick(tick => tick + 1);
+    }
+    if (walkModeTypingActive && !wasActive) {
+      setWalkModeSpaceHint(true);
+      if (walkSpaceHintTimerRef.current) {
+        clearTimeout(walkSpaceHintTimerRef.current);
+      }
+      walkSpaceHintTimerRef.current = setTimeout(() => {
+        walkSpaceHintTimerRef.current = null;
+        setWalkModeSpaceHint(false);
+      }, 2400);
+    }
+    if (!walkModeTypingActive) {
+      setWalkModeSpaceHint(false);
+      if (walkSpaceHintTimerRef.current) {
+        clearTimeout(walkSpaceHintTimerRef.current);
+        walkSpaceHintTimerRef.current = null;
+      }
+    }
+    walkModePrevActiveRef.current = walkModeTypingActive;
+  }, [walkModeTypingActive]);
+
+  useEffect(() => {
+    return () => {
+      if (walkSpaceHintTimerRef.current) {
+        clearTimeout(walkSpaceHintTimerRef.current);
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -2772,6 +2868,7 @@ function KeyboardBody({
         edit.correction,
         getWordLetterTapsForTapMap(),
         layoutContext?.getLayouts(),
+        {walking: walkModeTypingActiveRef.current},
       );
       clearWordLetterTapsForTapMap();
       autocorrectUndoStackRef.current = [
@@ -3263,7 +3360,26 @@ function KeyboardBody({
         applyBoundary();
       };
 
+      const contextBeforeBoundary =
+        boundaryText.length > 0 && context.endsWith(boundaryText)
+          ? context.slice(0, -boundaryText.length)
+          : context;
+
       if (zeroLatency) {
+        const expansion = theme.essentialsEnabled
+          ? resolveEssentialExpansion(
+              contextBeforeBoundary,
+              theme.essentialsMatchCaseEnabled,
+            )
+          : null;
+        if (expansion) {
+          keyboardBridge.replaceWordPrefix(
+            expansion.triggerLength + boundaryLength,
+            expansion.value + boundaryText,
+          );
+          applyBoundary();
+          return;
+        }
         finishLightweightBoundary();
         return;
       }
@@ -3273,13 +3389,17 @@ function KeyboardBody({
       if (isMinimalSuggestionEngineReady()) {
         suggestionDictionariesReadyRef.current = true;
       }
-      if (endsWithRewriteCommand(context)) {
+
+      if (endsWithRewriteCommand(contextBeforeBoundary)) {
         keyboardBridge.replaceWordPrefix(REWRITE_COMMAND.length, '');
         await openRewritePanel();
         return;
       }
       const expansion = theme.essentialsEnabled
-        ? resolveEssentialExpansion(context, theme.essentialsMatchCaseEnabled)
+        ? resolveEssentialExpansion(
+            contextBeforeBoundary,
+            theme.essentialsMatchCaseEnabled,
+          )
         : null;
       if (expansion) {
         keyboardBridge.replaceWordPrefix(
@@ -3308,12 +3428,16 @@ function KeyboardBody({
           ? context.slice(0, -boundaryText.length)
           : context;
       const contextWord = extractCurrentWord(contextTail).trim();
+      const typedFallbackWord = typedWordFallback.trim();
       const contextMatchesTypedWord =
         typedWord.length >= 2 &&
         (context.endsWith(typedWord) ||
           context.endsWith(`${typedWord}${boundaryText}`) ||
           (contextWord.length > 0 &&
-            contextWord.toLowerCase() === typedWord.toLowerCase()));
+            contextWord.toLowerCase() === typedWord.toLowerCase()) ||
+          (options?.boundaryPreInserted &&
+            typedFallbackWord.length >= 2 &&
+            typedWord.toLowerCase() === typedFallbackWord.toLowerCase()));
 
       if (autocorrectOn && typedWord.length >= 2) {
         const nativeFix = options?.nativeAppliedCorrection?.trim();
@@ -3326,6 +3450,7 @@ function KeyboardBody({
             nativeFix,
             getWordLetterTapsForTapMap(),
             layoutContext?.getLayouts(),
+            {walking: walkModeTypingActiveRef.current},
           );
           clearWordLetterTapsForTapMap();
           const correctedTail =
@@ -3429,6 +3554,7 @@ function KeyboardBody({
             candidate!.correction,
             getWordLetterTapsForTapMap(),
             layoutContext?.getLayouts(),
+            {walking: walkModeTypingActiveRef.current},
           );
           clearWordLetterTapsForTapMap();
           keyboardBridge.replaceWordPrefix(
@@ -4269,6 +4395,23 @@ function KeyboardBody({
               }
               recordWordCommitted();
             }
+            void keyboardBridge.getTextBeforeCursor(96).then(context => {
+              const contextBeforeBoundary = context.endsWith(' ')
+                ? context.slice(0, -1)
+                : context;
+              const expansion = theme.essentialsEnabled
+                ? resolveEssentialExpansion(
+                    contextBeforeBoundary,
+                    theme.essentialsMatchCaseEnabled,
+                  )
+                : null;
+              if (expansion) {
+                keyboardBridge.replaceWordPrefix(
+                  expansion.triggerLength + 1,
+                  expansion.value + ' ',
+                );
+              }
+            });
             return;
           }
           applyInstantSuggestionBar('');
@@ -5037,7 +5180,9 @@ function KeyboardBody({
         if (!Number.isFinite(localX) || !Number.isFinite(localY)) {
           return;
         }
-        learnTapMapFromKeyTap(letter, localX, localY);
+        learnTapMapFromKeyTap(letter, localX, localY, undefined, {
+          walking: walkModeTypingActiveRef.current,
+        });
       },
     );
 
@@ -5364,7 +5509,8 @@ function KeyboardBody({
           compactTyping,
           Math.round(origin.pageX),
           Math.round(origin.pageY),
-          getTapMapNativeSignature(),
+          getTapMapNativeSignature(walkModeTypingActiveRef.current),
+          walkModeTypingActiveRef.current,
         ].join('|');
 
         if (
@@ -5430,7 +5576,8 @@ function KeyboardBody({
               previewPressedEnabled,
               previewDoodleEnabled,
               layout,
-              tapMap: serializeTapMapOffsetsForNative(),
+              tapMap: serializeTapMapOffsetsForNative(walkModeTypingActiveRef.current),
+              walkModeActive: walkModeTypingActiveRef.current,
               touchIntelligence,
               keyExpansions: touchIntelligence.keyExpansions,
               keys: keyLayouts.map(
@@ -5501,6 +5648,9 @@ function KeyboardBody({
     schedulePublishConfig();
     const unsubscribeTags = subscribeKeyReactTags(schedulePublishConfig);
     const unsubscribeTapMap = subscribeTapMapChanges(schedulePublishConfig);
+    const unsubscribeWalkMode = subscribeWalkModeTypingActive(() => {
+      schedulePublishConfig();
+    });
 
     return () => {
       cancelled = true;
@@ -5513,6 +5663,7 @@ function KeyboardBody({
       }
       unsubscribeTags();
       unsubscribeTapMap();
+      unsubscribeWalkMode();
     };
   }, [
     layout,
@@ -5591,6 +5742,7 @@ function KeyboardBody({
     }
     return {
       zeroLatencyMode,
+      walkModeSpaceHint: walkModeSpaceHint && walkModeTypingActive,
       spaceCursorSwipe:
         !zeroLatencyMode &&
         (layout === 'letters' || layout === 'numbers' || layout === 'symbols') &&
@@ -5685,6 +5837,8 @@ function KeyboardBody({
     scheduleRefreshSuggestions,
     theme.design,
     zeroLatencyMode,
+    walkModeSpaceHint,
+    walkModeTypingActive,
   ]);
 
   const handleGestureToggle = useCallback(
@@ -5920,6 +6074,7 @@ function KeyboardBody({
           itemsSelected={itemsSelected}
           emojiSelected={isEmojiMode}
           zeroLatencyActive={zeroLatencyMode && mode.type === 'typing'}
+          walkModeActive={walkModeTypingActive && mode.type === 'typing'}
           centerTitle={
             mode.type === 'items-menu'
               ? 'Plugins'
@@ -6266,6 +6421,7 @@ function KeyboardBody({
                     typeLiftProcessing={isAiAutocorrectProcessing}
                     predictiveHitboxTick={predictiveHitboxTick}
                     compactTypingNativeActive={compactTypingNativeActiveForKeys}
+                    walkModeTypingActive={walkModeTypingActive}
                   />
             </View>
           ) : null}

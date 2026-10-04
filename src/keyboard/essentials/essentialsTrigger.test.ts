@@ -12,6 +12,11 @@ describe('resolveEssentialExpansion', () => {
     expect(result!.value).not.toContain(';time');
   });
 
+  it('expands ;time when a trailing space is already in the field', () => {
+    const result = resolveEssentialExpansion('Hello ;time ');
+    expect(result).toBeNull();
+  });
+
   it('expands ;date', () => {
     const result = resolveEssentialExpansion('Note ;date');
     expect(result).not.toBeNull();

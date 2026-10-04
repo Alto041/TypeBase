@@ -8,6 +8,7 @@ import {
   serializeKeyExpansionsForNative,
 } from './predictiveHitboxes';
 import {learnTapMapFromKeyTap} from './tapMap';
+import {isWalkModeTypingActive} from './walkModeRuntime';
 import {recordTouchIntelligenceAnalysis} from './touchIntelligenceTelemetry';
 import {shouldSkipTouchIntelligenceWork} from '../zeroLatencyMode';
 
@@ -100,7 +101,9 @@ export function recordTouchIntelligenceTap(
     wordLetterTaps.shift();
   }
   if (!shouldSkipTouchIntelligenceWork()) {
-    learnTapMapFromKeyTap(normalized, localX, localY);
+    learnTapMapFromKeyTap(normalized, localX, localY, undefined, {
+      walking: isWalkModeTypingActive(),
+    });
   }
 }
 

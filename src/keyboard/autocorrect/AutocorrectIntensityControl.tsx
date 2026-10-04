@@ -1,9 +1,9 @@
 import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {Animated, Pressable, StyleSheet, Text, View} from 'react-native';
 
+import {SettingsSegmentBar} from '../../app/SettingsSegmentBar';
 import {triggerKeyHaptic} from '../haptics';
 import {useKeyboardThemeOrNull} from '../KeyboardThemeContext';
-import type {KeyboardTheme} from '../theme';
 import type {AutocorrectIntensity} from './types';
 
 const INTENSITY_OPTIONS: ReadonlyArray<{
@@ -16,8 +16,8 @@ const INTENSITY_OPTIONS: ReadonlyArray<{
   {id: 'high', label: 'High', settingsLabel: 'HIGH'},
 ];
 
-const SEGMENT_PADDING = 4;
 const TEXT_KERNING = -0.7;
+const SEGMENT_PADDING = 4;
 
 const SETTINGS = {
   bg: '#f2f2f4',
@@ -110,18 +110,27 @@ export function AutocorrectIntensityControl({
           ) : null}
         </View>
       ) : null}
-      <IntensitySegmentBar
-        intensity={intensity}
-        disabled={disabled}
-        palette={palette}
-        isSettings={isSettings}
-        onChange={next => {
-          if (appearance === 'keyboard') {
+      {isSettings ? (
+        <SettingsSegmentBar
+          options={INTENSITY_OPTIONS.map(option => ({
+            id: option.id,
+            label: option.settingsLabel,
+          }))}
+          value={intensity}
+          disabled={disabled}
+          onChange={onChange}
+        />
+      ) : (
+        <IntensitySegmentBar
+          intensity={intensity}
+          disabled={disabled}
+          palette={palette}
+          onChange={next => {
             triggerKeyHaptic();
-          }
-          onChange(next);
-        }}
-      />
+            onChange(next);
+          }}
+        />
+      )}
     </View>
   );
 }
@@ -130,13 +139,11 @@ function IntensitySegmentBar({
   intensity,
   disabled,
   palette,
-  isSettings,
   onChange,
 }: {
   intensity: AutocorrectIntensity;
   disabled: boolean;
   palette: SegmentPalette;
-  isSettings: boolean;
   onChange: (next: AutocorrectIntensity) => void;
 }) {
   const index = intensityIndex(intensity);
@@ -193,17 +200,17 @@ function IntensitySegmentBar({
         },
         text: {
           fontFamily: palette.fontFamily,
-          fontSize: isSettings ? 11 : 12,
+          fontSize: 12,
           letterSpacing: TEXT_KERNING,
           color: palette.text,
           textTransform: palette.labelUppercase ? 'uppercase' : 'none',
-          fontWeight: isSettings ? '400' : '600',
+          fontWeight: '600',
         },
         textOn: {
           color: palette.textOn,
         },
       }),
-    [disabled, isSettings, palette],
+    [disabled, palette],
   );
 
   return (
@@ -237,7 +244,6 @@ function IntensitySegmentBar({
       ) : null}
       {INTENSITY_OPTIONS.map(option => {
         const selected = intensity === option.id;
-        const label = isSettings ? option.settingsLabel : option.label;
         return (
           <Pressable
             key={option.id}
@@ -252,7 +258,7 @@ function IntensitySegmentBar({
             }}
             style={barStyles.item}>
             <Text style={[barStyles.text, selected && barStyles.textOn]}>
-              {label}
+              {option.label}
             </Text>
           </Pressable>
         );
