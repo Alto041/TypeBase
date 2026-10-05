@@ -6,6 +6,7 @@ import {
   DEFAULT_TAP_SOUND_FILE,
   ensureAllBundledTapSounds,
 } from './tapSoundStore';
+import {normalizeBundledTapSoundFile} from './tapSoundPresets';
 import {
   isValidMyRowPin,
   MY_ROW_SLOT_COUNT,
@@ -106,10 +107,14 @@ function normalizeLayout(raw: unknown): KeyboardLayoutSettings {
       typeof obj['customTapSoundEnabled'] === 'boolean'
         ? obj['customTapSoundEnabled']
         : defaults.customTapSoundEnabled,
-    customTapSoundFile:
-      typeof obj['customTapSoundFile'] === 'string' && obj['customTapSoundFile'].trim()
-        ? obj['customTapSoundFile'].trim()
-        : defaults.customTapSoundFile,
+    customTapSoundFile: (() => {
+      const raw =
+        typeof obj['customTapSoundFile'] === 'string' &&
+        obj['customTapSoundFile'].trim()
+          ? obj['customTapSoundFile'].trim()
+          : defaults.customTapSoundFile;
+      return normalizeBundledTapSoundFile(raw) ?? defaults.customTapSoundFile;
+    })(),
     keyHapticEnabled:
       typeof obj['keyHapticEnabled'] === 'boolean'
         ? obj['keyHapticEnabled']
@@ -203,8 +208,33 @@ async function loadFromStorage(): Promise<void> {
       // Keep the in-memory settings; the bundled asset install below is best-effort.
     }
   }
+  const storedTapFile =
+    typeof storedLayout?.customTapSoundFile === 'string'
+      ? storedLayout.customTapSoundFile.trim()
+      : '';
+  const normalizedTap = normalizeBundledTapSoundFile(storedTapFile);
+  const needsLegacyTapPresetMigration =
+    storedTapFile.length > 0 &&
+    normalizedTap != null &&
+    normalizedTap !== storedTapFile;
+  if (needsLegacyTapPresetMigration) {
+    try {
+      await setKeyboardLayoutSettings({
+        ...cachedLayout,
+        customTapSoundFile: normalizedTap,
+      });
+      cachedLayout = {
+        ...cachedLayout,
+        customTapSoundFile: normalizedTap,
+      };
+    } catch {
+      // In-memory normalize still applies for this session.
+    }
+  }
   try {
-    await ensureAllBundledTapSounds(needsDefaultTapMigration);
+    await ensureAllBundledTapSounds(
+      needsDefaultTapMigration || needsLegacyTapPresetMigration,
+    );
     keyboardBridge.syncCustomTapSound?.();
   } catch {
     // Tap sound install is optional; typing still works without it.

@@ -8,7 +8,8 @@ object NativeTypoCorrectionEngine {
   private const val MAX_CANDIDATES = 12
   private const val MIN_BIGRAM_ONE_EDIT = 4
   private const val BIGRAM_WEIGHT = 120
-  private const val PROTECTED_RANK = 20_000
+  /** Mirrors JS autocorrectEngine COMMON_WORD_RANK — skip typo pass on common words only. */
+  private const val PROTECTED_RANK = 4_000
 
   data class Candidate(val correction: String, val confidence: Double)
 

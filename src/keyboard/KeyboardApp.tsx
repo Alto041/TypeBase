@@ -351,7 +351,7 @@ const LETTER_SIDE_EFFECTS_DEBOUNCE_MS = 220;
 const BURST_TYPING_INTERVAL_MS = 200;
 const BURST_TYPING_IDLE_MS = 380;
 /** While keys are arriving, defer SymSpell bar work and native touch-intel sync. */
-const TYPING_HEAVY_DEFER_MS = 480;
+const TYPING_HEAVY_DEFER_MS = 620;
 /** Coalesce live suggestion-bar React updates (portrait + landscape). */
 const DEFERRED_BAR_FLUSH_MS = 52;
 /** Skip duplicate async native fast-path side effects after inline touch handling. */
@@ -374,8 +374,9 @@ function isBurstTyping(lastCommitAtMs: number, now = Date.now()): boolean {
 }
 
 function shouldUseLightSuggestionBar(lastTypingAtMs: number, now = Date.now()): boolean {
+  // Landscape already defers live bar updates via shouldDeferLiveSuggestionBar().
+  // Light mode here is for burst/churn only — not a permanent landscape downgrade.
   return (
-    isLandscapeTypingProfile() ||
     isTypingChurnActive(now) ||
     (lastTypingAtMs > 0 && now - lastTypingAtMs < TYPING_HEAVY_DEFER_MS)
   );
@@ -1113,7 +1114,7 @@ function KeyboardBody({
       touchIntelligencePreviousKeyRef.current =
         last.length === 1 && /[a-z]/.test(last) ? last : null;
       updateLivePrefixPredictiveHitboxes();
-      syncTouchIntelligenceToNative(true);
+      syncTouchIntelligenceToNative();
     },
     [syncTouchIntelligenceToNative, updateLivePrefixPredictiveHitboxes],
   );
@@ -1364,9 +1365,6 @@ function KeyboardBody({
         }
         const next = payload?.active === true;
         setWalkingActive(next);
-        walkModeTypingActiveRef.current = next;
-        setWalkModeTypingActive(next);
-        syncTouchIntelligenceToNative(true);
       },
     );
     const unsubWalk = subscribeWalkModeTypingActive(active => {
@@ -1383,7 +1381,10 @@ function KeyboardBody({
   useEffect(() => {
     const wasActive = walkModePrevActiveRef.current;
     if (wasActive !== walkModeTypingActive) {
-      setPredictiveHitboxTick(tick => tick + 1);
+      updateLivePrefixPredictiveHitboxes();
+      if (theme.developerEyeEnabled && theme.predictiveHitboxesEnabled) {
+        setPredictiveHitboxTick(tick => tick + 1);
+      }
     }
     if (walkModeTypingActive && !wasActive) {
       setWalkModeSpaceHint(true);
@@ -1403,7 +1404,7 @@ function KeyboardBody({
       }
     }
     walkModePrevActiveRef.current = walkModeTypingActive;
-  }, [walkModeTypingActive]);
+  }, [walkModeTypingActive, theme.developerEyeEnabled, theme.predictiveHitboxesEnabled, updateLivePrefixPredictiveHitboxes]);
 
   useEffect(() => {
     return () => {
@@ -2793,14 +2794,11 @@ function KeyboardBody({
 
   const flushTypingIdleSideEffects = useCallback(() => {
     updateLivePrefixPredictiveHitboxes();
+    syncTouchIntelligenceToNative(true);
     if (shouldDeferHeavyTypingSideEffects()) {
-      if (!shouldDeferNativeTouchIntelligenceSync()) {
-        syncTouchIntelligenceToNative(true);
-      }
       scheduleDeferredLiveSuggestionBar();
       return;
     }
-    syncTouchIntelligenceToNative(true);
     flushPendingNativeSuggestions();
     applyInstantSuggestionBar(livePrefixRef.current);
   }, [
@@ -4730,7 +4728,9 @@ function KeyboardBody({
           livePrefixRef.current,
         );
         touchIntelligencePreviousKeyRef.current = text.toLowerCase();
-        updateLivePrefixPredictiveHitboxes();
+        if (!burstTyping) {
+          updateLivePrefixPredictiveHitboxes();
+        }
         if (!shouldDeferNativeTouchIntelligenceSync()) {
           syncTouchIntelligenceToNative();
         }
@@ -4743,7 +4743,9 @@ function KeyboardBody({
           clearMidWordAutoShift();
         }
         touchIntelligencePreviousKeyRef.current = null;
-        updateLivePrefixPredictiveHitboxes();
+        if (!burstTyping) {
+          updateLivePrefixPredictiveHitboxes();
+        }
         if (!shouldDeferNativeTouchIntelligenceSync()) {
           syncTouchIntelligenceToNative();
         }
@@ -5131,9 +5133,6 @@ function KeyboardBody({
         const commitSeq = boundaryCommitSeqRef.current;
         livePrefixRef.current = '';
         touchIntelligencePreviousKeyRef.current = null;
-        if (typedWord.trim()) {
-          previousWordRef.current = typedWord.trim().toLowerCase();
-        }
         applyInstantSuggestionBar('');
         void commitTypedWordBoundary(
           () => {},
@@ -5495,7 +5494,8 @@ function KeyboardBody({
           return;
         }
 
-        const compactTyping = COMPACT_NATIVE_TYPING_ENABLED && originReady;
+        const compactTyping =
+          COMPACT_NATIVE_TYPING_ENABLED && originReady && landscape;
         const nativeFastPathEnabled = nativeFastPathEligible && compactTyping;
         const fastPathSignature = [
           landscape,

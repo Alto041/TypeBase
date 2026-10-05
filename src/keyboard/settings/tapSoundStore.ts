@@ -12,7 +12,7 @@ import {
 } from './tapSoundPresets';
 
 export const TAP_SOUND_DIR_NAME = 'keyboard_tap_sounds';
-export const DEFAULT_TAP_SOUND_FILE: BundledTapSoundFileName = 'keytap_soft.wav';
+export const DEFAULT_TAP_SOUND_FILE: BundledTapSoundFileName = 'electronic_1_blip.wav';
 const TAP_SOUND_BASENAME = 'custom_tap';
 
 const AUDIO_MIME_TYPES = [
@@ -228,5 +228,5 @@ export async function previewCustomTapSound(): Promise<void> {
   keyboardBridge.playCustomTapSound?.();
 }
 
-export {BUNDLED_TAP_SOUND_PRESETS, isBundledTapSoundFile, labelForTapSoundFile} from './tapSoundPresets';
+export {BUNDLED_TAP_SOUND_PRESETS, isBundledTapSoundFile, labelForTapSoundFile, normalizeBundledTapSoundFile} from './tapSoundPresets';
 export type {BundledTapSoundFileName} from './tapSoundPresets';

@@ -124,7 +124,7 @@ export function updatePredictiveHitboxes(
   },
 ): PredictiveHitboxState {
   const enabled = options?.enabled ?? true;
-  const computeKey = `${enabled ? 1 : 0}|${options?.lang ?? ''}|${wordPrefix}|${layouts.map(l => l.id).join(',')}`;
+  const computeKey = `${enabled ? 1 : 0}|${isWalkModeTypingActive() ? 1 : 0}|${options?.lang ?? ''}|${wordPrefix}|${layouts.map(l => l.id).join(',')}`;
   if (computeKey === lastComputeKey) {
     return activeState;
   }

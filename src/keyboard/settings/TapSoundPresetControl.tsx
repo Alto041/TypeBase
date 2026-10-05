@@ -7,9 +7,9 @@ import {
 } from './tapSoundPresets';
 
 const SEGMENT_LABELS: Record<BundledTapSoundFileName, string> = {
-  'keytap_soft.wav': 'SOFT',
-  'keytap_soft_low.wav': 'LOW',
-  'keytap_soft_high.wav': 'HIGH',
+  'electronic_1_blip.wav': 'BLIP',
+  'electronic_2_glass.wav': 'GLASS',
+  'electronic_3_pulse.wav': 'PULSE',
   'typebase_keytap_soft.wav': 'CLASS',
 };
 

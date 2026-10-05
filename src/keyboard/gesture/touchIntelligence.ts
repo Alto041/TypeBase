@@ -63,7 +63,7 @@ let neighborCacheKey = '';
 let neighborCache = new Map<string, Set<string>>();
 let lastNativeContextPayload = '';
 let lastNativeContextSyncAtMs = 0;
-const NATIVE_TOUCH_INTEL_SYNC_MIN_MS = 48;
+const NATIVE_TOUCH_INTEL_SYNC_MIN_MS = 96;
 
 export function setTouchIntelligenceTypingContextProvider(
   provider: (() => TouchIntelligenceTypingContext) | null,

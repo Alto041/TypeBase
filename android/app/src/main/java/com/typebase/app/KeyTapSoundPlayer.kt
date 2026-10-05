@@ -14,13 +14,19 @@ object KeyTapSoundPlayer {
   private const val LAYOUT_KEY = "keyboard_layout"
   private const val DESIGN_KEY = "keyboard_design"
   private const val TAP_SOUND_DIR = "keyboard_tap_sounds"
-  private const val DEFAULT_TAP_SOUND_FILE = "keytap_soft.wav"
+  private const val DEFAULT_TAP_SOUND_FILE = "electronic_1_blip.wav"
   private const val LEGACY_DEFAULT_TAP_SOUND_FILE = "1.mp3"
+  private val LEGACY_TAP_SOUND_ALIASES =
+      mapOf(
+          "keytap_soft.wav" to "electronic_1_blip.wav",
+          "keytap_soft_low.wav" to "electronic_2_glass.wav",
+          "keytap_soft_high.wav" to "electronic_3_pulse.wav",
+      )
   private val BUNDLED_TAP_ASSETS =
       mapOf(
-          "keytap_soft.wav" to "sounds/keytap_soft.wav",
-          "keytap_soft_low.wav" to "sounds/keytap_soft_low.wav",
-          "keytap_soft_high.wav" to "sounds/keytap_soft_high.wav",
+          "electronic_1_blip.wav" to "sounds/electronic_1_blip.wav",
+          "electronic_2_glass.wav" to "sounds/electronic_2_glass.wav",
+          "electronic_3_pulse.wav" to "sounds/electronic_3_pulse.wav",
           "typebase_keytap_soft.wav" to "sounds/Key/typebase_keytap_soft.wav",
       )
   private const val MACINTOSH_ASSET = "sounds/mac-sfx.mp3"
@@ -107,8 +113,13 @@ object KeyTapSoundPlayer {
     }
   }
 
+  private fun resolveBundledTapSoundName(fileName: String): String {
+    return LEGACY_TAP_SOUND_ALIASES[fileName] ?: fileName
+  }
+
   private fun isBundledTapSound(fileName: String): Boolean {
-    if (BUNDLED_TAP_ASSETS.containsKey(fileName)) {
+    val resolved = resolveBundledTapSoundName(fileName)
+    if (BUNDLED_TAP_ASSETS.containsKey(resolved)) {
       return true
     }
     return fileName == LEGACY_DEFAULT_TAP_SOUND_FILE || fileName == "typebase_keytap_soft.mp3"
@@ -118,7 +129,8 @@ object KeyTapSoundPlayer {
     if (fileName == "typebase_keytap_soft.mp3") {
       return BUNDLED_TAP_ASSETS["typebase_keytap_soft.wav"]
     }
-    return BUNDLED_TAP_ASSETS[fileName]
+    val resolved = resolveBundledTapSoundName(fileName)
+    return BUNDLED_TAP_ASSETS[resolved]
   }
 
   private fun tapSoundStorageDir(appContext: Context): File {
@@ -131,8 +143,9 @@ object KeyTapSoundPlayer {
 
   /** Prefer JS-copied file; otherwise extract bundled WAV into app files (IME-safe). */
   private fun resolveBundledTapSoundFile(appContext: Context, fileName: String): File? {
+    val resolvedName = resolveBundledTapSoundName(fileName)
     val dir = tapSoundStorageDir(appContext)
-    val preferred = File(dir, fileName)
+    val preferred = File(dir, resolvedName)
     if (preferred.exists() && preferred.isFile && preferred.length() > 64) {
       return preferred
     }
@@ -159,6 +172,7 @@ object KeyTapSoundPlayer {
   }
 
   private fun loadBundledTapSound(appContext: Context, fileName: String) {
+    val resolvedName = resolveBundledTapSoundName(fileName)
     val soundFile = resolveBundledTapSoundFile(appContext, fileName)
     if (soundFile == null) {
       release()
@@ -166,7 +180,7 @@ object KeyTapSoundPlayer {
       loadedFile = null
       return
     }
-    val assetPath = bundledAssetPath(fileName) ?: soundFile.absolutePath
+    val assetPath = bundledAssetPath(resolvedName) ?: soundFile.absolutePath
     val loadedToken = "asset:$assetPath"
     loadTapSoundFile(appContext, soundFile, loadedToken)
   }

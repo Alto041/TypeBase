@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import {isTypingChurnActive} from '../zeroLatencyMode';
 import {getPredictiveHitboxState} from './predictiveHitboxes';
 import {learnTapMapFromMismatch, recordWalkingTapFixed} from './tapMap';
 import {isWalkModeTypingActive} from './walkModeRuntime';
@@ -233,8 +234,15 @@ export function recordTouchIntelligenceAnalysis(
     });
   }
 
-  void persistTouchIntelligenceRecord(records[0]);
+  schedulePersistIfIdle(records[0]);
   notify();
+}
+
+function schedulePersistIfIdle(record: TouchIntelligenceHitRecord): void {
+  if (isTypingChurnActive()) {
+    return;
+  }
+  void persistTouchIntelligenceRecord(record);
 }
 
 type NativeTouchIntelligenceHitPayload = {
@@ -344,7 +352,7 @@ export function annotateLastTouchIntelligenceCommit(
     record.localY,
   );
 
-  void persistTouchIntelligenceRecord(record);
+  schedulePersistIfIdle(record);
   notify();
 }
 

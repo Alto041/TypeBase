@@ -13,8 +13,8 @@ import kotlin.math.min
 object NativeContextCorrectionEngine {
   private const val MAX_SYMSPELL = 8
   private const val MAX_BIGRAM_SEEDS = 16
-  private const val PROTECTED_RANK = 20_000
-  private const val MIN_BIGRAM_FOR_ONE_EDIT = 4
+  /** Mirrors JS contextCorrectionEngine — only ultra-common words skip context fixes. */
+  private const val PROTECTED_RANK = 1_200
 
   data class Candidate(val correction: String, val confidence: Double)
 
@@ -46,7 +46,7 @@ object NativeContextCorrectionEngine {
     }
 
     val maxEdits = maxEditDistance(typedLower.length)
-    val candidates = gatherCandidates(context, typedLower, prev, maxEdits)
+    val candidates = gatherCandidates(context, typedLower, prev, maxEdits, intensity)
     if (candidates.isEmpty()) {
       return null
     }
@@ -65,13 +65,18 @@ object NativeContextCorrectionEngine {
     }
     runners.sortByDescending { it.rawScore }
 
+    val minBigramOneEdit =
+        AutocorrectIntensityProfile.contextMinBigramOneEditBoundary(intensity)
+    val oneEditScoreMargin =
+        AutocorrectIntensityProfile.contextOneEditScoreMarginBoundary(intensity)
+
     val best = runners.firstOrNull() ?: return null
     val second = runners.getOrNull(1)
     if (best.edits == 1) {
-      if (best.bigram < MIN_BIGRAM_FOR_ONE_EDIT) {
+      if (best.bigram < minBigramOneEdit) {
         return null
       }
-      if (second != null && best.rawScore - second.rawScore < 12.0) {
+      if (second != null && best.rawScore - second.rawScore < oneEditScoreMargin) {
         return null
       }
     }
@@ -103,6 +108,7 @@ object NativeContextCorrectionEngine {
       typedLower: String,
       previousWord: String,
       maxEdits: Int,
+      intensity: String,
   ): Map<String, Int> {
     val out = LinkedHashMap<String, Int>()
     fun add(word: String, edits: Int) {
@@ -129,9 +135,11 @@ object NativeContextCorrectionEngine {
       }
     }
 
+    val minBigramOneEdit =
+        AutocorrectIntensityProfile.contextMinBigramOneEditBoundary(intensity)
     for ((word, edits) in SwipeWordDictionary.findEditDistanceCandidates(context, typedLower, maxEdits, MAX_SYMSPELL)) {
       val bigram = ContextBigrams.combinedFollowScore(context, previousWord, word)
-      if (edits == 1 && bigram < MIN_BIGRAM_FOR_ONE_EDIT) {
+      if (edits == 1 && bigram < minBigramOneEdit) {
         continue
       }
       if (edits >= 2 && bigram <= 0) {

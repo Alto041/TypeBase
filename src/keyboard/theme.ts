@@ -116,7 +116,7 @@ export const DEFAULT_KEYBOARD_LAYOUT_SETTINGS: KeyboardLayoutSettings = {
   keyboardHeightOffset: 0,
   bottomClearanceAdjust: 0,
   customTapSoundEnabled: false,
-  customTapSoundFile: 'keytap_soft.wav',
+  customTapSoundFile: 'electronic_1_blip.wav',
   keyHapticEnabled: true,
   keyHapticPulseMs: 11,
   autoCapitalizeEnabled: true,
